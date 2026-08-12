@@ -131,6 +131,20 @@ const EncounterOutcomes = Object.freeze({
         messages = [unsecuredLootMessage(itemId)];
         break;
       }
+      case "gainWeightedRandomUnsecuredItem": {
+        const validItems = (effect.items ?? []).filter((entry) => (
+          ITEM_DEFINITIONS[entry.itemId] && Number(entry.weight) > 0
+        ));
+        const selected = weightedChoice(validItems);
+        if (!selected) {
+          break;
+        }
+        const item = ITEM_DEFINITIONS[selected.itemId];
+        addUnsecuredItem(expedition, selected.itemId, effect.quantity ?? 1);
+        messages = [unsecuredLootMessage(selected.itemId)];
+        resultText = effect.resultText?.replaceAll("{itemName}", item.name) ?? resultText;
+        break;
+      }
       case "gainUnsecuredItem":
         if (!ITEM_DEFINITIONS[effect.itemId]) {
           break;
@@ -183,7 +197,12 @@ const EncounterOutcomes = Object.freeze({
         if (!Array.isArray(effect.options) || effect.options.length === 0) {
           break;
         }
-        const selected = effect.options[randomInteger(0, effect.options.length - 1)];
+        const weightedOptions = effect.options.every((option) => (
+          !Array.isArray(option) && Number(option.weight) > 0
+        ));
+        const selected = weightedOptions
+          ? weightedChoice(effect.options)
+          : effect.options[randomInteger(0, effect.options.length - 1)];
         const selectedEffects = Array.isArray(selected) ? selected : selected.effects;
         const resolved = this.resolveAll(selectedEffects, context);
         messages = resolved.messages;

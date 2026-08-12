@@ -92,12 +92,20 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Search the Camp",
             outcomes: [
               {
-                type: "gainRandomUnsecuredItem",
-                itemIds: [
-                  "old_coin", "hunting_supplies", "bandages", "rope", "silver_brooch",
-                  "amber_beads", "decorated_buckle", "coin_purse",
+                type: "gainWeightedRandomUnsecuredItem",
+                items: [
+                  { itemId: "old_coin", weight: 5 },
+                  { itemId: "bandages", weight: 5 },
+                  { itemId: "dried_herbs", weight: 5 },
+                  { itemId: "hunting_supplies", weight: 4 },
+                  { itemId: "rope", weight: 3 },
+                  { itemId: "silver_brooch", weight: 3 },
+                  { itemId: "amber_beads", weight: 3 },
+                  { itemId: "decorated_buckle", weight: 4 },
+                  { itemId: "coin_purse", weight: 2 },
                 ],
                 quantity: 1,
+                resultText: "Among the abandoned camp's scattered belongings, Arthur finds {itemName}.",
               },
             ],
             resultText: "The search turns up one mundane item worth carrying home. It remains unsecured until a safe return.",
@@ -486,14 +494,20 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "search_cart",
             label: "Search the Cart",
             outcomes: [{
-              type: "gainRandomUnsecuredItem",
-              itemIds: [
-                "bandages", "dried_herbs", "silver_brooch", "decorated_buckle",
-                "merchants_ring", "embroidered_gloves", "coin_purse",
+              type: "gainWeightedRandomUnsecuredItem",
+              items: [
+                { itemId: "bandages", weight: 5 },
+                { itemId: "dried_herbs", weight: 5 },
+                { itemId: "decorated_buckle", weight: 5 },
+                { itemId: "silver_brooch", weight: 3 },
+                { itemId: "coin_purse", weight: 3 },
+                { itemId: "embroidered_gloves", weight: 2 },
+                { itemId: "merchants_ring", weight: 2 },
+                { itemId: "silver_cup", weight: 1 },
               ],
               quantity: 1,
+              resultText: "Beneath the overturned cart, Arthur finds {itemName} among the scattered cargo.",
             }],
-            resultText: "Beneath the overturned cart, Arthur finds something the merchant left behind.",
             pendingAction: {
               text: "Arthur searches beneath the cart and through its scattered cargo...",
               delayProfile: "search",
@@ -641,9 +655,15 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "randomChance",
               chance: 0.45,
               effects: [{
-                type: "gainRandomUnsecuredItem",
-                itemIds: ["dried_herbs", "strange_seeds", "amber_beads", "polished_agate"],
+                type: "gainWeightedRandomUnsecuredItem",
+                items: [
+                  { itemId: "dried_herbs", weight: 6 },
+                  { itemId: "polished_agate", weight: 4 },
+                  { itemId: "amber_beads", weight: 3 },
+                  { itemId: "strange_seeds", weight: 1 },
+                ],
                 quantity: 1,
+                resultText: "Among the oak's roots, Arthur finds {itemName}.",
               }],
               resultText: "Among the oak's roots, Arthur finds useful growth worth carrying home.",
               elseResultText: "Arthur examines the roots, bark, and fallen leaves, but finds nothing useful.",
@@ -755,14 +775,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "search_fire",
             label: "Search the Fire",
             outcomes: [{
-              type: "gainRandomUnsecuredItem",
-              itemIds: [
-                "old_coin", "hunters_charm", "strange_seeds", "carved_ivory_token",
-                "bronze_figurine", "polished_agate",
+              type: "gainWeightedRandomUnsecuredItem",
+              items: [
+                { itemId: "old_coin", weight: 6 },
+                { itemId: "polished_agate", weight: 5 },
+                { itemId: "bronze_figurine", weight: 3 },
+                { itemId: "carved_ivory_token", weight: 3 },
+                { itemId: "hunters_charm", weight: 1 },
+                { itemId: "strange_seeds", weight: 1 },
               ],
               quantity: 1,
+              resultText: "Among the cold ashes and disturbed earth, Arthur finds {itemName}.",
             }],
-            resultText: "Among the cold ashes and disturbed earth, Arthur finds an object worth carrying home.",
             pendingAction: {
               text: "Arthur sifts through the cold ashes and searches the earth around the old fire...",
               delayProfile: "search",
@@ -1026,6 +1050,410 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     },
   },
 
+  glint_in_mud: {
+    id: "glint_in_mud",
+    title: "Glint in the Mud",
+    description: "Something catches the light in the mud beside the road.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
+    weight: 3,
+    minimumDistance: 4,
+    tags: ["discovery", "loot", "travel"],
+    repeatable: true,
+    maxOccurrencesPerRun: 2,
+    requirements: [],
+    stages: { start: {
+      text: "A small edge gleams beneath a film of rainwater and dirt.",
+      choices: [{
+        id: "investigate",
+        label: "Investigate",
+        outcomes: [{
+          type: "gainWeightedRandomUnsecuredItem",
+          items: [
+            { itemId: "old_coin", weight: 5 },
+            { itemId: "decorated_buckle", weight: 5 },
+            { itemId: "polished_agate", weight: 4 },
+            { itemId: "silver_brooch", weight: 2 },
+            { itemId: "amber_beads", weight: 2 },
+          ],
+          resultText: "Arthur brushes away the mud and finds {itemName}.",
+        }],
+        pendingAction: {
+          text: "Arthur kneels and brushes the mud aside...",
+          delayProfile: "physical",
+        },
+        endEncounter: true,
+      }],
+    } },
+  },
+
+  discarded_bundle: {
+    id: "discarded_bundle",
+    title: "Discarded Bundle",
+    description: "A weathered cloth bundle lies caught beneath a hedge.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    directions: ["outbound", "returning"],
+    weight: 3,
+    minimumDistance: 5,
+    tags: ["discovery", "supplies", "loot"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "The cloth is stained by rain, but the cord around it remains tightly knotted.",
+      choices: [
+        {
+          id: "open_bundle",
+          label: "Open the Bundle",
+          outcomes: [{
+            type: "gainWeightedRandomUnsecuredItem",
+            items: [
+              { itemId: "bandages", weight: 5 },
+              { itemId: "dried_herbs", weight: 5 },
+              { itemId: "old_coin", weight: 4 },
+              { itemId: "coin_purse", weight: 3 },
+              { itemId: "embroidered_gloves", weight: 2 },
+            ],
+            resultText: "Inside the bundle, Kay finds {itemName}.",
+          }],
+          pendingAction: {
+            text: "Kay pulls the bundle free and cuts the cord...",
+            delayProfile: "physical",
+          },
+          endEncounter: true,
+        },
+        { id: "leave", label: "Leave It", resultText: "Arthur leaves the weathered bundle beneath the hedge.", endEncounter: true },
+      ],
+    } },
+  },
+
+  beneath_the_roots: {
+    id: "beneath_the_roots",
+    title: "Something Beneath the Roots",
+    description: "The roots of an old tree have pushed something dark from the soil.",
+    regionId: "broceliande",
+    pathIds: ["overgrown_trail"],
+    directions: ["outbound"],
+    weight: 3,
+    minimumDistance: 18,
+    tags: ["discovery", "deep_forest", "loot"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "Only one smooth corner is visible between the thick roots.",
+      choices: [
+        {
+          id: "dig_out",
+          label: "Dig It Out",
+          outcomes: [{
+            type: "gainWeightedRandomUnsecuredItem",
+            items: [
+              { itemId: "bronze_figurine", weight: 5 },
+              { itemId: "carved_ivory_token", weight: 5 },
+              { itemId: "amber_beads", weight: 5 },
+              { itemId: "hunters_charm", weight: 2 },
+              { itemId: "antler_fragment", weight: 2 },
+              { itemId: "green_glass_vial", weight: 1 },
+            ],
+            resultText: "Arthur clears the soil and draws out {itemName}.",
+          }],
+          pendingAction: {
+            text: "Arthur clears away the damp soil around the roots...",
+            delayProfile: "search",
+          },
+          endEncounter: true,
+        },
+        { id: "leave", label: "Leave It Buried", resultText: "Arthur leaves the half-buried object beneath the roots.", endEncounter: true },
+      ],
+    } },
+  },
+
+  lost_purse: {
+    id: "lost_purse",
+    title: "Lost Purse",
+    description: "A small leather purse lies near the wagon ruts.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    directions: ["outbound", "returning"],
+    weight: 3,
+    minimumDistance: 4,
+    tags: ["discovery", "road", "loot"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "Mud covers one side, but the clasp is still closed.",
+      choices: [
+        {
+          id: "pick_up",
+          label: "Pick It Up",
+          outcomes: [{
+            type: "gainWeightedRandomUnsecuredItem",
+            items: [
+              { itemId: "old_coin", weight: 5 },
+              { itemId: "coin_purse", weight: 4 },
+              { itemId: "merchants_ring", weight: 2 },
+            ],
+            resultText: "Arthur checks the purse and recovers {itemName}.",
+          }],
+          pendingAction: { text: "Arthur lifts the purse from the wagon ruts and checks its contents...", delayProfile: "physical" },
+          endEncounter: true,
+        },
+        { id: "leave", label: "Leave It", resultText: "Arthur leaves the purse beside the road.", endEncounter: true },
+      ],
+    } },
+  },
+
+  broken_bridge: {
+    id: "broken_bridge",
+    title: "Broken Bridge",
+    description: "A narrow wooden bridge crosses a steep ravine ahead. Several planks have collapsed into the darkness below.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 10,
+    tags: ["obstacle", "road", "rope"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "The remaining boards creak over the open ravine.",
+      choices: [
+        {
+          id: "cross_carefully",
+          label: "Cross Carefully",
+          outcomes: [{
+            type: "randomChance", chance: 0.25,
+            effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+            resultText: "A plank breaks beneath Arthur. He catches the rail but reaches the far side injured.",
+            elseResultText: "Arthur and Kay test each plank and cross the damaged bridge safely.",
+          }],
+          pendingAction: { text: "Arthur and Kay carefully cross the damaged bridge...", delayProfile: "physical" },
+          endEncounter: true,
+        },
+        {
+          id: "use_rope", label: "Use Rope",
+          requirements: [{ type: "carriedItem", itemId: "rope", unavailable: "locked", lockedLabel: "Requires Rope" }],
+          resultText: "With the rope secured as a handline, the company crosses safely.",
+          pendingAction: { text: "Arthur secures the rope across the broken span...", delayProfile: "physical" },
+          endEncounter: true,
+        },
+        {
+          id: "find_route", label: "Find Another Route",
+          costs: [{ type: "modifyResource", resource: "provisions", amount: -3 }],
+          resultText: "The company spends supplies on a long detour and reaches the far side safely.",
+          pendingAction: { text: "Arthur searches the ravine for another crossing...", delayProfile: "search" },
+          endEncounter: true,
+        },
+      ],
+    } },
+  },
+
+  hermits_fire: {
+    id: "hermits_fire",
+    title: "The Hermit's Fire",
+    description: "Smoke curls above the trees. In a small clearing, a crude shelter stands beside a dying fire. Whoever lives here is nowhere to be seen.",
+    regionId: "broceliande",
+    pathIds: ["overgrown_trail"],
+    directions: ["outbound"],
+    weight: 3,
+    minimumDistance: 18,
+    tags: ["shelter", "mystery", "discovery"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "The embers are warm and recent footprints circle the shelter.",
+      choices: [
+        {
+          id: "wait", label: "Wait for the Hermit",
+          outcomes: [{
+            type: "randomChance", chance: 0.55,
+            effects: [{
+              type: "gainWeightedRandomUnsecuredItem",
+              items: [{ itemId: "dried_herbs", weight: 3 }, { itemId: "bandages", weight: 2 }],
+              resultText: "Nobody returns, but near the occupied shelter Arthur notices {itemName} left by the fire.",
+            }],
+            elseResultText: "Nobody returns. The warm embers and recent footprints are the only signs of the absent occupant.",
+          }],
+          pendingAction: { text: "Arthur and Kay wait quietly near the dying fire...", delayProfile: "rest" },
+          endEncounter: true,
+        },
+        {
+          id: "search", label: "Search the Shelter",
+          outcomes: [{
+            type: "randomChance", chance: 0.7,
+            effects: [{
+              type: "gainWeightedRandomUnsecuredItem",
+              items: [
+                { itemId: "dried_herbs", weight: 4 },
+                { itemId: "bandages", weight: 4 },
+                { itemId: "carved_ivory_token", weight: 2 },
+              ],
+              resultText: "Inside the recently occupied shelter, Arthur finds {itemName}.",
+            }],
+            elseResultText: "Arthur searches the crude shelter but finds nothing useful.",
+          }],
+          pendingAction: { text: "Arthur searches the crude shelter and the ground around the fire...", delayProfile: "search" },
+          endEncounter: true,
+        },
+        { id: "leave", label: "Leave It Alone", resultText: "Arthur leaves the empty shelter and its absent occupant undisturbed.", endEncounter: true },
+      ],
+    } },
+  },
+
+  wolves_in_brush: {
+    id: "wolves_in_brush",
+    title: "Wolves in the Brush",
+    description: "Low growls follow the company through the undergrowth. Several pairs of eyes move between the trees.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 16,
+    tags: ["animal", "danger", "survival"],
+    repeatable: true,
+    maxOccurrencesPerRun: 2,
+    requirements: [],
+    stages: { start: {
+      text: "The wolves keep pace just beyond the nearest trees.",
+      choices: [
+        {
+          id: "stand_ground", label: "Stand Your Ground",
+          outcomes: [{
+            type: "randomChance", chance: 0.25,
+            effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+            resultText: "A wolf darts through Arthur's guard before the pack retreats, leaving him injured.",
+            elseResultText: "Arthur and Kay hold firm until the wolves retreat into the brush.",
+          }],
+          pendingAction: { text: "Arthur and Kay prepare to drive the wolves away...", delayProfile: "combat" },
+          endEncounter: true,
+        },
+        {
+          id: "throw_food", label: "Throw Them Food",
+          costs: [{ type: "modifyResource", resource: "provisions", amount: -3 }],
+          resultText: "The wolves seize the thrown food and disappear between the trees.",
+          endEncounter: true,
+        },
+        {
+          id: "make_noise", label: "Make Noise and Move Quickly",
+          outcomes: [{
+            type: "randomChance", chance: 0.45,
+            effects: [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+            resultText: "The hurried retreat shakes loose a small share of supplies, but the wolves fall behind.",
+            elseResultText: "The company's noise and quick pace drive the wolves away without loss.",
+          }],
+          pendingAction: { text: "Arthur and Kay shout and strike the trees as they move quickly onward...", delayProfile: "physical" },
+          endEncounter: true,
+        },
+      ],
+    } },
+  },
+
+  ruined_wayside_shrine: {
+    id: "ruined_wayside_shrine",
+    title: "Ruined Wayside Shrine",
+    description: "An old stone shrine stands beside the road, half-swallowed by moss and roots.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound"],
+    weight: 3,
+    minimumDistance: 18,
+    tags: ["atmosphere", "shrine", "loot"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "Rain and roots have worn the carved face almost smooth.",
+      choices: [
+        {
+          id: "examine", label: "Examine the Shrine",
+          outcomes: [{
+            type: "randomChance", chance: 0.4,
+            effects: [{
+              type: "gainWeightedRandomUnsecuredItem",
+              items: [
+                { itemId: "old_coin", weight: 5 },
+                { itemId: "silver_brooch", weight: 3 },
+                { itemId: "bronze_figurine", weight: 2 },
+              ],
+              resultText: "The symbols remain unclear, but among the fallen stones Arthur finds {itemName}.",
+            }],
+            elseResultText: "Arthur studies the worn symbols, but cannot interpret them and finds nothing hidden among the stones.",
+          }],
+          pendingAction: { text: "Arthur clears moss from the stones and examines the worn symbols...", delayProfile: "search" },
+          endEncounter: true,
+        },
+        {
+          id: "offering", label: "Leave an Offering",
+          costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+          outcomes: [{ type: "setRunFlag", flag: "waysideOfferingMade", value: true }],
+          resultText: "Arthur leaves a small offering at the ruined shrine. Whether it matters remains unknown.",
+          endEncounter: true,
+        },
+        { id: "leave", label: "Leave", resultText: "Arthur leaves the moss-covered shrine beside the road.", endEncounter: true },
+      ],
+    } },
+  },
+
+  sunken_road: {
+    id: "sunken_road",
+    title: "The Sunken Road",
+    description: "The trail descends into a hollow where an older road lies beneath the forest floor. Broken stones disappear between the trees.",
+    regionId: "broceliande",
+    pathIds: ["overgrown_trail"],
+    directions: ["outbound"],
+    weight: 3,
+    minimumDistance: 35,
+    tags: ["deep_forest", "old_road", "loot"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "Roots cross the buried paving, and scattered roadside stones lean into the earth.",
+      choices: [
+        {
+          id: "follow", label: "Follow the Old Road",
+          outcomes: [
+            { type: "setRunFlag", flag: "sunkenRoadExplored", value: true },
+            {
+              type: "randomChance", chance: 0.6,
+              effects: [{
+                type: "gainWeightedRandomUnsecuredItem",
+                items: [
+                  { itemId: "carved_ivory_token", weight: 4 },
+                  { itemId: "bronze_figurine", weight: 4 },
+                  { itemId: "merchants_ring", weight: 3 },
+                  { itemId: "silver_cup", weight: 2 },
+                ],
+                resultText: "Along the buried route, Arthur finds {itemName} between the broken stones.",
+              }],
+              elseResultText: "Arthur follows the buried route until it vanishes beneath roots, finding no object worth carrying away.",
+            },
+          ],
+          pendingAction: { text: "Arthur follows the broken paving deeper into the hollow...", delayProfile: "physical" },
+          endEncounter: true,
+        },
+        {
+          id: "search_stones", label: "Search the Roadside Stones",
+          outcomes: [{
+            type: "randomChance", chance: 0.65,
+            effects: [{
+              type: "gainWeightedRandomUnsecuredItem",
+              items: [
+                { itemId: "old_coin", weight: 5 },
+                { itemId: "decorated_buckle", weight: 4 },
+                { itemId: "polished_agate", weight: 4 },
+              ],
+              resultText: "Between the leaning roadside stones, Arthur finds {itemName}.",
+            }],
+            elseResultText: "Arthur searches the roadside stones but finds only soil, roots, and broken rock.",
+          }],
+          pendingAction: { text: "Arthur searches beneath the leaning stones along the buried road...", delayProfile: "search" },
+          endEncounter: true,
+        },
+        { id: "return", label: "Return to the Trail", resultText: "Arthur returns to the overgrown trail without following the buried road.", endEncounter: true },
+      ],
+    } },
+  },
+
   shelter_before_nightfall: {
     id: "shelter_before_nightfall",
     title: "Shelter Before Nightfall",
@@ -1067,11 +1495,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "randomChance",
               chance: 0.35,
               effects: [{
-                type: "gainRandomUnsecuredItem",
-                itemIds: ["bandages", "old_coin", "coin_purse", "silver_brooch", "amber_beads"],
+                type: "gainWeightedRandomUnsecuredItem",
+                items: [
+                  { itemId: "bandages", weight: 6 },
+                  { itemId: "old_coin", weight: 5 },
+                  { itemId: "polished_agate", weight: 4 },
+                  { itemId: "silver_brooch", weight: 3 },
+                  { itemId: "amber_beads", weight: 3 },
+                  { itemId: "coin_purse", weight: 2 },
+                ],
                 quantity: 1,
+                resultText: "Behind loose stones and old leaves, Arthur finds {itemName}.",
               }],
-              resultText: "Behind loose stones and old leaves, Arthur finds something useful left in the shelter.",
               elseResultText: "The shelter contains nothing useful beyond damp leaves and old ash.",
             }],
             pendingAction: {

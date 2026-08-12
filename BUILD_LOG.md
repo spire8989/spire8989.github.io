@@ -385,3 +385,34 @@ The human developer supplied the party capacity and consumption guide and reques
 ### Resulting prototype state
 
 Provision planning now reflects the company Arthur chooses to bring. Traveling alone is lighter and more efficient, while bringing Kay increases food capacity enough to support longer expeditions at a moderate consumption cost. The active expedition remains stable after departure, and foraging can still push supplies above the town departure limit.
+
+## 2026-08-12 — Brocéliande Discovery and Encounter Expansion
+
+### Goal
+
+Slightly tighten provision consumption while making repeated expeditions feel more varied and more likely to produce ordinary unsecured valuables without increasing encounter frequency.
+
+### Human prompt and direction
+
+The human developer reported that provisions drained slightly too slowly, loot opportunities remained sparse, and the encounter pool still repeated too noticeably across runs. The supplied guide requested four lightweight travel discoveries, five new Brocéliande encounters, weighted loot rarity, deep-run eligibility, preserved spacing and party capacity, and strict avoidance of new campaign, Merlin, Grail, combat, companion, or location content.
+
+### AI-assisted implementation
+
+- Increased `baseProvisionsPerDistance` from 0.07 to 0.08, producing effective rates of 0.08 for Arthur and 0.104 for Arthur with Sir Kay while leaving both capacity values and the town safety floor unchanged.
+- Added generic weighted unsecured-item outcomes with item-name substitution in result prose, preserving the existing `ITEM FOUND` and `UNSECURED` mechanical feedback.
+- Added four lightweight encounter-slot discoveries: Glint in the Mud, Discarded Bundle, Something Beneath the Roots, and Lost Purse.
+- Added five fuller encounters: Broken Bridge, The Hermit's Fire, Wolves in the Brush, Ruined Wayside Shrine, and The Sunken Road.
+- Kept all search, crossing, waiting, investigation, and placeholder-danger actions on the existing pending-action system; all final results still wait for **Continue Journey**.
+- Added Rope interaction at the Broken Bridge, capped Glint and Wolves recurrence at twice per run, and added future-facing `waysideOfferingMade` and `sunkenRoadExplored` run flags without explaining or rewarding them supernaturally.
+- Kept the absent hermit explicitly unidentified and added no Merlin implication, corpse, historical canon, new path, or campaign revelation.
+- Reworked relevant camp, cart, oak, hollow, and shelter tables so common supplies and valuables outweigh uncommon and special finds; the Green Glass Vial remains the lowest-weight root discovery.
+- Left Glint in the Mud, Broken Bridge, Wolves in the Brush, and other suitable generic events eligible on deep runs while preserving the existing 14–22 league encounter spacing and using no secondary loot timer.
+- Expanded the Chrome regression suite from 130 to 156 assertions, covering all nine definitions, path and direction pools, deep-run eligibility, recurrence caps, weighted rarity, dynamic result names, pending actions, locked Rope access, run flags, live unsecured discovery feedback, explicit empty searches, revised consumption rates, existing settlement flows, and runtime exceptions; all passed.
+
+### Manual changes
+
+The human developer supplied the complete Brocéliande content, loot-variety, and provision-tuning guide and requested that the verified implementation be committed and pushed. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Existing encounter slots can now produce simple profitable discoveries, atmospheric investigations, or new survival decisions alongside the established content. Loot remains uncertain and unsecured, ordinary finds outweigh rare curiosities, and deep expeditions retain meaningful discovery opportunities without becoming more frequently interrupted.
