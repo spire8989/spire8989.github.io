@@ -1026,6 +1026,222 @@ button:active:not(:disabled) {
   cursor: not-allowed;
 }
 
+/* Combat keeps the expedition's 16:9 scene while making party state readable on phones. */
+.combat-scene {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 0.45rem;
+  padding: clamp(0.55rem, 3cqw, 0.9rem);
+  border-bottom: 2px solid rgb(217 189 114 / 55%);
+  background:
+    radial-gradient(circle at 72% 25%, rgb(238 221 165 / 22%), transparent 18%),
+    linear-gradient(180deg, #3e5650, #1c3323 65%, #111b13);
+}
+
+.combat-scene.is-paused {
+  box-shadow: inset 0 0 3rem rgb(4 8 5 / 68%);
+}
+
+.combat-side {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.38rem;
+}
+
+.combat-versus {
+  align-self: center;
+  color: rgb(244 221 160 / 42%);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.55rem, 2.5cqw, 0.72rem);
+  font-weight: 800;
+}
+
+.combatant {
+  position: relative;
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+  padding: 0.38rem;
+  border: 1px solid rgb(217 189 114 / 30%);
+  border-radius: 0.35rem;
+  background: rgb(7 13 8 / 76%);
+  color: #f4e8c5;
+  font-family: system-ui, sans-serif;
+  transition: border-color 120ms ease, opacity 120ms ease, transform 120ms ease;
+}
+
+.combatant.enemy {
+  text-align: right;
+}
+
+.combatant.is-ready {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 0.7rem rgb(217 189 114 / 38%);
+  transform: translateY(-0.15rem);
+}
+
+.combatant.is-defeated {
+  opacity: 0.36;
+  filter: grayscale(1);
+}
+
+.combatant.was-hit {
+  animation: combat-hit 220ms ease-out;
+}
+
+@keyframes combat-hit {
+  40% { background: rgb(130 42 34 / 88%); transform: translateX(-0.18rem); }
+}
+
+.combatant-token {
+  color: var(--gold);
+  font-size: clamp(1.15rem, 6cqw, 1.8rem);
+  line-height: 0.9;
+}
+
+.combatant strong,
+.combatant span,
+.combatant small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combatant strong {
+  font-size: clamp(0.58rem, 2.55cqw, 0.74rem);
+}
+
+.combatant .combat-hp-label,
+.combatant small {
+  color: #c8cdbd;
+  font-size: clamp(0.43rem, 1.9cqw, 0.56rem);
+}
+
+.combat-intent {
+  color: #ffd69a;
+  font-size: clamp(0.48rem, 2.15cqw, 0.62rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.combat-bar {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #293329;
+}
+
+.combat-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  transition: width 50ms linear;
+}
+
+.hp-bar span {
+  background: linear-gradient(90deg, #7d2f27, #bd684e);
+}
+
+.gauge-bar span {
+  background: linear-gradient(90deg, #a1843d, #f4dda0);
+}
+
+.combat-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  gap: clamp(0.42rem, 1.25cqh, 0.7rem);
+  padding: clamp(0.6rem, 3cqw, 0.9rem);
+  overflow-y: auto;
+  background: radial-gradient(circle at top, rgb(125 47 39 / 20%), transparent 36%), #111a13;
+}
+
+.combat-state-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.combat-state-line p {
+  margin: 0;
+}
+
+.combat-state-line strong {
+  color: #f5e8bf;
+  font-size: clamp(0.62rem, 2.7cqw, 0.8rem);
+}
+
+.combat-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 5.2rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgb(217 189 114 / 18%);
+  border-radius: 0.35rem;
+  background: rgb(5 10 6 / 58%);
+}
+
+.combat-log p {
+  margin: 0.08rem 0;
+  color: #cbd0c0;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.5rem, 2.15cqw, 0.64rem);
+}
+
+.combat-controls > p,
+.combat-waiting {
+  margin: 0 0 0.38rem;
+  color: #b8bfae;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.2cqw, 0.66rem);
+}
+
+.combat-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+
+.combat-action-grid button,
+.combat-item-button {
+  display: grid;
+  gap: 0.12rem;
+  min-height: 2.65rem;
+  padding: 0.48rem 0.58rem;
+  border: 1px solid rgb(244 221 160 / 52%);
+  border-radius: 0.35rem;
+  background: linear-gradient(90deg, #693129, #432620);
+  color: #fff6da;
+  text-align: left;
+  cursor: pointer;
+}
+
+.combat-action-grid button span {
+  color: #c3baa7;
+  font-size: clamp(0.44rem, 1.9cqw, 0.56rem);
+}
+
+.combat-item-button {
+  width: 100%;
+  min-height: 2rem;
+  margin-top: 0.38rem;
+  border-color: #4f5a50;
+  background: #273029;
+  color: #89958a;
+  cursor: not-allowed;
+}
+
+.debug-combat-button {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
 .debug-panel {
   margin: 0.15rem 0 0.55rem;
   padding: 0.45rem;
@@ -1614,6 +1830,9 @@ button:active:not(:disabled) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .combatant.was-hit {
+    animation: none;
+  }
   button,
   .forest,
   .travelers,

@@ -236,15 +236,19 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "fight",
             label: "Fight",
             outcomes: [
-              { type: "modifyResource", resource: "health", randomMinimum: -6, randomMaximum: -2 },
-              { type: "modifyResource", resource: "provisions", amount: 3 },
+              {
+                type: "startCombat",
+                combatId: "wild_boar",
+                victory: {
+                  outcomes: [{ type: "modifyResource", resource: "provisions", amount: 3 }],
+                  resultText: "The boar falls. Arthur gathers usable meat before the company continues.",
+                },
+                fled: {
+                  outcomes: [],
+                  resultText: "The company escapes into the trees, leaving the boar and its meat behind.",
+                },
+              },
             ],
-            resultText: "The struggle leaves Arthur bruised and cut, but he drives the boar down and the company gathers usable meat.",
-            pendingAction: {
-              text: "Arthur and Kay move together to drive the boar back...",
-              delayProfile: "combat",
-            },
-            endEncounter: true,
           },
           {
             id: "drive_away",

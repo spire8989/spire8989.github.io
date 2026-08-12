@@ -9,7 +9,7 @@ This file records project-specific knowledge that should survive across Codex co
 - The intended viewport is **9:16 portrait**, centered in the browser and scaled so the entire game area remains visible. Preserve this behavior.
 - Mobile/touch play is a first-class target. Keep controls comfortably tappable and use the existing delegated browser input approach.
 - Keep placeholder presentation and favor readable, data-driven systems over polish or excessive abstraction.
-- Do not invent campaign canon, future chapters, Grail story details, Merlin content, combat, puzzles, or other systems unless the user explicitly supplies them.
+- Do not invent campaign canon, future chapters, Grail story details, Merlin content, additional combat content, puzzles, or other systems unless the user explicitly supplies them.
 
 ## Important architecture
 
@@ -18,6 +18,7 @@ This file records project-specific knowledge that should survive across Codex co
 - `js/data.js` contains stable-ID item, knowledge, companion, and chapter definitions.
 - `js/tuning.js` centralizes pacing and pack capacity. Do not scatter tuning constants through UI code.
 - `js/encounter-data.js` contains authored encounter content; `js/encounters.js` contains generic encounter selection, requirements, stages, costs, and outcomes.
+- `js/combat-data.js` contains combat definitions and abilities; `js/combat.js` owns reusable combat simulation, targeting, damage, AI, and result reporting.
 - `js/storage.js` owns defaults, localStorage, validation, and save migration.
 - `js/game.js` owns screen flow, input dispatch, UI rendering, expedition state, settlement, and the `requestAnimationFrame` loop.
 - `js/location-data.js` and `tests/location_system_test.py` may be present as part of the data-driven village/location work. Check the worktree before touching them.
@@ -34,6 +35,8 @@ This file records project-specific knowledge that should survive across Codex co
 - Failure loses unsecured discoveries only. Previously owned equipped and packed items remain owned, except consumables actually used.
 - Persistent provisions live in `player.provisions`. Starting a run commits the selected amount; temporary expedition state tracks remaining purchased and found provisions separately. Found provisions are consumed first. Unused purchased provisions return after success or failure, while unused found provisions return only after success.
 - Encounter requirements deliberately distinguish `ownsItem`, `equippedItem`, `carriedItem`, and `availableExpeditionItem`. The last may recognize an equipped, packed, or newly found unsecured item.
+- `expedition.combat` is transient and never saved. Arthur's combat HP synchronizes directly with `expedition.health`; companion HP lives in `expedition.companionCombatHp` for the duration of that run and resets on the next expedition.
+- Combat parties must be derived from `expedition.selectedCompanion`. Never assume Sir Kay is present.
 
 Default reset state currently equips the Iron Longsword, Chainmail Hauberk, and Silver Stag Medallion. The pack contains the Traveler's Cloak, Rope, and Torches. Sir Kay is the only selectable companion.
 
@@ -48,6 +51,8 @@ Default reset state currently equips the Iron Longsword, Chainmail Hauberk, and 
 
 - Preparation has its own scrollable area. Equipment, pack, companion, and provision changes must preserve its `scrollTop`; do not rerender in a way that jumps the user to the top.
 - Encounters pause distance, scenery, and ordinary provision consumption.
+- Combat also pauses travel and provisions. Gauges advance only while combat status is `running`, never while a friendly action is awaiting input or after resolution.
+- Combat victory and flee return through the originating encounter's result phase. Arthur reaching 0 HP delegates to the existing expedition failure flow; Kay reaching 0 does not fail the expedition.
 - Encounter consequences remain visible in the result phase until one **Continue Journey** action resumes travel. Do not recreate the earlier duplicate-result bug where the same dialogue appeared twice and required two continues.
 - Return travel reverses the visual direction and reduces distance toward zero. Existing direction-filtered encounter pools and pacing must remain intact unless the task explicitly changes them.
 

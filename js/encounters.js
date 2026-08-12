@@ -81,8 +81,11 @@ const EncounterOutcomes = Object.freeze({
       if (resolved.resultText) {
         combined.resultText = resolved.resultText;
       }
+      if (resolved.combat) {
+        combined.combat = resolved.combat;
+      }
       return combined;
-    }, { messages: [], resultText: "" });
+    }, { messages: [], resultText: "", combat: null });
   },
 
   applyAll(effects = [], context) {
@@ -97,6 +100,7 @@ const EncounterOutcomes = Object.freeze({
     const { expedition, player } = context;
     let messages = [];
     let resultText = effect.resultText ?? "";
+    let combat = null;
 
     switch (effect.type) {
       case "modifyResource": {
@@ -181,6 +185,7 @@ const EncounterOutcomes = Object.freeze({
         const branch = EncounterRequirements.meetsAll(effect.requirements, context);
         const resolved = this.resolveAll(branch ? effect.effects : effect.elseEffects, context);
         messages = resolved.messages;
+        combat = resolved.combat;
         resultText = resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "";
         break;
       }
@@ -188,6 +193,7 @@ const EncounterOutcomes = Object.freeze({
         const succeeded = Math.random() < effect.chance;
         const resolved = this.resolveAll(succeeded ? effect.effects : effect.elseEffects, context);
         messages = resolved.messages;
+        combat = resolved.combat;
         resultText = resolved.resultText
           || (succeeded ? effect.resultText : effect.elseResultText)
           || "";
@@ -206,18 +212,22 @@ const EncounterOutcomes = Object.freeze({
         const selectedEffects = Array.isArray(selected) ? selected : selected.effects;
         const resolved = this.resolveAll(selectedEffects, context);
         messages = resolved.messages;
+        combat = resolved.combat;
         resultText = resolved.resultText || selected.resultText || "";
         break;
       }
       case "failExpedition":
         context.failExpedition?.(effect.reason ?? "The expedition could not continue.");
         break;
+      case "startCombat":
+        combat = effect;
+        break;
       default:
         console.warn(`Unknown encounter outcome type: ${effect.type}`);
         break;
     }
 
-    return { messages, resultText };
+    return { messages, resultText, combat };
   },
 });
 
@@ -398,6 +408,17 @@ const EncounterManager = Object.freeze({
     const resolvedOutcomes = EncounterOutcomes.resolveAll(choiceOutcomes, context);
     outcomeMessages.push(...resolvedOutcomes.messages);
     active.outcomeMessages.push(...outcomeMessages);
+    if (resolvedOutcomes.combat) {
+      active.phase = "combat";
+      active.combatResolution = resolvedOutcomes.combat;
+      const started = callbacks.startCombat?.(resolvedOutcomes.combat.combatId) === true;
+      if (!started) {
+        active.phase = "choice";
+        delete active.combatResolution;
+        return { resolved: false, ended: false, message: "" };
+      }
+      return { resolved: true, ended: false, combatStarted: true, message: "" };
+    }
     const nextStageId = branch?.nextStage ?? choice.nextStage;
     const endEncounter = branch ? branch.endEncounter === true : choice.endEncounter;
     const authoredResultText = branch?.resultText || choice.resultText;
@@ -449,6 +470,31 @@ const EncounterManager = Object.freeze({
     expedition.nextEncounterAt = expedition.encounterTravelDistance
       + Math.max(randomEncounterSpacing(), EXPEDITION_TUNING.postEncounterSafeDistance);
     return true;
+  },
+
+  completeCombat(expedition, player, result, callbacks = {}) {
+    const active = expedition.activeEncounter;
+    if (!active || active.phase !== "combat" || !active.combatResolution) {
+      return { resolved: false, ended: false, message: "" };
+    }
+    if (result === "defeat") {
+      callbacks.failExpedition?.("Arthur was too badly injured to continue the expedition.");
+      return { resolved: true, ended: true, message: "" };
+    }
+
+    const resolution = active.combatResolution[result];
+    if (!resolution) {
+      return { resolved: false, ended: false, message: "" };
+    }
+    const context = { expedition, player, ...callbacks };
+    const resolved = EncounterOutcomes.resolveAll(resolution.outcomes, context);
+    active.outcomeMessages.push(...resolved.messages);
+    active.phase = "result";
+    active.resultText = resolved.resultText
+      || resolution.resultText
+      || (result === "victory" ? "The enemy is defeated." : "The company escapes.");
+    delete active.combatResolution;
+    return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
   },
 
   forceNextSoon(expedition) {

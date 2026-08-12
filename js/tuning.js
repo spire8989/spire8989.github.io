@@ -18,3 +18,11 @@ const EXPEDITION_TUNING = Object.freeze({
   minimumStartingProvisions: 1,
   minimumTownProvisions: 10,
 });
+
+const COMBAT_TUNING = Object.freeze({
+  actionGaugeMaximum: 100,
+  actionGaugeRate: 1.3,
+  defendDamageMultiplier: 0.5,
+  fleeChance: 0.7,
+  combatLogLimit: 5,
+});

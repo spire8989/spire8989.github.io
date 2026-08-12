@@ -2,6 +2,35 @@
 
 This log documents the AI-assisted development of **Quest for the Holy Grail**, an HTML5 prototype being created for an AI-assisted game prototype competition. Entries focus on meaningful milestones, the human direction provided, the AI-assisted work performed, any manual changes, and the resulting state of the prototype.
 
+## 2026-08-12 — Active-Time Party Combat Foundation
+
+### Goal
+
+Replace the Wild Boar's direct random-damage choice with a reusable, short, party-controlled active-time combat system that preserves expedition consequences.
+
+### Human prompt and direction
+
+The human developer supplied the first combat implementation guide. It requested frame-rate-independent action gauges, player control of Arthur and the actually selected Sir Kay, enemy intent telegraphs, Attack, Defend, Kay's Intercede, Flee, equipment-derived stats, expedition HP persistence, Wild Boar encounter integration, portrait UI, debug access, and deterministic browser coverage without expanding into levels, magic, bosses, formations, or campaign content.
+
+### AI-assisted implementation
+
+- Added separate combat content and simulation modules, with array-based allies/enemies, explicit transient battle state, ready queues, target validation, damage resolution, enemy action patterns, result reporting, and deterministic random injection.
+- Added centralized gauge, defense, flee, and log tuning; gave the Iron Longsword 8–12 damage and the Chainmail Hauberk 3 flat defense through item data.
+- Added Arthur and Sir Kay combat definitions. Kay joins only when selected, retains HP between battles in the same expedition, can be incapacitated without ending the run, and can redirect one Arthur-targeted attack with Intercede.
+- Added a portrait combat scene with HP/action bars, visible enemy intent, ready/defeated/defending/interceding states, a compact event log, hit feedback, and touch-friendly action controls. Item is exposed as an intentionally disabled hook until a carried item has authored combat behavior.
+- Integrated gauges into the existing `requestAnimationFrame` loop so combat and travel never advance together and action selection genuinely pauses battle time.
+- Added a generic `startCombat` encounter outcome and combat-result continuation. Wild Boar Fight now launches a 32 HP boar that opens with Charge, awards +3 provisions only on victory, awards nothing on flee, and delegates Arthur's defeat to the established expedition-failure flow.
+- Added a debug-only direct Wild Boar combat button under `?debug=1`.
+- Expanded the Chrome regression suite from 156 to 174 assertions covering party derivation, gauges and pause behavior, equipment damage, Defend, Intercede, HP persistence, intent targeting, portrait combat layout, flee, victory reward/continuation, defeat delegation, existing encounters, locations, provisions, settlement, and runtime exceptions.
+
+### Manual changes
+
+The human developer supplied the complete first-combat guide and requested that durable project guidance and the build log be updated as implementation progressed. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+The Wild Boar is now a playable tactical battle rather than a delayed random-cost button. Arthur can fight alone or with Kay, react to a visible incoming Charge, and carry wounds forward into the journey. The encounter, resource, return, and failure systems remain authoritative around combat, while the new data/simulation split provides a compact foundation for later enemies, companion abilities, and authored combat items.
+
 ## 2026-08-11 — Initial HTML5 Project Foundation
 
 ### Goal

@@ -128,8 +128,17 @@ function handleAction(event) {
     case "continue-journey":
       continueJourney();
       break;
+    case "combat-action":
+      chooseCombatAction(control.dataset.combatActionId);
+      break;
+    case "combat-target":
+      chooseCombatTarget(control.dataset.targetId);
+      break;
     case "debug-trigger-encounter":
       triggerDebugEncounter();
+      break;
+    case "debug-start-combat":
+      startDebugCombat();
       break;
     case "debug-next-encounter":
       forceNextEncounter();
@@ -775,6 +784,8 @@ function startExpedition() {
     foundProvisions: 0,
     provisionsSettled: false,
     health: 100,
+    companionCombatHp: {},
+    combat: null,
     goldCarried: 0,
     selectedEquipment: { ...game.player.equippedItems },
     selectedCompanion: game.player.selectedCompanion,
@@ -791,6 +802,10 @@ function startExpedition() {
 
 function renderExpedition() {
   const expedition = game.expedition;
+  if (expedition.combat) {
+    renderCombat(expedition, expedition.combat);
+    return;
+  }
   const companion = expedition.selectedCompanion
     ? COMPANION_DEFINITIONS[expedition.selectedCompanion]
     : null;
@@ -923,6 +938,98 @@ function renderEncounterResultPanel(expedition, encounter, active) {
     </div>`;
 }
 
+function renderCombat(expedition, combat) {
+  const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
+  const awaitingAction = combat.status === "awaitingAction";
+  ui.screenRoot.innerHTML = `
+    <section class="screen expedition-screen combat-screen" aria-label="Combat">
+      <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""}">
+        <div class="combat-side combat-party" aria-label="Party">
+          ${combat.allies.map((combatant) => renderCombatant(combatant, combat)).join("")}
+        </div>
+        <div class="combat-versus" aria-hidden="true">VS</div>
+        <div class="combat-side combat-enemies" aria-label="Enemies">
+          ${combat.enemies.map((combatant) => renderCombatant(combatant, combat)).join("")}
+        </div>
+      </div>
+      <div class="combat-panel">
+        <div class="combat-state-line">
+          <p class="eyebrow">${awaitingAction ? "Combat Paused" : "Battle in Progress"}</p>
+          <strong>${activeActor ? `${activeActor.name} is ready` : "Action gauges are filling"}</strong>
+        </div>
+        <div class="combat-log" aria-live="polite">
+          ${combat.log.map((message) => `<p>${message}</p>`).join("")}
+        </div>
+        <div class="combat-controls">
+          ${renderCombatControls(combat, activeActor)}
+        </div>
+      </div>
+    </section>`;
+  updateCombatHud();
+}
+
+function renderCombatant(combatant, combat) {
+  const defeated = combatant.hp <= 0;
+  const ready = combatant.id === combat.activeActorId;
+  const intent = combatant.side === "enemy" && !defeated
+    ? `<div class="combat-intent">${COMBAT_ENEMY_ACTION_DEFINITIONS[combatant.intentId]?.name ?? "Attack"}</div>`
+    : "";
+  const effects = [combatant.defending ? "DEFENDING" : "", combatant.interceding ? "INTERCEDING" : ""]
+    .filter(Boolean).join(" · ");
+  return `
+    <article class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${combatant.lastHitEvent ? "was-hit" : ""}"
+      data-combatant-id="${combatant.id}">
+      ${intent}
+      <div class="combatant-token" aria-hidden="true">${combatant.side === "ally" ? "♞" : "◆"}</div>
+      <strong>${combatant.name}</strong>
+      <span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp} HP</span>
+      <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
+      <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
+      ${effects ? `<small>${effects}</small>` : ""}
+    </article>`;
+}
+
+function renderCombatControls(combat, activeActor) {
+  if (!activeActor) {
+    return '<p class="combat-waiting">Watch enemy intent and prepare your response.</p>';
+  }
+  if (combat.pendingActionId === "attack") {
+    const targets = combat.enemies.filter((enemy) => enemy.hp > 0).map((enemy) => `
+      <button type="button" data-action="combat-target" data-target-id="${enemy.id}">
+        Target ${enemy.name}
+      </button>`).join("");
+    return `<p>Choose a target</p><div class="combat-action-grid">${targets}</div>`;
+  }
+  const available = CombatSystem.availableActions(combat);
+  const buttons = available.map((actionId) => {
+    const action = COMBAT_ABILITY_DEFINITIONS[actionId];
+    return `<button type="button" data-action="combat-action" data-combat-action-id="${actionId}">
+      <strong>${action.name}</strong>${action.description ? `<span>${action.description}</span>` : ""}
+    </button>`;
+  }).join("");
+  return `
+    <p>Choose ${activeActor.name}'s action</p>
+    <div class="combat-action-grid">${buttons}</div>
+    <button class="combat-item-button" type="button" disabled>Item · None usable</button>`;
+}
+
+function combatGaugePercent(combatant) {
+  return clamp((combatant.gauge / COMBAT_TUNING.actionGaugeMaximum) * 100, 0, 100);
+}
+
+function updateCombatHud() {
+  const combat = game.expedition?.combat;
+  if (!combat || game.screen !== "expedition") {
+    return;
+  }
+  [...combat.allies, ...combat.enemies].forEach((combatant) => {
+    const gauge = document.querySelector(`#combat-gauge-${combatant.id}`);
+    if (gauge) {
+      gauge.style.width = `${combatGaugePercent(combatant)}%`;
+    }
+  });
+}
+
 function renderExpeditionResources(expedition) {
   return `
     <div class="resource-grid compact-resources">
@@ -968,13 +1075,14 @@ function renderEncounterDebugControls(expedition) {
         <button type="button" data-action="debug-trigger-encounter">Trigger Selected</button>
         <button type="button" data-action="debug-next-encounter">Next Encounter Soon</button>
       </div>
+      <button class="debug-combat-button" type="button" data-action="debug-start-combat">Start Wild Boar Combat</button>
       <pre id="debug-state">${debugExpeditionState(expedition)}</pre>
     </details>`;
 }
 
 function updateExpedition(deltaSeconds) {
   const expedition = game.expedition;
-  if (!expedition || expedition.status !== "active" || expedition.activeEncounter) {
+  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) {
     return;
   }
 
@@ -1045,6 +1153,7 @@ function resolveEncounterChoice(choiceId) {
 
   const result = EncounterManager.resolveChoice(expedition, game.player, choiceId, {
     failExpedition,
+    startCombat: (combatId) => startCombat(expedition, combatId),
   });
   if (!result.resolved) {
     return;
@@ -1062,7 +1171,7 @@ function resolveEncounterChoice(choiceId) {
         pendingExpedition,
         game.player,
         result.pendingToken,
-        { failExpedition },
+        { failExpedition, startCombat: (combatId) => startCombat(pendingExpedition, combatId) },
       );
       finishEncounterResolution(completed, pendingExpedition);
     }, result.delayMs);
@@ -1088,6 +1197,81 @@ function finishEncounterResolution(result, expedition) {
   }
 
   renderExpedition();
+}
+
+function startCombat(expedition, combatId, options = {}) {
+  if (!expedition || expedition.status !== "active" || expedition.combat) {
+    return false;
+  }
+  const combat = CombatSystem.create(expedition, combatId, options);
+  if (!combat) {
+    return false;
+  }
+  expedition.combat = combat;
+  return true;
+}
+
+function chooseCombatAction(actionId) {
+  const expedition = game.expedition;
+  const combat = expedition?.combat;
+  if (!combat) {
+    return;
+  }
+  const result = CombatSystem.chooseAction(combat, expedition, actionId);
+  if (result.needsTarget) {
+    renderCombat(expedition, combat);
+    return;
+  }
+  if (result.resolved) {
+    finishCombatResolution(expedition);
+  }
+}
+
+function chooseCombatTarget(targetId) {
+  const expedition = game.expedition;
+  const combat = expedition?.combat;
+  if (!combat?.pendingActionId) {
+    return;
+  }
+  const result = CombatSystem.chooseAction(combat, expedition, combat.pendingActionId, targetId);
+  if (result.resolved) {
+    finishCombatResolution(expedition);
+  }
+}
+
+function updateCombat(deltaSeconds) {
+  const expedition = game.expedition;
+  const combat = expedition?.combat;
+  if (!combat) {
+    return;
+  }
+  const update = CombatSystem.update(combat, expedition, deltaSeconds);
+  if (update.result) {
+    finishCombatResolution(expedition);
+  } else if (update.changed) {
+    renderCombat(expedition, combat);
+  }
+}
+
+function finishCombatResolution(expedition) {
+  const combat = expedition.combat;
+  if (!combat) {
+    return;
+  }
+  if (!combat.result) {
+    renderCombat(expedition, combat);
+    return;
+  }
+  if (combat.resultHandled) {
+    return;
+  }
+  combat.resultHandled = true;
+  const result = combat.result;
+  expedition.combat = null;
+  EncounterManager.completeCombat(expedition, game.player, result, { failExpedition });
+  if (expedition.status === "active") {
+    renderExpedition();
+  }
 }
 
 function clearPendingEncounterActionTimer() {
@@ -1123,9 +1307,20 @@ function forceNextEncounter() {
   renderExpedition();
 }
 
+function startDebugCombat() {
+  const expedition = game.expedition;
+  if (!DEBUG_ENCOUNTERS_ENABLED || !expedition || expedition.activeEncounter || expedition.combat) {
+    return;
+  }
+  if (EncounterManager.force(expedition, "wild_boar")) {
+    resolveEncounterChoice("fight");
+  }
+}
+
 function completeReturn() {
   const expedition = game.expedition;
   clearPendingEncounterActionTimer();
+  expedition.combat = null;
   expedition.status = "returned";
   settleConsumedItems(expedition);
   settleExpeditionProvisions(expedition, true);
@@ -1159,6 +1354,7 @@ function failExpedition(reason) {
   }
 
   clearPendingEncounterActionTimer();
+  expedition.combat = null;
   expedition.status = "failed";
   settleConsumedItems(expedition);
   settleExpeditionProvisions(expedition, false);
@@ -1410,10 +1606,18 @@ function gameLoop(timestamp) {
   game.elapsedSeconds += deltaSeconds;
 
   if (game.screen === "expedition") {
-    updateExpedition(deltaSeconds);
+    if (game.expedition?.combat) {
+      updateCombat(deltaSeconds);
+    } else {
+      updateExpedition(deltaSeconds);
+    }
     game.hudAccumulator += deltaSeconds;
     if (game.hudAccumulator >= 0.05) {
-      updateTravelHud();
+      if (game.expedition?.combat) {
+        updateCombatHud();
+      } else {
+        updateTravelHud();
+      }
       game.hudAccumulator = 0;
     }
   }

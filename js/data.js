@@ -12,7 +12,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     equipmentSlot: "weapon",
     carriable: false,
     consumable: false,
-    effects: {},
+    effects: { combatDamage: Object.freeze({ minimum: 8, maximum: 12 }) },
     questItem: false,
     unique: true,
   },
@@ -26,7 +26,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     equipmentSlot: "armor",
     carriable: false,
     consumable: false,
-    effects: {},
+    effects: { combatDefense: 3 },
     questItem: false,
     unique: true,
   },
@@ -369,6 +369,7 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   name: "Arthur",
   provisionCapacity: 20,
   provisionConsumptionMultiplier: 1,
+  combat: Object.freeze({ maxHp: 100, speed: 10 }),
 });
 
 const COMPANION_DEFINITIONS = Object.freeze({
@@ -379,6 +380,8 @@ const COMPANION_DEFINITIONS = Object.freeze({
     tags: ["knight", "practical"],
     provisionCapacityBonus: 10,
     provisionConsumptionBonus: 0.3,
+    combat: Object.freeze({ maxHp: 85, speed: 9, defense: 2, basicDamage: Object.freeze({ minimum: 7, maximum: 10 }) }),
+    combatAbilities: ["intercede"],
   },
 });
 
