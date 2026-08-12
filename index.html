@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#10140f">
+    <!-- An inline favicon avoids an unnecessary missing-file request in a new project. -->
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/style.css">
+    <title>Quest for the Holy Grail</title>
+  </head>
+  <body>
+    <main id="game-viewport" class="game-viewport" aria-label="Quest for the Holy Grail game">
+      <section class="game-screen" aria-labelledby="game-title">
+        <div class="title-panel">
+          <p class="eyebrow">A Knights of the Round Table Adventure</p>
+          <h1 id="game-title">Quest for the Holy Grail</h1>
+          <button id="begin-button" class="game-button" type="button">
+            Begin the Quest
+          </button>
+          <p id="game-message" class="game-message" aria-live="polite">
+            The road to Camelot awaits.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <!-- "defer" waits for the HTML to be parsed before running the game code. -->
+    <script src="js/game.js" defer></script>
+  </body>
+</html>
