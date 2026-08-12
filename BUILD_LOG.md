@@ -119,3 +119,32 @@ The human developer tested the prior phone build and supplied the authoritative 
 ### Resulting prototype state
 
 The prototype's menu and content no longer establish undesigned campaign canon. Loot comes from decisions rather than predetermined distance thresholds, and the return journey now has a distinct encounter pool that retains survival threats, excludes deeper-exploration choices, and introduces one return-only navigation hazard.
+
+## 2026-08-12 — Expedition Pacing and Encounter UX
+
+### Goal
+
+Give travel and encounters more weight by slowing the frequency of interruptions, improving consequence readability, extending provisions, and compressing the real-world duration of return travel.
+
+### Human prompt and direction
+
+The human developer reported that encounters occurred too frequently, repeated content lost meaning, provisions depleted too quickly, return travel lasted too long, and consequences disappeared before they could be read. The requested pass explicitly limited changes to pacing and UX rather than adding content or new gameplay systems.
+
+### AI-assisted implementation
+
+- Added one centralized expedition-tuning object for outbound speed, return multiplier, provision cost per distance, random encounter spacing, safe post-encounter distance, and starting provision limits.
+- Increased random spacing from 5–9 leagues to 14–22 leagues and guaranteed breathing room after every resolved encounter.
+- Marked all six current encounters non-repeatable for one expedition while preserving data-level repeatability support.
+- Added a generic encounter-result phase that keeps narrative and accumulated consequences visible until the player explicitly selects **Continue Journey**.
+- Kept distance, normal provision consumption, scenery, return progress, and further encounter selection paused throughout choices and results.
+- Changed provisions from time-based depletion to a shared per-league cost of `0.16` in both directions.
+- Set return movement to four times outbound speed while retaining equal baseline provision cost for equal distance.
+- Ran 21 automated browser assertions covering spacing, exhaustion, repeatability, results, pausing, post-encounter safety, resource economics, direction pools, return banking, failure loss, and runtime errors; every assertion passed.
+
+### Manual changes
+
+The human developer playtested the previous phone build and supplied the pacing and encounter-UX requirements. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Expeditions now contain longer stretches of visible travel between unique events. Encounter consequences remain readable for as long as needed, provisions support substantially greater travel distance, and the return journey is compressed in real time without becoming cheaper per league.

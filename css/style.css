@@ -807,6 +807,32 @@ button:active:not(:disabled) {
   font-size: clamp(0.5rem, 2.1cqw, 0.62rem);
 }
 
+.result-stage {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.result-consequences {
+  display: grid;
+  gap: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgb(217 189 114 / 18%);
+}
+
+.result-consequences span {
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.3rem;
+  background: rgb(217 189 114 / 11%);
+  color: var(--gold-bright);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.58rem, 2.5cqw, 0.74rem);
+  font-weight: 700;
+}
+
+.continue-choice {
+  text-align: center;
+}
+
 .encounter-choices {
   display: grid;
   gap: clamp(0.4rem, 1.2cqh, 0.6rem);

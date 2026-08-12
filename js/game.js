@@ -1,14 +1,5 @@
 "use strict";
 
-const TRAVEL_SETTINGS = Object.freeze({
-  outboundSpeed: 2.25,
-  returnSpeed: 3.6,
-  outboundProvisionRate: 0.72,
-  returnProvisionRate: 0.58,
-  minimumSupplies: 10,
-  maximumSupplies: 26,
-});
-
 // Add ?debug=1 to the URL to expose temporary encounter testing controls.
 const DEBUG_ENCOUNTERS_ENABLED = new URLSearchParams(window.location.search).has("debug");
 
@@ -75,6 +66,9 @@ function handleAction(event) {
       break;
     case "encounter-choice":
       resolveEncounterChoice(choiceId);
+      break;
+    case "continue-journey":
+      continueJourney();
       break;
     case "debug-trigger-encounter":
       triggerDebugEncounter();
@@ -264,8 +258,8 @@ function selectCompanion(companionId) {
 function changeSupplies(amount) {
   game.preparationSupplies = clamp(
     game.preparationSupplies + amount,
-    TRAVEL_SETTINGS.minimumSupplies,
-    TRAVEL_SETTINGS.maximumSupplies,
+    EXPEDITION_TUNING.minimumStartingProvisions,
+    EXPEDITION_TUNING.maximumStartingProvisions,
   );
   renderPreparation();
 }
@@ -357,6 +351,10 @@ function renderTravelPanel(expedition, companion, loadout) {
 
 function renderEncounterPanel(expedition, encounter) {
   const active = expedition.activeEncounter;
+  if (active.phase === "result") {
+    return renderEncounterResultPanel(expedition, encounter, active);
+  }
+
   const stage = encounter.stages[active.stageId];
   const choices = stage.choices.map((choice) => renderEncounterChoice(choice, expedition)).join("");
   const outcomes = active.outcomeMessages.length > 0
@@ -376,6 +374,30 @@ function renderEncounterPanel(expedition, encounter) {
         ${outcomes}
       </div>
       <div class="encounter-choices">${choices}</div>
+    </div>`;
+}
+
+function renderEncounterResultPanel(expedition, encounter, active) {
+  const outcomes = active.outcomeMessages.length > 0
+    ? `<div class="result-consequences">${active.outcomeMessages.map((message) => `<span>${message}</span>`).join("")}</div>`
+    : "";
+
+  return `
+    <div class="travel-panel encounter-panel encounter-result-panel" aria-live="polite">
+      ${renderExpeditionResources(expedition)}
+      <div class="encounter-heading">
+        <p class="eyebrow">Encounter Resolved</p>
+        <h1>${encounter.title}</h1>
+      </div>
+      <div class="encounter-stage result-stage">
+        <p>${active.resultText}</p>
+        ${outcomes}
+      </div>
+      <div class="encounter-choices">
+        <button class="encounter-choice continue-choice" type="button" data-action="continue-journey">
+          <strong>Continue Journey</strong>
+        </button>
+      </div>
     </div>`;
 }
 
@@ -434,28 +456,34 @@ function updateExpedition(deltaSeconds) {
   }
 
   let distanceTraveled = 0;
+  let reachedSafety = false;
   if (expedition.direction === "outbound") {
-    distanceTraveled = TRAVEL_SETTINGS.outboundSpeed * deltaSeconds;
+    distanceTraveled = EXPEDITION_TUNING.outboundTravelSpeed * deltaSeconds;
     expedition.distance += distanceTraveled;
     expedition.sceneOffset -= distanceTraveled * 9;
     expedition.maxDistanceReached = Math.max(expedition.maxDistanceReached, expedition.distance);
-    expedition.provisions -= TRAVEL_SETTINGS.outboundProvisionRate * deltaSeconds;
   } else {
-    distanceTraveled = TRAVEL_SETTINGS.returnSpeed * deltaSeconds;
+    const requestedDistance = EXPEDITION_TUNING.outboundTravelSpeed
+      * EXPEDITION_TUNING.returnSpeedMultiplier
+      * deltaSeconds;
+    distanceTraveled = Math.min(requestedDistance, expedition.distance);
     expedition.distance -= distanceTraveled;
     expedition.sceneOffset += distanceTraveled * 9;
-    expedition.provisions -= TRAVEL_SETTINGS.returnProvisionRate * deltaSeconds;
-
-    if (expedition.distance <= 0) {
-      expedition.distance = 0;
-      completeReturn();
-      return;
-    }
+    reachedSafety = expedition.distance <= 0;
+    expedition.distance = Math.max(expedition.distance, 0);
   }
+
+  // Resource cost follows journey distance, independent of real-world animation speed.
+  expedition.provisions -= distanceTraveled * EXPEDITION_TUNING.provisionsPerDistance;
 
   if (expedition.provisions <= 0) {
     expedition.provisions = 0;
     failExpedition("The company exhausted its provisions before reaching safety.");
+    return;
+  }
+
+  if (reachedSafety) {
+    completeReturn();
     return;
   }
 
@@ -501,6 +529,14 @@ function resolveEncounterChoice(choiceId) {
     return;
   }
 
+  renderExpedition();
+}
+
+function continueJourney() {
+  const expedition = game.expedition;
+  if (!expedition || !EncounterManager.continueJourney(expedition)) {
+    return;
+  }
   renderExpedition();
 }
 

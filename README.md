@@ -15,6 +15,7 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `index.html` defines the game page, persistent header, screen container, and script loading order. Think of it as the initial level/UI hierarchy.
 - `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, and input feedback. `--world-panel-height` controls the expedition view/interface split.
 - `js/data.js` contains data-driven item, knowledge, companion, and placeholder chapter definitions with stable string IDs.
+- `js/tuning.js` centralizes expedition speed, provision cost, encounter spacing, and post-encounter breathing-room values for playtesting.
 - `js/encounter-data.js` contains the authored encounter definitions, stages, choices, requirements, costs, and outcomes.
 - `js/encounters.js` contains reusable encounter selection, requirement checking, outcome application, and stage-flow systems.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.

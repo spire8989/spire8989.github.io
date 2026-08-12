@@ -13,7 +13,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     minimumDistance: 3,
     maximumDistance: 50,
     tags: ["obstacle", "road"],
-    repeatable: true,
+    repeatable: false,
     requirements: [],
     stages: {
       start: {
@@ -212,7 +212,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     minimumDistance: 4,
     maximumDistance: 80,
     tags: ["animal", "danger"],
-    repeatable: true,
+    repeatable: false,
     requirements: [],
     stages: {
       start: {

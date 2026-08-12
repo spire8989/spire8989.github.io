@@ -157,12 +157,9 @@ const EncounterOutcomes = Object.freeze({
 });
 
 const EncounterManager = Object.freeze({
-  minimumSpacing: 5,
-  maximumSpacing: 9,
-
   initializeExpedition(expedition) {
     expedition.encounterTravelDistance = 0;
-    expedition.nextEncounterAt = randomBetween(this.minimumSpacing, this.maximumSpacing);
+    expedition.nextEncounterAt = randomEncounterSpacing();
     expedition.seenEncounterIds = [];
     expedition.runFlags = {};
     expedition.activeEncounter = null;
@@ -182,7 +179,9 @@ const EncounterManager = Object.freeze({
 
     const encounter = this.selectEligible(expedition, player);
     if (!encounter) {
-      expedition.nextEncounterAt = expedition.encounterTravelDistance + randomBetween(2, 4);
+      // An exhausted pool produces uninterrupted travel instead of recycling content.
+      expedition.nextEncounterAt = expedition.encounterTravelDistance
+        + EXPEDITION_TUNING.encounterMaximumDistance;
       return null;
     }
 
@@ -227,6 +226,8 @@ const EncounterManager = Object.freeze({
     expedition.activeEncounter = {
       encounterId,
       stageId: "start",
+      phase: "choice",
+      resultText: "",
       outcomeMessages: [],
     };
     if (!expedition.seenEncounterIds.includes(encounterId)) {
@@ -244,6 +245,9 @@ const EncounterManager = Object.freeze({
 
   resolveChoice(expedition, player, choiceId, callbacks = {}) {
     const active = expedition.activeEncounter;
+    if (active?.phase === "result") {
+      return { resolved: false, ended: false, message: "" };
+    }
     const encounter = active ? ENCOUNTER_DEFINITIONS[active.encounterId] : null;
     const stage = encounter?.stages[active.stageId];
     const choice = stage?.choices.find((candidate) => candidate.id === choiceId);
@@ -261,34 +265,50 @@ const EncounterManager = Object.freeze({
       ...EncounterOutcomes.applyAll(choice.costs, context),
       ...EncounterOutcomes.applyAll(choice.outcomes, context),
     ];
-    active.outcomeMessages = outcomeMessages;
+    active.outcomeMessages.push(...outcomeMessages);
 
     if (choice.nextStage) {
       active.stageId = choice.nextStage;
+      active.phase = "choice";
       return { resolved: true, ended: false, message: choice.resultText ?? "" };
     }
 
     if (choice.endEncounter) {
-      const message = choice.resultText || outcomeMessages.join(" · ") || `${encounter.title} resolved.`;
-      this.end(expedition, message);
-      return { resolved: true, ended: true, message };
+      const message = choice.resultText || stage.text || `${encounter.title} resolved.`;
+      active.phase = "result";
+      active.resultText = message;
+      return { resolved: true, ended: false, awaitingContinue: true, message };
     }
 
     return { resolved: true, ended: false, message: "" };
   },
 
-  end(expedition, message) {
+  continueJourney(expedition) {
+    const active = expedition.activeEncounter;
+    if (!active || active.phase !== "result") {
+      return false;
+    }
+
+    const message = active.resultText;
     expedition.lastEncounterId = expedition.activeEncounter?.encounterId ?? null;
     expedition.lastEncounterResult = message;
     expedition.activeEncounter = null;
     expedition.nextEncounterAt = expedition.encounterTravelDistance
-      + randomBetween(this.minimumSpacing, this.maximumSpacing);
+      + Math.max(randomEncounterSpacing(), EXPEDITION_TUNING.postEncounterSafeDistance);
+    return true;
   },
 
   forceNextSoon(expedition) {
     expedition.nextEncounterAt = expedition.encounterTravelDistance + 0.2;
   },
 });
+
+function randomEncounterSpacing() {
+  return randomBetween(
+    EXPEDITION_TUNING.encounterMinimumDistance,
+    EXPEDITION_TUNING.encounterMaximumDistance,
+  );
+}
 
 function addUnsecuredItem(expedition, itemId, quantity) {
   const existingLoot = expedition.unsecuredLoot.find((entry) => entry.itemId === itemId);
