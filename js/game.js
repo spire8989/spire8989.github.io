@@ -282,8 +282,10 @@ function startExpedition() {
     goldCarried: 0,
     selectedEquipment: { ...game.player.equippedItems },
     selectedCompanion: game.player.selectedCompanion,
+    carriedItems: createExpeditionCarriedItems(),
+    consumedItems: {},
+    consumablesSettled: false,
     unsecuredLoot: [],
-    discoveredLootIds: [],
     sceneOffset: 0,
     status: "active",
   };
@@ -342,6 +344,7 @@ function renderTravelPanel(expedition, companion, loadout) {
         <p><span>Company</span><strong>Arthur &amp; ${companion.name}</strong></p>
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
         <p><span>Loadout</span><strong>${loadout || "No equipment selected"}</strong></p>
+        <p><span>Carried</span><strong>${formatCarriedItems(expedition.carriedItems)}</strong></p>
         <div id="loot-list" class="loot-list">${renderLootList(expedition.unsecuredLoot)}</div>
       </section>
       ${renderEncounterDebugControls(expedition)}
@@ -437,7 +440,6 @@ function updateExpedition(deltaSeconds) {
     expedition.sceneOffset -= distanceTraveled * 9;
     expedition.maxDistanceReached = Math.max(expedition.maxDistanceReached, expedition.distance);
     expedition.provisions -= TRAVEL_SETTINGS.outboundProvisionRate * deltaSeconds;
-    discoverLoot();
   } else {
     distanceTraveled = TRAVEL_SETTINGS.returnSpeed * deltaSeconds;
     expedition.distance -= distanceTraveled;
@@ -461,21 +463,6 @@ function updateExpedition(deltaSeconds) {
   if (encounter) {
     renderExpedition();
   }
-}
-
-function discoverLoot() {
-  const expedition = game.expedition;
-  EXPEDITION_LOOT.forEach((reward) => {
-    if (expedition.distance < reward.distance || expedition.discoveredLootIds.includes(reward.itemId)) {
-      return;
-    }
-
-    expedition.discoveredLootIds.push(reward.itemId);
-    expedition.unsecuredLoot.push({ itemId: reward.itemId, quantity: reward.quantity });
-    expedition.goldCarried += reward.gold;
-    const item = ITEM_DEFINITIONS[reward.itemId];
-    announceTravelEvent(`Discovered ${item.name}. It remains unsecured until you return.`);
-  });
 }
 
 function beginReturn() {
@@ -538,6 +525,7 @@ function forceNextEncounter() {
 function completeReturn() {
   const expedition = game.expedition;
   expedition.status = "returned";
+  settleConsumedItems(expedition);
 
   expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
     game.player.ownedItems[itemId] = (game.player.ownedItems[itemId] ?? 0) + quantity;
@@ -567,6 +555,7 @@ function failExpedition(reason) {
   }
 
   expedition.status = "failed";
+  settleConsumedItems(expedition);
   game.player.bestExpeditionDistance = Math.max(
     game.player.bestExpeditionDistance,
     expedition.maxDistanceReached,
@@ -682,6 +671,30 @@ function savePlayer() {
   ui.saveStatus.textContent = saved ? "Saved locally" : "Save unavailable";
 }
 
+function createExpeditionCarriedItems() {
+  return Object.fromEntries(
+    Object.entries(game.player.ownedItems).filter(([itemId, quantity]) => (
+      quantity > 0 && ITEM_DEFINITIONS[itemId]?.category === "supply"
+    )),
+  );
+}
+
+function settleConsumedItems(expedition) {
+  if (expedition.consumablesSettled) {
+    return;
+  }
+
+  Object.entries(expedition.consumedItems).forEach(([itemId, quantity]) => {
+    const remainingQuantity = (game.player.ownedItems[itemId] ?? 0) - quantity;
+    if (remainingQuantity > 0) {
+      game.player.ownedItems[itemId] = remainingQuantity;
+    } else {
+      delete game.player.ownedItems[itemId];
+    }
+  });
+  expedition.consumablesSettled = true;
+}
+
 function resetSave() {
   if (!window.confirm("Reset all local progress and restore the prototype's starting inventory?")) {
     return;
@@ -729,6 +742,13 @@ function formatDistance(distance) {
 
 function formatResource(value) {
   return Math.max(value, 0).toFixed(1);
+}
+
+function formatCarriedItems(carriedItems) {
+  const labels = Object.entries(carriedItems)
+    .filter(([, quantity]) => quantity > 0)
+    .map(([itemId, quantity]) => `${ITEM_DEFINITIONS[itemId]?.name ?? itemId} ×${quantity}`);
+  return labels.join(" · ") || "None";
 }
 
 function setText(selector, text) {

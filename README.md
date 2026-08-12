@@ -4,7 +4,9 @@ This repository is a browser-only portrait prototype for an Arthurian survival a
 
 ## Current prototype
 
-The playable vertical slice begins at a fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, equip owned items, travel with Sir Kay, and select provisions. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. Procedural encounters pause travel and require a choice before the journey continues. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment brought into the run.
+The playable vertical slice begins at a deliberately non-canonical fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, equip owned items, travel with Sir Kay, and select provisions. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. Procedural encounters pause travel and require a choice before the journey continues. Encounter eligibility changes between outbound and return travel. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment brought into the run.
+
+Distance influences which encounters are eligible, but does not directly award loot. Rewards currently come from encounter choices.
 
 Progress is stored in the browser with `localStorage`. The reset button in the top-right corner restores the initial prototype save.
 
@@ -12,7 +14,7 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 
 - `index.html` defines the game page, persistent header, screen container, and script loading order. Think of it as the initial level/UI hierarchy.
 - `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, and input feedback. `--world-panel-height` controls the expedition view/interface split.
-- `js/data.js` contains data-driven item, companion, chapter, and expedition-loot definitions with stable string IDs.
+- `js/data.js` contains data-driven item, knowledge, companion, and placeholder chapter definitions with stable string IDs.
 - `js/encounter-data.js` contains the authored encounter definitions, stages, choices, requirements, costs, and outcomes.
 - `js/encounters.js` contains reusable encounter selection, requirement checking, outcome application, and stage-flow systems.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.

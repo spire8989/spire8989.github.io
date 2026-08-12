@@ -5,11 +5,13 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
+      saveVersion: 2,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
         wayfarers_cloak: 1,
         silver_stag_medallion: 1,
+        torch: 2,
       },
       equippedItems: {
         weapon: "arthur_sword",
@@ -18,7 +20,7 @@ const SaveSystem = Object.freeze({
       },
       unlockedCompanions: ["sir_kay"],
       selectedCompanion: "sir_kay",
-      learnedKnowledge: ["forest_road_lore"],
+      learnedKnowledge: ["woodcraft"],
       completedChapters: ["chapter_01", "chapter_02"],
       bestExpeditionDistance: 0,
       currentGold: 12,
@@ -76,10 +78,12 @@ function sanitizePlayerState(savedState, defaults) {
     }
   });
 
-  // Merge newly introduced starting items into older prototype saves.
-  Object.entries(defaults.ownedItems).forEach(([itemId, quantity]) => {
-    ownedItems[itemId] ??= quantity;
-  });
+  // Version 2 introduced intentional starting content to pre-existing prototype saves.
+  if (Number(savedState.saveVersion) < 2) {
+    Object.entries(defaults.ownedItems).forEach(([itemId, quantity]) => {
+      ownedItems[itemId] ??= quantity;
+    });
+  }
 
   const equippedItems = {};
   ["weapon", "armor", "utility"].forEach((slot) => {
@@ -87,6 +91,12 @@ function sanitizePlayerState(savedState, defaults) {
     const item = ITEM_DEFINITIONS[itemId];
     if (item && item.slot === slot && ownedItems[itemId]) {
       equippedItems[slot] = itemId;
+      return;
+    }
+
+    const defaultItemId = defaults.equippedItems[slot];
+    if (ownedItems[defaultItemId]) {
+      equippedItems[slot] = defaultItemId;
     }
   });
 
@@ -100,11 +110,12 @@ function sanitizePlayerState(savedState, defaults) {
     : unlockedCompanions[0];
 
   return {
+    saveVersion: 2,
     ownedItems,
     equippedItems,
     unlockedCompanions,
     selectedCompanion,
-    learnedKnowledge: validStringArray(savedState.learnedKnowledge, defaults.learnedKnowledge),
+    learnedKnowledge: sanitizeKnowledge(savedState.learnedKnowledge, defaults.learnedKnowledge),
     completedChapters: validStringArray(savedState.completedChapters, defaults.completedChapters),
     bestExpeditionDistance: nonNegativeNumber(savedState.bestExpeditionDistance),
     currentGold: nonNegativeNumber(savedState.currentGold),
@@ -124,6 +135,14 @@ function validStringArray(value, fallback) {
   return Array.isArray(value)
     ? [...new Set(value.filter((entry) => typeof entry === "string"))]
     : [...fallback];
+}
+
+function sanitizeKnowledge(value, fallback) {
+  const migratedIds = Array.isArray(value)
+    ? value.map((knowledgeId) => knowledgeId === "forest_road_lore" ? "woodcraft" : knowledgeId)
+    : fallback;
+  const validIds = [...new Set(migratedIds.filter((knowledgeId) => KNOWLEDGE_DEFINITIONS[knowledgeId]))];
+  return validIds.length > 0 ? validIds : [...fallback];
 }
 
 function nonNegativeNumber(value) {

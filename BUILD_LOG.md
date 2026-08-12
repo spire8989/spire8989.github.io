@@ -90,3 +90,32 @@ The human developer supplied the authored system/content guide and clarified the
 ### Resulting prototype state
 
 Expeditions now alternate between real-time travel and procedural decision encounters. Choices can branch across stages, query the current run, apply reusable consequences, alter the route, and award unsecured loot before travel resumes. Combat, Merlin's discovery, puzzles, and broader narrative systems remain intentionally unimplemented.
+
+## 2026-08-12 — Content Cleanup and Return Encounters
+
+### Goal
+
+Remove unintended story assumptions and predetermined rewards, then make encounter selection distinguish between outbound and return travel without redesigning the expedition loop.
+
+### Human prompt and direction
+
+The human developer established the authoritative mid-campaign prototype state, requested generic campaign placeholders, removed undesigned distance rewards and campaign items, formalized Arthur's basic wilderness knowledge, and specified direction eligibility for every encounter. A single return-only Fading Light encounter was requested to prove the new direction system.
+
+### AI-assisted implementation
+
+- Replaced invented past and future chapter names with completed and unknown placeholders.
+- Removed the fixed-distance loot table, its runtime award logic, the Waystone Fragment, and the other undesigned distance rewards.
+- Preserved the unexplained Silver Stag Medallion as starting equipment and migrated older saves to the cleaned item set.
+- Added a data-driven `woodcraft` knowledge definition and migration from the earlier raw `forest_road_lore` string.
+- Added direction arrays to encounter definitions and direction filtering to weighted encounter eligibility.
+- Configured physical/survival encounters for both directions and exploration/path encounters for outbound travel only.
+- Added the non-repeatable, return-only Fading Light encounter and a mundane consumable Torch with persistent consumption handling.
+- Ran 24 automated browser assertions across story state, save migration, direction pools, encounter pausing, repeatability, reward removal, consumable use, failure loss, successful banking, and runtime errors; all passed.
+
+### Manual changes
+
+The human developer tested the prior phone build and supplied the authoritative cleanup and encounter-direction guide. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+The prototype's menu and content no longer establish undesigned campaign canon. Loot comes from decisions rather than predetermined distance thresholds, and the return journey now has a distinct encounter pool that retains survival threats, excludes deeper-exploration choices, and introduces one return-only navigation hazard.

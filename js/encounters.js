@@ -10,8 +10,7 @@ const EncounterRequirements = Object.freeze({
 
     switch (requirement.type) {
       case "expeditionItem":
-        return Object.values(expedition.selectedEquipment).includes(requirement.itemId)
-          || expedition.unsecuredLoot.some((entry) => entry.itemId === requirement.itemId);
+        return expeditionItemQuantity(expedition, requirement.itemId) >= (requirement.quantity ?? 1);
       case "equippedItem":
         return Object.values(expedition.selectedEquipment).includes(requirement.itemId);
       case "ownsItem":
@@ -113,6 +112,18 @@ const EncounterOutcomes = Object.freeze({
         }
         addUnsecuredItem(expedition, effect.itemId, effect.quantity ?? 1);
         return [`Found ${ITEM_DEFINITIONS[effect.itemId].name}`];
+      case "consumeExpeditionItem": {
+        const quantity = effect.quantity ?? 1;
+        if ((expedition.carriedItems[effect.itemId] ?? 0) < quantity) {
+          return [];
+        }
+        expedition.carriedItems[effect.itemId] -= quantity;
+        if (expedition.carriedItems[effect.itemId] <= 0) {
+          delete expedition.carriedItems[effect.itemId];
+        }
+        expedition.consumedItems[effect.itemId] = (expedition.consumedItems[effect.itemId] ?? 0) + quantity;
+        return [`Used ${quantity} ${ITEM_DEFINITIONS[effect.itemId]?.name ?? effect.itemId}`];
+      }
       case "changePath":
         expedition.currentPathId = effect.pathId;
         return [`Path changed to ${pathLabel(effect.pathId)}`];
@@ -128,6 +139,13 @@ const EncounterOutcomes = Object.freeze({
         return Math.random() < effect.chance
           ? this.applyAll(effect.effects, context)
           : [];
+      case "randomOne": {
+        if (!Array.isArray(effect.options) || effect.options.length === 0) {
+          return [];
+        }
+        const selectedEffects = effect.options[randomInteger(0, effect.options.length - 1)];
+        return this.applyAll(selectedEffects, context);
+      }
       case "failExpedition":
         context.failExpedition?.(effect.reason ?? "The expedition could not continue.");
         return [];
@@ -173,12 +191,17 @@ const EncounterManager = Object.freeze({
   },
 
   selectEligible(expedition, player) {
+    return weightedChoice(this.eligibleDefinitions(expedition, player));
+  },
+
+  eligibleDefinitions(expedition, player) {
     const context = { expedition, player };
-    const eligible = Object.values(ENCOUNTER_DEFINITIONS).filter((encounter) => {
+    return Object.values(ENCOUNTER_DEFINITIONS).filter((encounter) => {
       const withinDistance = expedition.distance >= encounter.minimumDistance
         && expedition.distance <= encounter.maximumDistance;
       const correctLocation = encounter.regionId === expedition.regionId
         && encounter.pathIds.includes(expedition.currentPathId);
+      const correctDirection = encounter.directions.includes(expedition.direction);
       const canRepeat = encounter.repeatable || !expedition.seenEncounterIds.includes(encounter.id);
       const avoidsImmediateRepeat = encounter.id !== expedition.lastEncounterId
         || Object.values(ENCOUNTER_DEFINITIONS).filter((candidate) => (
@@ -188,12 +211,11 @@ const EncounterManager = Object.freeze({
 
       return withinDistance
         && correctLocation
+        && correctDirection
         && canRepeat
         && avoidsImmediateRepeat
         && EncounterRequirements.meetsAll(encounter.requirements, context);
     });
-
-    return weightedChoice(eligible);
   },
 
   begin(expedition, encounterId) {
@@ -275,6 +297,15 @@ function addUnsecuredItem(expedition, itemId, quantity) {
   } else {
     expedition.unsecuredLoot.push({ itemId, quantity });
   }
+}
+
+function expeditionItemQuantity(expedition, itemId) {
+  const equippedQuantity = Object.values(expedition.selectedEquipment).includes(itemId) ? 1 : 0;
+  const carriedQuantity = expedition.carriedItems?.[itemId] ?? 0;
+  const unsecuredQuantity = expedition.unsecuredLoot
+    .filter((entry) => entry.itemId === itemId)
+    .reduce((sum, entry) => sum + entry.quantity, 0);
+  return equippedQuantity + carriedQuantity + unsecuredQuantity;
 }
 
 function weightedChoice(entries) {

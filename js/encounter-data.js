@@ -8,6 +8,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     description: "A large fallen tree blocks the road through the forest.",
     regionId: "broceliande",
     pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
     weight: 5,
     minimumDistance: 3,
     maximumDistance: 50,
@@ -63,6 +64,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     description: "A recently abandoned camp lies in a clearing beside the road.",
     regionId: "broceliande",
     pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
     weight: 4,
     minimumDistance: 5,
     maximumDistance: 60,
@@ -116,6 +118,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     description: "The forest road divides beneath a dense canopy.",
     regionId: "broceliande",
     pathIds: ["old_forest_road"],
+    directions: ["outbound"],
     weight: 5,
     minimumDistance: 7,
     maximumDistance: 40,
@@ -150,6 +153,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     description: "An old standing stone rises from a ring of roots beside the trail.",
     regionId: "broceliande",
     pathIds: ["overgrown_trail"],
+    directions: ["outbound"],
     weight: 6,
     minimumDistance: 9,
     maximumDistance: 70,
@@ -203,6 +207,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     description: "A wild boar blocks the path and becomes aggressive.",
     regionId: "broceliande",
     pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
     weight: 5,
     minimumDistance: 4,
     maximumDistance: 80,
@@ -247,5 +252,69 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       },
     },
   },
-});
 
+  fading_light: {
+    id: "fading_light",
+    title: "Fading Light",
+    description: "The forest grows darker as Arthur and Kay make their way back toward safety. The road ahead is becoming difficult to follow.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["returning"],
+    weight: 6,
+    minimumDistance: 2,
+    maximumDistance: 80,
+    tags: ["return", "survival", "darkness"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The last daylight fades beneath the canopy, making the road difficult to follow.",
+        choices: [
+          {
+            id: "light_torch",
+            label: "Light a Torch",
+            requirements: [
+              {
+                type: "expeditionItem",
+                itemId: "torch",
+                unavailable: "locked",
+                lockedLabel: "Requires 1 Torch",
+              },
+            ],
+            costs: [{ type: "consumeExpeditionItem", itemId: "torch", quantity: 1 }],
+            resultText: "By torchlight, Arthur and Kay continue safely along the road.",
+            endEncounter: true,
+          },
+          {
+            id: "press_on",
+            label: "Press On",
+            outcomes: [
+              {
+                type: "randomChance",
+                chance: 0.4,
+                effects: [
+                  {
+                    type: "randomOne",
+                    options: [
+                      [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+                      [{ type: "modifyResource", resource: "health", amount: -1 }],
+                    ],
+                  },
+                ],
+              },
+            ],
+            resultText: "Arthur and Kay press on through the failing light.",
+            endEncounter: true,
+          },
+          {
+            id: "slow_down",
+            label: "Slow Down and Find the Trail",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+            resultText: "The careful search costs time and provisions, but the company finds the road and continues safely.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
+});
