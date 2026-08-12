@@ -37,6 +37,7 @@ This file records project-specific knowledge that should survive across Codex co
 - Encounter requirements deliberately distinguish `ownsItem`, `equippedItem`, `carriedItem`, and `availableExpeditionItem`. The last may recognize an equipped, packed, or newly found unsecured item.
 - `expedition.combat` is transient and never saved. Arthur's combat HP synchronizes directly with `expedition.health`; companion HP lives in `expedition.companionCombatHp` for the duration of that run and resets on the next expedition.
 - Combat parties must be derived from `expedition.selectedCompanion`. Never assume Sir Kay is present.
+- Multi-enemy combat keeps independent objects in `combat.enemies`. Attack pauses in target-selection mode while multiple enemies live, rejects defeated targets, and may auto-target only when one valid enemy remains.
 
 Default reset state currently equips the Iron Longsword, Chainmail Hauberk, and Silver Stag Medallion. The pack contains the Traveler's Cloak, Rope, and Torches. Sir Kay is the only selectable companion.
 
@@ -53,6 +54,7 @@ Default reset state currently equips the Iron Longsword, Chainmail Hauberk, and 
 - Encounters pause distance, scenery, and ordinary provision consumption.
 - Combat also pauses travel and provisions. Gauges advance only while combat status is `running`, never while a friendly action is awaiting input or after resolution.
 - Combat victory and flee return through the originating encounter's result phase. Arthur reaching 0 HP delegates to the existing expedition failure flow; Kay reaching 0 does not fail the expedition.
+- Keep combat's 16:9 scene as a light party/enemy lineup with open central battlefield space. Enemy intent belongs immediately beside its gauge, and the rendered log stays a compact recent-event strip rather than occupying the battlefield.
 - Encounter consequences remain visible in the result phase until one **Continue Journey** action resumes travel. Do not recreate the earlier duplicate-result bug where the same dialogue appeared twice and required two continues.
 - Return travel reverses the visual direction and reduces distance toward zero. Existing direction-filtered encounter pools and pacing must remain intact unless the task explicitly changes them.
 

@@ -134,6 +134,9 @@ function handleAction(event) {
     case "combat-target":
       chooseCombatTarget(control.dataset.targetId);
       break;
+    case "combat-cancel-target":
+      cancelCombatTargetSelection();
+      break;
     case "debug-trigger-encounter":
       triggerDebugEncounter();
       break;
@@ -941,13 +944,14 @@ function renderEncounterResultPanel(expedition, encounter, active) {
 function renderCombat(expedition, combat) {
   const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
   const awaitingAction = combat.status === "awaitingAction";
+  const choosingTarget = combat.pendingActionId === "attack";
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen combat-screen" aria-label="Combat">
-      <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""}">
+      <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""}">
         <div class="combat-side combat-party" aria-label="Party">
           ${combat.allies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
-        <div class="combat-versus" aria-hidden="true">VS</div>
+        <div class="combat-battlefield-space" aria-hidden="true"></div>
         <div class="combat-side combat-enemies" aria-label="Enemies">
           ${combat.enemies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
@@ -958,7 +962,7 @@ function renderCombat(expedition, combat) {
           <strong>${activeActor ? `${activeActor.name} is ready` : "Action gauges are filling"}</strong>
         </div>
         <div class="combat-log" aria-live="polite">
-          ${combat.log.map((message) => `<p>${message}</p>`).join("")}
+          ${combat.log.slice(-4).map((message) => `<p>${message}</p>`).join("")}
         </div>
         <div class="combat-controls">
           ${renderCombatControls(combat, activeActor)}
@@ -971,22 +975,26 @@ function renderCombat(expedition, combat) {
 function renderCombatant(combatant, combat) {
   const defeated = combatant.hp <= 0;
   const ready = combatant.id === combat.activeActorId;
+  const selectable = combat.pendingActionId === "attack" && combatant.side === "enemy" && !defeated;
   const intent = combatant.side === "enemy" && !defeated
     ? `<div class="combat-intent">${COMBAT_ENEMY_ACTION_DEFINITIONS[combatant.intentId]?.name ?? "Attack"}</div>`
     : "";
   const effects = [combatant.defending ? "DEFENDING" : "", combatant.interceding ? "INTERCEDING" : ""]
     .filter(Boolean).join(" · ");
+  const tag = selectable ? "button" : "article";
+  const targetAttributes = selectable
+    ? `type="button" data-action="combat-target" data-target-id="${combatant.id}" aria-label="Target ${combatant.name}"`
+    : "";
   return `
-    <article class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${combatant.lastHitEvent ? "was-hit" : ""}"
-      data-combatant-id="${combatant.id}">
-      ${intent}
+    <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${combatant.lastHitEvent ? "was-hit" : ""}"
+      data-combatant-id="${combatant.id}" ${targetAttributes}>
       <div class="combatant-token" aria-hidden="true">${combatant.side === "ally" ? "♞" : "◆"}</div>
-      <strong>${combatant.name}</strong>
-      <span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp} HP</span>
+      <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
       <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
+      ${intent}
       <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       ${effects ? `<small>${effects}</small>` : ""}
-    </article>`;
+    </${tag}>`;
 }
 
 function renderCombatControls(combat, activeActor) {
@@ -994,11 +1002,11 @@ function renderCombatControls(combat, activeActor) {
     return '<p class="combat-waiting">Watch enemy intent and prepare your response.</p>';
   }
   if (combat.pendingActionId === "attack") {
-    const targets = combat.enemies.filter((enemy) => enemy.hp > 0).map((enemy) => `
-      <button type="button" data-action="combat-target" data-target-id="${enemy.id}">
-        Target ${enemy.name}
-      </button>`).join("");
-    return `<p>Choose a target</p><div class="combat-action-grid">${targets}</div>`;
+    return `
+      <div class="combat-target-prompt">
+        <p>Choose a target in the enemy lineup</p>
+        <button type="button" data-action="combat-cancel-target">Cancel</button>
+      </div>`;
   }
   const available = CombatSystem.availableActions(combat);
   const buttons = available.map((actionId) => {
@@ -1075,7 +1083,13 @@ function renderEncounterDebugControls(expedition) {
         <button type="button" data-action="debug-trigger-encounter">Trigger Selected</button>
         <button type="button" data-action="debug-next-encounter">Next Encounter Soon</button>
       </div>
-      <button class="debug-combat-button" type="button" data-action="debug-start-combat">Start Wild Boar Combat</button>
+      <div class="debug-combat-launcher">
+        <select id="debug-combat-select" aria-label="Combat to start">
+          <option value="wild_boar">Wild Boar</option>
+          <option value="wolves">Three Wolves</option>
+        </select>
+        <button class="debug-combat-button" type="button" data-action="debug-start-combat">Start Combat</button>
+      </div>
       <pre id="debug-state">${debugExpeditionState(expedition)}</pre>
     </details>`;
 }
@@ -1239,6 +1253,14 @@ function chooseCombatTarget(targetId) {
   }
 }
 
+function cancelCombatTargetSelection() {
+  const expedition = game.expedition;
+  const combat = expedition?.combat;
+  if (CombatSystem.cancelTargetSelection(combat)) {
+    renderCombat(expedition, combat);
+  }
+}
+
 function updateCombat(deltaSeconds) {
   const expedition = game.expedition;
   const combat = expedition?.combat;
@@ -1312,8 +1334,11 @@ function startDebugCombat() {
   if (!DEBUG_ENCOUNTERS_ENABLED || !expedition || expedition.activeEncounter || expedition.combat) {
     return;
   }
-  if (EncounterManager.force(expedition, "wild_boar")) {
-    resolveEncounterChoice("fight");
+  const combatId = document.querySelector("#debug-combat-select")?.value ?? "wild_boar";
+  const encounterId = combatId === "wolves" ? "wolves_in_brush" : "wild_boar";
+  const choiceId = combatId === "wolves" ? "stand_ground" : "fight";
+  if (EncounterManager.force(expedition, encounterId)) {
+    resolveEncounterChoice(choiceId);
   }
 }
 

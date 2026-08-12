@@ -22,6 +22,14 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 1,
     actionPattern: ["boar_charge", "boar_gore", "boar_gore"],
   }),
+  wolf: Object.freeze({
+    id: "wolf",
+    name: "Wolf",
+    maxHp: 14,
+    speed: 14,
+    defense: 0,
+    actionPattern: ["wolf_bite", "wolf_lunge", "wolf_bite"],
+  }),
 });
 
 const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
@@ -37,11 +45,27 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     damage: Object.freeze({ minimum: 9, maximum: 13 }),
     target: "arthur",
   }),
+  wolf_bite: Object.freeze({
+    id: "wolf_bite",
+    name: "Bite",
+    damage: Object.freeze({ minimum: 3, maximum: 6 }),
+    target: "arthur",
+  }),
+  wolf_lunge: Object.freeze({
+    id: "wolf_lunge",
+    name: "Lunge",
+    damage: Object.freeze({ minimum: 5, maximum: 8 }),
+    target: "arthur",
+  }),
 });
 
 const COMBAT_DEFINITIONS = Object.freeze({
   wild_boar: Object.freeze({
     id: "wild_boar",
     enemyIds: ["wild_boar"],
+  }),
+  wolves: Object.freeze({
+    id: "wolves",
+    enemyIds: ["wolf", "wolf", "wolf"],
   }),
 });

@@ -2,6 +2,35 @@
 
 This log documents the AI-assisted development of **Quest for the Holy Grail**, an HTML5 prototype being created for an AI-assisted game prototype competition. Entries focus on meaningful milestones, the human direction provided, the AI-assisted work performed, any manual changes, and the resulting state of the prototype.
 
+## 2026-08-12 — Multi-Enemy Wolves and Combat UI Refinement
+
+### Goal
+
+Convert Wolves in the Brush from an encounter-only damage roll into the first multi-enemy battle, then lighten the portrait combat interface to preserve space for future battle visuals.
+
+### Human prompt and direction
+
+The human developer reported that the first combat implementation worked well and supplied a focused second-pass guide. It requested three individual fast wolves, direct target selection with Cancel, verified Intercede behavior under multiple attackers, removal of fake wolf damage, a lighter combat lineup, no `VS` label, a compact recent-event log, responsive phone verification, and no rewrite or expansion into unrelated combat systems.
+
+### AI-assisted implementation
+
+- Added a data-defined 14 HP, 14 Speed, 0 Defense Wolf with 3–6 Bite and 5–8 Lunge actions, plus a three-wolf combat definition that creates independent enemy state and numbered log/UI labels.
+- Converted **Stand Your Ground** into a generic `startCombat: wolves` outcome. Victory and flee preserve the encounter's existing no-reward character and return through its normal result/Continue Journey flow; Arthur's defeat still delegates to expedition failure.
+- Hardened multi-enemy targeting so Attack pauses with all living enemies directly selectable, invalid or defeated target IDs cannot redirect an attack, the sole remaining enemy auto-targets, and Cancel returns to the same paused action menu.
+- Verified that Kay's Intercede redirects exactly the next applicable wolf attack and is then consumed before subsequent wolves act.
+- Removed `VS`, replaced heavy combatant cards with compact translucent lineup plates, placed enemy intent immediately above its action gauge, retained ready/target/hit feedback, and reserved an open central battlefield column for future presentation.
+- Reduced the visible combat log to the four most recent lines in a compact status strip and kept the established action controls intact.
+- Expanded the debug combat launcher to select either Wild Boar or Three Wolves while remaining hidden outside `?debug=1`.
+- Expanded the Chrome regression suite from 174 to 198 assertions, covering wolf encounter integration, independent enemies, target selection/cancellation, dead and sole-target behavior, partial and complete victories, Intercede under multiple attacks, flee/results, Wild Boar regression, non-combat flows, compact log sizing, and combatant containment at 360×640, 390×844, and 430×932.
+
+### Manual changes
+
+The human developer playtested the first combat pass and supplied the complete wolves and combat-interface refinement guide. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Combat now demonstrates two distinct tactical pressures without changing its foundation: the Wild Boar is one durable telegraphed threat, while three quick wolves force target prioritization as several independent gauges fill. The lighter lineup and compact log leave the middle of the 16:9 scene available for future character art and effects while remaining readable and fully contained on tested portrait phones.
+
 ## 2026-08-12 — Active-Time Party Combat Foundation
 
 ### Goal

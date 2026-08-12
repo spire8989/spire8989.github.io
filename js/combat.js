@@ -15,9 +15,19 @@ const CombatSystem = Object.freeze({
         allies.push(companion);
       }
     }
-    const enemies = definition.enemyIds.map((enemyId, index) => (
-      createEnemyCombatant(enemyId, index)
-    )).filter(Boolean);
+    const enemyCounts = definition.enemyIds.reduce((counts, enemyId) => {
+      counts[enemyId] = (counts[enemyId] ?? 0) + 1;
+      return counts;
+    }, {});
+    const enemyOccurrences = {};
+    const enemies = definition.enemyIds.map((enemyId, index) => {
+      enemyOccurrences[enemyId] = (enemyOccurrences[enemyId] ?? 0) + 1;
+      return createEnemyCombatant(
+        enemyId,
+        index,
+        enemyCounts[enemyId] > 1 ? enemyOccurrences[enemyId] : null,
+      );
+    }).filter(Boolean);
     const state = {
       id: combatId,
       status: "running",
@@ -94,9 +104,11 @@ const CombatSystem = Object.freeze({
         state.pendingActionId = actionId;
         return { resolved: false, needsTarget: true };
       }
-      const target = targets.find((candidate) => candidate.id === targetId) ?? targets[0];
+      const target = targetId
+        ? targets.find((candidate) => candidate.id === targetId)
+        : targets[0];
       if (!target) {
-        return { resolved: false, needsTarget: false };
+        return { resolved: false, needsTarget: targets.length > 1 };
       }
       resolveAttack(state, actor, target);
     } else if (actionId === "defend") {
@@ -128,6 +140,14 @@ const CombatSystem = Object.freeze({
   availableActions(state) {
     const actor = findCombatant(state, state?.activeActorId);
     return actor ? availableActionIds(actor) : [];
+  },
+
+  cancelTargetSelection(state) {
+    if (!state || state.status !== "awaitingAction" || !state.pendingActionId) {
+      return false;
+    }
+    state.pendingActionId = null;
+    return true;
   },
 });
 
@@ -176,7 +196,7 @@ function createCompanionCombatant(expedition, companionId) {
   };
 }
 
-function createEnemyCombatant(enemyId, index) {
+function createEnemyCombatant(enemyId, index, occurrence) {
   const enemy = COMBAT_ENEMY_DEFINITIONS[enemyId];
   if (!enemy) {
     return null;
@@ -185,7 +205,7 @@ function createEnemyCombatant(enemyId, index) {
     id: `${enemyId}_${index + 1}`,
     definitionId: enemyId,
     side: "enemy",
-    name: enemy.name,
+    name: occurrence ? `${enemy.name} ${occurrence}` : enemy.name,
     maxHp: enemy.maxHp,
     hp: enemy.maxHp,
     speed: enemy.speed,

@@ -1324,13 +1324,17 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         {
           id: "stand_ground", label: "Stand Your Ground",
           outcomes: [{
-            type: "randomChance", chance: 0.25,
-            effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
-            resultText: "A wolf darts through Arthur's guard before the pack retreats, leaving him injured.",
-            elseResultText: "Arthur and Kay hold firm until the wolves retreat into the brush.",
+            type: "startCombat",
+            combatId: "wolves",
+            victory: {
+              outcomes: [],
+              resultText: "Arthur holds firm until the last wolf is driven down and the brush falls silent.",
+            },
+            fled: {
+              outcomes: [],
+              resultText: "The company breaks away from the pack and escapes deeper along the road.",
+            },
           }],
-          pendingAction: { text: "Arthur and Kay prepare to drive the wolves away...", delayProfile: "combat" },
-          endEncounter: true,
         },
         {
           id: "throw_food", label: "Throw Them Food",
