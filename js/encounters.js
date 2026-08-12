@@ -9,8 +9,10 @@ const EncounterRequirements = Object.freeze({
     const { expedition, player } = context;
 
     switch (requirement.type) {
-      case "expeditionItem":
+      case "availableExpeditionItem":
         return expeditionItemQuantity(expedition, requirement.itemId) >= (requirement.quantity ?? 1);
+      case "carriedItem":
+        return (expedition.carriedItems?.[requirement.itemId] ?? 0) >= (requirement.quantity ?? 1);
       case "equippedItem":
         return Object.values(expedition.selectedEquipment).includes(requirement.itemId);
       case "ownsItem":

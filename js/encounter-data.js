@@ -44,7 +44,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Use Rope",
             requirements: [
               {
-                type: "expeditionItem",
+                type: "carriedItem",
                 itemId: "rope",
                 unavailable: "locked",
                 lockedLabel: "Requires Rope",
@@ -169,7 +169,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Use Silver Stag Medallion",
             requirements: [
               {
-                type: "expeditionItem",
+                type: "equippedItem",
                 itemId: "silver_stag_medallion",
                 unavailable: "hidden",
               },
@@ -263,7 +263,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Light a Torch",
             requirements: [
               {
-                type: "expeditionItem",
+                type: "carriedItem",
                 itemId: "torch",
                 unavailable: "locked",
                 lockedLabel: "Requires 1 Torch",
@@ -338,7 +338,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "use_rope",
             label: "Use the Rope",
             requirements: [{
-              type: "expeditionItem",
+              type: "carriedItem",
               itemId: "rope",
               unavailable: "locked",
               lockedLabel: "Requires Rope",
@@ -514,7 +514,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "show_medallion",
             label: "Show the Silver Stag Medallion",
             requirements: [{
-              type: "expeditionItem",
+              type: "equippedItem",
               itemId: "silver_stag_medallion",
               unavailable: "hidden",
             }],
@@ -737,7 +737,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "use_cloak",
             label: "Use Traveler's Cloak",
             requirements: [{
-              type: "expeditionItem",
+              type: "carriedItem",
               itemId: "wayfarers_cloak",
               unavailable: "locked",
               lockedLabel: "Requires Traveler's Cloak",
@@ -784,7 +784,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "watch_in_dark",
             label: "Extinguish the Torch and Watch",
             requirements: [{
-              type: "expeditionItem",
+              type: "carriedItem",
               itemId: "torch",
               unavailable: "locked",
               lockedLabel: "Requires 1 Torch",
@@ -825,7 +825,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "give_bandages",
             label: "Give Him Bandages",
             requirements: [{
-              type: "expeditionItem",
+              type: "availableExpeditionItem",
               itemId: "bandages",
               unavailable: "locked",
               lockedLabel: "Requires Bandages",
@@ -884,7 +884,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "use_knife",
             label: "Use Hunting Knife",
             requirements: [{
-              type: "expeditionItem",
+              type: "availableExpeditionItem",
               itemId: "fine_hunting_knife",
               unavailable: "locked",
               lockedLabel: "Requires Fine Hunting Knife",

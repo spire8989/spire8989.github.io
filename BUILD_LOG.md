@@ -178,3 +178,33 @@ The human developer identified the preparation scrolling issue through playtesti
 ### Resulting prototype state
 
 Brocéliande now supports eighteen non-repeatable encounters with meaningfully different road and trail pools. Expeditions can yield items worth protecting, and discoveries such as the Fine Hunting Knife create persistent advantages in later runs. Preparation controls remain usable without jumping back to the top of the screen.
+
+## 2026-08-12 — Expedition Loadouts and Carried Inventory
+
+### Goal
+
+Make equipment and expedition preparation more legible and meaningful by separating permanent ownership, equipped gear, packed supplies, consumed items, and unsecured discoveries.
+
+### Human prompt and direction
+
+The human developer supplied a focused loadout guide defining three equipment slots, a six-slot expedition pack, starting gear and supplies, migration expectations, and encounter-specific distinctions between owned, equipped, carried, and currently available items. The pass was constrained to existing systems and content rather than adding new encounters or gameplay features.
+
+### AI-assisted implementation
+
+- Added explicit item metadata for equipment slots, pack eligibility, consumable status, and stack limits.
+- Added Weapon, Armor, and Relic equipment slots with Iron Longsword, Chainmail Hauberk, and Silver Stag Medallion equipped by default.
+- Added a six-slot expedition pack, initially containing the Traveler's Cloak, Rope, and Torches, with clear Equipped, Packed, and Owned states in preparation.
+- Snapshotted equipped gear and packed quantities separately when a run begins, while retaining distinct consumed-item and unsecured-loot records.
+- Added reusable encounter requirements for permanent ownership, equipped items, carried items, and items available from either the pack or discoveries made during the current run.
+- Updated existing encounters so the Silver Stag Medallion must be equipped, Rope and the Traveler's Cloak must be packed, and Bandages or the Fine Hunting Knife may be packed or found during the expedition.
+- Migrated older saves into the new equipment and pack model without requiring a reset, including older utility-slot selections.
+- Expanded the optional debug state to expose all inventory layers for playtesting.
+- Ran 26 automated headless-browser assertions covering defaults, migration, capacity, preparation scroll position, UI states, run snapshots, encounter requirements, consumption, banking, failure loss, direction filtering, pacing, debug data, and runtime errors; every assertion passed.
+
+### Manual changes
+
+The human developer supplied the authored loadout/equipment guide. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Players now make a concrete pre-expedition loadout decision: permanent inventory remains safe, three equipped items provide equipment-specific access, and up to six packed item types are available on the road. Discovered loot remains usable where intended but unsecured until a successful return, while failed expeditions preserve all previously owned gear and supplies except consumables actually used during the run.

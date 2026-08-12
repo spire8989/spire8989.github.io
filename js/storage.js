@@ -5,19 +5,21 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 2,
+      saveVersion: 3,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
         wayfarers_cloak: 1,
+        rope: 1,
         silver_stag_medallion: 1,
         torch: 2,
       },
       equippedItems: {
         weapon: "arthur_sword",
         armor: "quilted_hauberk",
-        utility: "wayfarers_cloak",
+        relic: "silver_stag_medallion",
       },
+      packedItems: ["wayfarers_cloak", "rope", "torch"],
       unlockedCompanions: ["sir_kay"],
       selectedCompanion: "sir_kay",
       learnedKnowledge: ["woodcraft"],
@@ -78,18 +80,21 @@ function sanitizePlayerState(savedState, defaults) {
     }
   });
 
-  // Version 2 introduced intentional starting content to pre-existing prototype saves.
-  if (Number(savedState.saveVersion) < 2) {
+  // Version 3 introduced the default pack and its Rope to pre-existing prototype saves.
+  if (Number(savedState.saveVersion) < 3) {
     Object.entries(defaults.ownedItems).forEach(([itemId, quantity]) => {
       ownedItems[itemId] ??= quantity;
     });
   }
 
   const equippedItems = {};
-  ["weapon", "armor", "utility"].forEach((slot) => {
-    const itemId = savedState.equippedItems?.[slot];
+  ["weapon", "armor", "relic"].forEach((slot) => {
+    const legacyRelic = slot === "relic" && savedState.equippedItems?.utility === "silver_stag_medallion"
+      ? "silver_stag_medallion"
+      : null;
+    const itemId = savedState.equippedItems?.[slot] ?? legacyRelic;
     const item = ITEM_DEFINITIONS[itemId];
-    if (item && item.slot === slot && ownedItems[itemId]) {
+    if (item && item.equipmentSlot === slot && ownedItems[itemId]) {
       equippedItems[slot] = itemId;
       return;
     }
@@ -99,6 +104,8 @@ function sanitizePlayerState(savedState, defaults) {
       equippedItems[slot] = defaultItemId;
     }
   });
+
+  const packedItems = sanitizePackedItems(savedState, ownedItems, equippedItems, defaults.packedItems);
 
   const unlockedCompanions = validIdArray(
     savedState.unlockedCompanions,
@@ -110,9 +117,10 @@ function sanitizePlayerState(savedState, defaults) {
     : unlockedCompanions[0];
 
   return {
-    saveVersion: 2,
+    saveVersion: 3,
     ownedItems,
     equippedItems,
+    packedItems,
     unlockedCompanions,
     selectedCompanion,
     learnedKnowledge: sanitizeKnowledge(savedState.learnedKnowledge, defaults.learnedKnowledge),
@@ -120,6 +128,18 @@ function sanitizePlayerState(savedState, defaults) {
     bestExpeditionDistance: nonNegativeNumber(savedState.bestExpeditionDistance),
     currentGold: nonNegativeNumber(savedState.currentGold),
   };
+}
+
+function sanitizePackedItems(savedState, ownedItems, equippedItems, fallback) {
+  const requestedItems = Array.isArray(savedState.packedItems)
+    ? savedState.packedItems
+    : [savedState.equippedItems?.utility, ...fallback];
+  return [...new Set(requestedItems)]
+    .filter((itemId) => itemId
+      && ownedItems[itemId]
+      && ITEM_DEFINITIONS[itemId]?.carriable
+      && !Object.values(equippedItems).includes(itemId))
+    .slice(0, EXPEDITION_TUNING.packSlots);
 }
 
 function validIdArray(value, definitions, fallback) {

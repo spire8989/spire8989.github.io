@@ -52,6 +52,9 @@ function handleAction(event) {
     case "equip-item":
       equipItem(itemId);
       break;
+    case "toggle-pack-item":
+      togglePackItem(itemId);
+      break;
     case "select-companion":
       selectCompanion(companionId);
       break;
@@ -167,6 +170,13 @@ function renderPreparation() {
   const companions = game.player.unlockedCompanions
     .map((companionId) => companionCard(COMPANION_DEFINITIONS[companionId]))
     .join("");
+  const equipment = ["weapon", "armor", "relic"]
+    .map((slot) => equipmentSlotCard(slot, game.player.equippedItems[slot]))
+    .join("");
+  const packedItems = game.player.packedItems
+    .map((itemId) => packItemCard(ITEM_DEFINITIONS[itemId], game.player.ownedItems[itemId]))
+    .join("");
+  const emptyPackSlots = EXPEDITION_TUNING.packSlots - game.player.packedItems.length;
 
   ui.screenRoot.innerHTML = `
     <section class="screen preparation-screen" aria-labelledby="preparation-title">
@@ -174,6 +184,26 @@ function renderPreparation() {
         <p class="eyebrow">Chapter III — Brocéliande</p>
         <h1 id="preparation-title">Prepare the Company</h1>
       </div>
+
+      <section class="preparation-section" aria-labelledby="equipment-title">
+        <div class="section-title-row">
+          <h2 id="equipment-title">Equipped Gear</h2>
+          <span>Weapon · Armor · Relic</span>
+        </div>
+        <div class="equipment-slots">${equipment}</div>
+      </section>
+
+      <section class="preparation-section" aria-labelledby="pack-title">
+        <div class="section-title-row">
+          <h2 id="pack-title">Expedition Pack</h2>
+          <span>${game.player.packedItems.length}/${EXPEDITION_TUNING.packSlots} slots</span>
+        </div>
+        <p class="section-help">Packed tools and consumables are available during encounters.</p>
+        <div class="pack-list">
+          ${packedItems || '<p class="empty-loot">The pack is empty.</p>'}
+          ${Array.from({ length: emptyPackSlots }, () => '<div class="empty-pack-slot">Empty slot</div>').join("")}
+        </div>
+      </section>
 
       <section class="preparation-section" aria-labelledby="inventory-title">
         <div class="section-title-row">
@@ -208,10 +238,19 @@ function renderPreparation() {
 }
 
 function inventoryCard(item, quantity) {
-  const equipped = item.equippable && game.player.equippedItems[item.slot] === item.id;
-  const button = item.equippable
-    ? `<button class="small-button ${equipped ? "is-selected" : ""}" type="button" data-action="equip-item" data-item-id="${item.id}">${equipped ? "Equipped" : "Equip"}</button>`
-    : `<span class="item-state">${item.questItem ? "Quest item" : "Stored"}</span>`;
+  const equipped = item.equippable && game.player.equippedItems[item.equipmentSlot] === item.id;
+  const packed = game.player.packedItems.includes(item.id);
+  const actions = [];
+  if (item.equippable) {
+    actions.push(`<button class="small-button ${equipped ? "is-selected" : ""}" type="button" data-action="equip-item" data-item-id="${item.id}" ${equipped ? "disabled" : ""}>${equipped ? "Equipped" : `Equip ${capitalize(item.equipmentSlot)}`}</button>`);
+  }
+  if (item.carriable && !equipped) {
+    const packFull = !packed && game.player.packedItems.length >= EXPEDITION_TUNING.packSlots;
+    actions.push(`<button class="small-button ${packed ? "is-packed" : ""}" type="button" data-action="toggle-pack-item" data-item-id="${item.id}" ${packFull ? "disabled" : ""}>${packed ? "Packed" : "Pack"}</button>`);
+  }
+  if (actions.length === 0) {
+    actions.push(`<span class="item-state">${item.questItem ? "Special" : "Owned"}</span>`);
+  }
 
   return `
     <article class="inventory-card ${equipped ? "is-equipped" : ""}">
@@ -219,9 +258,27 @@ function inventoryCard(item, quantity) {
       <div class="item-copy">
         <div class="item-title-row"><h3>${item.name}</h3>${quantity > 1 ? `<span>×${quantity}</span>` : ""}</div>
         <p>${item.description}</p>
-        <span class="item-category">${item.slot ?? item.category}</span>
+        <span class="item-category">${item.equipmentSlot ?? item.category}${item.rarity ? ` · ${item.rarity}` : ""}</span>
       </div>
-      ${button}
+      <div class="item-actions">${actions.join("")}</div>
+    </article>`;
+}
+
+function equipmentSlotCard(slot, itemId) {
+  const item = ITEM_DEFINITIONS[itemId];
+  return `
+    <article class="equipment-slot-card">
+      <span>${capitalize(slot)}</span>
+      <strong>${item?.name ?? "Empty"}</strong>
+    </article>`;
+}
+
+function packItemCard(item, quantity) {
+  const packedQuantity = Math.min(quantity, item.maxStack ?? 1);
+  return `
+    <article class="pack-item-card">
+      <div><strong>${item.name}</strong>${packedQuantity > 1 ? `<span> ×${packedQuantity}</span>` : ""}</div>
+      <button class="small-button is-packed" type="button" data-action="toggle-pack-item" data-item-id="${item.id}">Remove</button>
     </article>`;
 }
 
@@ -240,7 +297,26 @@ function equipItem(itemId) {
     return;
   }
 
-  game.player.equippedItems[item.slot] = itemId;
+  game.player.equippedItems[item.equipmentSlot] = itemId;
+  game.player.packedItems = game.player.packedItems.filter((packedItemId) => packedItemId !== itemId);
+  savePlayer();
+  refreshPreparation();
+}
+
+function togglePackItem(itemId) {
+  const item = ITEM_DEFINITIONS[itemId];
+  if (!item?.carriable
+    || !game.player.ownedItems[itemId]
+    || Object.values(game.player.equippedItems).includes(itemId)) {
+    return;
+  }
+
+  const packedIndex = game.player.packedItems.indexOf(itemId);
+  if (packedIndex >= 0) {
+    game.player.packedItems.splice(packedIndex, 1);
+  } else if (game.player.packedItems.length < EXPEDITION_TUNING.packSlots) {
+    game.player.packedItems.push(itemId);
+  }
   savePlayer();
   refreshPreparation();
 }
@@ -718,9 +794,10 @@ function savePlayer() {
 
 function createExpeditionCarriedItems() {
   return Object.fromEntries(
-    Object.entries(game.player.ownedItems).filter(([itemId, quantity]) => (
-      quantity > 0 && ITEM_DEFINITIONS[itemId]?.tags.includes("consumable")
-    )),
+    game.player.packedItems.map((itemId) => [
+      itemId,
+      Math.min(game.player.ownedItems[itemId], ITEM_DEFINITIONS[itemId].maxStack ?? 1),
+    ]),
   );
 }
 
@@ -767,6 +844,11 @@ function itemIcon(category) {
 
 function debugExpeditionState(expedition) {
   return JSON.stringify({
+    ownedInventory: game.player.ownedItems,
+    equippedGear: expedition.selectedEquipment,
+    packedItems: expedition.carriedItems,
+    unsecuredLoot: expedition.unsecuredLoot,
+    consumedItems: expedition.consumedItems,
     path: expedition.currentPathId,
     direction: expedition.direction,
     distance: Number(expedition.distance.toFixed(2)),
@@ -801,6 +883,10 @@ function setText(selector, text) {
   if (element) {
     element.textContent = text;
   }
+}
+
+function capitalize(value) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
 }
 
 function clamp(value, minimum, maximum) {
