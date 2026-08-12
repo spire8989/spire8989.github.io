@@ -148,3 +148,33 @@ The human developer playtested the previous phone build and supplied the pacing 
 ### Resulting prototype state
 
 Expeditions now contain longer stretches of visible travel between unique events. Encounter consequences remain readable for as long as needed, provisions support substantially greater travel distance, and the return journey is compressed in real time without becoming cheaper per league.
+
+## 2026-08-12 — Brocéliande Encounters and Loot
+
+### Goal
+
+Increase expedition variety through additional data-driven encounters, path identity, useful discoveries, and persistent loot progression while preserving the improved pacing and existing story boundaries.
+
+### Human prompt and direction
+
+The human developer first reported that preparation controls reset the scroll position after every equipment or provision change. They then supplied twelve specific encounters, eight loot definitions, rarity guidance, path-content goals, item and knowledge interactions, and strict constraints against adding campaign, Merlin, Grail, combat, or puzzle content.
+
+### AI-assisted implementation
+
+- Preserved the preparation screen's scroll position across equipment, companion, and provision rerenders.
+- Added common, uncommon, and rare metadata to the requested mundane and mysterious loot definitions.
+- Added Woodland Stream, Woodland Foraging, Abandoned Cart, The White Hart, Whispering Oak, The Road Behind You, Hidden Hollow, Sudden Storm, Strange Lights, Injured Hunter, Something in the Thorns, and Shelter Before Nightfall.
+- Differentiated Main Road, Overgrown Trail, outbound, both-direction, and return-only encounter pools without changing encounter spacing.
+- Extended generic outcomes with conditional effects and terminal result stages while retaining data-driven multi-stage decisions.
+- Added clearly formatted `ITEM FOUND`, item description, and `UNSECURED` feedback to encounter results.
+- Made found consumables usable during the current run and ensured their use removes the unsecured copy rather than granting a free effect.
+- Verified that a Fine Hunting Knife can be found, secured by returning, equipped on a later expedition, and used to unlock a safer choice.
+- Ran 28 automated browser assertions covering scroll preservation, encounter pools, requirements, hidden choices, multi-stage flow, consumables, rarity, unsecured feedback, successful banking, failed-run loss, pacing preservation, and runtime errors; all passed.
+
+### Manual changes
+
+The human developer identified the preparation scrolling issue through playtesting and supplied the complete authored content guide. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Brocéliande now supports eighteen non-repeatable encounters with meaningfully different road and trail pools. Expeditions can yield items worth protecting, and discoveries such as the Fine Hunting Knife create persistent advantages in later runs. Preparation controls remain usable without jumping back to the top of the screen.

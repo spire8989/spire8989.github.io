@@ -242,7 +242,7 @@ function equipItem(itemId) {
 
   game.player.equippedItems[item.slot] = itemId;
   savePlayer();
-  renderPreparation();
+  refreshPreparation();
 }
 
 function selectCompanion(companionId) {
@@ -252,7 +252,7 @@ function selectCompanion(companionId) {
 
   game.player.selectedCompanion = companionId;
   savePlayer();
-  renderPreparation();
+  refreshPreparation();
 }
 
 function changeSupplies(amount) {
@@ -261,7 +261,16 @@ function changeSupplies(amount) {
     EXPEDITION_TUNING.minimumStartingProvisions,
     EXPEDITION_TUNING.maximumStartingProvisions,
   );
+  refreshPreparation();
+}
+
+function refreshPreparation() {
+  const scrollTop = document.querySelector(".preparation-screen")?.scrollTop ?? 0;
   renderPreparation();
+  const refreshedScreen = document.querySelector(".preparation-screen");
+  if (refreshedScreen) {
+    refreshedScreen.scrollTop = scrollTop;
+  }
 }
 
 function startExpedition() {
@@ -710,7 +719,7 @@ function savePlayer() {
 function createExpeditionCarriedItems() {
   return Object.fromEntries(
     Object.entries(game.player.ownedItems).filter(([itemId, quantity]) => (
-      quantity > 0 && ITEM_DEFINITIONS[itemId]?.category === "supply"
+      quantity > 0 && ITEM_DEFINITIONS[itemId]?.tags.includes("consumable")
     )),
   );
 }

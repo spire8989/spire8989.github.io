@@ -104,24 +104,20 @@ const EncounterOutcomes = Object.freeze({
         }
         const itemId = validItemIds[randomInteger(0, validItemIds.length - 1)];
         addUnsecuredItem(expedition, itemId, effect.quantity ?? 1);
-        return [`Found ${ITEM_DEFINITIONS[itemId].name}`];
+        return [unsecuredLootMessage(itemId)];
       }
       case "gainUnsecuredItem":
         if (!ITEM_DEFINITIONS[effect.itemId]) {
           return [];
         }
         addUnsecuredItem(expedition, effect.itemId, effect.quantity ?? 1);
-        return [`Found ${ITEM_DEFINITIONS[effect.itemId].name}`];
+        return [unsecuredLootMessage(effect.itemId)];
       case "consumeExpeditionItem": {
         const quantity = effect.quantity ?? 1;
-        if ((expedition.carriedItems[effect.itemId] ?? 0) < quantity) {
+        if (expeditionItemQuantity(expedition, effect.itemId) < quantity) {
           return [];
         }
-        expedition.carriedItems[effect.itemId] -= quantity;
-        if (expedition.carriedItems[effect.itemId] <= 0) {
-          delete expedition.carriedItems[effect.itemId];
-        }
-        expedition.consumedItems[effect.itemId] = (expedition.consumedItems[effect.itemId] ?? 0) + quantity;
+        consumeExpeditionItem(expedition, effect.itemId, quantity);
         return [`Used ${quantity} ${ITEM_DEFINITIONS[effect.itemId]?.name ?? effect.itemId}`];
       }
       case "changePath":
@@ -129,12 +125,20 @@ const EncounterOutcomes = Object.freeze({
         return [`Path changed to ${pathLabel(effect.pathId)}`];
       case "setRunFlag":
         expedition.runFlags[effect.flag] = effect.value ?? true;
-        return [];
+        return effect.message ? [effect.message] : [];
       case "learnKnowledge":
         if (!player.learnedKnowledge.includes(effect.knowledgeId)) {
           player.learnedKnowledge.push(effect.knowledgeId);
         }
-        return [];
+        return KNOWLEDGE_DEFINITIONS[effect.knowledgeId]
+          ? [`Knowledge learned: ${KNOWLEDGE_DEFINITIONS[effect.knowledgeId].name}`]
+          : [];
+      case "conditional": {
+        const effects = EncounterRequirements.meetsAll(effect.requirements, context)
+          ? effect.effects
+          : effect.elseEffects;
+        return this.applyAll(effects, context);
+      }
       case "randomChance":
         return Math.random() < effect.chance
           ? this.applyAll(effect.effects, context)
@@ -268,7 +272,20 @@ const EncounterManager = Object.freeze({
     active.outcomeMessages.push(...outcomeMessages);
 
     if (choice.nextStage) {
+      const nextStage = encounter.stages[choice.nextStage];
+      if (!nextStage) {
+        console.warn(`Encounter ${encounter.id} is missing stage ${choice.nextStage}.`);
+        return { resolved: false, ended: false, message: "" };
+      }
+
       active.stageId = choice.nextStage;
+      if (nextStage.resultStage) {
+        active.outcomeMessages.push(...EncounterOutcomes.applyAll(nextStage.outcomes, context));
+        active.phase = "result";
+        active.resultText = nextStage.text;
+        return { resolved: true, ended: false, awaitingContinue: true, message: nextStage.text };
+      }
+
       active.phase = "choice";
       return { resolved: true, ended: false, message: choice.resultText ?? "" };
     }
@@ -319,6 +336,11 @@ function addUnsecuredItem(expedition, itemId, quantity) {
   }
 }
 
+function unsecuredLootMessage(itemId) {
+  const item = ITEM_DEFINITIONS[itemId];
+  return `ITEM FOUND\n${item.name}\n${item.description}\nUNSECURED`;
+}
+
 function expeditionItemQuantity(expedition, itemId) {
   const equippedQuantity = Object.values(expedition.selectedEquipment).includes(itemId) ? 1 : 0;
   const carriedQuantity = expedition.carriedItems?.[itemId] ?? 0;
@@ -326,6 +348,34 @@ function expeditionItemQuantity(expedition, itemId) {
     .filter((entry) => entry.itemId === itemId)
     .reduce((sum, entry) => sum + entry.quantity, 0);
   return equippedQuantity + carriedQuantity + unsecuredQuantity;
+}
+
+function consumeExpeditionItem(expedition, itemId, quantity) {
+  let remaining = quantity;
+  const carriedQuantity = expedition.carriedItems[itemId] ?? 0;
+  const carriedUsed = Math.min(carriedQuantity, remaining);
+
+  if (carriedUsed > 0) {
+    expedition.carriedItems[itemId] -= carriedUsed;
+    expedition.consumedItems[itemId] = (expedition.consumedItems[itemId] ?? 0) + carriedUsed;
+    remaining -= carriedUsed;
+    if (expedition.carriedItems[itemId] <= 0) {
+      delete expedition.carriedItems[itemId];
+    }
+  }
+
+  for (let index = expedition.unsecuredLoot.length - 1; index >= 0 && remaining > 0; index -= 1) {
+    const loot = expedition.unsecuredLoot[index];
+    if (loot.itemId !== itemId) {
+      continue;
+    }
+    const unsecuredUsed = Math.min(loot.quantity, remaining);
+    loot.quantity -= unsecuredUsed;
+    remaining -= unsecuredUsed;
+    if (loot.quantity <= 0) {
+      expedition.unsecuredLoot.splice(index, 1);
+    }
+  }
 }
 
 function weightedChoice(entries) {

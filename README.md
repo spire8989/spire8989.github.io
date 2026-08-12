@@ -4,7 +4,7 @@ This repository is a browser-only portrait prototype for an Arthurian survival a
 
 ## Current prototype
 
-The playable vertical slice begins at a deliberately non-canonical fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, equip owned items, travel with Sir Kay, and select provisions. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. Procedural encounters pause travel and require a choice before the journey continues. Encounter eligibility changes between outbound and return travel. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment brought into the run.
+The playable vertical slice begins at a deliberately non-canonical fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, equip owned items, travel with Sir Kay, and select provisions. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. A growing pool of data-driven encounters pauses travel and presents resource, equipment, knowledge, path, and risk/reward choices. Main Road and Overgrown Trail content differ, as do outbound and return encounter pools. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment brought into the run.
 
 Distance influences which encounters are eligible, but does not directly award loot. Rewards currently come from encounter choices.
 
