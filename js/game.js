@@ -93,7 +93,7 @@ function handleAction(event) {
       game.preparationSupplies = Math.min(
         Math.max(game.preparationSupplies, EXPEDITION_TUNING.minimumStartingProvisions),
         game.player.provisions,
-        EXPEDITION_TUNING.maximumStartingProvisions,
+        partyProvisionCapacity(game.player.selectedCompanion),
       );
       showScreen("preparation");
       break;
@@ -515,18 +515,38 @@ function createProvisionShopStock() {
   );
 }
 
+function partyProvisionCapacity(selectedCompanionId) {
+  const companion = selectedCompanionId
+    ? COMPANION_DEFINITIONS[selectedCompanionId]
+    : null;
+  return PLAYER_CHARACTER_DEFINITION.provisionCapacity
+    + (companion?.provisionCapacityBonus ?? 0);
+}
+
+function partyProvisionConsumptionMultiplier(selectedCompanionId) {
+  const companion = selectedCompanionId
+    ? COMPANION_DEFINITIONS[selectedCompanionId]
+    : null;
+  return PLAYER_CHARACTER_DEFINITION.provisionConsumptionMultiplier
+    + (companion?.provisionConsumptionBonus ?? 0);
+}
+
 function destinationIcon(type) {
   return ({ inn: "⌂", shop: "◆", expedition_gate: "♞" })[type] ?? "•";
 }
 
 function renderPreparation() {
   const expeditionPreparation = game.preparationMode === "expedition";
+  const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
+  const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(
+    game.player.selectedCompanion,
+  );
   const inventory = Object.entries(game.player.ownedItems)
     .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
     .join("");
-  const companions = game.player.unlockedCompanions
+  const companions = [companionCard(null), ...game.player.unlockedCompanions
     .map((companionId) => companionCard(COMPANION_DEFINITIONS[companionId]))
-    .join("");
+  ].join("");
   const equipment = ["weapon", "armor", "relic"]
     .map((slot) => equipmentSlotCard(slot, game.player.equippedItems[slot]))
     .join("");
@@ -571,14 +591,18 @@ function renderPreparation() {
       </section>
 
       ${expeditionPreparation ? `<section class="preparation-section" aria-labelledby="companion-title">
-        <h2 id="companion-title">Companion</h2>
+        <div class="section-title-row">
+          <h2 id="companion-title">Party</h2>
+          <span>${PLAYER_CHARACTER_DEFINITION.name}${game.player.selectedCompanion ? ` · ${COMPANION_DEFINITIONS[game.player.selectedCompanion].name}` : " · Traveling Alone"}</span>
+        </div>
         <div class="choice-list">${companions}</div>
       </section>
 
       <section class="preparation-section supplies-section" aria-labelledby="supplies-title">
         <div>
           <h2 id="supplies-title">Provisions</h2>
-          <p>Owned: <strong>${game.player.provisions}</strong> · Choose how many to carry.</p>
+          <p>Owned: <strong>${game.player.provisions}</strong></p>
+          <p>To carry: <strong>${game.preparationSupplies} / ${provisionCapacity}</strong> · Consumption: <strong>${provisionConsumptionMultiplier.toFixed(2)}×</strong></p>
         </div>
         <div class="stepper" aria-label="Choose provisions">
           <button type="button" data-action="change-supplies" data-amount="-5" aria-label="Remove five provisions">−5</button>
@@ -642,11 +666,15 @@ function packItemCard(item, quantity) {
 }
 
 function companionCard(companion) {
-  const selected = game.player.selectedCompanion === companion.id;
+  const selected = game.player.selectedCompanion === (companion?.id ?? null);
+  const name = companion?.name ?? "Travel Alone";
+  const description = companion
+    ? `${companion.description} +${companion.provisionCapacityBonus} provision capacity · +${companion.provisionConsumptionBonus.toFixed(2)}× consumption.`
+    : `${PLAYER_CHARACTER_DEFINITION.name} carries ${PLAYER_CHARACTER_DEFINITION.provisionCapacity} provisions at ${PLAYER_CHARACTER_DEFINITION.provisionConsumptionMultiplier.toFixed(2)}× consumption.`;
   return `
-    <button class="choice-card ${selected ? "is-selected" : ""}" type="button" data-action="select-companion" data-companion-id="${companion.id}">
-      <strong>${companion.name}</strong>
-      <span>${companion.description}</span>
+    <button class="choice-card ${selected ? "is-selected" : ""}" type="button" data-action="select-companion" data-companion-id="${companion?.id ?? ""}">
+      <strong>${name}</strong>
+      <span>${description}</span>
     </button>`;
 }
 
@@ -681,11 +709,17 @@ function togglePackItem(itemId) {
 }
 
 function selectCompanion(companionId) {
-  if (!game.player.unlockedCompanions.includes(companionId)) {
+  const selectedCompanion = companionId || null;
+  if (selectedCompanion && !game.player.unlockedCompanions.includes(selectedCompanion)) {
     return;
   }
 
-  game.player.selectedCompanion = companionId;
+  game.player.selectedCompanion = selectedCompanion;
+  game.preparationSupplies = Math.min(
+    game.preparationSupplies,
+    partyProvisionCapacity(selectedCompanion),
+    game.player.provisions,
+  );
   savePlayer();
   refreshPreparation();
 }
@@ -697,7 +731,7 @@ function changeSupplies(amount) {
   game.preparationSupplies = clamp(
     game.preparationSupplies + amount,
     0,
-    Math.min(EXPEDITION_TUNING.maximumStartingProvisions, game.player.provisions),
+    Math.min(partyProvisionCapacity(game.player.selectedCompanion), game.player.provisions),
   );
   refreshPreparation();
 }
@@ -712,9 +746,14 @@ function refreshPreparation() {
 }
 
 function startExpedition() {
+  const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
+  const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(
+    game.player.selectedCompanion,
+  );
   if (game.preparationMode !== "expedition"
     || game.preparationSupplies <= 0
-    || game.preparationSupplies > game.player.provisions) {
+    || game.preparationSupplies > game.player.provisions
+    || game.preparationSupplies > provisionCapacity) {
     return;
   }
   const committedProvisions = game.preparationSupplies;
@@ -728,6 +767,9 @@ function startExpedition() {
     maxDistanceReached: 0,
     direction: "outbound",
     provisions: committedProvisions,
+    carriedProvisions: committedProvisions,
+    provisionCapacity,
+    provisionConsumptionMultiplier,
     committedProvisions,
     committedProvisionsRemaining: committedProvisions,
     foundProvisions: 0,
@@ -749,7 +791,9 @@ function startExpedition() {
 
 function renderExpedition() {
   const expedition = game.expedition;
-  const companion = COMPANION_DEFINITIONS[expedition.selectedCompanion];
+  const companion = expedition.selectedCompanion
+    ? COMPANION_DEFINITIONS[expedition.selectedCompanion]
+    : null;
   const activeEncounter = expedition.activeEncounter
     ? ENCOUNTER_DEFINITIONS[expedition.activeEncounter.encounterId]
     : null;
@@ -765,7 +809,7 @@ function renderExpedition() {
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
         <div class="travelers" id="travelers" aria-hidden="true">
-          <span class="arthur">♞</span><span class="companion">♞</span>
+          <span class="arthur">♞</span>${companion ? '<span class="companion">♞</span>' : ""}
         </div>
         <div class="ground" aria-hidden="true"></div>
         <div class="direction-banner" id="direction-banner">${activeEncounter ? `Encounter: ${activeEncounter.title}` : "Traveling Outbound →"}</div>
@@ -795,7 +839,7 @@ function renderTravelPanel(expedition, companion, loadout) {
         <div class="progress-fill" id="distance-progress"></div>
       </div>
       <section class="run-details">
-        <p><span>Company</span><strong>Arthur &amp; ${companion.name}</strong></p>
+        <p><span>Company</span><strong>${companion ? `Arthur &amp; ${companion.name}` : "Arthur"}</strong></p>
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
         <p><span>Loadout</span><strong>${loadout || "No equipment selected"}</strong></p>
         <p><span>Carried</span><strong>${formatCarriedItems(expedition.carriedItems)}</strong></p>
@@ -955,7 +999,11 @@ function updateExpedition(deltaSeconds) {
   // Resource cost follows journey distance, independent of real-world animation speed.
   adjustExpeditionProvisions(
     expedition,
-    -(distanceTraveled * EXPEDITION_TUNING.provisionsPerDistance),
+    -(
+      distanceTraveled
+      * EXPEDITION_TUNING.baseProvisionsPerDistance
+      * expedition.provisionConsumptionMultiplier
+    ),
   );
 
   if (expedition.provisions <= 0) {
@@ -1309,6 +1357,9 @@ function debugExpeditionState(expedition) {
     direction: expedition.direction,
     distance: Number(expedition.distance.toFixed(2)),
     provisions: Number(expedition.provisions.toFixed(2)),
+    provisionCapacity: expedition.provisionCapacity,
+    provisionConsumptionMultiplier: expedition.provisionConsumptionMultiplier,
+    carriedProvisions: expedition.carriedProvisions,
     health: expedition.health,
     nextEncounterIn: Number(Math.max(
       expedition.nextEncounterAt - expedition.encounterTravelDistance,

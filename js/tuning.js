@@ -4,7 +4,7 @@
 const EXPEDITION_TUNING = Object.freeze({
   outboundTravelSpeed: 2.25,
   returnSpeedMultiplier: 4,
-  provisionsPerDistance: 0.16,
+  baseProvisionsPerDistance: 0.07,
   encounterMinimumDistance: 14,
   encounterMaximumDistance: 22,
   encounterActionDelays: Object.freeze({
@@ -16,6 +16,5 @@ const EXPEDITION_TUNING = Object.freeze({
   postEncounterSafeDistance: 8,
   packSlots: 6,
   minimumStartingProvisions: 1,
-  maximumStartingProvisions: 26,
   minimumTownProvisions: 10,
 });

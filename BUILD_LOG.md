@@ -355,3 +355,33 @@ The human developer supplied the complete pacing, loot-variety, anti-softlock, a
 ### Resulting prototype state
 
 Effortful encounter actions now consistently carry a short anticipation beat, and every search or random consequence tells the player what occurred. Ordinary valuables create more varied return-and-sell rewards, village entry guarantees enough food for another attempt, and deep expeditions retain common survival events with tightly capped recurrence rather than faster encounter spacing.
+
+## 2026-08-12 — Party Provision Capacity and Consumption
+
+### Goal
+
+Replace the fixed expedition food cap with party-derived carrying capacity and make companions increase distance-based consumption by a useful but moderate amount.
+
+### Human prompt and direction
+
+The human developer reported that the existing provision balance was not fun and supplied a focused party-provision guide. It defined Arthur's 20-provision capacity and 1.0× consumption, Sir Kay's +10 capacity and +0.30× consumption, a new 0.07 baseline cost per league, visible preparation feedback, expedition snapshots, and preservation of the 10-provision town safety floor and all unrelated systems.
+
+### AI-assisted implementation
+
+- Added data-driven provision capacity and consumption values to Arthur and Sir Kay rather than referring to Kay by name in preparation or expedition calculations.
+- Removed the fixed `maximumStartingProvisions` tuning value and replaced the former 0.16 shared rate with `baseProvisionsPerDistance: 0.07`.
+- Made companion selection optional so Arthur can travel alone at 20 capacity and 1.00× consumption, while Arthur and Kay can carry 30 at 1.30× consumption.
+- Updated preparation to show the selected party, owned food, selected food versus calculated capacity, and the current consumption multiplier.
+- Clamped selected provisions immediately when party capacity decreases and continued to preserve preparation scroll position through party and provision changes.
+- Snapshotted departure capacity, consumption multiplier, and carried provisions into expedition state so later player-state changes cannot alter an active run.
+- Kept consumption fractional and distance-based in both directions: Arthur uses 0.07 provisions per league, while Arthur and Kay use 0.091 provisions per league regardless of return animation speed.
+- Preserved encounter-found provisions above departure capacity, persistent provision settlement, prices, shops, the 10-provision village floor, and all encounter and campaign behavior.
+- Expanded the Chrome regression suite from 117 to 130 assertions, covering party data, optional companion save state, capacity clamping, preparation feedback, expedition snapshots, solo rendering, effective rates, snapshot isolation, found-food overflow, equal outbound/return distance costs, settlement, reset behavior, and runtime exceptions; all passed.
+
+### Manual changes
+
+The human developer supplied the party capacity and consumption guide and requested that the verified result be committed and pushed. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Provision planning now reflects the company Arthur chooses to bring. Traveling alone is lighter and more efficient, while bringing Kay increases food capacity enough to support longer expeditions at a moderate consumption cost. The active expedition remains stable after departure, and foraging can still push supplies above the town departure limit.

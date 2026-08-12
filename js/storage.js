@@ -114,9 +114,11 @@ function sanitizePlayerState(savedState, defaults) {
     COMPANION_DEFINITIONS,
     defaults.unlockedCompanions,
   );
-  const selectedCompanion = unlockedCompanions.includes(savedState.selectedCompanion)
-    ? savedState.selectedCompanion
-    : unlockedCompanions[0];
+  const selectedCompanion = savedState.selectedCompanion === null
+    ? null
+    : unlockedCompanions.includes(savedState.selectedCompanion)
+      ? savedState.selectedCompanion
+      : defaults.selectedCompanion;
 
   return {
     saveVersion: 5,

@@ -364,12 +364,21 @@ const KNOWLEDGE_DEFINITIONS = Object.freeze({
   },
 });
 
+const PLAYER_CHARACTER_DEFINITION = Object.freeze({
+  id: "arthur",
+  name: "Arthur",
+  provisionCapacity: 20,
+  provisionConsumptionMultiplier: 1,
+});
+
 const COMPANION_DEFINITIONS = Object.freeze({
   sir_kay: {
     id: "sir_kay",
     name: "Sir Kay",
     description: "A blunt, steadfast knight who knows the cost of an expedition.",
     tags: ["knight", "practical"],
+    provisionCapacityBonus: 10,
+    provisionConsumptionBonus: 0.3,
   },
 });
 
