@@ -85,13 +85,15 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 quantity: 1,
               },
             ],
-            nextStage: "searched",
+            resultText: "The search turns up one mundane item worth carrying home. It remains unsecured until a safe return.",
+            endEncounter: true,
           },
           {
             id: "take_provisions",
             label: "Take the Remaining Provisions",
             outcomes: [{ type: "modifyResource", resource: "provisions", amount: 4 }],
-            nextStage: "provisions_taken",
+            resultText: "Kay gathers the remaining food and adds it to the company's provisions.",
+            endEncounter: true,
           },
           {
             id: "leave",
@@ -100,14 +102,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true,
           },
         ],
-      },
-      searched: {
-        text: "The search turns up one mundane item worth carrying home. It remains unsecured until a safe return.",
-        choices: [{ id: "continue", label: "Continue Journey", endEncounter: true }],
-      },
-      provisions_taken: {
-        text: "Kay gathers the remaining food and adds it to the company's provisions.",
-        choices: [{ id: "continue", label: "Continue Journey", endEncounter: true }],
       },
     },
   },
@@ -167,7 +161,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "examine",
             label: "Examine the Markings",
-            nextStage: "unknown_markings",
+            resultText: "Arthur studies the markings, but their meaning remains unknown.",
+            endEncounter: true,
           },
           {
             id: "use_medallion",
@@ -180,7 +175,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               },
             ],
             outcomes: [{ type: "setRunFlag", flag: "stagStoneDiscovered", value: true }],
-            nextStage: "medallion_reacts",
+            resultText: "The Silver Stag Medallion responds to the stone. Whatever this signifies remains unclear.",
+            endEncounter: true,
           },
           {
             id: "leave",
@@ -189,14 +185,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true,
           },
         ],
-      },
-      unknown_markings: {
-        text: "Arthur studies the markings, but their meaning remains unknown.",
-        choices: [{ id: "continue", label: "Continue Journey", endEncounter: true }],
-      },
-      medallion_reacts: {
-        text: "The Silver Stag Medallion responds to the stone. Whatever this signifies remains unclear.",
-        choices: [{ id: "continue", label: "Keep This Discovery Secret", endEncounter: true }],
       },
     },
   },
