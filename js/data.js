@@ -66,6 +66,8 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: false,
     effects: {},
     questItem: false,
+    sellable: false,
+    protected: true,
   },
   torch: {
     id: "torch",

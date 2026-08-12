@@ -208,3 +208,34 @@ The human developer supplied the authored loadout/equipment guide. No manual cod
 ### Resulting prototype state
 
 Players now make a concrete pre-expedition loadout decision: permanent inventory remains safe, three equipped items provide equipment-specific access, and up to six packed item types are available on the road. Discovered loot remains usable where intended but unsecured until a successful return, while failed expeditions preserve all previously owned gear and supplies except consumables actually used during the run.
+
+## 2026-08-12 â€” BrocÃ©liande Village Hub and Trading
+
+### Goal
+
+Add a reusable location layer between Chapter Select and expeditions, proving a small inhabited hub where the player can interact, trade, prepare, leave for the forest, and return after either expedition outcome.
+
+### Human prompt and direction
+
+The human developer supplied a focused location-system guide defining a portrait visual hub, four initial destinations, simple NPC interactions, specialized shops, persistent gold and inventory rules, protected-item safeguards, revised expedition navigation, and strict limits against settlement management or additional story canon.
+
+### AI-assisted implementation
+
+- Added separate data definitions for locations, destinations, NPCs, rumors, and shops, including a persistent `currentLocationId` and save migration to schema version 4.
+- Added the placeholder Village at the Edge of BrocÃ©liande as Chapter III's hub, with directly tappable Inn, Merchant, Blacksmith, and Forest Gate regions in a portrait village scene.
+- Added reusable split-screen building views with a visual upper panel, interaction lower panel, clear current-place labels, and a consistent Return to Village action.
+- Added minimal data-driven innkeeper dialogue and two atmospheric rumors without introducing new campaign or Arthurian canon.
+- Added one reusable buy/sell implementation shared by the merchant and blacksmith, with centralized stock, fixed prices, accepted categories/tags, persistent gold changes, and permanent-inventory mutation.
+- Configured the merchant for Rope, Torches, Bandages, Dried Herbs, mundane goods, and Old Silver Coins; configured the blacksmith for the Iron Longsword, Chainmail Hauberk, Fine Hunting Knife, and appropriate metal/tool purchases.
+- Added explicit protection and clear blocked-sale reasons for special, equipped, packed, and vendor-inappropriate items. The Silver Stag Medallion cannot be sold.
+- Reused the existing inventory, equipment, pack, companion, provision, expedition, encounter, loot, and settlement systems rather than creating parallel versions.
+- Changed the local loop to Chapter Select â†’ Village â†’ Forest Gate â†’ Preparation â†’ Expedition â†’ Summary â†’ Village for both successful and failed runs.
+- Added a dependency-light Chrome regression suite and ran 42 browser assertions covering destinations, portrait split views, dialogue, vendor stock and specialization, buying and selling, gold and inventory persistence, all sale safeguards, Forest Gate preparation, encounter pausing, secure and unsecured loot, both expedition outcomes, loadout preservation, reset state, and runtime exceptions; all passed.
+
+### Manual changes
+
+The human developer supplied the authored village/location guide and requested that development continue to be documented in this build log. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Chapter III now has a small inhabited base between expeditions. Players can hear local atmosphere, convert suitable recovered loot into gold, purchase practical supplies or equipment from specialized vendors, adjust their existing loadout, and choose when to depart. The implementation establishes the reusable Campaign â†’ Location â†’ Destination â†’ Interaction architecture while keeping the prototype limited to one village and four destinations.

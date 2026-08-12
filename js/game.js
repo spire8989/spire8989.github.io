@@ -8,6 +8,10 @@ const game = {
   expedition: null,
   screen: "campaign",
   preparationSupplies: 18,
+  activeDestinationId: null,
+  preparationReturnDestinationId: "forest_gate",
+  shopTab: "buy",
+  interactionMessage: "",
   summary: null,
   elapsedSeconds: 0,
   lastTimestamp: null,
@@ -38,7 +42,7 @@ function handleAction(event) {
     return;
   }
 
-  const { action, itemId, companionId, choiceId } = control.dataset;
+  const { action, itemId, companionId, choiceId, destinationId } = control.dataset;
 
   switch (action) {
     case "show-campaign":
@@ -46,8 +50,46 @@ function handleAction(event) {
         showScreen("campaign");
       }
       break;
-    case "prepare-expedition":
+    case "enter-location":
+      enterLocation(control.dataset.locationId);
+      break;
+    case "show-location":
+      showLocation();
+      break;
+    case "open-destination":
+      openDestination(destinationId);
+      break;
+    case "npc-talk":
+      showNpcDialogue(control.dataset.npcId, "dialogue");
+      break;
+    case "hear-rumor":
+      showNpcDialogue(control.dataset.npcId, "rumors");
+      break;
+    case "shop-tab":
+      game.shopTab = control.dataset.tab === "sell" ? "sell" : "buy";
+      game.interactionMessage = "";
+      renderDestination();
+      break;
+    case "buy-item":
+      buyShopItem(itemId);
+      break;
+    case "sell-item":
+      sellShopItem(itemId);
+      break;
+    case "view-inventory":
+      game.preparationReturnDestinationId = "";
       showScreen("preparation");
+      break;
+    case "prepare-expedition":
+      game.preparationReturnDestinationId = "forest_gate";
+      showScreen("preparation");
+      break;
+    case "return-from-preparation":
+      if (game.preparationReturnDestinationId) {
+        openDestination(game.preparationReturnDestinationId);
+      } else {
+        showLocation();
+      }
       break;
     case "equip-item":
       equipItem(itemId);
@@ -83,7 +125,7 @@ function handleAction(event) {
       failExpedition("The company abandoned the expedition before reaching safety.");
       break;
     case "new-expedition":
-      showScreen("preparation");
+      showLocation();
       break;
     case "reset-save":
       resetSave();
@@ -114,6 +156,12 @@ function renderScreen() {
     case "campaign":
       renderCampaign();
       break;
+    case "location":
+      renderLocation();
+      break;
+    case "destination":
+      renderDestination();
+      break;
     case "preparation":
       renderPreparation();
       break;
@@ -135,7 +183,7 @@ function renderCampaign() {
     const stateClass = completed ? "is-complete" : playable ? "is-playable" : "is-locked";
     const stateLabel = completed ? "Completed" : playable ? "Available" : "Locked";
     const action = playable
-      ? '<button class="game-button chapter-button" type="button" data-action="prepare-expedition">Enter</button>'
+      ? '<button class="game-button chapter-button" type="button" data-action="enter-location" data-location-id="broceliande_village">Enter</button>'
       : `<span class="chapter-state">${stateLabel}</span>`;
 
     return `
@@ -161,6 +209,250 @@ function renderCampaign() {
         <span>Treasury <strong>${Math.floor(game.player.currentGold)} gold</strong></span>
       </div>
     </section>`;
+}
+
+function enterLocation(locationId) {
+  if (!LOCATION_DEFINITIONS[locationId]) {
+    return;
+  }
+  game.player.currentLocationId = locationId;
+  savePlayer();
+  showLocation();
+}
+
+function showLocation() {
+  game.activeDestinationId = null;
+  game.interactionMessage = "";
+  showScreen("location");
+}
+
+function renderLocation() {
+  const location = LOCATION_DEFINITIONS[game.player.currentLocationId];
+  if (!location) {
+    showScreen("campaign");
+    return;
+  }
+
+  const destinations = location.destinations.map((destinationId) => {
+    const destination = DESTINATION_DEFINITIONS[destinationId];
+    return `
+      <button class="hub-hotspot position-${destination.scenePosition}" type="button"
+        data-action="open-destination" data-destination-id="${destination.id}">
+        <span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>
+        <strong>${destination.name}</strong>
+      </button>`;
+  }).join("");
+
+  ui.screenRoot.innerHTML = `
+    <section class="screen location-screen" aria-labelledby="location-title">
+      <div class="location-scene" aria-label="Village scene with four destinations">
+        <div class="village-sky" aria-hidden="true"></div>
+        <div class="village-tree-line" aria-hidden="true"></div>
+        <div class="village-road" aria-hidden="true"></div>
+        ${destinations}
+      </div>
+      <div class="location-panel">
+        <div class="screen-heading compact-heading">
+          <p class="eyebrow">Chapter III · Current Location</p>
+          <h1 id="location-title">${location.name}</h1>
+          <p>${location.description} Choose a building in the scene.</p>
+        </div>
+        <div class="location-status">
+          <span>Treasury <strong>${Math.floor(game.player.currentGold)} gold</strong></span>
+          <span>Inventory <strong>${inventoryQuantity()} items</strong></span>
+        </div>
+        <div class="footer-actions location-actions">
+          <button class="text-button" type="button" data-action="show-campaign">Chapter Select</button>
+          <button class="game-button" type="button" data-action="view-inventory">Inventory / Pack</button>
+        </div>
+      </div>
+    </section>`;
+}
+
+function openDestination(destinationId) {
+  const location = LOCATION_DEFINITIONS[game.player.currentLocationId];
+  if (!location?.destinations.includes(destinationId) || !DESTINATION_DEFINITIONS[destinationId]) {
+    return;
+  }
+  game.activeDestinationId = destinationId;
+  game.shopTab = "buy";
+  game.interactionMessage = "";
+  showScreen("destination");
+}
+
+function renderDestination() {
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  if (!destination) {
+    showLocation();
+    return;
+  }
+  const npc = NPC_DEFINITIONS[destination.npcIds[0]];
+  let interaction = "";
+
+  if (destination.type === "expedition_gate") {
+    interaction = renderForestGateInteraction();
+  } else if (destination.shopId) {
+    interaction = renderShopInteraction(destination, npc);
+  } else {
+    interaction = renderInnInteraction(destination, npc);
+  }
+
+  ui.screenRoot.innerHTML = `
+    <section class="screen destination-screen" aria-labelledby="destination-title">
+      <div class="destination-visual visual-${destination.visualKey}">
+        <span class="destination-emblem" aria-hidden="true">${destinationIcon(destination.type)}</span>
+        <div><p>${destination.name}</p><span>${destination.description}</span></div>
+      </div>
+      <div class="destination-panel">
+        <div class="destination-heading">
+          <p class="eyebrow">${capitalize(destination.type.replace("_", " "))}</p>
+          <h1 id="destination-title">${destination.name}</h1>
+          <p>${destination.description}</p>
+        </div>
+        ${game.interactionMessage ? `<div class="interaction-message" aria-live="polite">${game.interactionMessage}</div>` : ""}
+        ${interaction}
+        <div class="footer-actions destination-actions">
+          <button class="text-button" type="button" data-action="show-location">Return to Village</button>
+        </div>
+      </div>
+    </section>`;
+}
+
+function renderInnInteraction(destination, npc) {
+  return `
+    <article class="npc-card">
+      <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
+      <p>${npc.description}</p>
+    </article>
+    <div class="interaction-actions">
+      <button class="small-button" type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
+      <button class="small-button" type="button" data-action="hear-rumor" data-npc-id="${npc.id}">Hear Rumor</button>
+    </div>`;
+}
+
+function renderShopInteraction(destination, npc) {
+  const shop = SHOP_DEFINITIONS[destination.shopId];
+  const buySelected = game.shopTab === "buy";
+  const rows = buySelected
+    ? Object.entries(shop.stock).map(([itemId, price]) => shopBuyRow(itemId, price)).join("")
+    : Object.entries(game.player.ownedItems).map(([itemId, quantity]) => shopSellRow(shop, itemId, quantity)).join("");
+
+  return `
+    <div class="shopkeeper-row">
+      <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
+      <span class="gold-display">${Math.floor(game.player.currentGold)} gold</span>
+    </div>
+    <div class="shop-tabs" role="tablist" aria-label="Shop actions">
+      <button class="${buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${buySelected}" data-action="shop-tab" data-tab="buy">Buy</button>
+      <button class="${!buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${!buySelected}" data-action="shop-tab" data-tab="sell">Sell</button>
+      <button type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
+    </div>
+    <div class="shop-list">${rows || '<p class="empty-loot">Nothing available.</p>'}</div>`;
+}
+
+function renderForestGateInteraction() {
+  return `
+    <div class="gate-status">
+      <p><span>Current region</span><strong>Brocéliande</strong></p>
+      <article><div><strong>Expedition</strong><span>Available</span></div><button class="game-button" type="button" data-action="prepare-expedition">Prepare Expedition</button></article>
+      <article class="is-locked"><div><strong>Campaign Quest</strong><span>Not Yet Available</span></div><button class="small-button" type="button" disabled>Locked</button></article>
+    </div>`;
+}
+
+function shopBuyRow(itemId, price) {
+  const item = ITEM_DEFINITIONS[itemId];
+  const affordable = game.player.currentGold >= price;
+  return `
+    <article class="shop-item-row">
+      <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
+      <div><strong>${item.name}</strong><span>${item.description}</span></div>
+      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${affordable ? "" : "disabled"}>Buy · ${price}g</button>
+    </article>`;
+}
+
+function shopSellRow(shop, itemId, quantity) {
+  const item = ITEM_DEFINITIONS[itemId];
+  const reason = itemSaleBlockReason(shop, item);
+  const value = shop.sellValues[itemId];
+  return `
+    <article class="shop-item-row ${reason ? "is-blocked" : ""}">
+      <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
+      <div><strong>${item.name}${quantity > 1 ? ` ×${quantity}` : ""}</strong><span>${reason || `${value} gold each`}</span></div>
+      <button class="small-button" type="button" data-action="sell-item" data-item-id="${itemId}" ${reason ? "disabled" : ""}>${reason ? "Cannot Sell" : `Sell · ${value}g`}</button>
+    </article>`;
+}
+
+function itemSaleBlockReason(shop, item) {
+  if (item.questItem || item.protected || item.sellable === false) {
+    return "Protected special item";
+  }
+  if (Object.values(game.player.equippedItems).includes(item.id)) {
+    return "Currently equipped";
+  }
+  if (game.player.packedItems.includes(item.id)) {
+    return "Currently packed";
+  }
+  if (!shopAcceptsItem(shop, item) || !Number.isFinite(shop.sellValues[item.id])) {
+    return "This vendor does not buy this item";
+  }
+  return "";
+}
+
+function shopAcceptsItem(shop, item) {
+  return shop.acceptedCategories.includes(item.category)
+    || item.tags.some((tag) => shop.acceptedTags.includes(tag));
+}
+
+function buyShopItem(itemId) {
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  const shop = SHOP_DEFINITIONS[destination?.shopId];
+  const price = shop?.stock[itemId];
+  const item = ITEM_DEFINITIONS[itemId];
+  if (!item || !Number.isFinite(price) || game.player.currentGold < price) {
+    return;
+  }
+  game.player.currentGold -= price;
+  game.player.ownedItems[itemId] = (game.player.ownedItems[itemId] ?? 0) + 1;
+  game.interactionMessage = `Purchased ${item.name} for ${price} gold.`;
+  savePlayer();
+  renderDestination();
+}
+
+function sellShopItem(itemId) {
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  const shop = SHOP_DEFINITIONS[destination?.shopId];
+  const item = ITEM_DEFINITIONS[itemId];
+  if (!shop || !item || !game.player.ownedItems[itemId] || itemSaleBlockReason(shop, item)) {
+    return;
+  }
+  const price = shop.sellValues[itemId];
+  game.player.ownedItems[itemId] -= 1;
+  if (game.player.ownedItems[itemId] <= 0) {
+    delete game.player.ownedItems[itemId];
+  }
+  game.player.currentGold += price;
+  game.interactionMessage = `Sold ${item.name} for ${price} gold.`;
+  savePlayer();
+  renderDestination();
+}
+
+function showNpcDialogue(npcId, field) {
+  const npc = NPC_DEFINITIONS[npcId];
+  const lines = npc?.[field];
+  if (!Array.isArray(lines) || lines.length === 0) {
+    game.interactionMessage = `${npc?.name ?? "The villager"} has nothing more to add.`;
+  } else {
+    game.interactionMessage = `“${lines[Math.floor(Math.random() * lines.length)]}”`;
+  }
+  renderDestination();
+}
+
+function inventoryQuantity() {
+  return Object.values(game.player.ownedItems).reduce((total, quantity) => total + quantity, 0);
+}
+
+function destinationIcon(type) {
+  return ({ inn: "⌂", shop: "◆", expedition_gate: "♞" })[type] ?? "•";
 }
 
 function renderPreparation() {
@@ -231,7 +523,7 @@ function renderPreparation() {
       </section>
 
       <div class="footer-actions">
-        <button class="text-button" type="button" data-action="show-campaign">Back</button>
+        <button class="text-button" type="button" data-action="return-from-preparation">Back</button>
         <button class="game-button" type="button" data-action="start-expedition">Begin Expedition</button>
       </div>
     </section>`;
@@ -352,6 +644,7 @@ function refreshPreparation() {
 function startExpedition() {
   game.expedition = {
     regionId: "broceliande",
+    originLocationId: game.player.currentLocationId,
     currentPathId: "old_forest_road",
     distance: 0,
     maxDistanceReached: 0,
@@ -721,8 +1014,7 @@ function renderSummary() {
       </div>
 
       <div class="footer-actions summary-actions">
-        <button class="text-button" type="button" data-action="show-campaign">Campaign</button>
-        <button class="game-button" type="button" data-action="new-expedition">Prepare Again</button>
+        <button class="game-button" type="button" data-action="new-expedition">Return to Village</button>
       </div>
     </section>`;
 }
@@ -825,6 +1117,10 @@ function resetSave() {
   game.player = SaveSystem.reset();
   game.expedition = null;
   game.summary = null;
+  game.activeDestinationId = null;
+  game.preparationReturnDestinationId = "forest_gate";
+  game.shopTab = "buy";
+  game.interactionMessage = "";
   game.preparationSupplies = 18;
   savePlayer();
   showScreen("campaign");

@@ -4,7 +4,9 @@ This repository is a browser-only portrait prototype for an Arthurian survival a
 
 ## Current prototype
 
-The playable vertical slice begins at a deliberately non-canonical fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, choose one weapon, armor piece, and relic, fill a six-slot expedition pack, travel with Sir Kay, and select provisions. Equipped gear and packed items are snapshotted when the expedition begins, so encounter options can distinguish what Arthur owns from what the company actually brought. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. A growing pool of data-driven encounters pauses travel and presents resource, equipment, knowledge, path, and risk/reward choices. Main Road and Overgrown Trail content differ, as do outbound and return encounter pools. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment or packed items owned before the run.
+The playable vertical slice begins at a deliberately non-canonical fake campaign menu. Chapter III opens the Village at the Edge of BrocÃ©liande, a small visual hub with an inn, merchant, blacksmith, and forest gate. The inn offers simple data-driven conversation and rumors. The two specialized vendors share one shop system for buying supplies, selling recovered valuables, and protecting equipped, packed, or special items from accidental sale. The forest gate leads to expedition preparation, where the player can inspect permanent inventory, choose one weapon, armor piece, and relic, fill a six-slot expedition pack, travel with Sir Kay, and select provisions.
+
+Equipped gear and packed items are snapshotted when the expedition begins, so encounter options can distinguish what Arthur owns from what the company actually brought. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. A growing pool of data-driven encounters pauses travel and presents resource, equipment, knowledge, path, and risk/reward choices. Main Road and Overgrown Trail content differ, as do outbound and return encounter pools. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment or packed items owned before the run. Both outcomes return to the village for the next local gameplay loop.
 
 Distance influences which encounters are eligible, but does not directly award loot. Rewards currently come from encounter choices.
 
@@ -16,10 +18,12 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, and input feedback. `--world-panel-height` controls the expedition view/interface split.
 - `js/data.js` contains data-driven item, knowledge, companion, and placeholder chapter definitions with stable string IDs.
 - `js/tuning.js` centralizes expedition speed, provision cost, pack capacity, encounter spacing, and post-encounter breathing-room values for playtesting.
+- `js/location-data.js` contains reusable location, destination, NPC, and specialized shop definitions.
 - `js/encounter-data.js` contains the authored encounter definitions, stages, choices, requirements, costs, and outcomes.
 - `js/encounters.js` contains reusable encounter selection, requirement checking, outcome application, and stage-flow systems.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
 - `js/game.js` owns screen flow, input, temporary expedition state, travel simulation, encounter presentation, loot resolution, and the `requestAnimationFrame` loop.
+- `tests/location_system_test.py` serves the game and drives headless Chrome through its DevTools protocol to cover the village, shops, loadout, encounters, and return flow.
 - `assets/` is reserved for future images, audio, fonts, and other game content.
 - `vendor/` is reserved for any third-party browser libraries added later. It is empty for now.
 
@@ -38,6 +42,12 @@ py -m http.server 8000
 ```
 
 Then visit [http://localhost:8000](http://localhost:8000) in Chrome or Edge. Stop the server with `Ctrl+C` in the terminal.
+
+Run the current automated browser regression flow with:
+
+```sh
+python tests/location_system_test.py
+```
 
 ### Encounter debug controls
 

@@ -5,7 +5,7 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 3,
+      saveVersion: 4,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -26,6 +26,7 @@ const SaveSystem = Object.freeze({
       completedChapters: ["chapter_01", "chapter_02"],
       bestExpeditionDistance: 0,
       currentGold: 12,
+      currentLocationId: "broceliande_village",
     };
   },
 
@@ -117,7 +118,7 @@ function sanitizePlayerState(savedState, defaults) {
     : unlockedCompanions[0];
 
   return {
-    saveVersion: 3,
+    saveVersion: 4,
     ownedItems,
     equippedItems,
     packedItems,
@@ -127,6 +128,9 @@ function sanitizePlayerState(savedState, defaults) {
     completedChapters: validStringArray(savedState.completedChapters, defaults.completedChapters),
     bestExpeditionDistance: nonNegativeNumber(savedState.bestExpeditionDistance),
     currentGold: nonNegativeNumber(savedState.currentGold),
+    currentLocationId: LOCATION_DEFINITIONS[savedState.currentLocationId]
+      ? savedState.currentLocationId
+      : defaults.currentLocationId,
   };
 }
 
