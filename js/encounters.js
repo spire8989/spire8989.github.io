@@ -358,7 +358,10 @@ const EncounterManager = Object.freeze({
         ended: false,
         pending: true,
         pendingToken: active.pendingToken,
-        delayMs: pendingActionDelay(choice.pendingAction, expedition.random),
+        // Presentation timing is deliberately outside the seeded gameplay stream.
+        delayMs: callbacks.skipPresentationDelay
+          ? 0
+          : pendingActionDelay(choice.pendingAction, callbacks.presentationRandom),
         message: active.actionText,
       };
     }

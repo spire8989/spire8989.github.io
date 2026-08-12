@@ -758,12 +758,11 @@ function startExpedition() {
     return;
   }
   const committedProvisions = game.preparationSupplies;
-  game.player.provisions -= committedProvisions;
-  savePlayer();
-  game.expedition = ExpeditionRules.createExpedition(game.player, {
+  game.expedition = ExpeditionRules.startExpedition(game.player, {
     provisions: committedProvisions,
     companion: game.player.selectedCompanion,
   });
+  savePlayer();
   showScreen("expedition");
 }
 
@@ -1290,17 +1289,7 @@ function completeReturn() {
   clearPendingEncounterActionTimer();
   expedition.combat = null;
   expedition.status = "returned";
-  settleConsumedItems(expedition);
-  settleExpeditionProvisions(expedition, true);
-
-  expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
-    game.player.ownedItems[itemId] = (game.player.ownedItems[itemId] ?? 0) + quantity;
-  });
-  game.player.currentGold += expedition.goldCarried;
-  game.player.bestExpeditionDistance = Math.max(
-    game.player.bestExpeditionDistance,
-    expedition.maxDistanceReached,
-  );
+  ExpeditionRules.settle(game.player, expedition, true);
   savePlayer();
 
   game.summary = {
@@ -1324,12 +1313,7 @@ function failExpedition(reason) {
   clearPendingEncounterActionTimer();
   expedition.combat = null;
   expedition.status = "failed";
-  settleConsumedItems(expedition);
-  settleExpeditionProvisions(expedition, false);
-  game.player.bestExpeditionDistance = Math.max(
-    game.player.bestExpeditionDistance,
-    expedition.maxDistanceReached,
-  );
+  ExpeditionRules.settle(game.player, expedition, false);
   savePlayer();
 
   game.summary = {
@@ -1441,18 +1425,6 @@ function announceTravelEvent(message) {
 function savePlayer() {
   const saved = SaveSystem.save(game.player);
   ui.saveStatus.textContent = saved ? "Saved locally" : "Save unavailable";
-}
-
-function createExpeditionCarriedItems() {
-  return ExpeditionRules.createCarriedItems(game.player);
-}
-
-function settleConsumedItems(expedition) {
-  ExpeditionRules.settleConsumedItems(game.player, expedition);
-}
-
-function settleExpeditionProvisions(expedition, returnedSafely) {
-  ExpeditionRules.settleProvisions(game.player, expedition, returnedSafely);
 }
 
 function resetSave() {

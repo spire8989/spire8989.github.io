@@ -504,3 +504,33 @@ The human developer supplied the complete Phase 1 simulation and automation guid
 ### Resulting prototype state
 
 The project can now execute hundreds or thousands of real-rule expeditions without rendering or waiting, compare strategies and configurations, inspect encounter/combat histories, export balance data, and reproduce meaningful run behavior from seed plus normalized scenario and decision history. All currently authored encounters and both current combat definitions run through the simulator. Visual replay, recorded-decision enforcement, Workers, exhaustive loadout generation, inter-expedition shop modeling, analytics charts, and automated balance recommendations remain intentionally outside Phase 1.
+
+## 2026-08-12 — Simulation Determinism and Parity Hardening
+
+### Goal
+
+Audit and correct the Phase 1 simulator's determinism, production-rule sharing, replay prerequisites, telemetry fidelity, and automated drift detection before using its results for balance decisions.
+
+### Human prompt and direction
+
+The human developer supplied a focused correction guide calling for a repository-wide randomness audit, explicit seeded ownership, normal-game use of shared expedition rules, meaningful same-seed and batch tests, native-random bypass detection, replay-metadata verification, and no Phase 2 feature expansion or gameplay rebalancing.
+
+### AI-assisted implementation
+
+- Confirmed and retained explicit expedition RNG injection for encounter spacing/selection, weighted branches, random outcomes/resources/loot, combat damage, and flee attempts; no gameplay-affecting direct `Math.random()` call remains.
+- Separated cosmetic pending-action delay rolls from the gameplay RNG. Normal UI delays use a presentation source, while instant simulation requests zero delay without consuming native or seeded randomness.
+- Consolidated departure provision commitment plus successful and failed normal-game settlement through `ExpeditionRules`, including consumed items, returned provisions, recovered loot, carried gold, and best distance, with an idempotent reward-settlement guard.
+- Added region/path scenario configuration, actual pre-departure player-state snapshots, explicit turnaround decisions, and copied encounter/combat/turnaround decision history to versioned replay metadata.
+- Corrected encounter telemetry to distinguish unsecured loot gained/lost from packed items consumed, finalize encounters interrupted by failure, derive discovered/recovered/lost loot from production before/after state, and report an explicit completion reason.
+- Added `SimulationTelemetry.normalizeRun` and `SimulationRunner.verifyDeterminism`, including first-mismatch path/value reporting while excluding timing and batch-generation metadata.
+- Added a dedicated headless-Chrome simulation suite with nine assertions covering same-seed equality, deterministic known-seed batches, robust multi-seed divergence, native `Math.random` throw guards, direct production encounter selection, replay completeness, telemetry invariants, and idempotent shared settlement.
+- Hardened existing combat integration assertions so their provision baselines are captured only after combat has paused the live travel loop, removing a timing-sensitive false failure without changing gameplay.
+- Preserved all tuning and authored content unchanged.
+
+### Manual changes
+
+The human developer supplied the complete determinism and production-parity correction guide. No manual code edits were reported for this correction pass.
+
+### Resulting prototype state
+
+Phase 1 now has an explicit regression boundary for deterministic gameplay: the same normalized scenario, seed, and decisions reproduce the same meaningful result, and seeded runs do not reach native randomness. Normal gameplay and simulation share the full core expedition lifecycle through settlement. Replay playback remains intentionally unbuilt, but the run output now retains the starting state, location/path, seed, and every player-controlled decision required to enforce or inspect a future replay.

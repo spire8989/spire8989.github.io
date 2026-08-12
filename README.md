@@ -49,6 +49,7 @@ Then visit [http://localhost:8000](http://localhost:8000) in Chrome or Edge. Sto
 Run the current automated browser regression flow with:
 
 ```sh
+python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 

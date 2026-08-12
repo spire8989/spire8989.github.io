@@ -43,6 +43,7 @@ const ExpeditionRules = Object.freeze({
       committedProvisionsRemaining: provisions,
       foundProvisions: 0,
       provisionsSettled: false,
+      rewardsSettled: false,
       health: Number.isFinite(options.health) ? options.health : 100,
       companionCombatHp: {},
       combat: null,
@@ -58,6 +59,19 @@ const ExpeditionRules = Object.freeze({
       random: typeof options.random === "function" ? options.random : GameRandom.random,
     };
     EncounterManager.initializeExpedition(expedition);
+    return expedition;
+  },
+
+  startExpedition(player, options = {}) {
+    const requestedProvisions = Math.min(
+      Math.max(0, Number(options.provisions) || 0),
+      Math.max(0, Number(player.provisions) || 0),
+    );
+    const expedition = this.createExpedition(player, {
+      ...options,
+      provisions: requestedProvisions,
+    });
+    player.provisions -= expedition.committedProvisions;
     return expedition;
   },
 
@@ -126,12 +140,13 @@ const ExpeditionRules = Object.freeze({
   settle(player, expedition, returnedSafely) {
     this.settleConsumedItems(player, expedition);
     this.settleProvisions(player, expedition, returnedSafely);
-    if (returnedSafely) {
+    if (returnedSafely && !expedition.rewardsSettled) {
       expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
         player.ownedItems[itemId] = (player.ownedItems[itemId] ?? 0) + quantity;
       });
       player.currentGold += expedition.goldCarried;
     }
+    expedition.rewardsSettled = true;
     player.bestExpeditionDistance = Math.max(player.bestExpeditionDistance, expedition.maxDistanceReached);
   },
 });

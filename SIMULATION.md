@@ -12,9 +12,11 @@ data.js / tuning.js / encounter-data.js / combat-data.js
              game.js UI                 simulation.js
 ```
 
-`js/random.js` provides the common random source. Normal play uses live `Math.random()` through that API. A simulation creates a deterministic source from a numeric or string seed and injects its `random` function into the expedition. Encounter spacing, weighted encounter selection, branches, chance outcomes, random loot and amounts, pending-action delay rolls, combat damage, and flee rolls all consume that expedition source.
+`js/random.js` provides the common random source. Normal play injects `GameRandom.random`, which delegates to live `Math.random()`. A simulation creates a deterministic source from a numeric or string seed and injects its `random` function into the expedition. Encounter spacing, weighted encounter selection, branches, chance outcomes, random loot and amounts, combat damage, and flee rolls all consume that expedition source. No simulation globally patches `Math.random()`.
 
-`js/expedition-rules.js` owns party provision capacity/consumption, expedition construction, distance-based travel cost, turnaround state, carried-item snapshots, and settlement. Both `game.js` and `simulation.js` call it. Encounter stages and effects run through `EncounterManager`; combat runs through `CombatSystem`. Simulation skips presentation time but does not skip pending-action resolution or active-time combat rules.
+Pending-action delay length is presentation-only. Normal UI resolution draws it from an explicitly separate presentation source; instant simulation requests a zero delay and does not consume either native randomness or the seeded gameplay stream. The pending choice's eventual gameplay effects still use the expedition source.
+
+`js/expedition-rules.js` owns party provision capacity/consumption, expedition construction and departure provision commitment, distance-based travel cost, turnaround state, carried-item snapshots, and settlement. Both `game.js` and `simulation.js` call it. Encounter stages and effects run through `EncounterManager`; combat runs through `CombatSystem`. Simulation skips presentation time but does not skip pending-action resolution or active-time combat rules.
 
 ## Browser console
 
@@ -73,6 +75,7 @@ const batch = await SimulationRunner.runBatchAsync({
 - `strategy`: built-in strategy name or an object implementing the strategy interface.
 - `turnaroundPolicy`: fixed-distance/resource-reserve configuration or a policy object.
 - `startingState`: optional player-state overrides such as owned items, knowledge, flags, health, or provision stock.
+- `regionId` and `pathId`: starting expedition region/path; defaults to Brocéliande's old forest road.
 - `maxSimulationSteps`, `maxCombatSteps`: infinite-loop safeguards.
 - `travelStepDistance`: rule-step size in leagues; defaults to one.
 
@@ -88,13 +91,28 @@ A turnaround policy needs `name`, optional serializable `configuration`, and `sh
 
 Each run contains identity/configuration fields, outcome/failure, distances, party health, provision accounting, gold, discovered/recovered loot and estimated merchant value, encounter/combat counts, step count, and duration. It also includes:
 
-- `encounters`: availability at every stage, selected choices, path/direction/distance, resource and health deltas, gained/lost items, combat trigger, and result text.
+- `encounters`: availability at every stage, selected choices, path/direction/distance, actual before/after resource and health deltas, unsecured loot changes, packed-item consumption, combat trigger, and result text.
 - `combats`: enemies, before/after party HP, result/flee, damage totals, rounds/actions, and production combat events.
 - `decisions`: the compact encounter and combat policy decisions.
 - `events`: chronological human-readable expedition, encounter, combat, turnaround, and result events.
+- `replay`: seed, region/path, the actual pre-departure player/loadout/resource snapshot, and a copy of every encounter, combat, and turnaround decision.
 - `scenario` + `seed`: normalized configuration needed to rerun the deterministic rule stream.
 
 The future replay system can rerun `scenario` with `seed` while consuming/asserting `decisions`, or present the recorded `events` directly. The event schema is intentionally plain JSON and uses stable content IDs.
+
+For a quick deterministic diagnostic:
+
+```js
+const verification = SimulationRunner.verifyDeterminism({
+  strategy: "random",
+  turnaroundPolicy: { type: "fixedDistance", distance: 100 },
+}, "known-seed");
+
+console.log(verification.matches);       // true
+console.log(verification.firstMismatch); // null, or the first differing field
+```
+
+`SimulationTelemetry.normalizeRun(run)` removes wall-clock duration, generated timestamps, and other non-gameplay identity noise before comparison.
 
 Aggregates include rates, averages, median maximum distance, groups by strategy/companion/loadout/scenario/turnaround policy, and encounter frequency, direction, distance, and choice distributions.
 
@@ -114,11 +132,12 @@ const csv = SimulationTelemetry.toCsv(batch);
 Run:
 
 ```sh
+python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-The dependency-light Chrome suite covers seeded determinism, different-seed variance, completion, batching, aggregation/invariants, normal-page debug isolation, and the existing end-to-end game flows.
+The focused suite verifies normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, replay metadata, production-state telemetry, and direct encounter selection. It also temporarily makes native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
 
 ## Current Phase 1 boundaries
 
-All currently authored expedition encounters and both current combats use the simulator. Presentation delays are intentionally collapsed. The simulator does not yet drive a visual replay, enforce a recorded decision stream during replay, use a Web Worker, generate exhaustive loadout permutations, or model settlement shopping between multiple expeditions. `durationMs` and batch `generatedAt` are diagnostic metadata and are not deterministic replay fields.
+All currently authored expedition encounters and both current combats use the simulator. Normal play and simulation share expedition creation, capacity/consumption, travel, turnaround, and complete success/failure settlement. Presentation delays are intentionally collapsed. The simulator does not yet drive a visual replay, enforce a recorded decision stream during replay, serialize custom strategy/policy function bodies, use a Web Worker, generate exhaustive loadout permutations, or model settlement shopping between multiple expeditions. `durationMs` and batch `generatedAt` are diagnostic metadata and are not deterministic replay fields.

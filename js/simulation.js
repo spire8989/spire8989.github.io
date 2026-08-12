@@ -42,19 +42,23 @@ const SimulationRunner = Object.freeze({
     const normalized = normalizeScenario(scenario);
     const random = GameRandom.create(normalized.seed);
     const player = createSimulationPlayer(normalized);
+    const replayStartingState = replayPlayerSnapshot(player);
     const startingStock = player.provisions;
-    const expedition = ExpeditionRules.createExpedition(player, {
+    const expedition = ExpeditionRules.startExpedition(player, {
       provisions: Math.min(normalized.provisions, player.provisions),
       companion: normalized.companion,
       equipment: normalized.loadout,
       packedItems: normalized.packContents,
       random: random.random,
       health: normalized.startingHealth,
+      regionId: normalized.regionId,
+      pathId: normalized.pathId,
     });
-    player.provisions -= expedition.committedProvisions;
     const strategy = resolveStrategy(normalized.strategy);
     const turnaroundPolicy = resolveTurnaroundPolicy(normalized.turnaroundPolicy);
-    const telemetry = createTelemetry(normalized, expedition, strategy, turnaroundPolicy);
+    const telemetry = createTelemetry(
+      normalized, expedition, strategy, turnaroundPolicy, replayStartingState,
+    );
     let stepCount = 0;
     let failureReason = null;
 
@@ -78,6 +82,11 @@ const SimulationRunner = Object.freeze({
       if (turnaroundPolicy.shouldTurn(expedition, telemetry)) {
         ExpeditionRules.beginReturn(expedition);
         telemetry.turnaroundDistance = rounded(expedition.distance);
+        telemetry.decisions.push({
+          type: "turnaround",
+          distance: rounded(expedition.distance),
+          policy: turnaroundPolicy.name,
+        });
         telemetry.events.push({ type: "turnaround", distance: rounded(expedition.distance) });
         continue;
       }
@@ -124,6 +133,21 @@ const SimulationRunner = Object.freeze({
       performance.now() - startedAt,
     );
     return telemetry;
+  },
+
+  verifyDeterminism(scenario = {}, seed = scenario.seed ?? "determinism-check") {
+    const configured = { ...scenario, seed };
+    const firstRun = this.run(configured);
+    const secondRun = this.run(configured);
+    const first = SimulationTelemetry.normalizeRun(firstRun);
+    const second = SimulationTelemetry.normalizeRun(secondRun);
+    const firstMismatch = firstDifference(first, second);
+    return {
+      matches: firstMismatch === null,
+      firstMismatch,
+      first,
+      second,
+    };
   },
 
   runBatch(request = {}) {
@@ -181,6 +205,41 @@ const SimulationRunner = Object.freeze({
 });
 
 const SimulationTelemetry = Object.freeze({
+  normalizeRun(run) {
+    return deepClone({
+      scenario: run.scenario,
+      replayStartingState: run.replay?.startingPlayerState,
+      seed: run.seed,
+      strategy: run.strategy,
+      turnaroundPolicy: run.turnaroundPolicy,
+      turnaroundConfiguration: run.turnaroundConfiguration,
+      companion: run.companion,
+      startingProvisions: run.startingProvisions,
+      loadout: run.loadout,
+      packedItems: run.packedItems,
+      outcome: run.outcome,
+      failureReason: run.failureReason,
+      completionReason: run.completionReason,
+      maximumDistance: run.maximumDistance,
+      finalDistance: run.finalDistance,
+      finalPartyHealth: run.finalPartyHealth,
+      provisionsRemaining: run.provisionsRemaining,
+      provisionsConsumed: run.provisionsConsumed,
+      provisionsGained: run.provisionsGained,
+      provisionsReturned: run.provisionsReturned,
+      goldGained: run.goldGained,
+      lootDiscovered: run.lootDiscovered,
+      lootRecovered: run.lootRecovered,
+      lootLost: run.lootLost,
+      estimatedLootValue: run.estimatedLootValue,
+      turnaroundDistance: run.turnaroundDistance,
+      encounters: run.encounters,
+      combats: run.combats,
+      decisions: run.decisions,
+      events: run.events,
+    });
+  },
+
   aggregate(batchOrResults, groupBy = ["strategy", "companion", "loadout", "scenarioId", "turnaroundPolicy"]) {
     const results = Array.isArray(batchOrResults) ? batchOrResults : batchOrResults.results;
     const groups = {};
@@ -275,6 +334,8 @@ function normalizeScenario(scenario) {
     strategy: scenario.strategy ?? "cautious",
     turnaroundPolicy,
     startingState: scenario.startingState ?? {},
+    regionId: scenario.regionId ?? "broceliande",
+    pathId: scenario.pathId ?? "old_forest_road",
     startingHealth: Number.isFinite(scenario.startingState?.health) ? scenario.startingState.health : 100,
     maxSimulationSteps: Math.max(100, Math.floor(Number(scenario.maxSimulationSteps) || 10000)),
     maxCombatSteps: Math.max(50, Math.floor(Number(scenario.maxCombatSteps) || 2000)),
@@ -366,6 +427,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     const result = EncounterManager.resolveChoice(expedition, player, choice.id, {
       failExpedition: fail,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
+      skipPresentationDelay: true,
     });
     checkEncounterSurvival(expedition, fail);
     if (!result.resolved) fail(`Encounter choice ${definition.id}/${choice.id} could not resolve.`);
@@ -465,7 +527,7 @@ function checkEncounterSurvival(expedition, fail) {
   else if (expedition.provisions <= 0) fail("The company exhausted its provisions during the encounter.");
 }
 
-function createTelemetry(scenario, expedition, strategy, turnaroundPolicy) {
+function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, replayStartingState) {
   return {
     runId: `${scenario.scenarioId}:${scenario.seed}`,
     scenarioId: scenario.scenarioId,
@@ -482,8 +544,22 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy) {
       strategy: strategy.name,
       turnaroundPolicy: { name: turnaroundPolicy.name, ...(turnaroundPolicy.configuration ?? {}) },
     }),
+    replay: {
+      version: 1,
+      seed: String(scenario.seed),
+      startingPlayerState: deepClone(replayStartingState),
+      regionId: expedition.regionId,
+      pathId: expedition.currentPathId,
+      decisions: [],
+    },
     decisions: [],
-    events: [{ type: "expedition-start", seed: String(scenario.seed), configuration: scenario.scenarioId }],
+    events: [{
+      type: "expedition-start",
+      seed: String(scenario.seed),
+      configuration: scenario.scenarioId,
+      regionId: expedition.regionId,
+      pathId: expedition.currentPathId,
+    }],
     encounters: [],
     combats: [],
     turnaroundDistance: null,
@@ -492,11 +568,21 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy) {
 
 function finalizeTelemetry(telemetry, scenario, expedition, player, startingStock, failureReason, steps, duration) {
   const returned = expedition.status === "returned";
+  telemetry.encounters.filter((encounter) => !encounter.completed && encounter.before)
+    .forEach((encounter) => {
+      encounter.outcome = failureReason ?? "The expedition ended during this encounter.";
+      completeEncounterHistory(encounter, expedition);
+    });
+  const lootDiscovered = combineItemEntries(
+    telemetry.encounters.flatMap((encounter) => encounter.lootGained ?? []),
+  );
+  const lootRecovered = returned ? deepClone(expedition.unsecuredLoot) : [];
   Object.assign(telemetry, {
     outcome: returned ? "returned" : "failed",
     success: returned,
     returnedSafely: returned,
     failureReason: returned ? null : failureReason,
+    completionReason: returned ? "Returned safely to the expedition origin." : failureReason,
     maximumDistance: rounded(expedition.maxDistanceReached),
     finalDistance: rounded(expedition.distance),
     finalArthurHealth: rounded(expedition.health),
@@ -516,15 +602,17 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     endingProvisionStock: player.provisions,
     startingProvisionStock: startingStock,
     goldGained: returned ? expedition.goldCarried : 0,
-    lootRecovered: returned ? deepClone(expedition.unsecuredLoot) : [],
-    lootDiscovered: deepClone(expedition.unsecuredLoot),
-    estimatedLootValue: returned ? estimateLootValue(expedition.unsecuredLoot) : 0,
+    lootRecovered,
+    lootDiscovered,
+    lootLost: subtractItemEntries(lootDiscovered, lootRecovered),
+    estimatedLootValue: estimateLootValue(lootRecovered),
     encounterCount: telemetry.encounters.length,
     combatCount: telemetry.combats.length,
     stepCount: steps,
     durationMs: rounded(duration, 3),
   });
   telemetry.encounters.forEach((encounter) => delete encounter.before);
+  telemetry.replay.decisions = deepClone(telemetry.decisions);
   telemetry.events.push({
     type: "expedition-end", outcome: telemetry.outcome, maximumDistance: telemetry.maximumDistance,
     health: telemetry.finalPartyHealth, provisions: telemetry.provisionsRemaining,
@@ -535,8 +623,11 @@ function completeEncounterHistory(history, expedition) {
   const after = resourceSnapshot(expedition);
   history.resourceChanges = diffObject(history.before.resources, after.resources);
   history.healthChanges = diffObject(history.before.health, after.health);
-  history.itemsGained = inventoryDelta(history.before.items, after.items, 1);
-  history.itemsLost = inventoryDelta(history.before.items, after.items, -1);
+  history.lootGained = inventoryDelta(history.before.unsecuredLoot, after.unsecuredLoot, 1);
+  history.lootLost = inventoryDelta(history.before.unsecuredLoot, after.unsecuredLoot, -1);
+  history.packedItemsConsumed = inventoryDelta(history.before.carriedItems, after.carriedItems, -1);
+  history.itemsGained = [...history.lootGained];
+  history.itemsLost = combineItemEntries([...history.lootLost, ...history.packedItemsConsumed]);
   history.completed = true;
 }
 
@@ -545,18 +636,69 @@ function resourceSnapshot(expedition) {
     ? expedition.companionCombatHp?.[expedition.selectedCompanion]
       ?? COMPANION_DEFINITIONS[expedition.selectedCompanion]?.combat?.maxHp
     : undefined;
-  const items = { ...(expedition.carriedItems ?? {}) };
-  expedition.unsecuredLoot.forEach((entry) => {
-    items[entry.itemId] = (items[entry.itemId] ?? 0) + entry.quantity;
-  });
   return {
     resources: { provisions: rounded(expedition.provisions), goldCarried: expedition.goldCarried },
     health: {
       arthur: expedition.health,
       ...(expedition.selectedCompanion ? { [expedition.selectedCompanion]: companionHealth } : {}),
     },
-    items,
+    carriedItems: { ...(expedition.carriedItems ?? {}) },
+    unsecuredLoot: Object.fromEntries(
+      expedition.unsecuredLoot.map((entry) => [entry.itemId, entry.quantity]),
+    ),
   };
+}
+
+function replayPlayerSnapshot(player) {
+  return deepClone({
+    ownedItems: player.ownedItems,
+    equippedItems: player.equippedItems,
+    packedItems: player.packedItems,
+    unlockedCompanions: player.unlockedCompanions,
+    selectedCompanion: player.selectedCompanion,
+    learnedKnowledge: player.learnedKnowledge,
+    campaignFlags: player.campaignFlags ?? {},
+    provisions: player.provisions,
+    currentGold: player.currentGold,
+    currentLocationId: player.currentLocationId,
+  });
+}
+
+function combineItemEntries(entries) {
+  const totals = {};
+  entries.forEach(({ itemId, quantity }) => {
+    totals[itemId] = (totals[itemId] ?? 0) + quantity;
+  });
+  return Object.entries(totals)
+    .filter(([, quantity]) => quantity > 0)
+    .map(([itemId, quantity]) => ({ itemId, quantity }));
+}
+
+function subtractItemEntries(discovered, recovered) {
+  const remaining = Object.fromEntries(discovered.map((entry) => [entry.itemId, entry.quantity]));
+  recovered.forEach((entry) => { remaining[entry.itemId] = (remaining[entry.itemId] ?? 0) - entry.quantity; });
+  return Object.entries(remaining)
+    .filter(([, quantity]) => quantity > 0)
+    .map(([itemId, quantity]) => ({ itemId, quantity }));
+}
+
+function firstDifference(left, right, path = "$") {
+  if (Object.is(left, right)) return null;
+  if (typeof left !== typeof right || left === null || right === null) {
+    return { path, first: left, second: right };
+  }
+  if (typeof left !== "object") return { path, first: left, second: right };
+  if (Array.isArray(left) !== Array.isArray(right)) return { path, first: left, second: right };
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length || leftKeys.some((key, index) => key !== rightKeys[index])) {
+    return { path, first: leftKeys, second: rightKeys };
+  }
+  for (const key of leftKeys) {
+    const mismatch = firstDifference(left[key], right[key], `${path}.${key}`);
+    if (mismatch) return mismatch;
+  }
+  return null;
 }
 
 function diffObject(before, after) {
