@@ -265,6 +265,8 @@ function renderLocation() {
           <h1 id="location-title">${location.name}</h1>
         </header>
         ${destinations}
+      </div>
+      <div class="hub-hud" aria-label="Village resources and navigation">
         <div class="hub-status">
           <span><strong>${Math.floor(game.player.currentGold)}g</strong> Gold</span>
           <span><strong>${game.player.provisions}</strong> Provisions</span>

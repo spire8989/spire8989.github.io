@@ -270,3 +270,30 @@ The human developer playtested the first village implementation and supplied the
 ### Resulting prototype state
 
 The prototype now presents settlements as spatial portrait hubs and reserves standardized artwork-ready 16:9 frames only for active places and adventures. Its lower interfaces have substantially more usable space and reliable escape navigation. Provisions now connect trading to survival: recovered valuables fund food, preparation commits owned supplies rather than creating them, road discoveries remain useful, and expedition outcomes settle food without duplication.
+
+## 2026-08-12 — Village Hub HUD Separation Fix
+
+### Goal
+
+Remove the portrait-screen collision between the village's lower building hotspots and its resource/navigation controls without changing any game system or non-hub screen.
+
+### Human prompt and direction
+
+The human developer identified overlapping Blacksmith and Forest Gate hotspots after the full-screen hub revision and requested a narrow presentation fix: keep the village scene dominant, reserve a compact 12–15% bottom HUD, contain every hotspot within the scene, and reduce the title card's footprint.
+
+### AI-assisted implementation
+
+- Split the Village Hub into a flexible artwork/hotspot scene and a structurally separate bottom HUD containing Gold, Provisions, Chapter Select, and Inventory / Pack.
+- Reserved a responsive 14% HUD region with practical minimum and maximum heights while leaving the scene as the dominant portrait area.
+- Positioned Blacksmith and Forest Gate relative to the bottom of the scene container, which now ends above the HUD.
+- Compacted the location identity card through smaller padding and responsive title text.
+- Left the location system, shops, provisions, equipment, expedition flow, encounters, story, and all 16:9 interaction screens unchanged.
+- Expanded the Chrome regression suite from 76 to 86 assertions, adding scene/HUD boundary, hotspot containment, overlap, and title-size checks at 360×640, 390×844, and 430×932 portrait viewports; all passed.
+
+### Manual changes
+
+The human developer reported the overlap and supplied the focused layout specification. No manual code edits were reported for this fix.
+
+### Resulting prototype state
+
+The village remains a full-screen-feeling portrait location, but its resource and navigation controls now occupy a reserved footer that cannot cover tappable buildings. All four destinations remain within the responsive village scene across the tested phone sizes.

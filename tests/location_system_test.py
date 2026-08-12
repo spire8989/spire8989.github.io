@@ -140,8 +140,20 @@ def run():
         devtools.click('[data-action="enter-location"]')
         check("game.screen === 'location'", "Chapter III did not open the village")
         check("document.querySelectorAll('.hub-hotspot').length === 4", "Village should expose four hotspots")
-        check("!document.querySelector('.location-panel') && Math.abs(document.querySelector('.location-scene')?.clientHeight - document.querySelector('.location-screen')?.clientHeight) <= 2", "Village is not a full-screen scene")
+        check("!document.querySelector('.location-panel') && Boolean(document.querySelector('.location-scene') && document.querySelector('.hub-hud'))", "Village scene and HUD structure is invalid")
         check("document.querySelector('.hub-status')?.textContent.includes('Provisions')", "Village provision overlay missing")
+        for width, height in ((360, 640), (390, 844), (430, 932)):
+            devtools.call("Emulation.setDeviceMetricsOverride", {
+                "width": width,
+                "height": height,
+                "deviceScaleFactor": 1,
+                "mobile": True,
+            })
+            time.sleep(0.04)
+            check("document.querySelector('.location-scene').getBoundingClientRect().bottom <= document.querySelector('.hub-hud').getBoundingClientRect().top + 1", f"Village scene overlaps HUD at {width}x{height}")
+            check("[...document.querySelectorAll('.hub-hotspot')].every(hotspot => hotspot.getBoundingClientRect().bottom <= document.querySelector('.location-scene').getBoundingClientRect().bottom)", f"Village hotspot escapes scene at {width}x{height}")
+            check("[...document.querySelectorAll('.hub-hotspot')].every(hotspot => hotspot.getBoundingClientRect().bottom <= document.querySelector('.hub-hud').getBoundingClientRect().top)", f"Village hotspot overlaps HUD at {width}x{height}")
+        check("document.querySelector('.hub-identity').clientHeight < document.querySelector('.location-scene').clientHeight * 0.12", "Village title card is not compact")
 
         devtools.click('[data-action="view-inventory"]')
         check("game.screen === 'preparation' && game.preparationMode === 'inventory'", "Village inventory did not open in inventory context")
