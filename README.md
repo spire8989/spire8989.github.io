@@ -1,12 +1,20 @@
 # Quest for the Holy Grail — HTML5 Prototype
 
-This repository is a minimal, browser-only foundation for a portrait game. It intentionally contains no game mechanics, frameworks, build tools, backend code, art, or third-party libraries.
+This repository is a browser-only portrait prototype for an Arthurian survival and resource-management adventure. It uses placeholder presentation and intentionally contains no frameworks, build tools, backend code, art assets, or third-party libraries.
+
+## Current prototype
+
+The playable vertical slice begins at a fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, equip owned items, choose a companion, and select provisions. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment brought into the run.
+
+Progress is stored in the browser with `localStorage`. The reset button in the top-right corner restores the initial prototype save.
 
 ## Project layout
 
-- `index.html` defines the game page and its small placeholder interface. Think of it as the initial level/UI hierarchy.
-- `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, and input feedback.
-- `js/game.js` owns startup, input binding, game state, and the `requestAnimationFrame` game loop. Its `update()` and `render()` functions are the main extension points.
+- `index.html` defines the game page, persistent header, screen container, and script loading order. Think of it as the initial level/UI hierarchy.
+- `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, and input feedback. `--world-panel-height` controls the expedition view/interface split.
+- `js/data.js` contains data-driven item, companion, chapter, and expedition-loot definitions with stable string IDs.
+- `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
+- `js/game.js` owns screen flow, input, temporary expedition state, travel simulation, loot resolution, and the `requestAnimationFrame` loop.
 - `assets/` is reserved for future images, audio, fonts, and other game content.
 - `vendor/` is reserved for any third-party browser libraries added later. It is empty for now.
 

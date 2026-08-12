@@ -1,0 +1,101 @@
+"use strict";
+
+// Content definitions are separate from UI code so future systems can query them by stable ID.
+const ITEM_DEFINITIONS = Object.freeze({
+  arthur_sword: {
+    id: "arthur_sword",
+    name: "Arthur's Sword",
+    description: "A dependable blade from before the days of legend.",
+    category: "weapon",
+    tags: ["martial", "steel"],
+    equippable: true,
+    slot: "weapon",
+    effects: {},
+    questItem: false,
+  },
+  quilted_hauberk: {
+    id: "quilted_hauberk",
+    name: "Quilted Hauberk",
+    description: "Travel-worn protection suited to a long forest road.",
+    category: "armor",
+    tags: ["armor", "light"],
+    equippable: true,
+    slot: "armor",
+    effects: {},
+    questItem: false,
+  },
+  wayfarers_cloak: {
+    id: "wayfarers_cloak",
+    name: "Wayfarer's Cloak",
+    description: "A thick green cloak that sheds rain and conceals its wearer.",
+    category: "gear",
+    tags: ["travel", "forest"],
+    equippable: true,
+    slot: "utility",
+    effects: {},
+    questItem: false,
+  },
+  boar_spear: {
+    id: "boar_spear",
+    name: "Brocéliande Boar Spear",
+    description: "A balanced hunting spear found beside an abandoned camp.",
+    category: "weapon",
+    tags: ["martial", "hunting", "forest"],
+    equippable: true,
+    slot: "weapon",
+    effects: {},
+    questItem: false,
+  },
+  silver_leaf_charm: {
+    id: "silver_leaf_charm",
+    name: "Silver Leaf Charm",
+    description: "Its veins catch moonlight even beneath the forest canopy.",
+    category: "relic",
+    tags: ["fae", "forest", "silver"],
+    equippable: true,
+    slot: "utility",
+    effects: {},
+    questItem: false,
+  },
+  grail_waystone_fragment: {
+    id: "grail_waystone_fragment",
+    name: "Waystone Fragment",
+    description: "A carved stone shard marked with a road no map records.",
+    category: "quest",
+    tags: ["knowledge", "ancient", "grail"],
+    equippable: false,
+    slot: null,
+    effects: {},
+    questItem: true,
+  },
+});
+
+const COMPANION_DEFINITIONS = Object.freeze({
+  sir_kay: {
+    id: "sir_kay",
+    name: "Sir Kay",
+    description: "A blunt, steadfast knight who knows the cost of an expedition.",
+    tags: ["knight", "practical"],
+  },
+  merlin: {
+    id: "merlin",
+    name: "Merlin",
+    description: "A cryptic guide familiar with the old paths of Brocéliande.",
+    tags: ["advisor", "knowledge", "magic"],
+  },
+});
+
+const CHAPTER_DEFINITIONS = Object.freeze([
+  { id: "chapter_01", number: "I", name: "The Sword in the Stone", regionId: "londinium" },
+  { id: "chapter_02", number: "II", name: "The Crown and the Oath", regionId: "camelot" },
+  { id: "chapter_03", number: "III", name: "Brocéliande", regionId: "broceliande" },
+  { id: "chapter_04", number: "IV", name: "The Black Lake", regionId: "black_lake" },
+  { id: "chapter_05", number: "V", name: "The Wounded King", regionId: "wasteland" },
+]);
+
+const EXPEDITION_LOOT = Object.freeze([
+  { distance: 8, itemId: "boar_spear", quantity: 1, gold: 4 },
+  { distance: 18, itemId: "silver_leaf_charm", quantity: 1, gold: 8 },
+  { distance: 32, itemId: "grail_waystone_fragment", quantity: 1, gold: 15 },
+]);
+

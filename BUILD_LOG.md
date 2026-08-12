@@ -33,3 +33,31 @@ The project now runs entirely in a browser as a clean, dependency-free HTML5 ske
 ## 2026-08-11 — GitHub Pages Hosting
 
 The project is now hosted as a GitHub Pages site from the `main` branch of the [`spire8989.github.io`](https://github.com/spire8989/spire8989.github.io) repository. The published game can be accessed at [https://spire8989.github.io/](https://spire8989.github.io/).
+
+## 2026-08-11 — Brocéliande Expedition Vertical Slice
+
+### Goal
+
+Turn the HTML5 skeleton into a small mid-game vertical slice that proves the expedition's push-your-luck resource and loot loop without adding combat, encounters, dialogue, or the full campaign.
+
+### Human prompt and direction
+
+The human developer supplied the initial game design document and requested a fake chapter menu, persistent inventory and equipment, companion and supply preparation, real-time travel, resource consumption, unsecured loot, return travel, failure handling, and a run summary. Portrait presentation was confirmed, with an approximately 44/56 split between a side-scrolling world view and a contextual lower interface.
+
+### AI-assisted implementation
+
+- Added data-driven definitions for items, companions, chapters, and distance-based prototype rewards using stable string IDs.
+- Separated persistent player state and `localStorage` handling from temporary expedition state.
+- Built campaign, preparation, expedition, and outcome-summary screens in plain HTML, CSS, and JavaScript.
+- Added equipment and companion selection, adjustable provisions, outward and reversed return travel, distance and provision simulation, loot discovery, permanent loot banking, and failure loss rules.
+- Kept brought equipment safe on failure and added a local-save reset control.
+- Added a portrait side-scrolling placeholder scene with an adjustable world/interface divider.
+- Ran an automated headless-browser flow covering successful return and failed-run loot loss; all functional assertions passed.
+
+### Manual changes
+
+The human developer created and supplied `Initial Game Design Document.md`, confirmed portrait orientation, and clarified the intended world/interface composition. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+The prototype now contains one repeatable Brocéliande expedition loop. Players can prepare a persistent loadout, push outward while consuming provisions, discover unsecured rewards, turn back to bank them, or fail and lose only that run's discoveries. Advanced encounters and the broader campaign remain intentionally unimplemented.

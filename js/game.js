@@ -1,79 +1,595 @@
 "use strict";
 
-// Keeping state in one object gives future gameplay systems a predictable home.
-const gameState = {
+const TRAVEL_SETTINGS = Object.freeze({
+  outboundSpeed: 2.25,
+  returnSpeed: 3.6,
+  outboundProvisionRate: 0.72,
+  returnProvisionRate: 0.58,
+  minimumSupplies: 10,
+  maximumSupplies: 26,
+});
+
+const game = {
+  player: SaveSystem.load(),
+  expedition: null,
+  screen: "campaign",
+  preparationSupplies: 18,
+  summary: null,
   elapsedSeconds: 0,
-  questBegun: false,
+  lastTimestamp: null,
+  hudAccumulator: 0,
 };
 
 const ui = {
-  beginButton: null,
-  message: null,
+  screenRoot: document.querySelector("#screen-root"),
+  saveStatus: document.querySelector("#save-status"),
 };
 
 function initializeGame() {
-  ui.beginButton = document.querySelector("#begin-button");
-  ui.message = document.querySelector("#game-message");
-
-  if (!ui.beginButton || !ui.message) {
+  if (!ui.screenRoot || !ui.saveStatus) {
     throw new Error("Required game UI elements were not found.");
   }
 
-  bindInput();
+  document.addEventListener("click", handleAction);
+  document.addEventListener("pointerdown", showPressedState);
+  document.addEventListener("pointerup", clearPressedState);
+  document.addEventListener("pointercancel", clearPressedState);
+  renderScreen();
   requestAnimationFrame(gameLoop);
 }
 
-function bindInput() {
-  // Pointer events use one input path for a mouse, pen, or touchscreen.
-  ui.beginButton.addEventListener("pointerdown", handlePointerDown);
-  ui.beginButton.addEventListener("pointerup", handlePointerEnd);
-  ui.beginButton.addEventListener("pointercancel", handlePointerEnd);
-  ui.beginButton.addEventListener("lostpointercapture", handlePointerEnd);
-  ui.beginButton.addEventListener("click", beginQuest);
-}
-
-function handlePointerDown(event) {
-  ui.beginButton.setPointerCapture(event.pointerId);
-  ui.beginButton.classList.add("is-pressed");
-}
-
-function handlePointerEnd() {
-  ui.beginButton.classList.remove("is-pressed");
-}
-
-function beginQuest() {
-  gameState.questBegun = true;
-  ui.beginButton.classList.add("is-confirmed");
-  ui.beginButton.textContent = "Quest Accepted!";
-  ui.message.textContent = "The knights prepare to depart for the Grail.";
-}
-
-function update(deltaSeconds) {
-  gameState.elapsedSeconds += deltaSeconds;
-
-  // Future gameplay simulation belongs here.
-}
-
-function render() {
-  // Future canvas or DOM presentation updates belong here.
-  // Static HTML/CSS already renders the current placeholder screen.
-}
-
-let previousTimestamp = null;
-
-function gameLoop(timestamp) {
-  if (previousTimestamp === null) {
-    previousTimestamp = timestamp;
+function handleAction(event) {
+  const control = event.target.closest("[data-action]");
+  if (!control || control.disabled) {
+    return;
   }
 
-  const elapsedMilliseconds = timestamp - previousTimestamp;
-  previousTimestamp = timestamp;
+  const { action, itemId, companionId } = control.dataset;
 
-  // Clamp long pauses (for example, switching tabs) to keep simulation stable.
-  const deltaSeconds = Math.min(elapsedMilliseconds / 1000, 0.1);
+  switch (action) {
+    case "show-campaign":
+      if (!game.expedition || game.expedition.status !== "active") {
+        showScreen("campaign");
+      }
+      break;
+    case "prepare-expedition":
+      showScreen("preparation");
+      break;
+    case "equip-item":
+      equipItem(itemId);
+      break;
+    case "select-companion":
+      selectCompanion(companionId);
+      break;
+    case "change-supplies":
+      changeSupplies(Number(control.dataset.amount));
+      break;
+    case "start-expedition":
+      startExpedition();
+      break;
+    case "return-to-safety":
+      beginReturn();
+      break;
+    case "abandon-expedition":
+      failExpedition("The company abandoned the expedition before reaching safety.");
+      break;
+    case "new-expedition":
+      showScreen("preparation");
+      break;
+    case "reset-save":
+      resetSave();
+      break;
+    default:
+      break;
+  }
+}
 
-  update(deltaSeconds);
-  render();
+function showPressedState(event) {
+  const control = event.target.closest("button:not(:disabled)");
+  control?.classList.add("is-pressed");
+}
+
+function clearPressedState() {
+  document.querySelectorAll("button.is-pressed").forEach((button) => {
+    button.classList.remove("is-pressed");
+  });
+}
+
+function showScreen(screen) {
+  game.screen = screen;
+  renderScreen();
+}
+
+function renderScreen() {
+  switch (game.screen) {
+    case "campaign":
+      renderCampaign();
+      break;
+    case "preparation":
+      renderPreparation();
+      break;
+    case "expedition":
+      renderExpedition();
+      break;
+    case "summary":
+      renderSummary();
+      break;
+    default:
+      throw new Error(`Unknown screen: ${game.screen}`);
+  }
+}
+
+function renderCampaign() {
+  const chapters = CHAPTER_DEFINITIONS.map((chapter) => {
+    const completed = game.player.completedChapters.includes(chapter.id);
+    const playable = chapter.id === "chapter_03";
+    const stateClass = completed ? "is-complete" : playable ? "is-playable" : "is-locked";
+    const stateLabel = completed ? "Completed" : playable ? "Available" : "Locked";
+    const action = playable
+      ? '<button class="game-button chapter-button" type="button" data-action="prepare-expedition">Enter</button>'
+      : `<span class="chapter-state">${stateLabel}</span>`;
+
+    return `
+      <article class="chapter-card ${stateClass}">
+        <div>
+          <p class="chapter-number">Chapter ${chapter.number}</p>
+          <h2>${chapter.name}</h2>
+        </div>
+        ${action}
+      </article>`;
+  }).join("");
+
+  ui.screenRoot.innerHTML = `
+    <section class="screen campaign-screen" aria-labelledby="campaign-title">
+      <div class="screen-heading">
+        <p class="eyebrow">The Chronicle of Arthur</p>
+        <h1 id="campaign-title">Campaign</h1>
+        <p>Choose the next chapter of the legend.</p>
+      </div>
+      <div class="chapter-list">${chapters}</div>
+      <div class="campaign-stats">
+        <span>Best expedition <strong>${formatDistance(game.player.bestExpeditionDistance)}</strong></span>
+        <span>Treasury <strong>${Math.floor(game.player.currentGold)} gold</strong></span>
+      </div>
+    </section>`;
+}
+
+function renderPreparation() {
+  const inventory = Object.entries(game.player.ownedItems)
+    .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
+    .join("");
+  const companions = game.player.unlockedCompanions
+    .map((companionId) => companionCard(COMPANION_DEFINITIONS[companionId]))
+    .join("");
+
+  ui.screenRoot.innerHTML = `
+    <section class="screen preparation-screen" aria-labelledby="preparation-title">
+      <div class="screen-heading compact-heading">
+        <p class="eyebrow">Chapter III — Brocéliande</p>
+        <h1 id="preparation-title">Prepare the Company</h1>
+      </div>
+
+      <section class="preparation-section" aria-labelledby="inventory-title">
+        <div class="section-title-row">
+          <h2 id="inventory-title">Permanent Inventory</h2>
+          <span>${Object.keys(game.player.ownedItems).length} items</span>
+        </div>
+        <div class="inventory-list">${inventory}</div>
+      </section>
+
+      <section class="preparation-section" aria-labelledby="companion-title">
+        <h2 id="companion-title">Companion</h2>
+        <div class="choice-list">${companions}</div>
+      </section>
+
+      <section class="preparation-section supplies-section" aria-labelledby="supplies-title">
+        <div>
+          <h2 id="supplies-title">Provisions</h2>
+          <p>Consumed during outward and return travel.</p>
+        </div>
+        <div class="stepper" aria-label="Choose provisions">
+          <button type="button" data-action="change-supplies" data-amount="-2" aria-label="Remove two provisions">−</button>
+          <strong>${game.preparationSupplies}</strong>
+          <button type="button" data-action="change-supplies" data-amount="2" aria-label="Add two provisions">+</button>
+        </div>
+      </section>
+
+      <div class="footer-actions">
+        <button class="text-button" type="button" data-action="show-campaign">Back</button>
+        <button class="game-button" type="button" data-action="start-expedition">Begin Expedition</button>
+      </div>
+    </section>`;
+}
+
+function inventoryCard(item, quantity) {
+  const equipped = item.equippable && game.player.equippedItems[item.slot] === item.id;
+  const button = item.equippable
+    ? `<button class="small-button ${equipped ? "is-selected" : ""}" type="button" data-action="equip-item" data-item-id="${item.id}">${equipped ? "Equipped" : "Equip"}</button>`
+    : '<span class="item-state">Quest item</span>';
+
+  return `
+    <article class="inventory-card ${equipped ? "is-equipped" : ""}">
+      <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
+      <div class="item-copy">
+        <div class="item-title-row"><h3>${item.name}</h3>${quantity > 1 ? `<span>×${quantity}</span>` : ""}</div>
+        <p>${item.description}</p>
+        <span class="item-category">${item.slot ?? item.category}</span>
+      </div>
+      ${button}
+    </article>`;
+}
+
+function companionCard(companion) {
+  const selected = game.player.selectedCompanion === companion.id;
+  return `
+    <button class="choice-card ${selected ? "is-selected" : ""}" type="button" data-action="select-companion" data-companion-id="${companion.id}">
+      <strong>${companion.name}</strong>
+      <span>${companion.description}</span>
+    </button>`;
+}
+
+function equipItem(itemId) {
+  const item = ITEM_DEFINITIONS[itemId];
+  if (!item?.equippable || !game.player.ownedItems[itemId]) {
+    return;
+  }
+
+  game.player.equippedItems[item.slot] = itemId;
+  savePlayer();
+  renderPreparation();
+}
+
+function selectCompanion(companionId) {
+  if (!game.player.unlockedCompanions.includes(companionId)) {
+    return;
+  }
+
+  game.player.selectedCompanion = companionId;
+  savePlayer();
+  renderPreparation();
+}
+
+function changeSupplies(amount) {
+  game.preparationSupplies = clamp(
+    game.preparationSupplies + amount,
+    TRAVEL_SETTINGS.minimumSupplies,
+    TRAVEL_SETTINGS.maximumSupplies,
+  );
+  renderPreparation();
+}
+
+function startExpedition() {
+  game.expedition = {
+    regionId: "broceliande",
+    currentPathId: "old_forest_road",
+    distance: 0,
+    maxDistanceReached: 0,
+    direction: "outbound",
+    provisions: game.preparationSupplies,
+    health: 100,
+    goldCarried: 0,
+    selectedEquipment: { ...game.player.equippedItems },
+    selectedCompanion: game.player.selectedCompanion,
+    unsecuredLoot: [],
+    discoveredLootIds: [],
+    status: "active",
+  };
+  showScreen("expedition");
+}
+
+function renderExpedition() {
+  const expedition = game.expedition;
+  const companion = COMPANION_DEFINITIONS[expedition.selectedCompanion];
+  const loadout = Object.values(expedition.selectedEquipment)
+    .map((itemId) => ITEM_DEFINITIONS[itemId]?.name)
+    .filter(Boolean)
+    .join(" · ");
+
+  ui.screenRoot.innerHTML = `
+    <section class="screen expedition-screen" aria-labelledby="region-title">
+      <div class="travel-scene" id="travel-scene">
+        <div class="moon" aria-hidden="true"></div>
+        <div class="forest forest-far" aria-hidden="true"></div>
+        <div class="forest forest-near" aria-hidden="true"></div>
+        <div class="travelers" id="travelers" aria-hidden="true">
+          <span class="arthur">♞</span><span class="companion">♞</span>
+        </div>
+        <div class="ground" aria-hidden="true"></div>
+        <div class="direction-banner" id="direction-banner">Traveling Outbound →</div>
+      </div>
+
+      <div class="travel-panel">
+        <div class="screen-heading travel-heading">
+          <p class="eyebrow">Chapter III</p>
+          <h1 id="region-title">Brocéliande</h1>
+          <p id="travel-message">The old forest road winds deeper beneath the trees.</p>
+        </div>
+
+        <div class="resource-grid">
+          <div class="resource-card">
+            <span>Distance</span>
+            <strong id="distance-value">${formatDistance(expedition.distance)}</strong>
+          </div>
+          <div class="resource-card">
+            <span>Provisions</span>
+            <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
+          </div>
+          <div class="resource-card">
+            <span>Health</span>
+            <strong id="health-value">${Math.ceil(expedition.health)}%</strong>
+          </div>
+          <div class="resource-card unsecured-card">
+            <span>Unsecured</span>
+            <strong id="loot-count">${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g</strong>
+          </div>
+        </div>
+
+        <div class="progress-track" aria-label="Current return distance">
+          <div class="progress-fill" id="distance-progress"></div>
+        </div>
+
+        <section class="run-details">
+          <p><span>Company</span><strong>Arthur &amp; ${companion.name}</strong></p>
+          <p><span>Loadout</span><strong>${loadout || "No equipment selected"}</strong></p>
+          <div id="loot-list" class="loot-list">${renderLootList(expedition.unsecuredLoot)}</div>
+        </section>
+
+        <div class="footer-actions travel-actions">
+          <button class="text-button danger-button" type="button" data-action="abandon-expedition">Abandon</button>
+          <button id="return-button" class="game-button" type="button" data-action="return-to-safety">Return to Safety</button>
+        </div>
+      </div>
+    </section>`;
+  updateTravelHud();
+}
+
+function updateExpedition(deltaSeconds) {
+  const expedition = game.expedition;
+  if (!expedition || expedition.status !== "active") {
+    return;
+  }
+
+  if (expedition.direction === "outbound") {
+    expedition.distance += TRAVEL_SETTINGS.outboundSpeed * deltaSeconds;
+    expedition.maxDistanceReached = Math.max(expedition.maxDistanceReached, expedition.distance);
+    expedition.provisions -= TRAVEL_SETTINGS.outboundProvisionRate * deltaSeconds;
+    discoverLoot();
+  } else {
+    expedition.distance -= TRAVEL_SETTINGS.returnSpeed * deltaSeconds;
+    expedition.provisions -= TRAVEL_SETTINGS.returnProvisionRate * deltaSeconds;
+
+    if (expedition.distance <= 0) {
+      expedition.distance = 0;
+      completeReturn();
+      return;
+    }
+  }
+
+  if (expedition.provisions <= 0) {
+    expedition.provisions = 0;
+    failExpedition("The company exhausted its provisions before reaching safety.");
+  }
+}
+
+function discoverLoot() {
+  const expedition = game.expedition;
+  EXPEDITION_LOOT.forEach((reward) => {
+    if (expedition.distance < reward.distance || expedition.discoveredLootIds.includes(reward.itemId)) {
+      return;
+    }
+
+    expedition.discoveredLootIds.push(reward.itemId);
+    expedition.unsecuredLoot.push({ itemId: reward.itemId, quantity: reward.quantity });
+    expedition.goldCarried += reward.gold;
+    const item = ITEM_DEFINITIONS[reward.itemId];
+    announceTravelEvent(`Discovered ${item.name}. It remains unsecured until you return.`);
+  });
+}
+
+function beginReturn() {
+  const expedition = game.expedition;
+  if (!expedition || expedition.status !== "active" || expedition.direction === "returning") {
+    return;
+  }
+
+  expedition.direction = "returning";
+  announceTravelEvent("The company turns back toward the forest edge.");
+  updateTravelHud();
+}
+
+function completeReturn() {
+  const expedition = game.expedition;
+  expedition.status = "returned";
+
+  expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
+    game.player.ownedItems[itemId] = (game.player.ownedItems[itemId] ?? 0) + quantity;
+  });
+  game.player.currentGold += expedition.goldCarried;
+  game.player.bestExpeditionDistance = Math.max(
+    game.player.bestExpeditionDistance,
+    expedition.maxDistanceReached,
+  );
+  savePlayer();
+
+  game.summary = {
+    outcome: "returned",
+    title: "Returned to Safety",
+    message: "Every discovery from this expedition is now part of Arthur's permanent inventory.",
+    distance: expedition.maxDistanceReached,
+    loot: [...expedition.unsecuredLoot],
+    gold: expedition.goldCarried,
+  };
+  showScreen("summary");
+}
+
+function failExpedition(reason) {
+  const expedition = game.expedition;
+  if (!expedition || expedition.status !== "active") {
+    return;
+  }
+
+  expedition.status = "failed";
+  game.player.bestExpeditionDistance = Math.max(
+    game.player.bestExpeditionDistance,
+    expedition.maxDistanceReached,
+  );
+  savePlayer();
+
+  game.summary = {
+    outcome: "failed",
+    title: "Expedition Failed",
+    message: reason,
+    distance: expedition.maxDistanceReached,
+    loot: [...expedition.unsecuredLoot],
+    gold: expedition.goldCarried,
+  };
+  showScreen("summary");
+}
+
+function renderSummary() {
+  const summary = game.summary;
+  const returned = summary.outcome === "returned";
+  const loot = summary.loot.length > 0
+    ? summary.loot.map(({ itemId, quantity }) => `<li>${ITEM_DEFINITIONS[itemId].name}${quantity > 1 ? ` ×${quantity}` : ""}</li>`).join("")
+    : "<li>No items discovered</li>";
+
+  ui.screenRoot.innerHTML = `
+    <section class="screen summary-screen ${returned ? "is-success" : "is-failure"}" aria-labelledby="summary-title">
+      <div class="summary-emblem" aria-hidden="true">${returned ? "♜" : "♞"}</div>
+      <div class="screen-heading">
+        <p class="eyebrow">Expedition Report</p>
+        <h1 id="summary-title">${summary.title}</h1>
+        <p>${summary.message}</p>
+      </div>
+
+      <div class="summary-card">
+        <p><span>Farthest distance</span><strong>${formatDistance(summary.distance)}</strong></p>
+        <p><span>${returned ? "Gold banked" : "Gold lost"}</span><strong>${summary.gold}</strong></p>
+        <div class="summary-loot">
+          <span>${returned ? "Items secured" : "Unsecured items lost"}</span>
+          <ul>${loot}</ul>
+        </div>
+        <p class="protected-note">Your original equipment and companion remain available.</p>
+      </div>
+
+      <div class="footer-actions summary-actions">
+        <button class="text-button" type="button" data-action="show-campaign">Campaign</button>
+        <button class="game-button" type="button" data-action="new-expedition">Prepare Again</button>
+      </div>
+    </section>`;
+}
+
+function updateTravelHud() {
+  const expedition = game.expedition;
+  if (game.screen !== "expedition" || !expedition) {
+    return;
+  }
+
+  setText("#distance-value", formatDistance(expedition.distance));
+  setText("#provisions-value", formatResource(expedition.provisions));
+  setText("#health-value", `${Math.ceil(expedition.health)}%`);
+  setText("#loot-count", `${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g`);
+
+  const returning = expedition.direction === "returning";
+  const directionBanner = document.querySelector("#direction-banner");
+  const travelers = document.querySelector("#travelers");
+  const returnButton = document.querySelector("#return-button");
+  const progressFill = document.querySelector("#distance-progress");
+  const scene = document.querySelector("#travel-scene");
+
+  if (directionBanner) {
+    directionBanner.textContent = returning ? "← Returning to Safety" : "Traveling Outbound →";
+  }
+  travelers?.classList.toggle("is-returning", returning);
+  if (returnButton) {
+    returnButton.disabled = returning;
+    returnButton.textContent = returning ? "Returning…" : "Return to Safety";
+  }
+  if (progressFill) {
+    const denominator = Math.max(expedition.maxDistanceReached, 1);
+    progressFill.style.width = `${clamp((expedition.distance / denominator) * 100, 0, 100)}%`;
+  }
+  if (scene) {
+    // Outbound scenery moves left; returning reverses it and moves it faster.
+    scene.style.setProperty("--travel-offset", `${(game.elapsedSeconds * (returning ? 32 : -20)) % 160}px`);
+  }
+}
+
+function renderLootList(loot) {
+  if (loot.length === 0) {
+    return '<p class="empty-loot">No discoveries yet. Travel farther into the forest.</p>';
+  }
+
+  return loot.map(({ itemId }) => `<span class="loot-chip">${ITEM_DEFINITIONS[itemId].name}</span>`).join("");
+}
+
+function announceTravelEvent(message) {
+  setText("#travel-message", message);
+  const lootList = document.querySelector("#loot-list");
+  if (lootList) {
+    lootList.innerHTML = renderLootList(game.expedition.unsecuredLoot);
+  }
+}
+
+function savePlayer() {
+  const saved = SaveSystem.save(game.player);
+  ui.saveStatus.textContent = saved ? "Saved locally" : "Save unavailable";
+}
+
+function resetSave() {
+  if (!window.confirm("Reset all local progress and restore the prototype's starting inventory?")) {
+    return;
+  }
+
+  game.player = SaveSystem.reset();
+  game.expedition = null;
+  game.summary = null;
+  game.preparationSupplies = 18;
+  savePlayer();
+  showScreen("campaign");
+}
+
+function itemIcon(category) {
+  return ({ weapon: "⚔", armor: "◈", gear: "⌁", relic: "✦", quest: "◆" })[category] ?? "•";
+}
+
+function formatDistance(distance) {
+  return `${distance.toFixed(1)} leagues`;
+}
+
+function formatResource(value) {
+  return Math.max(value, 0).toFixed(1);
+}
+
+function setText(selector, text) {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = text;
+  }
+}
+
+function clamp(value, minimum, maximum) {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+function gameLoop(timestamp) {
+  if (game.lastTimestamp === null) {
+    game.lastTimestamp = timestamp;
+  }
+
+  const deltaSeconds = Math.min((timestamp - game.lastTimestamp) / 1000, 0.1);
+  game.lastTimestamp = timestamp;
+  game.elapsedSeconds += deltaSeconds;
+
+  if (game.screen === "expedition") {
+    updateExpedition(deltaSeconds);
+    game.hudAccumulator += deltaSeconds;
+    if (game.hudAccumulator >= 0.05) {
+      updateTravelHud();
+      game.hudAccumulator = 0;
+    }
+  }
+
   requestAnimationFrame(gameLoop);
 }
 

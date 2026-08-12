@@ -11,21 +11,22 @@
   </head>
   <body>
     <main id="game-viewport" class="game-viewport" aria-label="Quest for the Holy Grail game">
-      <section class="game-screen" aria-labelledby="game-title">
-        <div class="title-panel">
-          <p class="eyebrow">A Knights of the Round Table Adventure</p>
-          <h1 id="game-title">Quest for the Holy Grail</h1>
-          <button id="begin-button" class="game-button" type="button">
-            Begin the Quest
-          </button>
-          <p id="game-message" class="game-message" aria-live="polite">
-            The road to Camelot awaits.
-          </p>
+      <header class="game-header">
+        <button class="brand-button" type="button" data-action="show-campaign">
+          <span class="brand-mark" aria-hidden="true">♜</span>
+          <span>Quest for the Holy Grail</span>
+        </button>
+        <div class="header-actions">
+          <span id="save-status" class="save-status" aria-live="polite">Saved locally</span>
+          <button class="icon-button" type="button" data-action="reset-save" title="Reset saved progress" aria-label="Reset saved progress">↻</button>
         </div>
-      </section>
+      </header>
+      <div id="screen-root" class="screen-root"></div>
     </main>
 
     <!-- "defer" waits for the HTML to be parsed before running the game code. -->
+    <script src="js/data.js" defer></script>
+    <script src="js/storage.js" defer></script>
     <script src="js/game.js" defer></script>
   </body>
 </html>
