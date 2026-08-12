@@ -74,12 +74,29 @@ const EncounterRequirements = Object.freeze({
 });
 
 const EncounterOutcomes = Object.freeze({
+  resolveAll(effects = [], context) {
+    return effects.reduce((combined, effect) => {
+      const resolved = this.resolve(effect, context);
+      combined.messages.push(...resolved.messages);
+      if (resolved.resultText) {
+        combined.resultText = resolved.resultText;
+      }
+      return combined;
+    }, { messages: [], resultText: "" });
+  },
+
   applyAll(effects = [], context) {
-    return effects.flatMap((effect) => this.apply(effect, context));
+    return this.resolveAll(effects, context).messages;
   },
 
   apply(effect, context) {
+    return this.resolve(effect, context).messages;
+  },
+
+  resolve(effect, context) {
     const { expedition, player } = context;
+    let messages = [];
+    let resultText = effect.resultText ?? "";
 
     switch (effect.type) {
       case "modifyResource": {
@@ -99,70 +116,89 @@ const EncounterOutcomes = Object.freeze({
           expedition[effect.resource] = Math.max(0, expedition[effect.resource]);
         }
 
-        return amount === 0
+        messages = amount === 0
           ? []
           : [`${amount > 0 ? "+" : ""}${amount} ${resourceLabel(effect.resource)}`];
+        break;
       }
       case "gainRandomUnsecuredItem": {
         const validItemIds = effect.itemIds.filter((itemId) => ITEM_DEFINITIONS[itemId]);
         if (validItemIds.length === 0) {
-          return [];
+          break;
         }
         const itemId = validItemIds[randomInteger(0, validItemIds.length - 1)];
         addUnsecuredItem(expedition, itemId, effect.quantity ?? 1);
-        return [unsecuredLootMessage(itemId)];
+        messages = [unsecuredLootMessage(itemId)];
+        break;
       }
       case "gainUnsecuredItem":
         if (!ITEM_DEFINITIONS[effect.itemId]) {
-          return [];
+          break;
         }
         addUnsecuredItem(expedition, effect.itemId, effect.quantity ?? 1);
-        return [unsecuredLootMessage(effect.itemId)];
+        messages = [unsecuredLootMessage(effect.itemId)];
+        break;
       case "consumeExpeditionItem": {
         const quantity = effect.quantity ?? 1;
         if (expeditionItemQuantity(expedition, effect.itemId) < quantity) {
-          return [];
+          break;
         }
         consumeExpeditionItem(expedition, effect.itemId, quantity);
-        return [`Used ${quantity} ${ITEM_DEFINITIONS[effect.itemId]?.name ?? effect.itemId}`];
+        messages = [`Used ${quantity} ${ITEM_DEFINITIONS[effect.itemId]?.name ?? effect.itemId}`];
+        break;
       }
       case "changePath":
         expedition.currentPathId = effect.pathId;
-        return [`Path changed to ${pathLabel(effect.pathId)}`];
+        messages = [`Path changed to ${pathLabel(effect.pathId)}`];
+        break;
       case "setRunFlag":
         expedition.runFlags[effect.flag] = effect.value ?? true;
-        return effect.message ? [effect.message] : [];
+        messages = effect.message ? [effect.message] : [];
+        break;
       case "learnKnowledge":
         if (!player.learnedKnowledge.includes(effect.knowledgeId)) {
           player.learnedKnowledge.push(effect.knowledgeId);
         }
-        return KNOWLEDGE_DEFINITIONS[effect.knowledgeId]
+        messages = KNOWLEDGE_DEFINITIONS[effect.knowledgeId]
           ? [`Knowledge learned: ${KNOWLEDGE_DEFINITIONS[effect.knowledgeId].name}`]
           : [];
+        break;
       case "conditional": {
-        const effects = EncounterRequirements.meetsAll(effect.requirements, context)
-          ? effect.effects
-          : effect.elseEffects;
-        return this.applyAll(effects, context);
+        const branch = EncounterRequirements.meetsAll(effect.requirements, context);
+        const resolved = this.resolveAll(branch ? effect.effects : effect.elseEffects, context);
+        messages = resolved.messages;
+        resultText = resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "";
+        break;
       }
-      case "randomChance":
-        return Math.random() < effect.chance
-          ? this.applyAll(effect.effects, context)
-          : [];
+      case "randomChance": {
+        const succeeded = Math.random() < effect.chance;
+        const resolved = this.resolveAll(succeeded ? effect.effects : effect.elseEffects, context);
+        messages = resolved.messages;
+        resultText = resolved.resultText
+          || (succeeded ? effect.resultText : effect.elseResultText)
+          || "";
+        break;
+      }
       case "randomOne": {
         if (!Array.isArray(effect.options) || effect.options.length === 0) {
-          return [];
+          break;
         }
-        const selectedEffects = effect.options[randomInteger(0, effect.options.length - 1)];
-        return this.applyAll(selectedEffects, context);
+        const selected = effect.options[randomInteger(0, effect.options.length - 1)];
+        const selectedEffects = Array.isArray(selected) ? selected : selected.effects;
+        const resolved = this.resolveAll(selectedEffects, context);
+        messages = resolved.messages;
+        resultText = resolved.resultText || selected.resultText || "";
+        break;
       }
       case "failExpedition":
         context.failExpedition?.(effect.reason ?? "The expedition could not continue.");
-        return [];
+        break;
       default:
         console.warn(`Unknown encounter outcome type: ${effect.type}`);
-        return [];
+        break;
     }
+
+    return { messages, resultText };
   },
 });
 
@@ -239,6 +275,7 @@ const EncounterManager = Object.freeze({
       phase: "choice",
       resultText: "",
       outcomeMessages: [],
+      pendingToken: 0,
     };
     if (!expedition.seenEncounterIds.includes(encounterId)) {
       expedition.seenEncounterIds.push(encounterId);
@@ -255,7 +292,7 @@ const EncounterManager = Object.freeze({
 
   resolveChoice(expedition, player, choiceId, callbacks = {}) {
     const active = expedition.activeEncounter;
-    if (active?.phase === "result") {
+    if (active?.phase !== "choice") {
       return { resolved: false, ended: false, message: "" };
     }
     const encounter = active ? ENCOUNTER_DEFINITIONS[active.encounterId] : null;
@@ -271,10 +308,61 @@ const EncounterManager = Object.freeze({
       return { resolved: false, ended: false, message: "" };
     }
 
+    if (choice.pendingAction) {
+      active.phase = "pending";
+      active.actionText = choice.pendingAction.text;
+      active.pendingChoiceId = choice.id;
+      active.pendingToken += 1;
+      return {
+        resolved: true,
+        ended: false,
+        pending: true,
+        pendingToken: active.pendingToken,
+        delayMs: randomInteger(
+          choice.pendingAction.minimumMs ?? EXPEDITION_TUNING.encounterActionDelayMinimumMs,
+          choice.pendingAction.maximumMs ?? EXPEDITION_TUNING.encounterActionDelayMaximumMs,
+        ),
+        message: active.actionText,
+      };
+    }
+
+    return this.applyChoice(expedition, player, choice, callbacks);
+  },
+
+  completePendingAction(expedition, player, pendingToken, callbacks = {}) {
+    const active = expedition.activeEncounter;
+    if (!active
+      || active.phase !== "pending"
+      || active.pendingToken !== pendingToken) {
+      return { resolved: false, ended: false, message: "" };
+    }
+
+    const encounter = ENCOUNTER_DEFINITIONS[active.encounterId];
+    const stage = encounter?.stages[active.stageId];
+    const choice = stage?.choices.find((candidate) => candidate.id === active.pendingChoiceId);
+    if (!choice) {
+      return { resolved: false, ended: false, message: "" };
+    }
+
+    delete active.actionText;
+    delete active.pendingChoiceId;
+    return this.applyChoice(expedition, player, choice, callbacks);
+  },
+
+  applyChoice(expedition, player, choice, callbacks = {}) {
+    const active = expedition.activeEncounter;
+    const encounter = active ? ENCOUNTER_DEFINITIONS[active.encounterId] : null;
+    const stage = encounter?.stages[active.stageId];
+    if (!active || !encounter || !stage) {
+      return { resolved: false, ended: false, message: "" };
+    }
+
+    const context = { expedition, player, ...callbacks };
     const outcomeMessages = [
       ...EncounterOutcomes.applyAll(choice.costs, context),
-      ...EncounterOutcomes.applyAll(choice.outcomes, context),
     ];
+    const resolvedOutcomes = EncounterOutcomes.resolveAll(choice.outcomes, context);
+    outcomeMessages.push(...resolvedOutcomes.messages);
     active.outcomeMessages.push(...outcomeMessages);
 
     if (choice.nextStage) {
@@ -286,10 +374,11 @@ const EncounterManager = Object.freeze({
 
       active.stageId = choice.nextStage;
       if (nextStage.resultStage) {
-        active.outcomeMessages.push(...EncounterOutcomes.applyAll(nextStage.outcomes, context));
+        const resolvedStage = EncounterOutcomes.resolveAll(nextStage.outcomes, context);
+        active.outcomeMessages.push(...resolvedStage.messages);
         active.phase = "result";
-        active.resultText = nextStage.text;
-        return { resolved: true, ended: false, awaitingContinue: true, message: nextStage.text };
+        active.resultText = resolvedStage.resultText || nextStage.text;
+        return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
       }
 
       active.phase = "choice";
@@ -297,7 +386,10 @@ const EncounterManager = Object.freeze({
     }
 
     if (choice.endEncounter) {
-      const message = choice.resultText || stage.text || `${encounter.title} resolved.`;
+      const message = resolvedOutcomes.resultText
+        || choice.resultText
+        || stage.text
+        || `${encounter.title} resolved.`;
       active.phase = "result";
       active.resultText = message;
       return { resolved: true, ended: false, awaitingContinue: true, message };

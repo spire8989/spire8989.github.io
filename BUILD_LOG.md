@@ -297,3 +297,31 @@ The human developer reported the overlap and supplied the focused layout specifi
 ### Resulting prototype state
 
 The village remains a full-screen-feeling portrait location, but its resource and navigation controls now occupy a reserved footer that cannot cover tappable buildings. All four destinations remain within the responsive village scene across the tested phone sizes.
+
+## 2026-08-12 — Encounter Action Timing and Result Feedback
+
+### Goal
+
+Give investigation and search choices a brief sense of anticipation while ensuring every randomized encounter result clearly matches the consequence that actually occurred.
+
+### Human prompt and direction
+
+The human developer supplied a focused encounter-feedback guide requesting optional data-driven action delays, outcome-specific narrative branches, explicit no-result feedback, correct Continue Journey timing, timer cleanup, and preservation of all existing encounter content and expedition systems.
+
+### AI-assisted implementation
+
+- Added a generic pending-action encounter phase with centrally tuned randomized delays, authored action text, input locking, and a subtle reduced-motion-aware progress indicator.
+- Kept travel, distance, provisions, and encounter selection paused throughout pending actions; **Continue Journey** appears only after the final narrative and mechanical consequences resolve.
+- Added generic result-text propagation through `randomChance`, `randomOne`, and conditional outcome branches without hard-coding encounter IDs into the engine or UI.
+- Added delayed actions to Hidden Hollow, Whispering Oak, Abandoned Cart tracking, Strange Lights, Something in the Thorns, and Woodland Foraging.
+- Added matching success/failure prose for those encounters plus Fallen Tree and Sudden Storm, including explicit text when searches find nothing and preserved `ITEM FOUND`, resource, and unsecured-loot feedback.
+- Guarded pending completion with expedition identity, phase, and token checks, and canceled active timers when an expedition succeeds or fails.
+- Expanded the Chrome regression suite from 86 to 100 assertions, covering pending UI/input behavior, duplicate-resolution prevention, timer cancellation, Continue timing, deterministic success and no-result branches, randomized injury text, existing location/provision flows, settlement, save migration, and runtime exceptions; all passed.
+
+### Manual changes
+
+The human developer supplied the authored encounter-action and result-text guide and requested continued build-log documentation. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Time-consuming encounter choices now pause on a short action beat before revealing their result. Discoveries, injuries, safe outcomes, lost supplies, and empty searches each receive narrative feedback that agrees with the visible mechanical changes, while immediate choices and the wider expedition economy and pacing remain unchanged.

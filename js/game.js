@@ -25,6 +25,8 @@ const ui = {
   saveStatus: document.querySelector("#save-status"),
 };
 
+let pendingEncounterActionTimer = null;
+
 function initializeGame() {
   if (!ui.screenRoot || !ui.saveStatus) {
     throw new Error("Required game UI elements were not found.");
@@ -808,6 +810,9 @@ function renderEncounterPanel(expedition, encounter) {
   if (active.phase === "result") {
     return renderEncounterResultPanel(expedition, encounter, active);
   }
+  if (active.phase === "pending") {
+    return renderEncounterPendingPanel(expedition, encounter, active);
+  }
 
   const stage = encounter.stages[active.stageId];
   const choices = stage.choices.map((choice) => renderEncounterChoice(choice, expedition)).join("");
@@ -828,6 +833,21 @@ function renderEncounterPanel(expedition, encounter) {
         ${outcomes}
       </div>
       <div class="encounter-choices">${choices}</div>
+    </div>`;
+}
+
+function renderEncounterPendingPanel(expedition, encounter, active) {
+  return `
+    <div class="travel-panel encounter-panel encounter-pending-panel" aria-live="polite" aria-busy="true">
+      ${renderExpeditionResources(expedition)}
+      <div class="encounter-heading">
+        <p class="eyebrow">Action in Progress</p>
+        <h1>${encounter.title}</h1>
+      </div>
+      <div class="encounter-stage pending-stage">
+        <p>${active.actionText}</p>
+        <div class="pending-indicator" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
     </div>`;
 }
 
@@ -974,6 +994,34 @@ function resolveEncounterChoice(choiceId) {
   const result = EncounterManager.resolveChoice(expedition, game.player, choiceId, {
     failExpedition,
   });
+  if (!result.resolved) {
+    return;
+  }
+
+  if (result.pending) {
+    clearPendingEncounterActionTimer();
+    const pendingExpedition = expedition;
+    pendingEncounterActionTimer = window.setTimeout(() => {
+      pendingEncounterActionTimer = null;
+      if (game.expedition !== pendingExpedition || pendingExpedition.status !== "active") {
+        return;
+      }
+      const completed = EncounterManager.completePendingAction(
+        pendingExpedition,
+        game.player,
+        result.pendingToken,
+        { failExpedition },
+      );
+      finishEncounterResolution(completed, pendingExpedition);
+    }, result.delayMs);
+    renderExpedition();
+    return;
+  }
+
+  finishEncounterResolution(result, expedition);
+}
+
+function finishEncounterResolution(result, expedition) {
   if (!result.resolved || expedition.status !== "active") {
     return;
   }
@@ -988,6 +1036,13 @@ function resolveEncounterChoice(choiceId) {
   }
 
   renderExpedition();
+}
+
+function clearPendingEncounterActionTimer() {
+  if (pendingEncounterActionTimer !== null) {
+    window.clearTimeout(pendingEncounterActionTimer);
+    pendingEncounterActionTimer = null;
+  }
 }
 
 function continueJourney() {
@@ -1018,6 +1073,7 @@ function forceNextEncounter() {
 
 function completeReturn() {
   const expedition = game.expedition;
+  clearPendingEncounterActionTimer();
   expedition.status = "returned";
   settleConsumedItems(expedition);
   settleExpeditionProvisions(expedition, true);
@@ -1050,6 +1106,7 @@ function failExpedition(reason) {
     return;
   }
 
+  clearPendingEncounterActionTimer();
   expedition.status = "failed";
   settleConsumedItems(expedition);
   settleExpeditionProvisions(expedition, false);

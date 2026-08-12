@@ -27,9 +27,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "randomChance",
                 chance: 0.3,
                 effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+                resultText: "A wet branch gives way as Arthur climbs. He lands hard on the far side and continues with a fresh injury.",
+                elseResultText: "Arthur and Kay find firm footing and scramble safely over the trunk.",
               },
             ],
-            resultText: "The company scrambles across the trunk and continues down the road.",
             endEncounter: true,
           },
           {
@@ -397,9 +398,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "randomChance",
                 chance: 0.2,
                 effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+                resultText: "Arthur gathers a small supply, but one of the plants leaves him sick and weakened.",
+                elseResultText: "Arthur gathers a small supply of edible plants without ill effect.",
               },
             ],
-            resultText: "The company gathers what looks edible, though not every plant agrees with them.",
+            pendingAction: {
+              text: "Arthur compares leaves and roots, gathering only what appears safe...",
+            },
             endEncounter: true,
           },
           {
@@ -465,8 +470,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "randomChance",
               chance: 0.4,
               effects: [{ type: "gainUnsecuredItem", itemId: "fine_hunting_knife", quantity: 1 }],
+              resultText: "Beyond the last broken branch, Arthur finds a fine hunting knife half-hidden in the leaves.",
+              elseResultText: "The broken branches grow sparse, and the trail fades completely among the trees.",
             }],
-            resultText: "Arthur follows the fading trail as far as he can, but finds no explanation for the abandoned cart.",
+            pendingAction: {
+              text: "Arthur follows the broken branches deeper into the woods...",
+            },
             endEncounter: true,
           },
           {
@@ -567,8 +576,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 itemIds: ["dried_herbs", "strange_seeds"],
                 quantity: 1,
               }],
+              resultText: "Among the oak's roots, Arthur finds useful growth worth carrying home.",
+              elseResultText: "Arthur examines the roots, bark, and fallen leaves, but finds nothing useful.",
             }],
-            resultText: "Arthur searches among the great oak's roots and fallen leaves.",
+            pendingAction: {
+              text: "Arthur examines the ancient bark and searches among the oak's roots...",
+            },
             endEncounter: true,
           },
           {
@@ -683,8 +696,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "randomChance",
               chance: 0.18,
               effects: [{ type: "gainUnsecuredItem", itemId: "green_glass_vial", quantity: 1 }],
+              resultText: "Beneath the final stone, Arthur finds a tiny green glass vial sealed with black wax.",
+              elseResultText: "Arthur finds nothing but damp earth, old ash, and insects beneath the stones.",
             }],
-            resultText: "Arthur carefully searches beneath the arranged stones.",
+            pendingAction: {
+              text: "Arthur kneels beside the old fire ring and moves the stones one by one...",
+            },
             endEncounter: true,
           },
           {
@@ -729,8 +746,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "randomChance",
               chance: 0.3,
               effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+              resultText: "The driving rain makes every step treacherous. Arthur slips on the flooded road and presses on injured.",
+              elseResultText: "Arthur and Kay endure the hard march and make it through the storm safely.",
             }],
-            resultText: "The company presses through the driving rain.",
             endEncounter: true,
           },
           {
@@ -773,11 +791,19 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             outcomes: [{
               type: "randomOne",
               options: [
-                [{ type: "gainUnsecuredItem", itemId: "strange_seeds", quantity: 1 }],
-                [{ type: "modifyResource", resource: "provisions", amount: -3 }],
+                {
+                  resultText: "Where the lights vanish, Arthur finds a cluster of strange seeds resting on the moss.",
+                  effects: [{ type: "gainUnsecuredItem", itemId: "strange_seeds", quantity: 1 }],
+                },
+                {
+                  resultText: "The lights lead Arthur in circles. By the time he regains the trail, the company has lost time and wasted supplies.",
+                  effects: [{ type: "modifyResource", resource: "provisions", amount: -3 }],
+                },
               ],
             }],
-            resultText: "Arthur follows the lights until they vanish, leaving him to find the trail again.",
+            pendingAction: {
+              text: "Arthur follows the drifting lights between the trees...",
+            },
             endEncounter: true,
           },
           {
@@ -869,15 +895,23 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             outcomes: [{
               type: "randomOne",
               options: [
-                [{ type: "modifyResource", resource: "health", amount: -1 }],
-                [{
-                  type: "gainRandomUnsecuredItem",
-                  itemIds: ["old_coin", "hunters_charm"],
-                  quantity: 1,
-                }],
+                {
+                  resultText: "The hooked thorns catch Arthur's arm and cut deeply before he can reach the glint.",
+                  effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+                },
+                {
+                  resultText: "Arthur works his hand through the hooked branches and pulls the hidden object free.",
+                  effects: [{
+                    type: "gainRandomUnsecuredItem",
+                    itemIds: ["old_coin", "hunters_charm"],
+                    quantity: 1,
+                  }],
+                },
               ],
             }],
-            resultText: "Arthur reaches carefully through the hooked thorns.",
+            pendingAction: {
+              text: "Arthur reaches slowly through the hooked thorns toward the glint...",
+            },
             endEncounter: true,
           },
           {

@@ -918,6 +918,48 @@ button:active:not(:disabled) {
   gap: 0.8rem;
 }
 
+.pending-stage {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  margin-top: auto;
+  margin-bottom: auto;
+  text-align: center;
+}
+
+.pending-indicator {
+  display: flex;
+  gap: 0.32rem;
+}
+
+.pending-indicator span {
+  width: 0.38rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  animation: pending-pulse 900ms ease-in-out infinite;
+}
+
+.pending-indicator span:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.pending-indicator span:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+@keyframes pending-pulse {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-0.15rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pending-indicator span {
+    animation: none;
+    opacity: 0.65;
+  }
+}
+
 .result-consequences {
   display: grid;
   gap: 0.35rem;
