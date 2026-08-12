@@ -37,9 +37,12 @@ const CombatSystem = Object.freeze({
       activeActorId: null,
       pendingActionId: null,
       log: [],
+      events: [],
       result: null,
       resultHandled: false,
-      random: typeof options.random === "function" ? options.random : Math.random,
+      random: typeof options.random === "function"
+        ? options.random
+        : typeof expedition.random === "function" ? expedition.random : GameRandom.random,
       eventCounter: 0,
     };
     enemies.forEach((enemy) => {
@@ -114,11 +117,15 @@ const CombatSystem = Object.freeze({
     } else if (actionId === "defend") {
       actor.defending = true;
       addCombatLog(state, `${actor.name} braces for the next attack.`);
+      recordCombatEvent(state, { actor: actor.id, action: "defend", target: actor.id, damage: 0 });
     } else if (actionId === "intercede") {
       actor.interceding = true;
       addCombatLog(state, `${actor.name} uses Intercede and moves to protect Arthur.`);
+      recordCombatEvent(state, { actor: actor.id, action: "intercede", target: "arthur", damage: 0 });
     } else if (actionId === "flee") {
-      if (state.random() < COMBAT_TUNING.fleeChance) {
+      const escaped = state.random() < COMBAT_TUNING.fleeChance;
+      recordCombatEvent(state, { actor: actor.id, action: "flee", target: null, damage: 0, escaped });
+      if (escaped) {
         addCombatLog(state, "The company escapes the battle.");
         finishCombat(state, "fled");
       } else {
@@ -239,6 +246,7 @@ function activateNextAlly(state) {
 function resolveAttack(state, actor, target) {
   const damage = calculateCombatDamage(rollCombatDamage(actor.damage, state.random), target.defense);
   applyCombatDamage(state, target, damage);
+  recordCombatEvent(state, { actor: actor.id, action: "attack", target: target.id, damage });
   addCombatLog(state, `${actor.name} attacks ${target.name} for ${damage} damage.`);
   if (!isLivingCombatant(target)) {
     addCombatLog(state, `${target.name} is defeated.`);
@@ -266,6 +274,12 @@ function resolveEnemyAction(state, expedition, enemy) {
       ? Math.max(1, Math.floor(mitigated * COMBAT_TUNING.defendDamageMultiplier))
       : mitigated;
     applyCombatDamage(state, target, damage);
+    recordCombatEvent(state, {
+      actor: enemy.id,
+      action: action.id,
+      target: target.id,
+      damage,
+    });
     addCombatLog(state, `${enemy.name} uses ${action.name} on ${target.name} for ${damage} damage.`);
     if (!isLivingCombatant(target)) {
       addCombatLog(state, `${target.name} is incapacitated.`);
@@ -344,6 +358,10 @@ function addCombatLog(state, message) {
   if (state.log.length > COMBAT_TUNING.combatLogLimit) {
     state.log.splice(0, state.log.length - COMBAT_TUNING.combatLogLimit);
   }
+}
+
+function recordCombatEvent(state, event) {
+  state.events.push({ sequence: state.events.length + 1, ...event });
 }
 
 function findCombatant(state, combatantId) {

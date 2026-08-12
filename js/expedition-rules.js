@@ -1,0 +1,137 @@
+"use strict";
+
+// Production UI and instant simulations both use these expedition lifecycle rules.
+const ExpeditionRules = Object.freeze({
+  partyProvisionCapacity(selectedCompanionId) {
+    const companion = selectedCompanionId ? COMPANION_DEFINITIONS[selectedCompanionId] : null;
+    return PLAYER_CHARACTER_DEFINITION.provisionCapacity
+      + (companion?.provisionCapacityBonus ?? 0);
+  },
+
+  partyProvisionConsumptionMultiplier(selectedCompanionId) {
+    const companion = selectedCompanionId ? COMPANION_DEFINITIONS[selectedCompanionId] : null;
+    return PLAYER_CHARACTER_DEFINITION.provisionConsumptionMultiplier
+      + (companion?.provisionConsumptionBonus ?? 0);
+  },
+
+  createCarriedItems(player, packedItems = player.packedItems) {
+    const itemIds = Array.isArray(packedItems) ? packedItems : Object.keys(packedItems ?? {});
+    return Object.fromEntries(itemIds
+      .filter((itemId) => player.ownedItems[itemId] && ITEM_DEFINITIONS[itemId]?.carriable)
+      .map((itemId) => [itemId, Math.min(player.ownedItems[itemId], ITEM_DEFINITIONS[itemId].maxStack ?? 1)]));
+  },
+
+  createExpedition(player, options = {}) {
+    const selectedCompanion = options.companion !== undefined
+      ? options.companion
+      : player.selectedCompanion;
+    const capacity = this.partyProvisionCapacity(selectedCompanion);
+    const provisions = Math.max(0, Math.min(Number(options.provisions) || 0, capacity));
+    const selectedEquipment = { ...player.equippedItems, ...(options.equipment ?? {}) };
+    const expedition = {
+      regionId: options.regionId ?? "broceliande",
+      originLocationId: player.currentLocationId,
+      currentPathId: options.pathId ?? "old_forest_road",
+      distance: 0,
+      maxDistanceReached: 0,
+      direction: "outbound",
+      provisions,
+      carriedProvisions: provisions,
+      provisionCapacity: capacity,
+      provisionConsumptionMultiplier: this.partyProvisionConsumptionMultiplier(selectedCompanion),
+      committedProvisions: provisions,
+      committedProvisionsRemaining: provisions,
+      foundProvisions: 0,
+      provisionsSettled: false,
+      health: Number.isFinite(options.health) ? options.health : 100,
+      companionCombatHp: {},
+      combat: null,
+      goldCarried: 0,
+      selectedEquipment,
+      selectedCompanion,
+      carriedItems: this.createCarriedItems(player, options.packedItems),
+      consumedItems: {},
+      consumablesSettled: false,
+      unsecuredLoot: [],
+      sceneOffset: 0,
+      status: "active",
+      random: typeof options.random === "function" ? options.random : GameRandom.random,
+    };
+    EncounterManager.initializeExpedition(expedition);
+    return expedition;
+  },
+
+  travel(expedition, player, distanceRequested) {
+    if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) {
+      return { distanceTraveled: 0, encounter: null, reachedSafety: false, failureReason: null };
+    }
+    const requested = Math.max(0, Number(distanceRequested) || 0);
+    const distanceTraveled = expedition.direction === "returning"
+      ? Math.min(requested, expedition.distance)
+      : requested;
+    if (expedition.direction === "outbound") {
+      expedition.distance += distanceTraveled;
+      expedition.sceneOffset -= distanceTraveled * 9;
+      expedition.maxDistanceReached = Math.max(expedition.maxDistanceReached, expedition.distance);
+    } else {
+      expedition.distance = Math.max(0, expedition.distance - distanceTraveled);
+      expedition.sceneOffset += distanceTraveled * 9;
+    }
+    adjustExpeditionProvisions(
+      expedition,
+      -(distanceTraveled * EXPEDITION_TUNING.baseProvisionsPerDistance
+        * expedition.provisionConsumptionMultiplier),
+    );
+    if (expedition.provisions <= 0) {
+      expedition.provisions = 0;
+      return {
+        distanceTraveled,
+        encounter: null,
+        reachedSafety: false,
+        failureReason: "The company exhausted its provisions before reaching safety.",
+      };
+    }
+    const reachedSafety = expedition.direction === "returning" && expedition.distance <= 0;
+    const encounter = reachedSafety ? null : EncounterManager.advance(expedition, player, distanceTraveled);
+    return { distanceTraveled, encounter, reachedSafety, failureReason: null };
+  },
+
+  beginReturn(expedition) {
+    if (!expedition || expedition.status !== "active" || expedition.direction === "returning"
+      || expedition.activeEncounter || expedition.combat) {
+      return false;
+    }
+    expedition.direction = "returning";
+    return true;
+  },
+
+  settleConsumedItems(player, expedition) {
+    if (expedition.consumablesSettled) return;
+    Object.entries(expedition.consumedItems).forEach(([itemId, quantity]) => {
+      player.ownedItems[itemId] = Math.max(0, (player.ownedItems[itemId] ?? 0) - quantity);
+      if (player.ownedItems[itemId] <= 0) delete player.ownedItems[itemId];
+    });
+    expedition.consumablesSettled = true;
+  },
+
+  settleProvisions(player, expedition, returnedSafely) {
+    if (expedition.provisionsSettled) return;
+    const purchased = Math.max(0, Math.floor(expedition.committedProvisionsRemaining));
+    const found = returnedSafely ? Math.max(0, Math.floor(expedition.foundProvisions)) : 0;
+    expedition.provisionsReturned = purchased + found;
+    player.provisions += expedition.provisionsReturned;
+    expedition.provisionsSettled = true;
+  },
+
+  settle(player, expedition, returnedSafely) {
+    this.settleConsumedItems(player, expedition);
+    this.settleProvisions(player, expedition, returnedSafely);
+    if (returnedSafely) {
+      expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
+        player.ownedItems[itemId] = (player.ownedItems[itemId] ?? 0) + quantity;
+      });
+      player.currentGold += expedition.goldCarried;
+    }
+    player.bestExpeditionDistance = Math.max(player.bestExpeditionDistance, expedition.maxDistanceReached);
+  },
+});

@@ -13,6 +13,56 @@
   --interaction-visual-aspect: 16 / 9;
 }
 
+/* Loaded only as visible UI when ?sim=1 is present. */
+.simulation-tools {
+  position: fixed;
+  z-index: 1000;
+  top: 1rem;
+  right: 1rem;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid #8e805c;
+  border-radius: 0.5rem;
+  background: #171b16;
+  color: #f0ead8;
+  box-shadow: 0 0.8rem 2rem #000a;
+  font: 14px/1.35 system-ui, sans-serif;
+}
+
+.simulation-tools header,
+.simulation-tools .simulation-controls,
+.simulation-tools .simulation-inspect > div {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.simulation-tools header { justify-content: space-between; align-items: start; }
+.simulation-tools h2 { margin: 0.1rem 0 0.8rem; }
+.simulation-tools label { display: grid; gap: 0.2rem; }
+.simulation-tools input { width: 6.5rem; }
+.simulation-tools button,
+.simulation-tools input,
+.simulation-tools select { min-height: 2.25rem; }
+.simulation-tools button { padding: 0.4rem 0.65rem; }
+.simulation-status { color: #d8c78e; }
+.simulation-summary,
+.simulation-tools details pre {
+  max-height: 19rem;
+  overflow: auto;
+  padding: 0.65rem;
+  background: #0d100d;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 700px) {
+  .simulation-tools { inset: 0; width: auto; max-height: none; border-radius: 0; }
+}
+
 * {
   box-sizing: border-box;
 }

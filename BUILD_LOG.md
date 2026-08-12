@@ -474,3 +474,33 @@ The human developer supplied the complete Brocéliande content, loot-variety, an
 ### Resulting prototype state
 
 Existing encounter slots can now produce simple profitable discoveries, atmospheric investigations, or new survival decisions alongside the established content. Loot remains uncertain and unsecured, ordinary finds outweigh rare curiosities, and deep expeditions retain meaningful discovery opportunities without becoming more frequently interrupted.
+## 2026-08-12 — Deterministic Expedition Simulation Foundation
+
+### Goal
+
+Establish the first serious automated balance-testing layer: fast complete-expedition simulation using production rules, deterministic seeds, configurable decisions and turnaround, detailed replay-oriented telemetry, batching, aggregation, export, and developer access without changing the ordinary game loop.
+
+### Human prompt and direction
+
+The human developer supplied the Phase 1 automation guide and emphasized immediate end-to-end usefulness, production-rule reuse, deterministic future replay data, preservation of existing browser regression coverage, and ongoing build-log documentation.
+
+### AI-assisted implementation
+
+- Added a centralized seeded/unseeded random API and routed every gameplay-affecting encounter and combat roll through the expedition's injected source, while retaining live randomness and existing debug overrides in normal play.
+- Extracted shared party capacity, consumption, expedition construction, travel/provision cost, turnaround, carried-item snapshot, and settlement rules into `ExpeditionRules`; the normal browser game and instant runner now call the same lifecycle code.
+- Added complete instant simulation across outbound/return travel, encounter eligibility and spacing, staged and pending choices, authored costs/outcomes/loot/flags/knowledge, active-time multi-character combat, failure, safe return, and deposit/settlement behavior.
+- Added extensible Random, Cautious, Aggressive, and Greedy encounter/combat strategies plus fixed-distance and provision-reserve turnaround policies.
+- Added structured per-run identity, outcome, party/resource, loot/value, encounter, combat, decision, and chronological event telemetry designed for deterministic rerun or future event-stream replay.
+- Added synchronous and periodically yielding batch APIs, aggregate rates/averages/median, grouping by strategy/companion/loadout/scenario/policy, encounter frequency/direction/distance/choice distributions, and detailed JSON plus flat CSV export.
+- Added a developer-only `?sim=1` panel for current-loadout batches, a four-strategy suite, encounter-distribution testing, individual-run inspection, and downloads. Ordinary URLs remain unchanged.
+- Added `SIMULATION.md` with architecture, API examples, extension interfaces, telemetry/export details, seeded replay guidance, and explicit Phase 1 boundaries.
+- Expanded the dependency-light Chrome regression suite from 198 to 207 assertions with deterministic RNG, same-seed run equality, different-seed variance, representative completion, real-combat telemetry, batch/aggregation, invariants, and debug-UI isolation; all passed.
+- Measured detailed cautious fixed-distance batches in headless Chrome: 100 runs in 24.5 ms and 1,000 runs in 120.1 ms on this machine, with no runtime exceptions. These are local indicative measurements rather than performance guarantees.
+
+### Manual changes
+
+The human developer supplied the complete Phase 1 simulation and automation guide. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+The project can now execute hundreds or thousands of real-rule expeditions without rendering or waiting, compare strategies and configurations, inspect encounter/combat histories, export balance data, and reproduce meaningful run behavior from seed plus normalized scenario and decision history. All currently authored encounters and both current combat definitions run through the simulator. Visual replay, recorded-decision enforcement, Workers, exhaustive loadout generation, inter-expedition shop modeling, analytics charts, and automated balance recommendations remain intentionally outside Phase 1.

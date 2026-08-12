@@ -106,7 +106,7 @@ const EncounterOutcomes = Object.freeze({
       case "modifyResource": {
         const amount = Number.isFinite(effect.amount)
           ? effect.amount
-          : randomInteger(effect.randomMinimum, effect.randomMaximum);
+          : randomInteger(effect.randomMinimum, effect.randomMaximum, expedition.random);
         if (effect.resource === "provisions" && Number.isFinite(expedition.committedProvisionsRemaining)) {
           adjustExpeditionProvisions(expedition, amount);
         } else {
@@ -130,7 +130,7 @@ const EncounterOutcomes = Object.freeze({
         if (validItemIds.length === 0) {
           break;
         }
-        const itemId = validItemIds[randomInteger(0, validItemIds.length - 1)];
+        const itemId = validItemIds[randomInteger(0, validItemIds.length - 1, expedition.random)];
         addUnsecuredItem(expedition, itemId, effect.quantity ?? 1);
         messages = [unsecuredLootMessage(itemId)];
         break;
@@ -139,7 +139,7 @@ const EncounterOutcomes = Object.freeze({
         const validItems = (effect.items ?? []).filter((entry) => (
           ITEM_DEFINITIONS[entry.itemId] && Number(entry.weight) > 0
         ));
-        const selected = weightedChoice(validItems);
+        const selected = weightedChoice(validItems, expedition.random);
         if (!selected) {
           break;
         }
@@ -190,7 +190,7 @@ const EncounterOutcomes = Object.freeze({
         break;
       }
       case "randomChance": {
-        const succeeded = Math.random() < effect.chance;
+        const succeeded = gameplayRandom(expedition.random) < effect.chance;
         const resolved = this.resolveAll(succeeded ? effect.effects : effect.elseEffects, context);
         messages = resolved.messages;
         combat = resolved.combat;
@@ -207,8 +207,8 @@ const EncounterOutcomes = Object.freeze({
           !Array.isArray(option) && Number(option.weight) > 0
         ));
         const selected = weightedOptions
-          ? weightedChoice(effect.options)
-          : effect.options[randomInteger(0, effect.options.length - 1)];
+          ? weightedChoice(effect.options, expedition.random)
+          : effect.options[randomInteger(0, effect.options.length - 1, expedition.random)];
         const selectedEffects = Array.isArray(selected) ? selected : selected.effects;
         const resolved = this.resolveAll(selectedEffects, context);
         messages = resolved.messages;
@@ -234,7 +234,7 @@ const EncounterOutcomes = Object.freeze({
 const EncounterManager = Object.freeze({
   initializeExpedition(expedition) {
     expedition.encounterTravelDistance = 0;
-    expedition.nextEncounterAt = randomEncounterSpacing();
+    expedition.nextEncounterAt = randomEncounterSpacing(expedition.random);
     expedition.seenEncounterIds = [];
     expedition.encounterOccurrences = {};
     expedition.runFlags = {};
@@ -266,7 +266,7 @@ const EncounterManager = Object.freeze({
   },
 
   selectEligible(expedition, player) {
-    return weightedChoice(this.eligibleDefinitions(expedition, player));
+    return weightedChoice(this.eligibleDefinitions(expedition, player), expedition.random);
   },
 
   eligibleDefinitions(expedition, player) {
@@ -358,7 +358,7 @@ const EncounterManager = Object.freeze({
         ended: false,
         pending: true,
         pendingToken: active.pendingToken,
-        delayMs: pendingActionDelay(choice.pendingAction),
+        delayMs: pendingActionDelay(choice.pendingAction, expedition.random),
         message: active.actionText,
       };
     }
@@ -396,7 +396,7 @@ const EncounterManager = Object.freeze({
 
     const context = { expedition, player, ...callbacks };
     const branch = Array.isArray(choice.branches) && choice.branches.length > 0
-      ? weightedChoice(choice.branches)
+      ? weightedChoice(choice.branches, expedition.random)
       : null;
     const choiceOutcomes = [
       ...(choice.outcomes ?? []),
@@ -468,7 +468,7 @@ const EncounterManager = Object.freeze({
     expedition.lastEncounterResult = message;
     expedition.activeEncounter = null;
     expedition.nextEncounterAt = expedition.encounterTravelDistance
-      + Math.max(randomEncounterSpacing(), EXPEDITION_TUNING.postEncounterSafeDistance);
+      + Math.max(randomEncounterSpacing(expedition.random), EXPEDITION_TUNING.postEncounterSafeDistance);
     return true;
   },
 
@@ -502,19 +502,21 @@ const EncounterManager = Object.freeze({
   },
 });
 
-function randomEncounterSpacing() {
+function randomEncounterSpacing(random) {
   return randomBetween(
     EXPEDITION_TUNING.encounterMinimumDistance,
     EXPEDITION_TUNING.encounterMaximumDistance,
+    random,
   );
 }
 
-function pendingActionDelay(pendingAction) {
+function pendingActionDelay(pendingAction, random) {
   const profile = EXPEDITION_TUNING.encounterActionDelays[pendingAction.delayProfile ?? "search"]
     ?? EXPEDITION_TUNING.encounterActionDelays.search;
   return randomInteger(
     pendingAction.minimumMs ?? profile.minimumMs,
     pendingAction.maximumMs ?? profile.maximumMs,
+    random,
   );
 }
 
@@ -569,13 +571,13 @@ function consumeExpeditionItem(expedition, itemId, quantity) {
   }
 }
 
-function weightedChoice(entries) {
+function weightedChoice(entries, random) {
   if (entries.length === 0) {
     return null;
   }
 
   const totalWeight = entries.reduce((sum, entry) => sum + Math.max(entry.weight, 0), 0);
-  let roll = Math.random() * totalWeight;
+  let roll = gameplayRandom(random) * totalWeight;
   for (const entry of entries) {
     roll -= Math.max(entry.weight, 0);
     if (roll <= 0) {
@@ -585,14 +587,18 @@ function weightedChoice(entries) {
   return entries.at(-1);
 }
 
-function randomBetween(minimum, maximum) {
-  return minimum + Math.random() * (maximum - minimum);
+function randomBetween(minimum, maximum, random) {
+  return minimum + gameplayRandom(random) * (maximum - minimum);
 }
 
-function randomInteger(minimum, maximum) {
+function randomInteger(minimum, maximum, random) {
   const low = Math.ceil(Math.min(minimum, maximum));
   const high = Math.floor(Math.max(minimum, maximum));
-  return Math.floor(Math.random() * (high - low + 1)) + low;
+  return Math.floor(gameplayRandom(random) * (high - low + 1)) + low;
+}
+
+function gameplayRandom(random) {
+  return (typeof random === "function" ? random : GameRandom.random)();
 }
 
 function clampNumber(value, minimum, maximum) {
@@ -604,6 +610,7 @@ function clampNumber(value, minimum, maximum) {
 function adjustExpeditionProvisions(expedition, amount) {
   if (amount >= 0) {
     expedition.foundProvisions += amount;
+    expedition.totalProvisionsGained = (expedition.totalProvisionsGained ?? 0) + amount;
   } else {
     let cost = Math.abs(amount);
     const foundUsed = Math.min(expedition.foundProvisions, cost);

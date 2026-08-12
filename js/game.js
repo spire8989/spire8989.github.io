@@ -528,19 +528,11 @@ function createProvisionShopStock() {
 }
 
 function partyProvisionCapacity(selectedCompanionId) {
-  const companion = selectedCompanionId
-    ? COMPANION_DEFINITIONS[selectedCompanionId]
-    : null;
-  return PLAYER_CHARACTER_DEFINITION.provisionCapacity
-    + (companion?.provisionCapacityBonus ?? 0);
+  return ExpeditionRules.partyProvisionCapacity(selectedCompanionId);
 }
 
 function partyProvisionConsumptionMultiplier(selectedCompanionId) {
-  const companion = selectedCompanionId
-    ? COMPANION_DEFINITIONS[selectedCompanionId]
-    : null;
-  return PLAYER_CHARACTER_DEFINITION.provisionConsumptionMultiplier
-    + (companion?.provisionConsumptionBonus ?? 0);
+  return ExpeditionRules.partyProvisionConsumptionMultiplier(selectedCompanionId);
 }
 
 function destinationIcon(type) {
@@ -759,9 +751,6 @@ function refreshPreparation() {
 
 function startExpedition() {
   const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
-  const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(
-    game.player.selectedCompanion,
-  );
   if (game.preparationMode !== "expedition"
     || game.preparationSupplies <= 0
     || game.preparationSupplies > game.player.provisions
@@ -771,35 +760,10 @@ function startExpedition() {
   const committedProvisions = game.preparationSupplies;
   game.player.provisions -= committedProvisions;
   savePlayer();
-  game.expedition = {
-    regionId: "broceliande",
-    originLocationId: game.player.currentLocationId,
-    currentPathId: "old_forest_road",
-    distance: 0,
-    maxDistanceReached: 0,
-    direction: "outbound",
+  game.expedition = ExpeditionRules.createExpedition(game.player, {
     provisions: committedProvisions,
-    carriedProvisions: committedProvisions,
-    provisionCapacity,
-    provisionConsumptionMultiplier,
-    committedProvisions,
-    committedProvisionsRemaining: committedProvisions,
-    foundProvisions: 0,
-    provisionsSettled: false,
-    health: 100,
-    companionCombatHp: {},
-    combat: null,
-    goldCarried: 0,
-    selectedEquipment: { ...game.player.equippedItems },
-    selectedCompanion: game.player.selectedCompanion,
-    carriedItems: createExpeditionCarriedItems(),
-    consumedItems: {},
-    consumablesSettled: false,
-    unsecuredLoot: [],
-    sceneOffset: 0,
-    status: "active",
-  };
-  EncounterManager.initializeExpedition(game.expedition);
+    companion: game.player.selectedCompanion,
+  });
   showScreen("expedition");
 }
 
@@ -1100,47 +1064,26 @@ function updateExpedition(deltaSeconds) {
     return;
   }
 
-  let distanceTraveled = 0;
-  let reachedSafety = false;
-  if (expedition.direction === "outbound") {
-    distanceTraveled = EXPEDITION_TUNING.outboundTravelSpeed * deltaSeconds;
-    expedition.distance += distanceTraveled;
-    expedition.sceneOffset -= distanceTraveled * 9;
-    expedition.maxDistanceReached = Math.max(expedition.maxDistanceReached, expedition.distance);
-  } else {
-    const requestedDistance = EXPEDITION_TUNING.outboundTravelSpeed
-      * EXPEDITION_TUNING.returnSpeedMultiplier
-      * deltaSeconds;
-    distanceTraveled = Math.min(requestedDistance, expedition.distance);
-    expedition.distance -= distanceTraveled;
-    expedition.sceneOffset += distanceTraveled * 9;
-    reachedSafety = expedition.distance <= 0;
-    expedition.distance = Math.max(expedition.distance, 0);
-  }
-
-  // Resource cost follows journey distance, independent of real-world animation speed.
-  adjustExpeditionProvisions(
+  const speedMultiplier = expedition.direction === "returning"
+    ? EXPEDITION_TUNING.returnSpeedMultiplier
+    : 1;
+  const travel = ExpeditionRules.travel(
     expedition,
-    -(
-      distanceTraveled
-      * EXPEDITION_TUNING.baseProvisionsPerDistance
-      * expedition.provisionConsumptionMultiplier
-    ),
+    game.player,
+    EXPEDITION_TUNING.outboundTravelSpeed * speedMultiplier * deltaSeconds,
   );
 
-  if (expedition.provisions <= 0) {
-    expedition.provisions = 0;
-    failExpedition("The company exhausted its provisions before reaching safety.");
+  if (travel.failureReason) {
+    failExpedition(travel.failureReason);
     return;
   }
 
-  if (reachedSafety) {
+  if (travel.reachedSafety) {
     completeReturn();
     return;
   }
 
-  const encounter = EncounterManager.advance(expedition, game.player, distanceTraveled);
-  if (encounter) {
+  if (travel.encounter) {
     renderExpedition();
   }
 }
@@ -1154,7 +1097,7 @@ function beginReturn() {
     return;
   }
 
-  expedition.direction = "returning";
+  ExpeditionRules.beginReturn(expedition);
   announceTravelEvent("The company turns back toward the forest edge.");
   updateTravelHud();
 }
@@ -1501,39 +1444,15 @@ function savePlayer() {
 }
 
 function createExpeditionCarriedItems() {
-  return Object.fromEntries(
-    game.player.packedItems.map((itemId) => [
-      itemId,
-      Math.min(game.player.ownedItems[itemId], ITEM_DEFINITIONS[itemId].maxStack ?? 1),
-    ]),
-  );
+  return ExpeditionRules.createCarriedItems(game.player);
 }
 
 function settleConsumedItems(expedition) {
-  if (expedition.consumablesSettled) {
-    return;
-  }
-
-  Object.entries(expedition.consumedItems).forEach(([itemId, quantity]) => {
-    const remainingQuantity = (game.player.ownedItems[itemId] ?? 0) - quantity;
-    if (remainingQuantity > 0) {
-      game.player.ownedItems[itemId] = remainingQuantity;
-    } else {
-      delete game.player.ownedItems[itemId];
-    }
-  });
-  expedition.consumablesSettled = true;
+  ExpeditionRules.settleConsumedItems(game.player, expedition);
 }
 
 function settleExpeditionProvisions(expedition, returnedSafely) {
-  if (expedition.provisionsSettled) {
-    return;
-  }
-  const purchasedReturned = Math.max(0, Math.floor(expedition.committedProvisionsRemaining));
-  const foundReturned = returnedSafely ? Math.max(0, Math.floor(expedition.foundProvisions)) : 0;
-  expedition.provisionsReturned = purchasedReturned + foundReturned;
-  game.player.provisions += expedition.provisionsReturned;
-  expedition.provisionsSettled = true;
+  ExpeditionRules.settleProvisions(game.player, expedition, returnedSafely);
 }
 
 function resetSave() {

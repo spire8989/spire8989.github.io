@@ -23,6 +23,7 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `js/encounter-data.js` contains the authored encounter definitions, stages, choices, requirements, costs, and outcomes.
 - `js/encounters.js` contains reusable encounter selection, requirement checking, outcome application, and stage-flow systems.
 - `js/combat.js` owns transient combat state, delta-time action gauges, targeting, damage, enemy intent/AI, abilities, HP synchronization, and battle results.
+- `js/random.js`, `js/expedition-rules.js`, and `js/simulation.js` provide seeded gameplay randomness, shared expedition rules, and instant deterministic balance simulations.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
 - `js/game.js` owns screen flow, input, temporary expedition state, travel/combat presentation, loot resolution, and the shared `requestAnimationFrame` loop.
 - `tests/location_system_test.py` serves the game and drives headless Chrome through its DevTools protocol to cover the village, shops, loadout, encounters, combat, and return flow.
@@ -54,6 +55,10 @@ python tests/location_system_test.py
 ### Encounter debug controls
 
 During development, visit [http://localhost:8000/?debug=1](http://localhost:8000/?debug=1). Once an expedition begins, an unobtrusive **Encounter Debug** section appears in the lower travel interface. It can trigger any encounter by stable ID, directly start either Wild Boar or three-wolf combat, shorten the wait until the next random encounter, and display the current run state. These controls are absent from the normal URL.
+
+### Balance simulation tools
+
+Visit [http://localhost:8000/?sim=1](http://localhost:8000/?sim=1) for the developer-only instant simulation panel. It can run the current loadout, a standard strategy suite, and encounter-distribution batches, inspect individual telemetry, and export JSON or CSV. See [SIMULATION.md](SIMULATION.md) for the console API, scenario/strategy/policy interfaces, telemetry schema, and replay foundation.
 
 ## Why use a local HTTP server?
 
