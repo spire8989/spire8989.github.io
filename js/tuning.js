@@ -7,10 +7,15 @@ const EXPEDITION_TUNING = Object.freeze({
   provisionsPerDistance: 0.16,
   encounterMinimumDistance: 14,
   encounterMaximumDistance: 22,
-  encounterActionDelayMinimumMs: 1200,
-  encounterActionDelayMaximumMs: 2400,
+  encounterActionDelays: Object.freeze({
+    physical: Object.freeze({ minimumMs: 800, maximumMs: 1400 }),
+    search: Object.freeze({ minimumMs: 1200, maximumMs: 2400 }),
+    rest: Object.freeze({ minimumMs: 1500, maximumMs: 2600 }),
+    combat: Object.freeze({ minimumMs: 1000, maximumMs: 1800 }),
+  }),
   postEncounterSafeDistance: 8,
   packSlots: 6,
   minimumStartingProvisions: 1,
   maximumStartingProvisions: 26,
+  minimumTownProvisions: 10,
 });

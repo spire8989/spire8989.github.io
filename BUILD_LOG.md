@@ -325,3 +325,33 @@ The human developer supplied the authored encounter-action and result-text guide
 ### Resulting prototype state
 
 Time-consuming encounter choices now pause on a short action beat before revealing their result. Discoveries, injuries, safe outcomes, lost supplies, and empty searches each receive narrative feedback that agrees with the visible mechanical changes, while immediate choices and the wider expedition economy and pacing remain unchanged.
+
+## 2026-08-12 — Encounter Pacing, Loot Variety, and Expedition Safeguards
+
+### Goal
+
+Apply pending-action pacing consistently, make searches and randomized consequences unambiguous, broaden the sellable loot economy, prevent provision softlocks, and keep long expeditions populated without increasing encounter frequency.
+
+### Human prompt and direction
+
+The human developer playtested the prior encounter pass and supplied a follow-up guide identifying remaining instant actions, unclear shelter feedback, overly reliable cart tracking, repetitive loot, a zero-gold/zero-provision softlock, distance-based eligibility dropoff, and the need for controlled future encounter recurrence. The pass remained constrained against new story, locations, combat systems, or campaign content.
+
+### AI-assisted implementation
+
+- Centralized physical, search, rest, and placeholder-combat delay profiles ranging from 0.8 to 2.6 seconds and applied them to every specifically requested climb, rope, search, tracking, crossing, fight, shelter, navigation, and rest action.
+- Added generic weighted choice branches and used them to give Abandoned Cart's owner search a 70% trail-discovery branch and a 30% explicit no-trail conclusion.
+- Completed the randomized-result audit so safe crossings, injuries, wasted supplies, successful finds, and empty searches—including Shelter Before Nightfall—have matching narrative and mechanical feedback.
+- Added ten unsecured valuables: Silver Brooch, Amber Beads, Decorated Buckle, Merchant's Ring, Carved Ivory Token, Bronze Figurine, Polished Agate, Embroidered Gloves, Silver Cup, and Coin Purse.
+- Assigned varied data-driven merchant values from 4 to 15 gold and diversified camp, cart, oak, hollow, thorn, and shelter loot pools while keeping the Fine Hunting Knife and Green Glass Vial uncommon or rare.
+- Added a centrally tuned 10-provision safety floor whenever the player enters the village, without granting gold or adding real-time regeneration.
+- Removed arbitrary upper distance caps from common obstacle, animal, navigation, water, foraging, weather, and return-shelter encounters while preserving limits on unique discoveries.
+- Added generic `maxOccurrencesPerRun` support and enabled only Woodland Stream and Sudden Storm to recur, each at most twice per expedition; encounter spacing remains unchanged.
+- Expanded the Chrome regression suite from 100 to 117 assertions, covering exact delayed choices, delay ranges, both cart branches, shelter no-result feedback, valuable definitions and selling, loot diversity, deep-run pools, recurrence caps, town provision recovery, settlement, save behavior, and runtime exceptions; all passed.
+
+### Manual changes
+
+The human developer supplied the complete pacing, loot-variety, anti-softlock, and long-run eligibility guide and requested that the finished pass be committed and pushed. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Effortful encounter actions now consistently carry a short anticipation beat, and every search or random consequence tells the player what occurred. Ordinary valuables create more varied return-and-sell rewards, village entry guarantees enough food for another attempt, and deep expeditions retain common survival events with tightly capped recurrence rather than faster encounter spacing.

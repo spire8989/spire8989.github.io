@@ -207,6 +207,7 @@ const EncounterManager = Object.freeze({
     expedition.encounterTravelDistance = 0;
     expedition.nextEncounterAt = randomEncounterSpacing();
     expedition.seenEncounterIds = [];
+    expedition.encounterOccurrences = {};
     expedition.runFlags = {};
     expedition.activeEncounter = null;
     expedition.lastEncounterId = null;
@@ -243,11 +244,19 @@ const EncounterManager = Object.freeze({
     const context = { expedition, player };
     return Object.values(ENCOUNTER_DEFINITIONS).filter((encounter) => {
       const withinDistance = expedition.distance >= encounter.minimumDistance
-        && expedition.distance <= encounter.maximumDistance;
+        && (!Number.isFinite(encounter.maximumDistance)
+          || expedition.distance <= encounter.maximumDistance);
       const correctLocation = encounter.regionId === expedition.regionId
         && encounter.pathIds.includes(expedition.currentPathId);
       const correctDirection = encounter.directions.includes(expedition.direction);
-      const canRepeat = encounter.repeatable || !expedition.seenEncounterIds.includes(encounter.id);
+      const occurrences = Math.max(
+        expedition.encounterOccurrences?.[encounter.id] ?? 0,
+        expedition.seenEncounterIds.includes(encounter.id) ? 1 : 0,
+      );
+      const occurrenceLimit = encounter.repeatable
+        ? encounter.maxOccurrencesPerRun ?? Number.POSITIVE_INFINITY
+        : 1;
+      const canRepeat = occurrences < occurrenceLimit;
       const avoidsImmediateRepeat = encounter.id !== expedition.lastEncounterId
         || Object.values(ENCOUNTER_DEFINITIONS).filter((candidate) => (
           candidate.regionId === expedition.regionId
@@ -280,6 +289,8 @@ const EncounterManager = Object.freeze({
     if (!expedition.seenEncounterIds.includes(encounterId)) {
       expedition.seenEncounterIds.push(encounterId);
     }
+    expedition.encounterOccurrences ??= {};
+    expedition.encounterOccurrences[encounterId] = (expedition.encounterOccurrences[encounterId] ?? 0) + 1;
     return true;
   },
 
@@ -318,10 +329,7 @@ const EncounterManager = Object.freeze({
         ended: false,
         pending: true,
         pendingToken: active.pendingToken,
-        delayMs: randomInteger(
-          choice.pendingAction.minimumMs ?? EXPEDITION_TUNING.encounterActionDelayMinimumMs,
-          choice.pendingAction.maximumMs ?? EXPEDITION_TUNING.encounterActionDelayMaximumMs,
-        ),
+        delayMs: pendingActionDelay(choice.pendingAction),
         message: active.actionText,
       };
     }
@@ -358,21 +366,31 @@ const EncounterManager = Object.freeze({
     }
 
     const context = { expedition, player, ...callbacks };
+    const branch = Array.isArray(choice.branches) && choice.branches.length > 0
+      ? weightedChoice(choice.branches)
+      : null;
+    const choiceOutcomes = [
+      ...(choice.outcomes ?? []),
+      ...(branch?.outcomes ?? []),
+    ];
     const outcomeMessages = [
       ...EncounterOutcomes.applyAll(choice.costs, context),
     ];
-    const resolvedOutcomes = EncounterOutcomes.resolveAll(choice.outcomes, context);
+    const resolvedOutcomes = EncounterOutcomes.resolveAll(choiceOutcomes, context);
     outcomeMessages.push(...resolvedOutcomes.messages);
     active.outcomeMessages.push(...outcomeMessages);
+    const nextStageId = branch?.nextStage ?? choice.nextStage;
+    const endEncounter = branch ? branch.endEncounter === true : choice.endEncounter;
+    const authoredResultText = branch?.resultText || choice.resultText;
 
-    if (choice.nextStage) {
-      const nextStage = encounter.stages[choice.nextStage];
+    if (nextStageId) {
+      const nextStage = encounter.stages[nextStageId];
       if (!nextStage) {
-        console.warn(`Encounter ${encounter.id} is missing stage ${choice.nextStage}.`);
+        console.warn(`Encounter ${encounter.id} is missing stage ${nextStageId}.`);
         return { resolved: false, ended: false, message: "" };
       }
 
-      active.stageId = choice.nextStage;
+      active.stageId = nextStageId;
       if (nextStage.resultStage) {
         const resolvedStage = EncounterOutcomes.resolveAll(nextStage.outcomes, context);
         active.outcomeMessages.push(...resolvedStage.messages);
@@ -382,12 +400,13 @@ const EncounterManager = Object.freeze({
       }
 
       active.phase = "choice";
-      return { resolved: true, ended: false, message: choice.resultText ?? "" };
+      active.stageText = authoredResultText || nextStage.text;
+      return { resolved: true, ended: false, message: active.stageText };
     }
 
-    if (choice.endEncounter) {
+    if (endEncounter) {
       const message = resolvedOutcomes.resultText
-        || choice.resultText
+        || authoredResultText
         || stage.text
         || `${encounter.title} resolved.`;
       active.phase = "result";
@@ -422,6 +441,15 @@ function randomEncounterSpacing() {
   return randomBetween(
     EXPEDITION_TUNING.encounterMinimumDistance,
     EXPEDITION_TUNING.encounterMaximumDistance,
+  );
+}
+
+function pendingActionDelay(pendingAction) {
+  const profile = EXPEDITION_TUNING.encounterActionDelays[pendingAction.delayProfile ?? "search"]
+    ?? EXPEDITION_TUNING.encounterActionDelays.search;
+  return randomInteger(
+    pendingAction.minimumMs ?? profile.minimumMs,
+    pendingAction.maximumMs ?? profile.maximumMs,
   );
 }
 

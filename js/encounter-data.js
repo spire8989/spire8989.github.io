@@ -11,7 +11,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     directions: ["outbound", "returning"],
     weight: 5,
     minimumDistance: 3,
-    maximumDistance: 50,
     tags: ["obstacle", "road"],
     repeatable: false,
     requirements: [],
@@ -31,6 +30,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 elseResultText: "Arthur and Kay find firm footing and scramble safely over the trunk.",
               },
             ],
+            pendingAction: {
+              text: "Arthur and Kay test the branches and begin climbing over the fallen trunk...",
+              delayProfile: "physical",
+            },
             endEncounter: true,
           },
           {
@@ -38,6 +41,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Clear a Path",
             costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
             resultText: "Clearing the branches takes time and extra supplies, but no one is hurt.",
+            pendingAction: {
+              text: "Arthur and Kay drag the tangled branches aside to clear a passage...",
+              delayProfile: "physical",
+            },
             endEncounter: true,
           },
           {
@@ -52,6 +59,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               },
             ],
             resultText: "The rope provides an easy handline over the fallen trunk.",
+            pendingAction: {
+              text: "Arthur secures the rope and guides the company past the obstacle...",
+              delayProfile: "physical",
+            },
             endEncounter: true,
           },
         ],
@@ -82,11 +93,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             outcomes: [
               {
                 type: "gainRandomUnsecuredItem",
-                itemIds: ["old_coin", "hunting_supplies", "bandages", "rope"],
+                itemIds: [
+                  "old_coin", "hunting_supplies", "bandages", "rope", "silver_brooch",
+                  "amber_beads", "decorated_buckle", "coin_purse",
+                ],
                 quantity: 1,
               },
             ],
             resultText: "The search turns up one mundane item worth carrying home. It remains unsecured until a safe return.",
+            pendingAction: {
+              text: "Arthur searches the abandoned bedrolls, packs, and cold fire ring...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
           {
@@ -199,7 +217,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     directions: ["outbound", "returning"],
     weight: 5,
     minimumDistance: 4,
-    maximumDistance: 80,
     tags: ["animal", "danger"],
     repeatable: false,
     requirements: [],
@@ -214,7 +231,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               { type: "modifyResource", resource: "health", randomMinimum: -6, randomMaximum: -2 },
               { type: "modifyResource", resource: "provisions", amount: 3 },
             ],
-            resultText: "Arthur drives the boar down and the company gathers usable meat.",
+            resultText: "The struggle leaves Arthur bruised and cut, but he drives the boar down and the company gathers usable meat.",
+            pendingAction: {
+              text: "Arthur and Kay move together to drive the boar back...",
+              delayProfile: "combat",
+            },
             endEncounter: true,
           },
           {
@@ -225,9 +246,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "randomChance",
                 chance: 0.15,
                 effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+                resultText: "The boar lashes out before retreating, catching Arthur as it charges into the brush.",
+                elseResultText: "Arthur and Kay make enough noise to drive the animal safely into the brush.",
               },
             ],
-            resultText: "Arthur and Kay make enough noise to drive the animal into the brush.",
             endEncounter: true,
           },
           {
@@ -251,7 +273,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     directions: ["returning"],
     weight: 6,
     minimumDistance: 2,
-    maximumDistance: 80,
     tags: ["return", "survival", "darkness"],
     repeatable: false,
     requirements: [],
@@ -285,14 +306,20 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                   {
                     type: "randomOne",
                     options: [
-                      [{ type: "modifyResource", resource: "provisions", amount: -1 }],
-                      [{ type: "modifyResource", resource: "health", amount: -1 }],
+                      {
+                        resultText: "In the darkness, the company wanders off the road and wastes supplies finding it again.",
+                        effects: [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+                      },
+                      {
+                        resultText: "Arthur stumbles over a hidden root in the darkness and regains the road injured.",
+                        effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+                      },
                     ],
                   },
                 ],
+                elseResultText: "Arthur and Kay keep the fading road in sight and continue without mishap.",
               },
             ],
-            resultText: "Arthur and Kay press on through the failing light.",
             endEncounter: true,
           },
           {
@@ -300,6 +327,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Slow Down and Find the Trail",
             costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
             resultText: "The careful search costs time and provisions, but the company finds the road and continues safely.",
+            pendingAction: {
+              text: "Arthur slows the company and studies the ground for the safest line of the trail...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
         ],
@@ -316,9 +347,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     directions: ["outbound", "returning"],
     weight: 5,
     minimumDistance: 4,
-    maximumDistance: 90,
     tags: ["water", "obstacle", "survival"],
-    repeatable: false,
+    repeatable: true,
+    maxOccurrencesPerRun: 2,
     requirements: [],
     stages: {
       start: {
@@ -331,8 +362,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "randomChance",
               chance: 0.25,
               effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+              resultText: "The current knocks Arthur against a submerged stone before the company reaches the far bank.",
+              elseResultText: "Arthur and Kay keep their footing and wade safely through the cold current.",
             }],
-            resultText: "Arthur and Kay struggle through the cold current and regain the path on the far bank.",
+            pendingAction: {
+              text: "Arthur steps into the swollen stream and tests each foothold against the current...",
+              delayProfile: "physical",
+            },
             endEncounter: true,
           },
           {
@@ -345,6 +381,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               lockedLabel: "Requires Rope",
             }],
             resultText: "With a rope secured across the stream, the company crosses safely.",
+            pendingAction: {
+              text: "Arthur secures the rope across the stream before the company begins crossing...",
+              delayProfile: "physical",
+            },
             endEncounter: true,
           },
           {
@@ -352,6 +392,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Search for a Better Crossing",
             costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
             resultText: "The search costs time and provisions, but reveals a safer crossing.",
+            pendingAction: {
+              text: "Arthur follows the bank in search of calmer water and firmer footing...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
         ],
@@ -368,7 +412,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     directions: ["outbound", "returning"],
     weight: 5,
     minimumDistance: 5,
-    maximumDistance: 90,
     tags: ["foraging", "knowledge", "provisions"],
     repeatable: false,
     requirements: [],
@@ -387,6 +430,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             }],
             outcomes: [{ type: "modifyResource", resource: "provisions", amount: 5 }],
             resultText: "Arthur recognizes the useful plants and gathers a worthwhile supply.",
+            pendingAction: {
+              text: "Arthur searches the undergrowth for plants he recognizes as safe...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
           {
@@ -440,16 +487,38 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Search the Cart",
             outcomes: [{
               type: "gainRandomUnsecuredItem",
-              itemIds: ["bandages", "old_coin", "dried_herbs"],
+              itemIds: [
+                "bandages", "dried_herbs", "silver_brooch", "decorated_buckle",
+                "merchants_ring", "embroidered_gloves", "coin_purse",
+              ],
               quantity: 1,
             }],
-            resultText: "Arthur searches what remains beneath the overturned cart.",
+            resultText: "Beneath the overturned cart, Arthur finds something the merchant left behind.",
+            pendingAction: {
+              text: "Arthur searches beneath the cart and through its scattered cargo...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
           {
             id: "search_for_owner",
             label: "Search the Woods for the Owner",
-            nextStage: "vanishing_trail",
+            pendingAction: {
+              text: "Arthur and Kay search the nearby woods for tracks or signs of passage...",
+              delayProfile: "search",
+            },
+            branches: [
+              {
+                weight: 70,
+                resultText: "Broken branches and disturbed leaves lead away from the road.",
+                nextStage: "vanishing_trail",
+              },
+              {
+                weight: 30,
+                resultText: "Arthur and Kay search the nearby woods, but find no tracks clear enough to follow.",
+                endEncounter: true,
+              },
+            ],
           },
           {
             id: "leave",
@@ -573,7 +642,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               chance: 0.45,
               effects: [{
                 type: "gainRandomUnsecuredItem",
-                itemIds: ["dried_herbs", "strange_seeds"],
+                itemIds: ["dried_herbs", "strange_seeds", "amber_beads", "polished_agate"],
                 quantity: 1,
               }],
               resultText: "Among the oak's roots, Arthur finds useful growth worth carrying home.",
@@ -642,6 +711,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             }],
             outcomes: [{ type: "setRunFlag", flag: "impossibleRoadNoticed", value: true }],
             resultText: "Arthur studies the moss, slope, and direction of the fading light. Everything says they have been traveling forward.",
+            pendingAction: {
+              text: "Arthur studies the moss, slope, and fading light to judge the road's direction...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
         ],
@@ -683,10 +756,17 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Search the Fire",
             outcomes: [{
               type: "gainRandomUnsecuredItem",
-              itemIds: ["old_coin", "hunters_charm", "strange_seeds"],
+              itemIds: [
+                "old_coin", "hunters_charm", "strange_seeds", "carved_ivory_token",
+                "bronze_figurine", "polished_agate",
+              ],
               quantity: 1,
             }],
-            resultText: "Arthur searches the cold ashes and the earth around the old fire.",
+            resultText: "Among the cold ashes and disturbed earth, Arthur finds an object worth carrying home.",
+            pendingAction: {
+              text: "Arthur sifts through the cold ashes and searches the earth around the old fire...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
           {
@@ -724,9 +804,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     directions: ["outbound", "returning"],
     weight: 5,
     minimumDistance: 5,
-    maximumDistance: 90,
     tags: ["weather", "survival", "equipment"],
-    repeatable: false,
+    repeatable: true,
+    maxOccurrencesPerRun: 2,
     requirements: [],
     stages: {
       start: {
@@ -737,6 +817,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             label: "Shelter Beneath the Trees",
             costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
             resultText: "Arthur and Kay wait beneath the densest branches until the worst has passed.",
+            pendingAction: {
+              text: "Arthur and Kay shelter beneath the densest branches and wait for the storm to ease...",
+              delayProfile: "rest",
+            },
             endEncounter: true,
           },
           {
@@ -903,7 +987,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                   resultText: "Arthur works his hand through the hooked branches and pulls the hidden object free.",
                   effects: [{
                     type: "gainRandomUnsecuredItem",
-                    itemIds: ["old_coin", "hunters_charm"],
+                    itemIds: ["old_coin", "silver_brooch", "decorated_buckle", "polished_agate"],
                     quantity: 1,
                   }],
                 },
@@ -925,7 +1009,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             }],
             outcomes: [{
               type: "gainRandomUnsecuredItem",
-              itemIds: ["old_coin", "hunters_charm"],
+              itemIds: ["old_coin", "silver_brooch", "decorated_buckle", "polished_agate"],
               quantity: 1,
             }],
             resultText: "The keen knife cuts a safe opening through the thorns.",
@@ -951,7 +1035,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     directions: ["returning"],
     weight: 5,
     minimumDistance: 3,
-    maximumDistance: 90,
     tags: ["return", "shelter", "recovery"],
     repeatable: false,
     requirements: [],
@@ -965,6 +1048,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
             outcomes: [{ type: "modifyResource", resource: "health", amount: 1 }],
             resultText: "The brief rest restores some strength before the company returns to the road.",
+            pendingAction: {
+              text: "Arthur and Kay settle into the shelter and rest for a short while...",
+              delayProfile: "rest",
+            },
             endEncounter: true,
           },
           {
@@ -981,11 +1068,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               chance: 0.35,
               effects: [{
                 type: "gainRandomUnsecuredItem",
-                itemIds: ["bandages", "old_coin"],
+                itemIds: ["bandages", "old_coin", "coin_purse", "silver_brooch", "amber_beads"],
                 quantity: 1,
               }],
+              resultText: "Behind loose stones and old leaves, Arthur finds something useful left in the shelter.",
+              elseResultText: "The shelter contains nothing useful beyond damp leaves and old ash.",
             }],
-            resultText: "Arthur searches the shallow shelter before moving on.",
+            pendingAction: {
+              text: "Arthur searches behind loose stones and beneath the leaves inside the shelter...",
+              delayProfile: "search",
+            },
             endEncounter: true,
           },
         ],

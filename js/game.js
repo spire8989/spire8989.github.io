@@ -234,6 +234,10 @@ function enterLocation(locationId) {
 }
 
 function showLocation() {
+  if (game.player.provisions < EXPEDITION_TUNING.minimumTownProvisions) {
+    game.player.provisions = EXPEDITION_TUNING.minimumTownProvisions;
+    savePlayer();
+  }
   game.activeDestinationId = null;
   game.interactionMessage = "";
   showScreen("location");
@@ -829,7 +833,7 @@ function renderEncounterPanel(expedition, encounter) {
         <p class="encounter-description">${encounter.description}</p>
       </div>
       <div class="encounter-stage">
-        <p>${stage.text}</p>
+        <p>${active.stageText || stage.text}</p>
         ${outcomes}
       </div>
       <div class="encounter-choices">${choices}</div>
