@@ -9,6 +9,9 @@ const TRAVEL_SETTINGS = Object.freeze({
   maximumSupplies: 26,
 });
 
+// Add ?debug=1 to the URL to expose temporary encounter testing controls.
+const DEBUG_ENCOUNTERS_ENABLED = new URLSearchParams(window.location.search).has("debug");
+
 const game = {
   player: SaveSystem.load(),
   expedition: null,
@@ -44,7 +47,7 @@ function handleAction(event) {
     return;
   }
 
-  const { action, itemId, companionId } = control.dataset;
+  const { action, itemId, companionId, choiceId } = control.dataset;
 
   switch (action) {
     case "show-campaign":
@@ -69,6 +72,15 @@ function handleAction(event) {
       break;
     case "return-to-safety":
       beginReturn();
+      break;
+    case "encounter-choice":
+      resolveEncounterChoice(choiceId);
+      break;
+    case "debug-trigger-encounter":
+      triggerDebugEncounter();
+      break;
+    case "debug-next-encounter":
+      forceNextEncounter();
       break;
     case "abandon-expedition":
       failExpedition("The company abandoned the expedition before reaching safety.");
@@ -205,7 +217,7 @@ function inventoryCard(item, quantity) {
   const equipped = item.equippable && game.player.equippedItems[item.slot] === item.id;
   const button = item.equippable
     ? `<button class="small-button ${equipped ? "is-selected" : ""}" type="button" data-action="equip-item" data-item-id="${item.id}">${equipped ? "Equipped" : "Equip"}</button>`
-    : '<span class="item-state">Quest item</span>';
+    : `<span class="item-state">${item.questItem ? "Quest item" : "Stored"}</span>`;
 
   return `
     <article class="inventory-card ${equipped ? "is-equipped" : ""}">
@@ -272,22 +284,27 @@ function startExpedition() {
     selectedCompanion: game.player.selectedCompanion,
     unsecuredLoot: [],
     discoveredLootIds: [],
+    sceneOffset: 0,
     status: "active",
   };
+  EncounterManager.initializeExpedition(game.expedition);
   showScreen("expedition");
 }
 
 function renderExpedition() {
   const expedition = game.expedition;
   const companion = COMPANION_DEFINITIONS[expedition.selectedCompanion];
+  const activeEncounter = expedition.activeEncounter
+    ? ENCOUNTER_DEFINITIONS[expedition.activeEncounter.encounterId]
+    : null;
   const loadout = Object.values(expedition.selectedEquipment)
     .map((itemId) => ITEM_DEFINITIONS[itemId]?.name)
     .filter(Boolean)
     .join(" · ");
 
   ui.screenRoot.innerHTML = `
-    <section class="screen expedition-screen" aria-labelledby="region-title">
-      <div class="travel-scene" id="travel-scene">
+    <section class="screen expedition-screen" aria-label="Brocéliande expedition">
+      <div class="travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
@@ -295,67 +312,136 @@ function renderExpedition() {
           <span class="arthur">♞</span><span class="companion">♞</span>
         </div>
         <div class="ground" aria-hidden="true"></div>
-        <div class="direction-banner" id="direction-banner">Traveling Outbound →</div>
+        <div class="direction-banner" id="direction-banner">${activeEncounter ? `Encounter: ${activeEncounter.title}` : "Traveling Outbound →"}</div>
       </div>
-
-      <div class="travel-panel">
-        <div class="screen-heading travel-heading">
-          <p class="eyebrow">Chapter III</p>
-          <h1 id="region-title">Brocéliande</h1>
-          <p id="travel-message">The old forest road winds deeper beneath the trees.</p>
-        </div>
-
-        <div class="resource-grid">
-          <div class="resource-card">
-            <span>Distance</span>
-            <strong id="distance-value">${formatDistance(expedition.distance)}</strong>
-          </div>
-          <div class="resource-card">
-            <span>Provisions</span>
-            <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
-          </div>
-          <div class="resource-card">
-            <span>Health</span>
-            <strong id="health-value">${Math.ceil(expedition.health)}%</strong>
-          </div>
-          <div class="resource-card unsecured-card">
-            <span>Unsecured</span>
-            <strong id="loot-count">${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g</strong>
-          </div>
-        </div>
-
-        <div class="progress-track" aria-label="Current return distance">
-          <div class="progress-fill" id="distance-progress"></div>
-        </div>
-
-        <section class="run-details">
-          <p><span>Company</span><strong>Arthur &amp; ${companion.name}</strong></p>
-          <p><span>Loadout</span><strong>${loadout || "No equipment selected"}</strong></p>
-          <div id="loot-list" class="loot-list">${renderLootList(expedition.unsecuredLoot)}</div>
-        </section>
-
-        <div class="footer-actions travel-actions">
-          <button class="text-button danger-button" type="button" data-action="abandon-expedition">Abandon</button>
-          <button id="return-button" class="game-button" type="button" data-action="return-to-safety">Return to Safety</button>
-        </div>
-      </div>
+      ${activeEncounter
+        ? renderEncounterPanel(expedition, activeEncounter)
+        : renderTravelPanel(expedition, companion, loadout)}
     </section>`;
   updateTravelHud();
 }
 
+function renderTravelPanel(expedition, companion, loadout) {
+  const travelMessage = expedition.lastEncounterResult
+    || (expedition.currentPathId === "overgrown_trail"
+      ? "The overgrown trail narrows beneath ancient trees."
+      : "The old forest road winds deeper beneath the trees.");
+
+  return `
+    <div class="travel-panel">
+      <div class="screen-heading travel-heading">
+        <p class="eyebrow">Chapter III</p>
+        <h1 id="region-title">Brocéliande</h1>
+        <p id="travel-message">${travelMessage}</p>
+      </div>
+      ${renderExpeditionResources(expedition)}
+      <div class="progress-track" aria-label="Current return distance">
+        <div class="progress-fill" id="distance-progress"></div>
+      </div>
+      <section class="run-details">
+        <p><span>Company</span><strong>Arthur &amp; ${companion.name}</strong></p>
+        <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
+        <p><span>Loadout</span><strong>${loadout || "No equipment selected"}</strong></p>
+        <div id="loot-list" class="loot-list">${renderLootList(expedition.unsecuredLoot)}</div>
+      </section>
+      ${renderEncounterDebugControls(expedition)}
+      <div class="footer-actions travel-actions">
+        <button class="text-button danger-button" type="button" data-action="abandon-expedition">Abandon</button>
+        <button id="return-button" class="game-button" type="button" data-action="return-to-safety">Return to Safety</button>
+      </div>
+    </div>`;
+}
+
+function renderEncounterPanel(expedition, encounter) {
+  const active = expedition.activeEncounter;
+  const stage = encounter.stages[active.stageId];
+  const choices = stage.choices.map((choice) => renderEncounterChoice(choice, expedition)).join("");
+  const outcomes = active.outcomeMessages.length > 0
+    ? `<div class="outcome-strip">${active.outcomeMessages.map((message) => `<span>${message}</span>`).join("")}</div>`
+    : "";
+
+  return `
+    <div class="travel-panel encounter-panel" aria-live="polite">
+      ${renderExpeditionResources(expedition)}
+      <div class="encounter-heading">
+        <p class="eyebrow">Travel Paused · ${pathLabel(expedition.currentPathId)}</p>
+        <h1>${encounter.title}</h1>
+        <p class="encounter-description">${encounter.description}</p>
+      </div>
+      <div class="encounter-stage">
+        <p>${stage.text}</p>
+        ${outcomes}
+      </div>
+      <div class="encounter-choices">${choices}</div>
+    </div>`;
+}
+
+function renderExpeditionResources(expedition) {
+  return `
+    <div class="resource-grid compact-resources">
+      <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
+      <div class="resource-card"><span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong></div>
+      <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)}%</strong></div>
+      <div class="resource-card unsecured-card"><span>Unsecured</span><strong id="loot-count">${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g</strong></div>
+    </div>`;
+}
+
+function renderEncounterChoice(choice, expedition) {
+  const availability = EncounterRequirements.choiceAvailability(choice, {
+    expedition,
+    player: game.player,
+  });
+  if (!availability.available && availability.presentation === "hidden") {
+    return "";
+  }
+
+  const locked = !availability.available;
+  return `
+    <button class="encounter-choice ${locked ? "is-locked" : ""}" type="button"
+      data-action="encounter-choice" data-choice-id="${choice.id}" ${locked ? "disabled" : ""}>
+      <strong>${choice.label}</strong>
+      ${locked ? `<span>Locked — ${availability.reason}</span>` : ""}
+    </button>`;
+}
+
+function renderEncounterDebugControls(expedition) {
+  if (!DEBUG_ENCOUNTERS_ENABLED) {
+    return "";
+  }
+
+  const options = Object.values(ENCOUNTER_DEFINITIONS)
+    .map((encounter) => `<option value="${encounter.id}">${encounter.title}</option>`)
+    .join("");
+  return `
+    <details class="debug-panel">
+      <summary>Encounter Debug</summary>
+      <select id="debug-encounter-select" aria-label="Encounter to trigger">${options}</select>
+      <div class="debug-actions">
+        <button type="button" data-action="debug-trigger-encounter">Trigger Selected</button>
+        <button type="button" data-action="debug-next-encounter">Next Encounter Soon</button>
+      </div>
+      <pre id="debug-state">${debugExpeditionState(expedition)}</pre>
+    </details>`;
+}
+
 function updateExpedition(deltaSeconds) {
   const expedition = game.expedition;
-  if (!expedition || expedition.status !== "active") {
+  if (!expedition || expedition.status !== "active" || expedition.activeEncounter) {
     return;
   }
 
+  let distanceTraveled = 0;
   if (expedition.direction === "outbound") {
-    expedition.distance += TRAVEL_SETTINGS.outboundSpeed * deltaSeconds;
+    distanceTraveled = TRAVEL_SETTINGS.outboundSpeed * deltaSeconds;
+    expedition.distance += distanceTraveled;
+    expedition.sceneOffset -= distanceTraveled * 9;
     expedition.maxDistanceReached = Math.max(expedition.maxDistanceReached, expedition.distance);
     expedition.provisions -= TRAVEL_SETTINGS.outboundProvisionRate * deltaSeconds;
     discoverLoot();
   } else {
-    expedition.distance -= TRAVEL_SETTINGS.returnSpeed * deltaSeconds;
+    distanceTraveled = TRAVEL_SETTINGS.returnSpeed * deltaSeconds;
+    expedition.distance -= distanceTraveled;
+    expedition.sceneOffset += distanceTraveled * 9;
     expedition.provisions -= TRAVEL_SETTINGS.returnProvisionRate * deltaSeconds;
 
     if (expedition.distance <= 0) {
@@ -368,6 +454,12 @@ function updateExpedition(deltaSeconds) {
   if (expedition.provisions <= 0) {
     expedition.provisions = 0;
     failExpedition("The company exhausted its provisions before reaching safety.");
+    return;
+  }
+
+  const encounter = EncounterManager.advance(expedition, game.player, distanceTraveled);
+  if (encounter) {
+    renderExpedition();
   }
 }
 
@@ -388,13 +480,59 @@ function discoverLoot() {
 
 function beginReturn() {
   const expedition = game.expedition;
-  if (!expedition || expedition.status !== "active" || expedition.direction === "returning") {
+  if (!expedition
+    || expedition.status !== "active"
+    || expedition.direction === "returning"
+    || expedition.activeEncounter) {
     return;
   }
 
   expedition.direction = "returning";
   announceTravelEvent("The company turns back toward the forest edge.");
   updateTravelHud();
+}
+
+function resolveEncounterChoice(choiceId) {
+  const expedition = game.expedition;
+  if (!expedition?.activeEncounter || expedition.status !== "active") {
+    return;
+  }
+
+  const result = EncounterManager.resolveChoice(expedition, game.player, choiceId, {
+    failExpedition,
+  });
+  if (!result.resolved || expedition.status !== "active") {
+    return;
+  }
+
+  if (expedition.health <= 0) {
+    failExpedition("Arthur was too badly injured to continue the expedition.");
+    return;
+  }
+  if (expedition.provisions <= 0) {
+    failExpedition("The company exhausted its provisions during the encounter.");
+    return;
+  }
+
+  renderExpedition();
+}
+
+function triggerDebugEncounter() {
+  if (!DEBUG_ENCOUNTERS_ENABLED || !game.expedition || game.expedition.activeEncounter) {
+    return;
+  }
+  const encounterId = document.querySelector("#debug-encounter-select")?.value;
+  if (EncounterManager.force(game.expedition, encounterId)) {
+    renderExpedition();
+  }
+}
+
+function forceNextEncounter() {
+  if (!DEBUG_ENCOUNTERS_ENABLED || !game.expedition || game.expedition.activeEncounter) {
+    return;
+  }
+  EncounterManager.forceNextSoon(game.expedition);
+  renderExpedition();
 }
 
 function completeReturn() {
@@ -491,6 +629,9 @@ function updateTravelHud() {
   setText("#loot-count", `${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g`);
 
   const returning = expedition.direction === "returning";
+  const activeEncounter = expedition.activeEncounter
+    ? ENCOUNTER_DEFINITIONS[expedition.activeEncounter.encounterId]
+    : null;
   const directionBanner = document.querySelector("#direction-banner");
   const travelers = document.querySelector("#travelers");
   const returnButton = document.querySelector("#return-button");
@@ -498,9 +639,12 @@ function updateTravelHud() {
   const scene = document.querySelector("#travel-scene");
 
   if (directionBanner) {
-    directionBanner.textContent = returning ? "← Returning to Safety" : "Traveling Outbound →";
+    directionBanner.textContent = activeEncounter
+      ? `Encounter: ${activeEncounter.title}`
+      : returning ? "← Returning to Safety" : "Traveling Outbound →";
   }
   travelers?.classList.toggle("is-returning", returning);
+  travelers?.classList.toggle("is-paused", Boolean(activeEncounter));
   if (returnButton) {
     returnButton.disabled = returning;
     returnButton.textContent = returning ? "Returning…" : "Return to Safety";
@@ -510,9 +654,11 @@ function updateTravelHud() {
     progressFill.style.width = `${clamp((expedition.distance / denominator) * 100, 0, 100)}%`;
   }
   if (scene) {
-    // Outbound scenery moves left; returning reverses it and moves it faster.
-    scene.style.setProperty("--travel-offset", `${(game.elapsedSeconds * (returning ? 32 : -20)) % 160}px`);
+    scene.classList.toggle("is-paused", Boolean(activeEncounter));
+    scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
   }
+  setText("#path-value", pathLabel(expedition.currentPathId));
+  setText("#debug-state", debugExpeditionState(expedition));
 }
 
 function renderLootList(loot) {
@@ -550,7 +696,31 @@ function resetSave() {
 }
 
 function itemIcon(category) {
-  return ({ weapon: "⚔", armor: "◈", gear: "⌁", relic: "✦", quest: "◆" })[category] ?? "•";
+  return ({
+    weapon: "⚔",
+    armor: "◈",
+    gear: "⌁",
+    relic: "✦",
+    quest: "◆",
+    treasure: "●",
+    supply: "+",
+  })[category] ?? "•";
+}
+
+function debugExpeditionState(expedition) {
+  return JSON.stringify({
+    path: expedition.currentPathId,
+    direction: expedition.direction,
+    distance: Number(expedition.distance.toFixed(2)),
+    provisions: Number(expedition.provisions.toFixed(2)),
+    health: expedition.health,
+    nextEncounterIn: Number(Math.max(
+      expedition.nextEncounterAt - expedition.encounterTravelDistance,
+      0,
+    ).toFixed(2)),
+    seen: expedition.seenEncounterIds,
+    flags: expedition.runFlags,
+  }, null, 2);
 }
 
 function formatDistance(distance) {

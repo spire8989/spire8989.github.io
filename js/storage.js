@@ -9,13 +9,14 @@ const SaveSystem = Object.freeze({
         arthur_sword: 1,
         quilted_hauberk: 1,
         wayfarers_cloak: 1,
+        silver_stag_medallion: 1,
       },
       equippedItems: {
         weapon: "arthur_sword",
         armor: "quilted_hauberk",
         utility: "wayfarers_cloak",
       },
-      unlockedCompanions: ["sir_kay", "merlin"],
+      unlockedCompanions: ["sir_kay"],
       selectedCompanion: "sir_kay",
       learnedKnowledge: ["forest_road_lore"],
       completedChapters: ["chapter_01", "chapter_02"],
@@ -75,10 +76,10 @@ function sanitizePlayerState(savedState, defaults) {
     }
   });
 
-  // Starting equipment is restored if an old or malformed save owns nothing usable.
-  if (Object.keys(ownedItems).length === 0) {
-    Object.assign(ownedItems, defaults.ownedItems);
-  }
+  // Merge newly introduced starting items into older prototype saves.
+  Object.entries(defaults.ownedItems).forEach(([itemId, quantity]) => {
+    ownedItems[itemId] ??= quantity;
+  });
 
   const equippedItems = {};
   ["weapon", "armor", "utility"].forEach((slot) => {
@@ -129,4 +130,3 @@ function nonNegativeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
-

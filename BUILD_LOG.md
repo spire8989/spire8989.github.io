@@ -61,3 +61,32 @@ The human developer created and supplied `Initial Game Design Document.md`, conf
 ### Resulting prototype state
 
 The prototype now contains one repeatable Brocéliande expedition loop. Players can prepare a persistent loadout, push outward while consuming provisions, discover unsecured rewards, turn back to bank them, or fail and lose only that run's discoveries. Advanced encounters and the broader campaign remain intentionally unimplemented.
+
+## 2026-08-11 — Procedural Encounter System
+
+### Goal
+
+Make encounters the primary interactive interruption during expeditions while preserving the existing portrait travel, resource, return, loot, and persistence systems.
+
+### Human prompt and direction
+
+The human developer supplied a detailed encounter-system guide defining reusable data, multi-stage choices, requirements, outcomes, weighted random selection, paused travel behavior, debug tooling, and five initial encounters. The guide also established that Sir Kay is currently Arthur's only companion and that the deeper Brocéliande mystery must remain unresolved in this milestone.
+
+### AI-assisted implementation
+
+- Separated five authored encounter definitions from reusable selection, requirement, outcome, and stage-flow code.
+- Added randomized distance spacing, region/path/distance eligibility, encounter weights, repeat rules, and per-run seen tracking.
+- Added Fallen Tree, Abandoned Camp, Fork in the Road, Ancient Standing Stone, and Wild Boar encounters.
+- Added locked and hidden item-dependent choices, resource costs and rewards, randomized consequences, unsecured mundane loot, path changes, and run-local flags.
+- Made active encounters pause scenery, distance, and normal provision use while the lower portrait interface switches to touch-friendly choices.
+- Removed Merlin from companion selection, retained Sir Kay as the only companion, and added the Silver Stag Medallion without resolving its purpose.
+- Added optional `?debug=1` controls for triggering encounter IDs, shortening encounter distance, and inspecting run state.
+- Ran 18 automated headless-browser assertions covering all five encounters plus existing return, banking, and failure behavior; every assertion passed.
+
+### Manual changes
+
+The human developer supplied the authored system/content guide and clarified the current character and story constraints. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Expeditions now alternate between real-time travel and procedural decision encounters. Choices can branch across stages, query the current run, apply reusable consequences, alter the route, and award unsecured loot before travel resumes. Combat, Merlin's discovery, puzzles, and broader narrative systems remain intentionally unimplemented.

@@ -4,7 +4,7 @@ This repository is a browser-only portrait prototype for an Arthurian survival a
 
 ## Current prototype
 
-The playable vertical slice begins at a fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, equip owned items, choose a companion, and select provisions. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment brought into the run.
+The playable vertical slice begins at a fake campaign menu. Chapter III leads to expedition preparation, where the player can inspect permanent inventory, equip owned items, travel with Sir Kay, and select provisions. During an expedition, distance increases and provisions decrease until the player returns to safety or fails. Procedural encounters pause travel and require a choice before the journey continues. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment brought into the run.
 
 Progress is stored in the browser with `localStorage`. The reset button in the top-right corner restores the initial prototype save.
 
@@ -13,8 +13,10 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `index.html` defines the game page, persistent header, screen container, and script loading order. Think of it as the initial level/UI hierarchy.
 - `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, and input feedback. `--world-panel-height` controls the expedition view/interface split.
 - `js/data.js` contains data-driven item, companion, chapter, and expedition-loot definitions with stable string IDs.
+- `js/encounter-data.js` contains the authored encounter definitions, stages, choices, requirements, costs, and outcomes.
+- `js/encounters.js` contains reusable encounter selection, requirement checking, outcome application, and stage-flow systems.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
-- `js/game.js` owns screen flow, input, temporary expedition state, travel simulation, loot resolution, and the `requestAnimationFrame` loop.
+- `js/game.js` owns screen flow, input, temporary expedition state, travel simulation, encounter presentation, loot resolution, and the `requestAnimationFrame` loop.
 - `assets/` is reserved for future images, audio, fonts, and other game content.
 - `vendor/` is reserved for any third-party browser libraries added later. It is empty for now.
 
@@ -33,6 +35,10 @@ py -m http.server 8000
 ```
 
 Then visit [http://localhost:8000](http://localhost:8000) in Chrome or Edge. Stop the server with `Ctrl+C` in the terminal.
+
+### Encounter debug controls
+
+During development, visit [http://localhost:8000/?debug=1](http://localhost:8000/?debug=1). Once an expedition begins, an unobtrusive **Encounter Debug** section appears in the lower travel interface. It can trigger any encounter by stable ID, shorten the wait until the next random encounter, and display the current run state. These controls are absent from the normal URL.
 
 ## Why use a local HTTP server?
 
