@@ -14,7 +14,7 @@ This file records project-specific knowledge that should survive across Codex co
 ## Important architecture
 
 - `index.html` contains the persistent shell and classic deferred script order. The scripts share browser globals, so order matters.
-- `css/style.css` owns the portrait viewport and all UI presentation. `--world-panel-height` is the main expedition world/interface split control.
+- `css/style.css` owns the portrait viewport and all UI presentation. `--interaction-visual-aspect` defines the shared 16:9 artwork frame used by expeditions and building interactions; location hubs and management screens deliberately use different full-screen layouts.
 - `js/data.js` contains stable-ID item, knowledge, companion, and chapter definitions.
 - `js/tuning.js` centralizes pacing and pack capacity. Do not scatter tuning constants through UI code.
 - `js/encounter-data.js` contains authored encounter content; `js/encounters.js` contains generic encounter selection, requirements, stages, costs, and outcomes.
@@ -32,6 +32,7 @@ This file records project-specific knowledge that should survive across Codex co
 - Newly discovered items stay in `expedition.unsecuredLoot` until a successful return.
 - Used consumables are tracked separately in `expedition.consumedItems` and settled against permanent quantities.
 - Failure loses unsecured discoveries only. Previously owned equipped and packed items remain owned, except consumables actually used.
+- Persistent provisions live in `player.provisions`. Starting a run commits the selected amount; temporary expedition state tracks remaining purchased and found provisions separately. Found provisions are consumed first. Unused purchased provisions return after success or failure, while unused found provisions return only after success.
 - Encounter requirements deliberately distinguish `ownsItem`, `equippedItem`, `carriedItem`, and `availableExpeditionItem`. The last may recognize an equipped, packed, or newly found unsecured item.
 
 Default reset state currently equips the Iron Longsword, Chainmail Hauberk, and Silver Stag Medallion. The pack contains the Traveler's Cloak, Rope, and Torches. Sir Kay is the only selectable companion.
@@ -68,7 +69,7 @@ python -m http.server 8000 --bind 127.0.0.1
 
 Then load `http://127.0.0.1:8000/`. Do not use `file://` for meaningful verification.
 
-For the current location/shop work, the dependency-light browser regression suite is:
+For the current location, shop, layout, and provision work, the dependency-light browser regression suite is:
 
 ```powershell
 python tests/location_system_test.py

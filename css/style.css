@@ -10,8 +10,7 @@
   --panel-light: #213126;
   --red: #7d2f27;
   --green: #316841;
-  /* Adjust this single value to rebalance world view and interface space. */
-  --world-panel-height: 44%;
+  --interaction-visual-aspect: 16 / 9;
 }
 
 * {
@@ -594,7 +593,13 @@ button:active:not(:disabled) {
   flex: 1;
 }
 
-/* Expedition is intentionally split into independently adjustable world and UI regions. */
+/* Active interaction screens reserve a reusable, artwork-ready 16:9 frame. */
+.visual-frame {
+  width: 100%;
+  aspect-ratio: var(--interaction-visual-aspect);
+  flex: 0 0 auto;
+}
+
 .expedition-screen {
   display: flex;
   flex-direction: column;
@@ -606,7 +611,6 @@ button:active:not(:disabled) {
 .travel-scene {
   --travel-offset: 0px;
   position: relative;
-  flex: 0 0 var(--world-panel-height);
   min-height: 0;
   overflow: hidden;
   border-bottom: 2px solid rgb(217 189 114 / 55%);
@@ -1111,11 +1115,15 @@ button:active:not(:disabled) {
 .location-scene,
 .destination-visual {
   position: relative;
-  height: var(--world-panel-height);
   min-height: 0;
   overflow: hidden;
   border-bottom: 1px solid rgb(217 189 114 / 35%);
   background: linear-gradient(#71827a 0 48%, #33462f 49% 100%);
+}
+
+.location-scene {
+  width: 100%;
+  height: 100%;
 }
 
 .village-sky {
@@ -1182,25 +1190,23 @@ button:active:not(:disabled) {
 .position-southwest { left: 8%; bottom: 9%; }
 .position-southeast { right: 7%; bottom: 8%; }
 
-.location-panel,
 .destination-panel {
-  height: calc(100% - var(--world-panel-height));
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   min-height: 0;
-  padding: clamp(0.8rem, 4cqw, 1.25rem);
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   background:
     radial-gradient(circle at 50% 0%, rgb(201 177 108 / 11%), transparent 28%),
     linear-gradient(#1d2c20, #101711);
 }
 
-.location-panel {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.location-status {
+.hub-status {
+  position: absolute;
+  z-index: 4;
+  right: 4%;
+  bottom: 12%;
+  left: 4%;
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
@@ -1213,16 +1219,56 @@ button:active:not(:disabled) {
   font-size: clamp(0.58rem, 2.6cqw, 0.78rem);
 }
 
-.location-status strong {
+.hub-status strong {
   display: block;
   margin-top: 0.18rem;
   color: #f0dfad;
 }
 
-.location-actions,
-.destination-actions {
-  flex-shrink: 0;
-  margin-top: 0.8rem;
+.hub-identity {
+  position: absolute;
+  z-index: 4;
+  top: 3%;
+  right: 4%;
+  left: 4%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgb(217 189 114 / 28%);
+  border-radius: 0.45rem;
+  background: rgb(9 16 11 / 78%);
+  text-align: center;
+}
+
+.hub-identity p,
+.hub-identity h1 {
+  margin: 0;
+}
+
+.hub-identity p {
+  color: var(--gold);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.2cqw, 0.66rem);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.hub-identity h1 {
+  margin-top: 0.15rem;
+  color: #fff1c5;
+  font-size: clamp(1rem, 4.8cqw, 1.45rem);
+}
+
+.hub-actions {
+  position: absolute;
+  z-index: 4;
+  right: 4%;
+  bottom: 3%;
+  left: 4%;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.hub-actions button {
+  flex: 1;
 }
 
 .destination-visual {
@@ -1233,6 +1279,55 @@ button:active:not(:disabled) {
   background:
     radial-gradient(circle at 72% 38%, rgb(239 178 86 / 44%), transparent 16%),
     linear-gradient(145deg, #171c17, #5c4630 55%, #1e291f);
+}
+
+.destination-screen {
+  display: flex;
+  flex-direction: column;
+}
+
+.interaction-header {
+  z-index: 5;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: clamp(2.5rem, 11cqw, 3.4rem);
+  padding: 0.45rem clamp(0.65rem, 3cqw, 0.9rem);
+  border-bottom: 1px solid rgb(217 189 114 / 28%);
+  background: #17231a;
+}
+
+.interaction-header > strong {
+  color: #f4e6ba;
+  font-size: clamp(0.68rem, 3cqw, 0.88rem);
+  text-align: center;
+}
+
+.interaction-header > span {
+  color: #aeb8ac;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.48rem, 2cqw, 0.62rem);
+  text-align: right;
+}
+
+.interaction-back {
+  justify-self: start;
+  padding: 0.35rem 0.45rem;
+  border: 0;
+  background: transparent;
+  color: var(--gold-bright);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.58rem, 2.5cqw, 0.76rem);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.interaction-scroll {
+  min-height: 0;
+  padding: clamp(0.7rem, 3.5cqw, 1rem);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .visual-merchant_stall {
@@ -1381,6 +1476,40 @@ button:active:not(:disabled) {
   display: grid;
   gap: 0.42rem;
   margin-top: 0.55rem;
+}
+
+.provision-offer {
+  margin-top: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid rgb(217 189 114 / 42%);
+  border-radius: 0.4rem;
+  background: rgb(82 69 39 / 35%);
+}
+
+.provision-offer strong,
+.provision-offer span {
+  display: block;
+}
+
+.provision-offer strong {
+  color: #fff0c2;
+}
+
+.provision-offer span {
+  margin-top: 0.2rem;
+  color: #b8c2b6;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.54rem, 2.3cqw, 0.68rem);
+}
+
+.provision-buy-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.provision-buy-actions button {
+  flex: 1;
 }
 
 .shop-item-row {

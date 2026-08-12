@@ -39,12 +39,13 @@ const SHOP_DEFINITIONS = Object.freeze({
   village_general_goods: {
     id: "village_general_goods",
     displayName: "General Goods",
-    stock: {
-      rope: 6,
-      torch: 3,
-      bandages: 5,
-      dried_herbs: 4,
+    itemsForSale: {
+      rope: { price: 6 },
+      torch: { price: 3 },
+      bandages: { price: 5 },
+      dried_herbs: { price: 4 },
     },
+    provisionsForSale: { price: 1, stock: 50 },
     acceptedCategories: ["supply", "consumable", "gear", "valuable"],
     acceptedTags: ["mundane", "tool", "supplies", "valuable"],
     sellValues: {
@@ -60,10 +61,10 @@ const SHOP_DEFINITIONS = Object.freeze({
   village_smithy: {
     id: "village_smithy",
     displayName: "Smithy Stock",
-    stock: {
-      arthur_sword: 18,
-      quilted_hauberk: 24,
-      fine_hunting_knife: 10,
+    itemsForSale: {
+      arthur_sword: { price: 18 },
+      quilted_hauberk: { price: 24 },
+      fine_hunting_knife: { price: 10 },
     },
     acceptedCategories: ["weapon", "armor"],
     acceptedTags: ["steel", "martial", "tool"],

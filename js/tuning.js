@@ -9,6 +9,6 @@ const EXPEDITION_TUNING = Object.freeze({
   encounterMaximumDistance: 22,
   postEncounterSafeDistance: 8,
   packSlots: 6,
-  minimumStartingProvisions: 10,
+  minimumStartingProvisions: 1,
   maximumStartingProvisions: 26,
 });

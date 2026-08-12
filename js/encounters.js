@@ -86,8 +86,12 @@ const EncounterOutcomes = Object.freeze({
         const amount = Number.isFinite(effect.amount)
           ? effect.amount
           : randomInteger(effect.randomMinimum, effect.randomMaximum);
-        const previousValue = Number(expedition[effect.resource]) || 0;
-        expedition[effect.resource] = previousValue + amount;
+        if (effect.resource === "provisions" && Number.isFinite(expedition.committedProvisionsRemaining)) {
+          adjustExpeditionProvisions(expedition, amount);
+        } else {
+          const previousValue = Number(expedition[effect.resource]) || 0;
+          expedition[effect.resource] = previousValue + amount;
+        }
 
         if (effect.resource === "health") {
           expedition.health = clampNumber(expedition.health, 0, 100);
@@ -408,6 +412,27 @@ function randomInteger(minimum, maximum) {
 
 function clampNumber(value, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum);
+}
+
+// Found food is consumed before settlement-owned food. This lets unused
+// purchased provisions return after either outcome while failed-run forage is lost.
+function adjustExpeditionProvisions(expedition, amount) {
+  if (amount >= 0) {
+    expedition.foundProvisions += amount;
+  } else {
+    let cost = Math.abs(amount);
+    const foundUsed = Math.min(expedition.foundProvisions, cost);
+    expedition.foundProvisions -= foundUsed;
+    cost -= foundUsed;
+    expedition.committedProvisionsRemaining = Math.max(
+      expedition.committedProvisionsRemaining - cost,
+      0,
+    );
+  }
+  expedition.provisions = Math.max(
+    expedition.foundProvisions + expedition.committedProvisionsRemaining,
+    0,
+  );
 }
 
 function resourceLabel(resource) {

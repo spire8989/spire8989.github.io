@@ -14,6 +14,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: false,
     effects: {},
     questItem: false,
+    unique: true,
   },
   quilted_hauberk: {
     id: "quilted_hauberk",
@@ -27,6 +28,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: false,
     effects: {},
     questItem: false,
+    unique: true,
   },
   wayfarers_cloak: {
     id: "wayfarers_cloak",
@@ -153,6 +155,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: false,
     effects: {},
     questItem: false,
+    unique: true,
   },
   hunters_charm: {
     id: "hunters_charm",

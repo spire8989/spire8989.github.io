@@ -8,9 +8,11 @@ const game = {
   expedition: null,
   screen: "campaign",
   preparationSupplies: 18,
+  preparationMode: "expedition",
   activeDestinationId: null,
   preparationReturnDestinationId: "forest_gate",
   shopTab: "buy",
+  provisionShopStock: createProvisionShopStock(),
   interactionMessage: "",
   summary: null,
   elapsedSeconds: 0,
@@ -73,19 +75,28 @@ function handleAction(event) {
     case "buy-item":
       buyShopItem(itemId);
       break;
+    case "buy-provisions":
+      buyProvisions(Number(control.dataset.quantity));
+      break;
     case "sell-item":
       sellShopItem(itemId);
       break;
     case "view-inventory":
-      game.preparationReturnDestinationId = "";
+      game.preparationMode = "inventory";
       showScreen("preparation");
       break;
     case "prepare-expedition":
+      game.preparationMode = "expedition";
       game.preparationReturnDestinationId = "forest_gate";
+      game.preparationSupplies = Math.min(
+        Math.max(game.preparationSupplies, EXPEDITION_TUNING.minimumStartingProvisions),
+        game.player.provisions,
+        EXPEDITION_TUNING.maximumStartingProvisions,
+      );
       showScreen("preparation");
       break;
     case "return-from-preparation":
-      if (game.preparationReturnDestinationId) {
+      if (game.preparationMode === "expedition" && game.preparationReturnDestinationId) {
         openDestination(game.preparationReturnDestinationId);
       } else {
         showLocation();
@@ -249,19 +260,16 @@ function renderLocation() {
         <div class="village-sky" aria-hidden="true"></div>
         <div class="village-tree-line" aria-hidden="true"></div>
         <div class="village-road" aria-hidden="true"></div>
-        ${destinations}
-      </div>
-      <div class="location-panel">
-        <div class="screen-heading compact-heading">
-          <p class="eyebrow">Chapter III · Current Location</p>
+        <header class="hub-identity">
+          <p>Chapter III</p>
           <h1 id="location-title">${location.name}</h1>
-          <p>${location.description} Choose a building in the scene.</p>
+        </header>
+        ${destinations}
+        <div class="hub-status">
+          <span><strong>${Math.floor(game.player.currentGold)}g</strong> Gold</span>
+          <span><strong>${game.player.provisions}</strong> Provisions</span>
         </div>
-        <div class="location-status">
-          <span>Treasury <strong>${Math.floor(game.player.currentGold)} gold</strong></span>
-          <span>Inventory <strong>${inventoryQuantity()} items</strong></span>
-        </div>
-        <div class="footer-actions location-actions">
+        <div class="hub-actions">
           <button class="text-button" type="button" data-action="show-campaign">Chapter Select</button>
           <button class="game-button" type="button" data-action="view-inventory">Inventory / Pack</button>
         </div>
@@ -299,20 +307,23 @@ function renderDestination() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen destination-screen" aria-labelledby="destination-title">
-      <div class="destination-visual visual-${destination.visualKey}">
+      <div class="visual-frame destination-visual visual-${destination.visualKey}">
         <span class="destination-emblem" aria-hidden="true">${destinationIcon(destination.type)}</span>
         <div><p>${destination.name}</p><span>${destination.description}</span></div>
       </div>
       <div class="destination-panel">
-        <div class="destination-heading">
-          <p class="eyebrow">${capitalize(destination.type.replace("_", " "))}</p>
-          <h1 id="destination-title">${destination.name}</h1>
-          <p>${destination.description}</p>
-        </div>
-        ${game.interactionMessage ? `<div class="interaction-message" aria-live="polite">${game.interactionMessage}</div>` : ""}
-        ${interaction}
-        <div class="footer-actions destination-actions">
-          <button class="text-button" type="button" data-action="show-location">Return to Village</button>
+        <header class="interaction-header">
+          <button class="interaction-back" type="button" data-action="show-location">← Village</button>
+          <strong id="destination-title">${destination.name}</strong>
+          <span>${Math.floor(game.player.currentGold)}g · ${game.player.provisions} food</span>
+        </header>
+        <div class="interaction-scroll">
+          <div class="destination-heading">
+            <p class="eyebrow">${capitalize(destination.type.replace("_", " "))}</p>
+            <p>${destination.description}</p>
+          </div>
+          ${game.interactionMessage ? `<div class="interaction-message" aria-live="polite">${game.interactionMessage}</div>` : ""}
+          ${interaction}
         </div>
       </div>
     </section>`;
@@ -334,8 +345,11 @@ function renderShopInteraction(destination, npc) {
   const shop = SHOP_DEFINITIONS[destination.shopId];
   const buySelected = game.shopTab === "buy";
   const rows = buySelected
-    ? Object.entries(shop.stock).map(([itemId, price]) => shopBuyRow(itemId, price)).join("")
+    ? Object.entries(shop.itemsForSale).map(([itemId, offer]) => shopBuyRow(itemId, offer)).join("")
     : Object.entries(game.player.ownedItems).map(([itemId, quantity]) => shopSellRow(shop, itemId, quantity)).join("");
+  const provisionOffer = buySelected && shop.provisionsForSale
+    ? renderProvisionOffer(shop, shop.provisionsForSale)
+    : "";
 
   return `
     <div class="shopkeeper-row">
@@ -347,6 +361,7 @@ function renderShopInteraction(destination, npc) {
       <button class="${!buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${!buySelected}" data-action="shop-tab" data-tab="sell">Sell</button>
       <button type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
     </div>
+    ${provisionOffer}
     <div class="shop-list">${rows || '<p class="empty-loot">Nothing available.</p>'}</div>`;
 }
 
@@ -359,14 +374,27 @@ function renderForestGateInteraction() {
     </div>`;
 }
 
-function shopBuyRow(itemId, price) {
-  const item = ITEM_DEFINITIONS[itemId];
-  const affordable = game.player.currentGold >= price;
+function renderProvisionOffer(shop, offer) {
+  const stock = game.provisionShopStock[shop.id] ?? 0;
+  const affordableMaximum = Math.min(stock, Math.floor(game.player.currentGold / offer.price));
   return `
-    <article class="shop-item-row">
+    <article class="provision-offer">
+      <div><strong>Provisions</strong><span>Owned: ${game.player.provisions} · ${offer.price} gold each · ${stock} available</span></div>
+      <div class="provision-buy-actions">
+        ${[1, 5, 10].map((quantity) => `<button class="small-button" type="button" data-action="buy-provisions" data-quantity="${quantity}" ${affordableMaximum < quantity ? "disabled" : ""}>Buy ${quantity}</button>`).join("")}
+      </div>
+    </article>`;
+}
+
+function shopBuyRow(itemId, offer) {
+  const item = ITEM_DEFINITIONS[itemId];
+  const ownedUnique = item.unique && Boolean(game.player.ownedItems[itemId]);
+  const affordable = game.player.currentGold >= offer.price;
+  return `
+    <article class="shop-item-row ${ownedUnique ? "is-blocked" : ""}">
       <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
-      <div><strong>${item.name}</strong><span>${item.description}</span></div>
-      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${affordable ? "" : "disabled"}>Buy · ${price}g</button>
+      <div><strong>${item.name}</strong><span>${ownedUnique ? "Owned · unique equipment" : item.description}</span></div>
+      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${affordable && !ownedUnique ? "" : "disabled"}>${ownedUnique ? "Owned" : `Buy · ${offer.price}g`}</button>
     </article>`;
 }
 
@@ -406,14 +434,34 @@ function shopAcceptsItem(shop, item) {
 function buyShopItem(itemId) {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   const shop = SHOP_DEFINITIONS[destination?.shopId];
-  const price = shop?.stock[itemId];
+  const offer = shop?.itemsForSale[itemId];
   const item = ITEM_DEFINITIONS[itemId];
-  if (!item || !Number.isFinite(price) || game.player.currentGold < price) {
+  if (!item || !offer || !Number.isFinite(offer.price)
+    || game.player.currentGold < offer.price
+    || (item.unique && game.player.ownedItems[itemId])) {
     return;
   }
-  game.player.currentGold -= price;
+  game.player.currentGold -= offer.price;
   game.player.ownedItems[itemId] = (game.player.ownedItems[itemId] ?? 0) + 1;
-  game.interactionMessage = `Purchased ${item.name} for ${price} gold.`;
+  game.interactionMessage = `Purchased ${item.name} for ${offer.price} gold.`;
+  savePlayer();
+  renderDestination();
+}
+
+function buyProvisions(quantity) {
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  const shop = SHOP_DEFINITIONS[destination?.shopId];
+  const offer = shop?.provisionsForSale;
+  const totalPrice = offer?.price * quantity;
+  const stock = game.provisionShopStock[shop?.id] ?? 0;
+  if (!offer || !Number.isInteger(quantity) || quantity <= 0
+    || quantity > stock || game.player.currentGold < totalPrice) {
+    return;
+  }
+  game.player.currentGold -= totalPrice;
+  game.player.provisions += quantity;
+  game.provisionShopStock[shop.id] -= quantity;
+  game.interactionMessage = `Purchased ${quantity} provision${quantity === 1 ? "" : "s"} for ${totalPrice} gold.`;
   savePlayer();
   renderDestination();
 }
@@ -451,11 +499,20 @@ function inventoryQuantity() {
   return Object.values(game.player.ownedItems).reduce((total, quantity) => total + quantity, 0);
 }
 
+function createProvisionShopStock() {
+  return Object.fromEntries(
+    Object.values(SHOP_DEFINITIONS)
+      .filter((shop) => shop.provisionsForSale)
+      .map((shop) => [shop.id, shop.provisionsForSale.stock]),
+  );
+}
+
 function destinationIcon(type) {
   return ({ inn: "⌂", shop: "◆", expedition_gate: "♞" })[type] ?? "•";
 }
 
 function renderPreparation() {
+  const expeditionPreparation = game.preparationMode === "expedition";
   const inventory = Object.entries(game.player.ownedItems)
     .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
     .join("");
@@ -474,7 +531,7 @@ function renderPreparation() {
     <section class="screen preparation-screen" aria-labelledby="preparation-title">
       <div class="screen-heading compact-heading">
         <p class="eyebrow">Chapter III — Brocéliande</p>
-        <h1 id="preparation-title">Prepare the Company</h1>
+        <h1 id="preparation-title">${expeditionPreparation ? "Prepare the Company" : "Inventory & Pack"}</h1>
       </div>
 
       <section class="preparation-section" aria-labelledby="equipment-title">
@@ -505,7 +562,7 @@ function renderPreparation() {
         <div class="inventory-list">${inventory}</div>
       </section>
 
-      <section class="preparation-section" aria-labelledby="companion-title">
+      ${expeditionPreparation ? `<section class="preparation-section" aria-labelledby="companion-title">
         <h2 id="companion-title">Companion</h2>
         <div class="choice-list">${companions}</div>
       </section>
@@ -513,18 +570,20 @@ function renderPreparation() {
       <section class="preparation-section supplies-section" aria-labelledby="supplies-title">
         <div>
           <h2 id="supplies-title">Provisions</h2>
-          <p>Consumed during outward and return travel.</p>
+          <p>Owned: <strong>${game.player.provisions}</strong> · Choose how many to carry.</p>
         </div>
         <div class="stepper" aria-label="Choose provisions">
-          <button type="button" data-action="change-supplies" data-amount="-2" aria-label="Remove two provisions">−</button>
+          <button type="button" data-action="change-supplies" data-amount="-5" aria-label="Remove five provisions">−5</button>
+          <button type="button" data-action="change-supplies" data-amount="-1" aria-label="Remove one provision">−</button>
           <strong>${game.preparationSupplies}</strong>
-          <button type="button" data-action="change-supplies" data-amount="2" aria-label="Add two provisions">+</button>
+          <button type="button" data-action="change-supplies" data-amount="1" aria-label="Add one provision">+</button>
+          <button type="button" data-action="change-supplies" data-amount="5" aria-label="Add five provisions">+5</button>
         </div>
-      </section>
+      </section>` : ""}
 
       <div class="footer-actions">
         <button class="text-button" type="button" data-action="return-from-preparation">Back</button>
-        <button class="game-button" type="button" data-action="start-expedition">Begin Expedition</button>
+        ${expeditionPreparation ? `<button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 ? "" : "disabled"}>Begin Expedition</button>` : ""}
       </div>
     </section>`;
 }
@@ -624,10 +683,13 @@ function selectCompanion(companionId) {
 }
 
 function changeSupplies(amount) {
+  if (game.preparationMode !== "expedition") {
+    return;
+  }
   game.preparationSupplies = clamp(
     game.preparationSupplies + amount,
-    EXPEDITION_TUNING.minimumStartingProvisions,
-    EXPEDITION_TUNING.maximumStartingProvisions,
+    0,
+    Math.min(EXPEDITION_TUNING.maximumStartingProvisions, game.player.provisions),
   );
   refreshPreparation();
 }
@@ -642,6 +704,14 @@ function refreshPreparation() {
 }
 
 function startExpedition() {
+  if (game.preparationMode !== "expedition"
+    || game.preparationSupplies <= 0
+    || game.preparationSupplies > game.player.provisions) {
+    return;
+  }
+  const committedProvisions = game.preparationSupplies;
+  game.player.provisions -= committedProvisions;
+  savePlayer();
   game.expedition = {
     regionId: "broceliande",
     originLocationId: game.player.currentLocationId,
@@ -649,7 +719,11 @@ function startExpedition() {
     distance: 0,
     maxDistanceReached: 0,
     direction: "outbound",
-    provisions: game.preparationSupplies,
+    provisions: committedProvisions,
+    committedProvisions,
+    committedProvisionsRemaining: committedProvisions,
+    foundProvisions: 0,
+    provisionsSettled: false,
     health: 100,
     goldCarried: 0,
     selectedEquipment: { ...game.player.equippedItems },
@@ -678,7 +752,7 @@ function renderExpedition() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
-      <div class="travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
+      <div class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
@@ -783,6 +857,7 @@ function renderExpeditionResources(expedition) {
   return `
     <div class="resource-grid compact-resources">
       <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
+      <div class="resource-card"><span>Max reached</span><strong id="max-distance-value">${formatDistance(expedition.maxDistanceReached)}</strong></div>
       <div class="resource-card"><span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong></div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)}%</strong></div>
       <div class="resource-card unsecured-card"><span>Unsecured</span><strong id="loot-count">${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g</strong></div>
@@ -852,7 +927,10 @@ function updateExpedition(deltaSeconds) {
   }
 
   // Resource cost follows journey distance, independent of real-world animation speed.
-  expedition.provisions -= distanceTraveled * EXPEDITION_TUNING.provisionsPerDistance;
+  adjustExpeditionProvisions(
+    expedition,
+    -(distanceTraveled * EXPEDITION_TUNING.provisionsPerDistance),
+  );
 
   if (expedition.provisions <= 0) {
     expedition.provisions = 0;
@@ -940,6 +1018,7 @@ function completeReturn() {
   const expedition = game.expedition;
   expedition.status = "returned";
   settleConsumedItems(expedition);
+  settleExpeditionProvisions(expedition, true);
 
   expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
     game.player.ownedItems[itemId] = (game.player.ownedItems[itemId] ?? 0) + quantity;
@@ -958,6 +1037,7 @@ function completeReturn() {
     distance: expedition.maxDistanceReached,
     loot: [...expedition.unsecuredLoot],
     gold: expedition.goldCarried,
+    provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
 }
@@ -970,6 +1050,7 @@ function failExpedition(reason) {
 
   expedition.status = "failed";
   settleConsumedItems(expedition);
+  settleExpeditionProvisions(expedition, false);
   game.player.bestExpeditionDistance = Math.max(
     game.player.bestExpeditionDistance,
     expedition.maxDistanceReached,
@@ -983,6 +1064,7 @@ function failExpedition(reason) {
     distance: expedition.maxDistanceReached,
     loot: [...expedition.unsecuredLoot],
     gold: expedition.goldCarried,
+    provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
 }
@@ -1006,6 +1088,7 @@ function renderSummary() {
       <div class="summary-card">
         <p><span>Farthest distance</span><strong>${formatDistance(summary.distance)}</strong></p>
         <p><span>${returned ? "Gold banked" : "Gold lost"}</span><strong>${summary.gold}</strong></p>
+        <p><span>Provisions returned</span><strong>${summary.provisionsReturned}</strong></p>
         <div class="summary-loot">
           <span>${returned ? "Items secured" : "Unsecured items lost"}</span>
           <ul>${loot}</ul>
@@ -1026,6 +1109,7 @@ function updateTravelHud() {
   }
 
   setText("#distance-value", formatDistance(expedition.distance));
+  setText("#max-distance-value", formatDistance(expedition.maxDistanceReached));
   setText("#provisions-value", formatResource(expedition.provisions));
   setText("#health-value", `${Math.ceil(expedition.health)}%`);
   setText("#loot-count", `${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g`);
@@ -1109,6 +1193,17 @@ function settleConsumedItems(expedition) {
   expedition.consumablesSettled = true;
 }
 
+function settleExpeditionProvisions(expedition, returnedSafely) {
+  if (expedition.provisionsSettled) {
+    return;
+  }
+  const purchasedReturned = Math.max(0, Math.floor(expedition.committedProvisionsRemaining));
+  const foundReturned = returnedSafely ? Math.max(0, Math.floor(expedition.foundProvisions)) : 0;
+  expedition.provisionsReturned = purchasedReturned + foundReturned;
+  game.player.provisions += expedition.provisionsReturned;
+  expedition.provisionsSettled = true;
+}
+
 function resetSave() {
   if (!window.confirm("Reset all local progress and restore the prototype's starting inventory?")) {
     return;
@@ -1118,10 +1213,12 @@ function resetSave() {
   game.expedition = null;
   game.summary = null;
   game.activeDestinationId = null;
+  game.preparationMode = "expedition";
   game.preparationReturnDestinationId = "forest_gate";
   game.shopTab = "buy";
+  game.provisionShopStock = createProvisionShopStock();
   game.interactionMessage = "";
-  game.preparationSupplies = 18;
+  game.preparationSupplies = Math.min(18, game.player.provisions);
   savePlayer();
   showScreen("campaign");
 }

@@ -239,3 +239,34 @@ The human developer supplied the authored village/location guide and requested t
 ### Resulting prototype state
 
 Chapter III now has a small inhabited base between expeditions. Players can hear local atmosphere, convert suitable recovered loot into gold, purchase practical supplies or equipment from specialized vendors, adjust their existing loadout, and choose when to depart. The implementation establishes the reusable Campaign â†’ Location â†’ Destination â†’ Interaction architecture while keeping the prototype limited to one village and four destinations.
+
+## 2026-08-12 — UI Layout and Persistent Provision Economy
+
+### Goal
+
+Clarify the portrait interface around three distinct screen types, reserve true 16:9 visual frames for active interactions, make the village scene-first, and turn provisions from a free preparation value into a persistent settlement resource.
+
+### Human prompt and direction
+
+The human developer supplied a corrective guide after testing the first village pass. It specified full-screen visual hubs, reusable 16:9 building/expedition frames, larger lower interaction areas, always-visible building navigation, persistent and location-priced provisions, explicit shop terminology, duplicate-equipment protection, and a strict separation between Village Inventory and Forest Gate preparation.
+
+### AI-assisted implementation
+
+- Replaced the former percentage-based expedition/building split with a reusable CSS `aspect-ratio: 16 / 9` visual frame shared by travel, encounters, the Inn, Merchant, Blacksmith, and Forest Gate.
+- Expanded the lower active-interaction area and kept its navigation header structurally fixed while only the detailed building content scrolls.
+- Converted the village into a full-height portrait scene with compact identity, gold, provision, inventory, and Chapter Select overlays instead of a large static description panel.
+- Split management contexts so Village Inventory supports equipment and pack organization but never exposes **Begin Expedition**; that action remains exclusive to Forest Gate preparation.
+- Added persistent `player.provisions`, save-version 5 migration, a 24-provision reset default, and a preparation selector capped by both owned stock and expedition carrying limits.
+- Added data-driven provision price and availability to the Brocéliande merchant, multi-quantity purchase controls, persistent gold/stock changes, and explicit `itemsForSale` item-price objects in place of ambiguous shop stock values.
+- Prevented purchases of duplicate unique Iron Longswords, Chainmail Hauberks, and Fine Hunting Knives when already owned.
+- Added explicit expedition accounting for committed and encounter-found food. Found food is immediately usable and consumed first; unused purchased food returns after either outcome, unused found food returns only after success, and consumed food is never restored.
+- Preserved encounter pausing/results, direction filtering, return travel, equipment and pack snapshots, unsecured loot settlement, shops, gold, and local-save compatibility.
+- Expanded the dependency-light Chrome regression suite to 76 assertions covering screen geometry, full-screen hubs, all 16:9 frames, sticky navigation, internal shop scrolling, provision buying and availability, unique-item protection, preparation contexts, provision commitment/consumption/settlement, encounters, return travel, loot success/failure, save migration, reset state, and runtime exceptions; all passed.
+
+### Manual changes
+
+The human developer playtested the first village implementation and supplied the complete UI-layout and provision-economy correction guide. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+The prototype now presents settlements as spatial portrait hubs and reserves standardized artwork-ready 16:9 frames only for active places and adventures. Its lower interfaces have substantially more usable space and reliable escape navigation. Provisions now connect trading to survival: recovered valuables fund food, preparation commits owned supplies rather than creating them, road discoveries remain useful, and expedition outcomes settle food without duplication.
