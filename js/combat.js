@@ -9,12 +9,13 @@ const CombatSystem = Object.freeze({
 
     expedition.companionCombatHp ??= {};
     const allies = [createArthurCombatant(expedition)];
-    if (expedition.selectedCompanion) {
-      const companion = createCompanionCombatant(expedition, expedition.selectedCompanion);
+    const selectedCompanions = selectedCompanionIds(expedition);
+    selectedCompanions.forEach((companionId) => {
+      const companion = createCompanionCombatant(expedition, companionId);
       if (companion) {
         allies.push(companion);
       }
-    }
+    });
     const enemyCounts = definition.enemyIds.reduce((counts, enemyId) => {
       counts[enemyId] = (counts[enemyId] ?? 0) + 1;
       return counts;
@@ -136,6 +137,16 @@ const CombatSystem = Object.freeze({
       return { resolved: false, needsTarget: false };
     }
 
+    if (actionId === "defend" && actor.canDefend === false) {
+      return { resolved: false, unavailable: true };
+    }
+    if (actionId === "flee" && actor.canFlee === false) {
+      return { resolved: false, unavailable: true };
+    }
+    if (actionId === "items" && actor.canUseItems === false) {
+      return { resolved: false, unavailable: true };
+    }
+
     if (actionId === "attack") {
       const targets = state.enemies.filter(isLivingCombatant);
       refreshSelectedEnemy(state);
@@ -218,7 +229,9 @@ const CombatSystem = Object.freeze({
     const actor = findCombatant(state, state.activeActorId);
     const entry = availableItemEntries(state, expedition).find((candidate) => candidate.itemId === itemId);
     const itemEffect = entry?.item?.effects?.combat;
-    if (!actor || !entry || !itemEffect) return { resolved: false, needsTarget: false };
+    if (!actor || actor.canUseItems === false || !entry || !itemEffect) {
+      return { resolved: false, needsTarget: false };
+    }
     const targets = itemEffect.target === "ally"
       ? state.allies.filter((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp)
       : [];
@@ -240,9 +253,13 @@ const CombatSystem = Object.freeze({
   availableActions(state) {
     const expedition = arguments[1] ?? state?.expedition;
     const actor = findCombatant(state, state?.activeActorId);
-    return actor ? topLevelActionIds().filter((actionId) => (
-      actionId !== "abilities" || availableAbilityIds(state, expedition).length > 0
-    )).filter((actionId) => actionId !== "items" || availableItemEntries(state, expedition).length > 0) : [];
+    return actor ? topLevelActionIds().filter((actionId) => {
+      if (actionId === "abilities") return availableAbilityIds(state, expedition).length > 0;
+      if (actionId === "items") return actor.canUseItems !== false && availableItemEntries(state, expedition).length > 0;
+      if (actionId === "defend") return actor.canDefend !== false;
+      if (actionId === "flee") return actor.canFlee !== false;
+      return true;
+    }) : [];
   },
 
   availableAbilities(state, expedition) {
@@ -309,6 +326,9 @@ function createArthurCombatant(expedition) {
       relic,
     ),
     sourceItemIds: [weapon?.id, armor?.id, relic?.id].filter(Boolean),
+    canUseItems: true,
+    canDefend: true,
+    canFlee: true,
   };
 }
 
@@ -335,6 +355,9 @@ function createCompanionCombatant(expedition, companionId) {
     interceding: false,
     abilityIds: collectAbilityIds(companion.combatAbilities),
     sourceItemIds: [],
+    canUseItems: companion.capabilities?.canUseItems !== false,
+    canDefend: companion.capabilities?.canDefend !== false,
+    canFlee: companion.capabilities?.canFlee !== false,
   };
 }
 
@@ -534,6 +557,8 @@ function availableAbilityIds(state, expedition = state?.expedition) {
 
 function availableItemEntries(state, expedition = state?.expedition) {
   if (!expedition) return [];
+  const actor = findCombatant(state, state?.activeActorId);
+  if (actor?.canUseItems === false) return [];
   const hasInjuredAlly = state.allies.some((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp);
   return Object.entries(expedition.carriedItems ?? {})
     .filter(([itemId, quantity]) => quantity > 0)

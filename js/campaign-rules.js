@@ -1,6 +1,19 @@
 "use strict";
 
 const CampaignRules = Object.freeze({
+  ownsCampaignItem(player, itemId) {
+    return Boolean(ITEM_DEFINITIONS[itemId]?.campaignItem && player?.ownedItems?.[itemId]);
+  },
+
+  campaignItems(player) {
+    return Object.keys(ITEM_DEFINITIONS)
+      .filter((itemId) => this.ownsCampaignItem(player, itemId));
+  },
+
+  mainCampaignUnlocked(player) {
+    return ExpeditionCatalog.isUnlocked(player, "search_for_merlin");
+  },
+
   createShopStocks() {
     const stocks = Object.fromEntries(Object.values(SHOP_DEFINITIONS)
       .filter((shop) => shop.provisionsForSale)

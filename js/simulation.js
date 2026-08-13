@@ -81,6 +81,7 @@ const SimulationRunner = Object.freeze({
     const expedition = ExpeditionRules.startExpedition(player, {
       provisions: Math.min(normalized.provisions, player.provisions),
       companion: normalized.companion,
+      companions: normalized.companions,
       equipment: normalized.loadout,
       packedItems: normalized.packContents,
       random: random.random,
@@ -268,6 +269,7 @@ const SimulationTelemetry = Object.freeze({
       turnaroundPolicy: run.turnaroundPolicy,
       turnaroundConfiguration: run.turnaroundConfiguration,
       companion: run.companion,
+      companions: run.companions,
       startingProvisions: run.startingProvisions,
       originalTargetDistance: run.originalTargetDistance,
       departurePassiveFoodEstimate: run.departurePassiveFoodEstimate,
@@ -484,14 +486,27 @@ function highestScored(entries, score) {
 
 function normalizeScenario(scenario) {
   const defaultPlayer = SaveSystem.createDefaultPlayerState();
-  const companion = scenario.companion !== undefined ? scenario.companion : defaultPlayer.selectedCompanion;
-  const capacity = ExpeditionRules.partyProvisionCapacity(companion);
+  const startingState = scenario.startingState ?? {};
+  const requestedCompanions = scenario.companions !== undefined
+    ? scenario.companions
+    : scenario.companion !== undefined
+      ? scenario.companion
+      : startingState.selectedCompanions !== undefined
+        ? startingState.selectedCompanions
+        : startingState.selectedCompanion !== undefined
+          ? startingState.selectedCompanion
+          : selectedCompanionIds(defaultPlayer);
+  const companions = [...new Set((Array.isArray(requestedCompanions)
+    ? requestedCompanions : [requestedCompanions]).filter((companionId) => COMPANION_DEFINITIONS[companionId]))].slice(0, 2);
+  const companion = scenario.companion !== undefined ? scenario.companion : companions[0] ?? null;
+  const capacity = ExpeditionRules.partyProvisionCapacity(companions);
   const turnaroundPolicy = scenario.turnaroundPolicy ?? { type: "fixedDistance", distance: 50 };
   return {
     id: scenario.id ?? scenario.scenarioId ?? "default",
     scenarioId: scenario.scenarioId ?? scenario.id ?? "default",
     seed: scenario.seed ?? "grail-simulation",
     companion,
+    companions,
     provisions: Math.max(1, Math.min(Number(scenario.provisions) || Math.min(24, capacity), capacity)),
     loadout: { ...defaultPlayer.equippedItems, ...(scenario.loadout?.equipment ?? scenario.loadout ?? {}) },
     packContents: scenario.packContents ?? defaultPlayer.packedItems,
@@ -522,7 +537,12 @@ function createSimulationPlayer(scenario) {
   packedEntries.forEach(([itemId, quantity]) => { player.ownedItems[itemId] = Math.max(1, Number(quantity) || 1); });
   Object.values(player.equippedItems).filter(Boolean).forEach((itemId) => { player.ownedItems[itemId] ??= 1; });
   player.packedItems = packedEntries.map(([itemId]) => itemId).slice(0, EXPEDITION_TUNING.packSlots);
-  player.selectedCompanion = scenario.companion;
+  player.selectedCompanions = [...scenario.companions];
+  player.selectedCompanion = scenario.companions[0] ?? null;
+  player.unlockedCompanions = [...new Set([
+    ...player.unlockedCompanions,
+    ...scenario.companions,
+  ])];
   player.provisions = Math.max(Number(player.provisions) || 0, scenario.provisions);
   return player;
 }
@@ -669,6 +689,10 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
         },
       }) ?? "attack";
       let result = CombatSystem.chooseAction(combat, expedition, actionId);
+      if (result.unavailable) {
+        actionId = "attack";
+        result = CombatSystem.chooseAction(combat, expedition, actionId);
+      }
       let targetId = null;
       let abilityId = COMBAT_ABILITY_DEFINITIONS[actionId]?.category ? null : actionId;
       let itemId = null;
@@ -777,6 +801,7 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     turnaroundPolicy: turnaroundPolicy.name,
     turnaroundConfiguration: turnaroundPolicy.configuration ?? {},
     companion: expedition.selectedCompanion,
+    companions: expedition.selectedCompanions,
     startingProvisions: expedition.committedProvisions,
     originalTargetDistance,
     departurePassiveFoodEstimate,
@@ -948,15 +973,18 @@ function completeEncounterHistory(history, expedition) {
 }
 
 function resourceSnapshot(expedition) {
-  const companionHealth = expedition.selectedCompanion
-    ? expedition.companionCombatHp?.[expedition.selectedCompanion]
-      ?? COMPANION_DEFINITIONS[expedition.selectedCompanion]?.combat?.maxHp
-    : undefined;
+  const companionHealth = Object.fromEntries((expedition.selectedCompanions
+    ?? (expedition.selectedCompanion ? [expedition.selectedCompanion] : []))
+    .map((companionId) => [
+      companionId,
+      expedition.companionCombatHp?.[companionId]
+        ?? COMPANION_DEFINITIONS[companionId]?.combat?.maxHp,
+    ]));
   return {
     resources: { provisions: rounded(expedition.provisions), goldCarried: expedition.goldCarried },
     health: {
       arthur: expedition.health,
-      ...(expedition.selectedCompanion ? { [expedition.selectedCompanion]: companionHealth } : {}),
+      ...companionHealth,
     },
     carriedItems: { ...(expedition.carriedItems ?? {}) },
     unsecuredLoot: Object.fromEntries(
@@ -971,6 +999,7 @@ function replayPlayerSnapshot(player) {
     equippedItems: player.equippedItems,
     packedItems: player.packedItems,
     unlockedCompanions: player.unlockedCompanions,
+    selectedCompanions: player.selectedCompanions,
     selectedCompanion: player.selectedCompanion,
     arthurHealth: HealingRules.arthurHealth(player),
     companionStates: player.companionStates ?? {},

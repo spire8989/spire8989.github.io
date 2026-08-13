@@ -1,5 +1,36 @@
 # Build Log
 
+## 2026-08-13 - First Brocéliande Campaign Structure
+
+### Goal
+
+Establish the first data-driven Brocéliande campaign structure while keeping the chapter content intentionally thin and compatible with the existing expedition, encounter, village, save, preparation, combat, and simulation systems.
+
+### Human prompt and direction
+
+The human developer supplied a structural campaign guide requesting three selectable normal expeditions, one prerequisite-locked Search for Merlin route, skull danger ratings, campaign-item progression, conditional Fountain and Val sans Retour encounters, a two-companion party with Llamrei, a central Hall, reusable RPG dialogue, first-entry onboarding, safe save migration, automation support, regression coverage, and a commit without pushing.
+
+### AI-assisted implementation
+
+- Added data-driven Old Forest Road, Fountain of Barenton, Val sans Retour, and Search for Merlin expedition definitions. Preparation now preserves loadout state while selecting routes, renders restrained SVG skull danger ratings, shows missing campaign prerequisites, and launches the selected route.
+- Added protected unique campaign items for Merlin's Flask, Water of Barenton, and Morgan's Token, plus conditional Fountain content, Old Forest Road Flask/Llamrei discoveries, Morgan's Voice, a summoned guardian combat placeholder, and a 100–125 league Merlin placeholder encounter.
+- Expanded party state to two companion slots with legacy single-companion migration. Added capability-driven Llamrei behavior, provision and travel bonuses, Kick/Charge combat content, restricted human actions, and non-permanent defeat handling.
+- Added The Hall and Reeve content, moved the Apothecary southeast, and introduced reusable data-driven dialogue sequences with portrait placeholders, choices, explicit effects, mobile-sized overlay controls, and a five-node first-entry introduction.
+- Added the fresh-save Hall-only village gate, immediate intro save/unlock behavior, campaign prerequisite helpers, route-aware encounters, and multi-party simulation/campaign telemetry and planning support.
+- Expanded browser regression coverage for route structure, campaign items, conditional outcomes, three-member parties, Llamrei capabilities and travel, Hall onboarding, dialogue choices, and migration compatibility.
+
+### Manual changes
+
+The human developer supplied the campaign structure guide and requested a commit without pushing. No manual code edits were reported.
+
+### Resulting prototype state
+
+Brocéliande now has a playable structural campaign loop: a new save enters through The Hall, the three normal routes can be explored freely, the first campaign key items can be secured through thin placeholder content, and Search for Merlin becomes available once both prerequisites are owned. Final encounter writing, Morgan's identity and boss design, Merlin's finale, Llamrei balance, exact distances, and portraits remain intentionally tunable placeholders.
+
+### Verification
+
+Verified 334 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production startup over local HTTP, and `git diff --check`. Changes were committed locally; no push was performed.
+
 ## 2026-08-13 - Focused Expedition UI Pass
 
 ### Goal

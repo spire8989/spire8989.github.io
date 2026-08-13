@@ -5,7 +5,7 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 7,
+      saveVersion: 8,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -29,7 +29,10 @@ const SaveSystem = Object.freeze({
       },
       learnedRecipes: ["bandages", "repair_kit"],
       unlockedCompanions: ["sir_kay"],
+      selectedCompanions: ["sir_kay"],
       selectedCompanion: "sir_kay",
+      selectedExpeditionId: "old_forest_road",
+      campaignFlags: { broceliande_intro_complete: false },
       learnedKnowledge: ["woodcraft"],
       completedChapters: ["chapter_01", "chapter_02"],
       bestExpeditionDistance: 0,
@@ -127,21 +130,25 @@ function sanitizePlayerState(savedState, defaults) {
     COMPANION_DEFINITIONS,
     defaults.unlockedCompanions,
   );
-  const selectedCompanion = savedState.selectedCompanion === null
-    ? null
-    : unlockedCompanions.includes(savedState.selectedCompanion)
-      ? savedState.selectedCompanion
-      : defaults.selectedCompanion;
+  const selectedCompanions = sanitizeSelectedCompanions(savedState, unlockedCompanions, defaults);
+  const selectedCompanion = selectedCompanions[0] ?? null;
+  const campaignFlags = sanitizeCampaignFlags(savedState.campaignFlags, savedState, defaults);
+  const selectedExpeditionId = EXPEDITION_DEFINITIONS[savedState.selectedExpeditionId]
+    ? savedState.selectedExpeditionId
+    : defaults.selectedExpeditionId;
 
   return {
-    saveVersion: 7,
+    saveVersion: 8,
     ownedItems,
     equippedItems,
     packedItems,
     materials: sanitizeMaterials(savedState.materials),
     learnedRecipes: sanitizeRecipeIds(savedState.learnedRecipes, defaults.learnedRecipes),
     unlockedCompanions,
+    selectedCompanions,
     selectedCompanion,
+    selectedExpeditionId,
+    campaignFlags,
     learnedKnowledge: sanitizeKnowledge(savedState.learnedKnowledge, defaults.learnedKnowledge),
     completedChapters: validStringArray(savedState.completedChapters, defaults.completedChapters),
     bestExpeditionDistance: nonNegativeNumber(savedState.bestExpeditionDistance),
@@ -173,6 +180,40 @@ function sanitizeMaterials(value) {
 function sanitizeRecipeIds(value, fallback) {
   const source = Array.isArray(value) ? value : fallback;
   return [...new Set(source.filter((recipeId) => RECIPE_DEFINITIONS[recipeId]))];
+}
+
+function sanitizeSelectedCompanions(savedState, unlockedCompanions, defaults) {
+  const legacyValue = savedState.selectedCompanion;
+  const requested = legacyValue === null
+    ? []
+    : Array.isArray(savedState.selectedCompanions)
+    ? savedState.selectedCompanions
+    : legacyValue ? [legacyValue] : defaults.selectedCompanions;
+  return [...new Set(requested
+    .filter((companionId) => unlockedCompanions.includes(companionId)))]
+    .slice(0, 2);
+}
+
+function sanitizeCampaignFlags(value, savedState, defaults) {
+  const flags = {};
+  Object.entries(value ?? {}).forEach(([flag, enabled]) => {
+    if (typeof flag === "string" && typeof enabled === "boolean") flags[flag] = enabled;
+  });
+  // Saves from the one-route prototype already represent an established
+  // Brocéliande campaign. Only brand-new current saves see the Hall intro.
+  if (Number(savedState.saveVersion) < 8 && meaningfulLegacyProgress(savedState, defaults)) {
+    flags.broceliande_intro_complete = true;
+  }
+  flags.broceliande_intro_complete ??= Boolean(defaults.campaignFlags?.broceliande_intro_complete);
+  return flags;
+}
+
+function meaningfulLegacyProgress(savedState, defaults) {
+  return Number(savedState.saveVersion) >= 7
+    || Number(savedState.bestExpeditionDistance) > 0
+    || Number(savedState.currentGold) !== Number(defaults.currentGold)
+    || Number(savedState.provisions) !== Number(defaults.provisions)
+    || (savedState.ownedItems && Object.keys(savedState.ownedItems).length > 0);
 }
 
 function sanitizePackedItems(savedState, ownedItems, equippedItems, fallback) {

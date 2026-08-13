@@ -17,8 +17,14 @@ const EncounterRequirements = Object.freeze({
         return Object.values(expedition.selectedEquipment).includes(requirement.itemId);
       case "ownsItem":
         return Boolean(player.ownedItems[requirement.itemId]);
+      case "notOwnsItem":
+        return !player.ownedItems[requirement.itemId];
       case "companion":
-        return expedition.selectedCompanion === requirement.companionId;
+        return (expedition.selectedCompanions ?? [expedition.selectedCompanion]).includes(requirement.companionId);
+      case "unlockedCompanion":
+        return player.unlockedCompanions?.includes(requirement.companionId) === true;
+      case "notUnlockedCompanion":
+        return player.unlockedCompanions?.includes(requirement.companionId) !== true;
       case "knowledge":
         return player.learnedKnowledge.includes(requirement.knowledgeId);
       case "minimumResource":
@@ -200,6 +206,32 @@ const EncounterOutcomes = Object.freeze({
         expedition.runFlags[effect.flag] = effect.value ?? true;
         messages = effect.message ? [effect.message] : [];
         break;
+      case "setCampaignFlag":
+        player.campaignFlags ??= {};
+        player.campaignFlags[effect.flag] = effect.value ?? true;
+        messages = effect.message ? [effect.message] : [];
+        break;
+      case "unlockCompanion":
+        if (COMPANION_DEFINITIONS[effect.companionId]
+          && !player.unlockedCompanions.includes(effect.companionId)) {
+          player.unlockedCompanions.push(effect.companionId);
+          messages = [
+            `${COMPANION_DEFINITIONS[effect.companionId].name} is now available as a companion.`,
+          ];
+        }
+        break;
+      case "gainUniqueUnsecuredItem": {
+        const item = ITEM_DEFINITIONS[effect.itemId];
+        const alreadyOwned = Boolean(player.ownedItems[effect.itemId])
+          || expedition.unsecuredLoot.some((entry) => entry.itemId === effect.itemId);
+        if (!item || alreadyOwned || (item.unique !== true && item.campaignItem !== true)) break;
+        const uniqueQuantity = effect.quantity ?? 1;
+        addUnsecuredItem(expedition, effect.itemId, uniqueQuantity);
+        rewards = [{ type: "item", itemId: effect.itemId, quantity: uniqueQuantity, unsecured: true }];
+        messages = [unsecuredLootMessage(effect.itemId)];
+        resultText = effect.resultText ?? resultText;
+        break;
+      }
       case "learnKnowledge":
         if (!player.learnedKnowledge.includes(effect.knowledgeId)) {
           player.learnedKnowledge.push(effect.knowledgeId);
@@ -307,6 +339,8 @@ const EncounterManager = Object.freeze({
           || expedition.distance <= encounter.maximumDistance);
       const correctLocation = encounter.regionId === expedition.regionId
         && encounter.pathIds.includes(expedition.currentPathId);
+      const correctExpedition = !encounter.expeditionIds
+        || encounter.expeditionIds.includes(expedition.expeditionId);
       const correctDirection = encounter.directions.includes(expedition.direction);
       const occurrences = Math.max(
         expedition.encounterOccurrences?.[encounter.id] ?? 0,
@@ -324,6 +358,7 @@ const EncounterManager = Object.freeze({
 
       return withinDistance
         && correctLocation
+        && correctExpedition
         && correctDirection
         && canRepeat
         && avoidsImmediateRepeat
@@ -682,5 +717,11 @@ function resourceLabel(resource) {
 }
 
 function pathLabel(pathId) {
-  return ({ old_forest_road: "Old Forest Road", overgrown_trail: "Overgrown Trail" })[pathId] ?? pathId;
+  return ({
+    old_forest_road: "Old Forest Road",
+    overgrown_trail: "Overgrown Trail",
+    fountain_of_barenton: "Fountain of Barenton",
+    val_sans_retour: "Val sans Retour",
+    search_for_merlin: "Search for Merlin",
+  })[pathId] ?? pathId;
 }

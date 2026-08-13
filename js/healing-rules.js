@@ -17,8 +17,9 @@ const HealingRules = Object.freeze({
       health: this.arthurHealth(player),
       maxHealth: this.arthurMaxHealth(player),
     }];
-    const companion = COMPANION_DEFINITIONS[player.selectedCompanion];
-    if (companion) {
+    selectedCompanionIds(player).forEach((companionId) => {
+      const companion = COMPANION_DEFINITIONS[companionId];
+      if (!companion) return;
       const maxHealth = companion.combat?.maxHp ?? 0;
       members.push({
         id: companion.id,
@@ -30,7 +31,7 @@ const HealingRules = Object.freeze({
         ),
         maxHealth,
       });
-    }
+    });
     return members;
   },
 

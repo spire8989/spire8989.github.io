@@ -1555,4 +1555,230 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       },
     },
   },
+
+  hidden_flask: {
+    id: "hidden_flask",
+    title: "A Sealed Flask",
+    description: "Something catches the light beneath a shelf of roots beside the old road.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 0.8,
+    minimumDistance: 28,
+    maximumDistance: 95,
+    tags: ["campaign", "discovery"],
+    repeatable: false,
+    requirements: [{ type: "notOwnsItem", itemId: "flask" }],
+    stages: {
+      start: {
+        text: "The vessel is old, but its seal is unbroken. It may have been left here for a reason.",
+        choices: [
+          {
+            id: "recover_flask",
+            label: "Recover the Flask",
+            outcomes: [{
+              type: "gainUniqueUnsecuredItem",
+              itemId: "flask",
+              resultText: "Arthur takes the sealed flask. Its purpose is not yet clear.",
+            }],
+            pendingAction: { text: "Arthur reaches beneath the roots and carefully frees the sealed vessel...", delayProfile: "search" },
+            endEncounter: true,
+          },
+          { id: "leave_flask", label: "Leave It Undisturbed", resultText: "Arthur leaves the sealed flask beneath the roots.", endEncounter: true },
+        ],
+      },
+    },
+  },
+
+  llamrei_discovery: {
+    id: "llamrei_discovery",
+    title: "A Horse in the Bracken",
+    description: "A powerful horse watches from a bracken-filled hollow, wary but unhurt.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 0.7,
+    minimumDistance: 20,
+    maximumDistance: 90,
+    tags: ["campaign", "companion", "discovery"],
+    repeatable: false,
+    requirements: [{ type: "notUnlockedCompanion", companionId: "llamrei" }],
+    stages: {
+      start: {
+        text: "The horse has no rider and no visible brand. She does not bolt when Arthur approaches.",
+        choices: [
+          {
+            id: "approach_horse",
+            label: "Approach the Horse",
+            outcomes: [{
+              type: "unlockCompanion",
+              companionId: "llamrei",
+            }],
+            resultText: "The horse accepts Arthur's hand. Llamrei is willing to join the company.",
+            pendingAction: { text: "Arthur lowers his voice and gives the horse time to decide...", delayProfile: "physical" },
+            endEncounter: true,
+          },
+          { id: "leave_horse", label: "Leave Her in the Hollow", resultText: "Arthur leaves the horse where he found her.", endEncounter: true },
+        ],
+      },
+    },
+  },
+
+  fountain_barenton: {
+    id: "fountain_barenton",
+    title: "Fountain of Barenton",
+    description: "A clear fountain rises from a hollow where the forest seems to hold its breath.",
+    regionId: "broceliande",
+    pathIds: ["fountain_of_barenton"],
+    expeditionIds: ["fountain_of_barenton"],
+    directions: ["outbound"],
+    weight: 20,
+    minimumDistance: 5,
+    maximumDistance: 90,
+    tags: ["campaign", "fountain", "mystery"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The water is still enough to reflect the branches above it. Something about the fountain feels older than the road.",
+        choices: [
+          {
+            id: "fill_flask",
+            label: "Fill the Flask",
+            requirements: [
+              { type: "ownsItem", itemId: "flask", lockedLabel: "Requires the Flask" },
+              { type: "notOwnsItem", itemId: "water_of_barenton", lockedLabel: "Already carrying the water" },
+            ],
+            outcomes: [{
+              type: "gainUniqueUnsecuredItem",
+              itemId: "water_of_barenton",
+              resultText: "The Flask fills without disturbing the surface. The water feels cold even in Arthur's hand.",
+            }],
+            endEncounter: true,
+          },
+          {
+            id: "study_fountain",
+            label: "Study the Fountain",
+            outcomes: [{
+              type: "conditional",
+              requirements: [
+                { type: "ownsItem", itemId: "flask" },
+                { type: "notOwnsItem", itemId: "water_of_barenton" },
+              ],
+              effects: [],
+              resultText: "The water appears significant, but Arthur has no vessel with which to carry it.",
+              elseEffects: [{
+                type: "conditional",
+                requirements: [{ type: "ownsItem", itemId: "water_of_barenton" }],
+                effects: [],
+                resultText: "The fountain is unchanged. The water already secured rests safely in Arthur's keeping.",
+                elseEffects: [],
+                elseResultText: "The water appears significant, but Arthur has no suitable vessel with which to carry it.",
+              }],
+              elseResultText: "The water appears significant, but Arthur has no suitable vessel with which to carry it.",
+            }],
+            resultText: "Arthur studies the fountain and remembers its place.",
+            endEncounter: true,
+          },
+          { id: "leave_fountain", label: "Leave the Fountain", resultText: "Arthur leaves the fountain and its unanswered promise.", endEncounter: true },
+        ],
+      },
+    },
+  },
+
+  morgans_voice: {
+    id: "morgans_voice",
+    title: "Morgan's Voice",
+    description: "A woman's voice reaches Arthur through the valley without disturbing the air.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound"],
+    weight: 18,
+    minimumDistance: 8,
+    maximumDistance: 65,
+    tags: ["campaign", "dialogue", "morgan"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The voice names no speaker. It only asks whether Arthur truly intends to continue into the valley.",
+        choices: [
+          {
+            id: "listen_to_voice",
+            label: "Listen",
+            outcomes: [
+              { type: "setRunFlag", flag: "morganVoiceHeard", value: true },
+              { type: "setCampaignFlag", flag: "morgan_voice_heard", value: true },
+            ],
+            resultText: "The voice fades, leaving a promise that something deeper in the valley is waiting.",
+            endEncounter: true,
+          },
+          { id: "ignore_voice", label: "Continue in Silence", resultText: "Arthur refuses to answer the unseen speaker.", endEncounter: true },
+        ],
+      },
+    },
+  },
+
+  summoned_guardian: {
+    id: "summoned_guardian",
+    title: "Summoned Guardian",
+    description: "Roots and shadow gather into a guardian that bars the valley floor.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound"],
+    weight: 16,
+    minimumDistance: 30,
+    maximumDistance: 110,
+    tags: ["campaign", "combat", "guardian"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The guardian rises without a word. Morgan's presence is nowhere visible, but the challenge is plain.",
+        choices: [{
+          id: "fight_guardian",
+          label: "Face the Guardian",
+          outcomes: [{
+            type: "startCombat",
+            combatId: "summoned_guardian",
+            victory: {
+              outcomes: [{
+                type: "gainUniqueUnsecuredItem",
+                itemId: "morgans_token",
+                resultText: "The guardian's remains harden into Morgan's Token.",
+              }],
+              resultText: "The summoned guardian falls, leaving a dark token among the roots.",
+            },
+            fled: { outcomes: [], resultText: "Arthur escapes the guardian, but the valley keeps its secret." },
+          }],
+        }],
+      },
+    },
+  },
+
+  merlins_prison: {
+    id: "merlins_prison",
+    title: "Voice in the Wood",
+    description: "At the edge of the deepest wood, a voice answers from somewhere beyond sight.",
+    regionId: "broceliande",
+    pathIds: ["search_for_merlin"],
+    expeditionIds: ["search_for_merlin"],
+    directions: ["outbound"],
+    weight: 20,
+    minimumDistance: 100,
+    maximumDistance: 125,
+    tags: ["campaign", "merlin", "milestone"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The wood closes around the road. Somewhere ahead, a familiar voice speaks Arthur's name.",
+        choices: [{ id: "follow_voice", label: "Follow the Voice", resultText: "The search has reached a place the first expedition cannot yet explain.", endEncounter: true }],
+      },
+    },
+  },
 });

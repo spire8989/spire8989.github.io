@@ -2,23 +2,32 @@
 
 // Production UI and instant simulations both use these expedition lifecycle rules.
 const ExpeditionRules = Object.freeze({
-  partyProvisionCapacity(selectedCompanionId) {
-    const companion = selectedCompanionId ? COMPANION_DEFINITIONS[selectedCompanionId] : null;
+  partyProvisionCapacity(selectedCompanions) {
     return PLAYER_CHARACTER_DEFINITION.provisionCapacity
-      + (companion?.provisionCapacityBonus ?? 0);
+      + companionIdsFromSelection(selectedCompanions)
+        .reduce((total, companionId) => total + (COMPANION_DEFINITIONS[companionId]?.provisionCapacityBonus ?? 0), 0);
   },
 
-  partyProvisionConsumptionMultiplier(selectedCompanionId) {
-    const companion = selectedCompanionId ? COMPANION_DEFINITIONS[selectedCompanionId] : null;
+  partyProvisionConsumptionMultiplier(selectedCompanions) {
     return PLAYER_CHARACTER_DEFINITION.provisionConsumptionMultiplier
-      + (companion?.provisionConsumptionBonus ?? 0);
+      + companionIdsFromSelection(selectedCompanions)
+        .reduce((total, companionId) => total + (COMPANION_DEFINITIONS[companionId]?.provisionConsumptionBonus ?? 0), 0);
+  },
+
+  partyTravelSpeedMultiplier(selectedCompanions) {
+    const companionIds = companionIdsFromSelection(selectedCompanions);
+    if (!companionIds.includes("llamrei")) return 1;
+    const otherCompanionCount = companionIds.filter((companionId) => companionId !== "llamrei").length;
+    return 1 + (otherCompanionCount > 0
+      ? EXPEDITION_TUNING.companionBonuses.llamreiPartyTravelSpeed
+      : EXPEDITION_TUNING.companionBonuses.llamreiSoloTravelSpeed);
   },
 
   provisionConsumptionMultiplier(expedition) {
     const snapshot = Number(expedition?.provisionConsumptionMultiplier);
     return Number.isFinite(snapshot)
       ? Math.max(0, snapshot)
-      : this.partyProvisionConsumptionMultiplier(expedition?.selectedCompanion);
+      : this.partyProvisionConsumptionMultiplier(expedition?.selectedCompanions ?? expedition?.selectedCompanion);
   },
 
   provisionCostForDistance(distance, consumptionMultiplier) {
@@ -63,23 +72,31 @@ const ExpeditionRules = Object.freeze({
   },
 
   createExpedition(player, options = {}) {
-    const selectedCompanion = options.companion !== undefined
-      ? options.companion
-      : player.selectedCompanion;
-    const capacity = this.partyProvisionCapacity(selectedCompanion);
+    const selectedCompanions = options.companions !== undefined
+      ? companionIdsFromSelection(options.companions)
+      : options.companion !== undefined
+        ? companionIdsFromSelection(options.companion)
+        : selectedCompanionIds(player);
+    const selectedCompanion = selectedCompanions[0] ?? null;
+    const expeditionDefinition = ExpeditionCatalog.get(
+      options.expeditionId ?? player.selectedExpeditionId ?? "old_forest_road",
+    );
+    const capacity = this.partyProvisionCapacity(selectedCompanions);
     const provisions = Math.max(0, Math.min(Number(options.provisions) || 0, capacity));
     const selectedEquipment = { ...player.equippedItems, ...(options.equipment ?? {}) };
     const expedition = {
-      regionId: options.regionId ?? "broceliande",
+      expeditionId: expeditionDefinition.id,
+      regionId: options.regionId ?? expeditionDefinition.regionId,
       originLocationId: player.currentLocationId,
-      currentPathId: options.pathId ?? "old_forest_road",
+      currentPathId: options.pathId ?? expeditionDefinition.pathId,
       distance: 0,
       maxDistanceReached: 0,
       direction: "outbound",
       provisions,
       carriedProvisions: provisions,
       provisionCapacity: capacity,
-      provisionConsumptionMultiplier: this.partyProvisionConsumptionMultiplier(selectedCompanion),
+      provisionConsumptionMultiplier: this.partyProvisionConsumptionMultiplier(selectedCompanions),
+      travelSpeedMultiplier: this.partyTravelSpeedMultiplier(selectedCompanions),
       committedProvisions: provisions,
       committedProvisionsRemaining: provisions,
       foundProvisions: 0,
@@ -88,12 +105,16 @@ const ExpeditionRules = Object.freeze({
       health: Number.isFinite(options.health)
         ? Math.min(Math.max(options.health, 0), HealingRules.arthurMaxHealth(player))
         : HealingRules.arthurHealth(player),
-      companionCombatHp: Object.fromEntries(Object.entries(player.companionStates ?? {}).map(
-        ([companionId, state]) => [companionId, state.health],
-      )),
+      companionCombatHp: Object.fromEntries(selectedCompanions.map((companionId) => [
+        companionId,
+        player.companionStates?.[companionId]?.health
+          ?? COMPANION_DEFINITIONS[companionId]?.combat?.maxHp
+          ?? 0,
+      ])),
       combat: null,
       goldCarried: 0,
       selectedEquipment,
+      selectedCompanions,
       selectedCompanion,
       carriedItems: this.createCarriedItems(player, options.packedItems),
       consumedItems: {},
@@ -235,10 +256,17 @@ const ExpeditionRules = Object.freeze({
     player.companionStates ??= {};
     Object.entries(expedition.companionCombatHp ?? {}).forEach(([companionId, health]) => {
       const maximum = COMPANION_DEFINITIONS[companionId]?.combat?.maxHp ?? 0;
+      const safeHealth = Math.min(Math.max(Number(health) || 0, 0), maximum);
       player.companionStates[companionId] = {
-        health: Math.min(Math.max(Number(health) || 0, 0), maximum),
+        health: COMPANION_DEFINITIONS[companionId]?.noPermanentDeath && safeHealth <= 0
+          ? maximum : safeHealth,
       };
     });
     player.bestExpeditionDistance = Math.max(player.bestExpeditionDistance, expedition.maxDistanceReached);
   },
 });
+
+function companionIdsFromSelection(selection) {
+  if (Array.isArray(selection)) return [...new Set(selection.filter(Boolean))].slice(0, 2);
+  return selection ? [selection] : [];
+}

@@ -499,6 +499,60 @@ const ITEM_DEFINITIONS = Object.freeze({
     effects: {},
     questItem: false,
   },
+  flask: {
+    id: "flask",
+    name: "Merlin's Flask",
+    description: "A sturdy vessel suitable for carrying water from a difficult place.",
+    category: "quest",
+    rarity: "rare",
+    tags: ["campaign", "vessel", "unique"],
+    equippable: false,
+    equipmentSlot: null,
+    carriable: true,
+    consumable: false,
+    effects: {},
+    questItem: true,
+    campaignItem: true,
+    unique: true,
+    sellable: false,
+    protected: true,
+  },
+  water_of_barenton: {
+    id: "water_of_barenton",
+    name: "Water of Barenton",
+    description: "Water gathered from a fountain touched by old enchantment.",
+    category: "quest",
+    rarity: "rare",
+    tags: ["campaign", "barenton", "unique"],
+    equippable: false,
+    equipmentSlot: null,
+    carriable: false,
+    consumable: false,
+    effects: {},
+    questItem: true,
+    campaignItem: true,
+    unique: true,
+    sellable: false,
+    protected: true,
+  },
+  morgans_token: {
+    id: "morgans_token",
+    name: "Morgan's Token",
+    description: "A dark token left behind by a power that does not welcome questions.",
+    category: "quest",
+    rarity: "rare",
+    tags: ["campaign", "morgan", "unique"],
+    equippable: false,
+    equipmentSlot: null,
+    carriable: false,
+    consumable: false,
+    effects: {},
+    questItem: true,
+    campaignItem: true,
+    unique: true,
+    sellable: false,
+    protected: true,
+  },
 });
 
 const KNOWLEDGE_DEFINITIONS = Object.freeze({
@@ -526,10 +580,39 @@ const COMPANION_DEFINITIONS = Object.freeze({
     tags: ["knight", "practical"],
     provisionCapacityBonus: 10,
     provisionConsumptionBonus: 0.3,
+    type: "knight",
+    capabilities: Object.freeze({ canUseItems: true, canDefend: true, canFlee: true }),
     combat: Object.freeze({ maxHp: 50, speed: 9, defense: 2, basicDamage: Object.freeze({ minimum: 7, maximum: 10 }) }),
     combatAbilities: ["intercede"],
   },
+  llamrei: {
+    id: "llamrei",
+    name: "Llamrei",
+    description: "Arthur's sure-footed warhorse, alert to paths no map records.",
+    tags: ["mount", "horse", "campaign"],
+    type: "mount",
+    provisionCapacityBonus: 10,
+    provisionConsumptionBonus: 0.1,
+    capabilities: Object.freeze({ canUseItems: false, canDefend: false, canFlee: false }),
+    combat: Object.freeze({ maxHp: 36, speed: 12, defense: 1, basicDamage: Object.freeze({ minimum: 6, maximum: 9 }) }),
+    combatAbilities: ["charge"],
+    noPermanentDeath: true,
+  },
 });
+
+function selectedCompanionIds(source) {
+  if (Array.isArray(source?.selectedCompanions)) {
+    // Older callers still mutate selectedCompanion directly. Treat a changed
+    // legacy alias as an intentional one-slot override until the caller saves
+    // the new two-slot shape.
+    if (source.selectedCompanion !== undefined
+      && source.selectedCompanion !== source.selectedCompanions[0]) {
+      return source.selectedCompanion ? [source.selectedCompanion] : [];
+    }
+    return [...new Set(source.selectedCompanions.filter(Boolean))].slice(0, 2);
+  }
+  return source?.selectedCompanion ? [source.selectedCompanion] : [];
+}
 
 const CHAPTER_DEFINITIONS = Object.freeze([
   { id: "chapter_01", number: "I", name: "Completed", regionId: null },

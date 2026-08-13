@@ -46,12 +46,13 @@ def run():
             checks += 1
 
         check("PLAYER_CHARACTER_DEFINITION.combat.maxHp===40 && game.player.arthurHealth===40", "Arthur's authoritative/reset health is not 40")
-        check("COMPANION_DEFINITIONS.sir_kay.combat.maxHp===50 && game.player.saveVersion===7 && game.player.companionStates.sir_kay.health===50", "Kay's data-defined/reset health or save version is invalid")
+        check("COMPANION_DEFINITIONS.sir_kay.combat.maxHp===50 && game.player.saveVersion===8 && game.player.companionStates.sir_kay.health===50", "Kay's data-defined/reset health or save version is invalid")
         check("sanitizePlayerState({saveVersion:5},SaveSystem.createDefaultPlayerState()).arthurHealth===40", "Old save did not migrate to valid persistent health")
         check("sanitizePlayerState({saveVersion:6,companionStates:{sir_kay:{health:85}}},SaveSystem.createDefaultPlayerState()).companionStates.sir_kay.health===50", "Old Kay health above the new maximum was not clamped")
         check("(() => { const ids=['silver_reliquary','gilded_brooch','roman_signet','jeweled_saints_locket']; const player=SaveSystem.createDefaultPlayerState(); const failed=ExpeditionRules.startExpedition(player,{provisions:1}); failed.unsecuredLoot=ids.map(itemId=>({itemId,quantity:1})); ExpeditionRules.settle(player,failed,false); if(ids.some(itemId=>player.ownedItems[itemId])) return false; const returned=ExpeditionRules.startExpedition(player,{provisions:1}); returned.unsecuredLoot=ids.map(itemId=>({itemId,quantity:1})); ExpeditionRules.settle(player,returned,true); const goldBefore=player.currentGold; const sales=CampaignRules.sellMerchantItems(player,returned.unsecuredLoot); return sales.goldEarned===90&&player.currentGold-goldBefore===90&&JSON.stringify(sales.sales.map(sale=>sale.goldEarned))==='[15,20,25,30]'&&ids.every(itemId=>!player.ownedItems[itemId]); })()", "Rare treasures did not remain unsecured on failure or auto-sell at authored values")
 
         devtools.click('[data-action="enter-location"]')
+        devtools.evaluate("game.player.campaignFlags.broceliande_intro_complete=true; savePlayer(); renderLocation()")
         devtools.click('[data-destination-id="inn"]')
         devtools.evaluate("game.player.arthurHealth=20; game.player.companionStates.sir_kay.health=30; game.player.selectedCompanion='sir_kay'; game.player.currentGold=12; savePlayer(); renderDestination()")
         check("document.body.textContent.includes('20 / 40') && document.body.textContent.includes('30 / 40') && document.body.textContent.includes('30 / 50') && document.body.textContent.includes('40 / 50') && document.body.textContent.includes('Rest restores the active company')", "Inn did not show both active-party current and restored health values")

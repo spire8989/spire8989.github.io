@@ -16,6 +16,7 @@ const game = {
   provisionShopStock: createProvisionShopStock(),
   itemShopStock: createItemShopStock(),
   dialogueMessage: "",
+  dialogueSession: null,
   summary: null,
   elapsedSeconds: 0,
   lastTimestamp: null,
@@ -48,7 +49,7 @@ function handleAction(event) {
     return;
   }
 
-  const { action, itemId, recipeId, companionId, choiceId, destinationId } = control.dataset;
+  const { action, itemId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId } = control.dataset;
 
   switch (action) {
     case "show-campaign":
@@ -64,6 +65,12 @@ function handleAction(event) {
       break;
     case "open-destination":
       openDestination(destinationId);
+      break;
+    case "dialogue-continue":
+      advanceDialogue();
+      break;
+    case "dialogue-choice":
+      chooseDialogue(choiceId);
       break;
     case "npc-talk":
       showNpcDialogue(control.dataset.npcId, "dialogue");
@@ -98,7 +105,7 @@ function handleAction(event) {
       game.preparationSupplies = Math.min(
         Math.max(game.preparationSupplies, EXPEDITION_TUNING.minimumStartingProvisions),
         game.player.provisions,
-        partyProvisionCapacity(game.player.selectedCompanion),
+        partyProvisionCapacity(selectedCompanionIds(game.player)),
       );
       showScreen("preparation");
       break;
@@ -112,7 +119,10 @@ function handleAction(event) {
       togglePackItem(itemId);
       break;
     case "select-companion":
-      selectCompanion(companionId);
+      selectCompanion(companionId, Number(slotIndex) || 0);
+      break;
+    case "select-expedition":
+      selectExpedition(expeditionId);
       break;
     case "change-supplies":
       changeSupplies(Number(control.dataset.amount));
@@ -262,6 +272,7 @@ function showLocation() {
   }
   game.activeDestinationId = null;
   game.dialogueMessage = "";
+  game.dialogueSession = null;
   showScreen("location");
 }
 
@@ -272,13 +283,16 @@ function renderLocation() {
     return;
   }
 
+  const villageUnlocked = isVillageUnlocked();
   const destinations = location.destinations.map((destinationId) => {
     const destination = DESTINATION_DEFINITIONS[destinationId];
+    const locked = destination.requiresIntro !== false && !villageUnlocked;
     return `
-      <button class="hub-hotspot position-${destination.scenePosition}" type="button"
-        data-action="open-destination" data-destination-id="${destination.id}">
+      <button class="hub-hotspot position-${destination.scenePosition} ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
+        data-action="open-destination" data-destination-id="${destination.id}" ${locked ? "disabled aria-disabled=\"true\"" : ""}>
         <span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>
         <strong>${destination.name}</strong>
+        ${locked ? "<span class=\"hub-lock-label\">Available after the Hall</span>" : ""}
       </button>`;
   }).join("");
 
@@ -302,7 +316,7 @@ function renderLocation() {
         </div>
         <div class="hub-actions">
           <button class="text-button" type="button" data-action="show-campaign">Chapter Select</button>
-          <button class="game-button" type="button" data-action="prepare-expedition">Prepare for Expedition</button>
+          <button class="game-button" type="button" data-action="prepare-expedition" ${villageUnlocked ? "" : "disabled"}>Prepare for Expedition</button>
         </div>
       </div>
     </section>`;
@@ -313,9 +327,16 @@ function openDestination(destinationId) {
   if (!location?.destinations.includes(destinationId) || !DESTINATION_DEFINITIONS[destinationId]) {
     return;
   }
+  const destination = DESTINATION_DEFINITIONS[destinationId];
+  if (destination.requiresIntro !== false && !isVillageUnlocked()) return;
   game.activeDestinationId = destinationId;
   game.shopTab = "buy";
   game.dialogueMessage = "";
+  game.dialogueSession = null;
+  const npc = NPC_DEFINITIONS[destination.npcIds[0]];
+  if (destination.type === "story" && !isVillageUnlocked()) {
+    game.dialogueSession = DialogueSystem.start(npc?.introDialogueSequenceId, { player: game.player });
+  }
   showScreen("destination");
 }
 
@@ -328,7 +349,9 @@ function renderDestination() {
   const npc = NPC_DEFINITIONS[destination.npcIds[0]];
   let interaction = "";
 
-  if (destination.shopId) {
+  if (destination.type === "story") {
+    interaction = renderHallInteraction(destination, npc);
+  } else if (destination.shopId) {
     interaction = renderShopInteraction(destination, npc);
   } else {
     interaction = renderInnInteraction(destination, npc);
@@ -355,6 +378,23 @@ function renderDestination() {
           ${interaction}
         </div>
       </div>
+      ${game.dialogueSession ? renderDialogueOverlay(game.dialogueSession) : ""}
+    </section>`;
+}
+
+function renderHallInteraction(destination, npc) {
+  const objective = isVillageUnlocked()
+    ? "Find a way to reach Merlin."
+    : "Speak with the Reeve to learn why Arthur has come to Brocéliande.";
+  return `
+    <article class="npc-card hall-leader-card">
+      <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
+      <p>${npc.description}</p>
+      <button class="small-button" type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
+    </article>
+    <section class="hall-objective" aria-labelledby="hall-objective-title">
+      <p class="eyebrow" id="hall-objective-title">Current Objective</p>
+      <strong>${objective}</strong>
     </section>`;
 }
 
@@ -636,6 +676,12 @@ function craftingFailureMessage(result) {
 
 function showNpcDialogue(npcId, field) {
   const npc = NPC_DEFINITIONS[npcId];
+  if (field === "dialogue" && npc?.dialogueSequenceId) {
+    game.dialogueMessage = "";
+    game.dialogueSession = DialogueSystem.start(npc.dialogueSequenceId, { player: game.player });
+    renderDestination();
+    return;
+  }
   const lines = npc?.[field];
   if (!Array.isArray(lines) || lines.length === 0) {
     game.dialogueMessage = `${npc?.name ?? "The villager"} has nothing more to add.`;
@@ -643,6 +689,63 @@ function showNpcDialogue(npcId, field) {
     game.dialogueMessage = `“${lines[Math.floor(Math.random() * lines.length)]}”`;
   }
   refreshDestination();
+}
+
+function isVillageUnlocked() {
+  return game.player.campaignFlags?.broceliande_intro_complete === true;
+}
+
+function advanceDialogue() {
+  const result = DialogueSystem.advance(game.dialogueSession, { player: game.player });
+  if (!result.session && !result.ended) return;
+  game.dialogueSession = result.session;
+  applyDialogueResult(result);
+}
+
+function chooseDialogue(choiceId) {
+  const result = DialogueSystem.choose(game.dialogueSession, choiceId, { player: game.player });
+  if (!result.session && !result.ended) return;
+  game.dialogueSession = result.session;
+  applyDialogueResult(result);
+}
+
+function applyDialogueResult(result) {
+  (result.toasts ?? []).forEach((toast) => showToast({
+    title: toast.title ?? "Story Updated",
+    message: toast.message ?? "",
+    type: toast.toastType ?? "normal",
+  }));
+  if ((result.effects ?? []).length > 0) savePlayer();
+  if (game.screen === "destination") renderDestination();
+}
+
+function renderDialogueOverlay(session) {
+  const node = DialogueSystem.currentNode(session);
+  if (!node) return "";
+  const speaker = node.speakerId === PLAYER_CHARACTER_DEFINITION.id
+    ? PLAYER_CHARACTER_DEFINITION
+    : NPC_DEFINITIONS[node.speakerId] ?? { name: "Unknown Speaker" };
+  const choices = DialogueSystem.availableChoices(session, { player: game.player });
+  const initials = (speaker.name ?? "?")
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const actions = choices.length > 0
+    ? `<div class="dialogue-choices">${choices.map((choice) => `<button class="game-button dialogue-choice" type="button" data-action="dialogue-choice" data-choice-id="${choice.id}">${choice.label}</button>`).join("")}</div>`
+    : `<button class="game-button dialogue-continue" type="button" data-action="dialogue-continue">Continue</button>`;
+  return `
+    <div class="dialogue-overlay" role="dialog" aria-modal="true" aria-labelledby="dialogue-speaker" aria-describedby="dialogue-text">
+      <div class="dialogue-box">
+        <div class="dialogue-portrait" data-portrait-key="${node.portraitKey ?? "placeholder"}" aria-label="Portrait placeholder for ${speaker.name}"><span>${initials}</span></div>
+        <div class="dialogue-copy">
+          <strong id="dialogue-speaker">${speaker.name}</strong>
+          <p id="dialogue-text">${node.text}</p>
+          ${actions}
+        </div>
+      </div>
+    </div>`;
 }
 
 function refreshDestination() {
@@ -669,21 +772,26 @@ function partyProvisionConsumptionMultiplier(selectedCompanionId) {
   return ExpeditionRules.partyProvisionConsumptionMultiplier(selectedCompanionId);
 }
 
+function partyTravelSpeedMultiplier(selectedCompanions) {
+  return ExpeditionRules.partyTravelSpeedMultiplier(selectedCompanions);
+}
+
 function destinationIcon(type) {
-  return ({ inn: "⌂", shop: "◆" })[type] ?? "•";
+  return ({ inn: "⌂", shop: "◆", story: "✦" })[type] ?? "•";
+}
+
+function dangerRatingMarkup(rating) {
+  return Array.from({ length: Math.max(0, Number(rating) || 0) }, () => categoryIcon("skull")).join("");
 }
 
 function renderPreparation() {
-  const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
-  const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(
-    game.player.selectedCompanion,
-  );
+  const selectedCompanions = selectedCompanionIds(game.player);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
+  const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(selectedCompanions);
   const inventory = Object.entries(game.player.ownedItems)
     .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
     .join("");
-  const companions = [companionCard(null), ...game.player.unlockedCompanions
-    .map((companionId) => companionCard(COMPANION_DEFINITIONS[companionId]))
-  ].join("");
+  const companionSlots = [0, 1].map((slot) => renderCompanionSlot(slot, selectedCompanions[slot] ?? null)).join("");
   const equipment = ["weapon", "armor", "relic"]
     .map((slot) => equipmentSlotCard(slot, game.player.equippedItems[slot]))
     .join("");
@@ -699,6 +807,14 @@ function renderPreparation() {
         <p class="eyebrow">Chapter III — Brocéliande</p>
         <h1 id="preparation-title">Prepare for Expedition</h1>
       </div>
+
+      <section class="preparation-section expedition-selection-section" aria-labelledby="expedition-selection-title">
+        <div class="section-title-row">
+          <h2 id="expedition-selection-title">Expedition</h2>
+          <span>${ExpeditionCatalog.get(game.player.selectedExpeditionId).kind === "campaign" ? "Campaign route" : "Choose a route"}</span>
+        </div>
+        <div class="expedition-option-list">${EXPEDITION_ORDER.map(renderExpeditionOption).join("")}</div>
+      </section>
 
       <section class="preparation-section" aria-labelledby="equipment-title">
         <div class="section-title-row">
@@ -731,9 +847,9 @@ function renderPreparation() {
       <section class="preparation-section" aria-labelledby="companion-title">
         <div class="section-title-row">
           <h2 id="companion-title">Party</h2>
-          <span>${PLAYER_CHARACTER_DEFINITION.name}${game.player.selectedCompanion ? ` · ${COMPANION_DEFINITIONS[game.player.selectedCompanion].name}` : " · Traveling Alone"}</span>
+          <span>${PLAYER_CHARACTER_DEFINITION.name}${selectedCompanions.length > 0 ? ` · ${selectedCompanions.map((id) => COMPANION_DEFINITIONS[id]?.name).join(" · ")}` : " · Traveling Alone"}</span>
         </div>
-        <div class="choice-list">${companions}</div>
+        <div class="party-slot-list">${companionSlots}</div>
       </section>
 
       <section class="preparation-section supplies-section" aria-labelledby="supplies-title">
@@ -752,7 +868,7 @@ function renderPreparation() {
       </section>
 
       <div class="footer-actions">
-        <button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 && HealingRules.arthurHealth(game.player) > 0 ? "" : "disabled"}>Begin Expedition</button>
+        <button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 && HealingRules.arthurHealth(game.player) > 0 && ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId) ? "" : "disabled"}>Begin Expedition</button>
       </div>
     </section>`;
 }
@@ -802,14 +918,47 @@ function packItemCard(item, quantity) {
     </article>`;
 }
 
-function companionCard(companion) {
-  const selected = game.player.selectedCompanion === (companion?.id ?? null);
-  const name = companion?.name ?? "Travel Alone";
-  const description = companion
-    ? `${companion.description} +${companion.provisionCapacityBonus} provision capacity · +${companion.provisionConsumptionBonus.toFixed(2)}× consumption.`
-    : `${PLAYER_CHARACTER_DEFINITION.name} carries ${PLAYER_CHARACTER_DEFINITION.provisionCapacity} provisions at ${PLAYER_CHARACTER_DEFINITION.provisionConsumptionMultiplier.toFixed(2)}× consumption.`;
+function renderExpeditionOption(expeditionId) {
+  const expedition = ExpeditionCatalog.get(expeditionId);
+  const selected = game.player.selectedExpeditionId === expeditionId;
+  const missing = ExpeditionCatalog.missingPrerequisites(game.player, expeditionId);
+  const locked = missing.length > 0;
+  const skulls = dangerRatingMarkup(expedition.danger);
+  const requirements = expedition.prerequisites.length > 0
+    ? `<div class="expedition-requirements"><span>Required</span>${expedition.prerequisites.map((itemId) => `<span class="requirement-${game.player.ownedItems[itemId] ? "met" : "missing"}">${game.player.ownedItems[itemId] ? "✓" : "✕"} ${ITEM_DEFINITIONS[itemId]?.name ?? itemId}</span>`).join("")}</div>`
+    : "";
   return `
-    <button class="choice-card ${selected ? "is-selected" : ""}" type="button" data-action="select-companion" data-companion-id="${companion?.id ?? ""}">
+    <button class="expedition-option ${selected ? "is-selected" : ""} ${locked ? "is-locked" : ""}" type="button"
+      data-action="select-expedition" data-expedition-id="${expedition.id}" ${locked ? "disabled" : ""}>
+      <span class="expedition-option-heading"><strong>${expedition.name}</strong><span class="danger-rating" aria-label="${expedition.danger} skull danger">${skulls}</span></span>
+      <span>${expedition.description}</span>
+      ${expedition.kind === "campaign" ? "<small class=\"expedition-kind\">Campaign Expedition</small>" : ""}
+      ${requirements}
+      ${locked ? "<small class=\"expedition-lock-label\">Locked until the required discoveries are secured.</small>" : ""}
+    </button>`;
+}
+
+function renderCompanionSlot(slotIndex, selectedCompanion) {
+  const options = [null, ...game.player.unlockedCompanions]
+    .map((companionId) => companionId ? COMPANION_DEFINITIONS[companionId] : null)
+    .map((companion) => companionCard(companion, slotIndex, selectedCompanion))
+    .join("");
+  return `<section class="party-slot" aria-labelledby="party-slot-${slotIndex}-title">
+    <div class="party-slot-heading"><strong id="party-slot-${slotIndex}-title">Companion ${slotIndex + 1}</strong><span>${selectedCompanion ? COMPANION_DEFINITIONS[selectedCompanion]?.name : "None"}</span></div>
+    <div class="choice-list">${options}</div>
+  </section>`;
+}
+
+function companionCard(companion, slotIndex = 0, selectedCompanion = null) {
+  const selected = selectedCompanion === (companion?.id ?? null);
+  const alreadyInOtherSlot = companion?.id
+    && selectedCompanionIds(game.player).some((id, index) => id === companion.id && index !== slotIndex);
+  const name = companion?.name ?? "None — Travel Alone";
+  const description = companion
+    ? `${companion.description} +${companion.provisionCapacityBonus} capacity · +${companion.provisionConsumptionBonus.toFixed(2)}× consumption.`
+    : "Leave this slot open for a smaller company.";
+  return `
+    <button class="choice-card ${selected ? "is-selected" : ""} ${alreadyInOtherSlot ? "is-unavailable" : ""}" type="button" data-action="select-companion" data-companion-id="${companion?.id ?? ""}" data-slot-index="${slotIndex}" ${alreadyInOtherSlot ? "disabled" : ""}>
       <strong>${name}</strong>
       <span>${description}</span>
     </button>`;
@@ -861,17 +1010,23 @@ function togglePackItem(itemId) {
   refreshPreparation();
 }
 
-function selectCompanion(companionId) {
+function selectCompanion(companionId, slotIndex = 0) {
   const selectedCompanion = companionId || null;
   if (selectedCompanion && !game.player.unlockedCompanions.includes(selectedCompanion)) {
     return;
   }
-
-  const previousCompanion = game.player.selectedCompanion;
-  game.player.selectedCompanion = selectedCompanion;
+  const selectedCompanions = selectedCompanionIds(game.player);
+  if (selectedCompanion && selectedCompanions.some((id, index) => id === selectedCompanion && index !== slotIndex)) {
+    return;
+  }
+  while (selectedCompanions.length <= slotIndex) selectedCompanions.push(null);
+  const previousCompanion = selectedCompanions[slotIndex];
+  selectedCompanions[slotIndex] = selectedCompanion;
+  game.player.selectedCompanions = selectedCompanions.filter(Boolean).slice(0, 2);
+  game.player.selectedCompanion = game.player.selectedCompanions[0] ?? null;
   game.preparationSupplies = Math.min(
     game.preparationSupplies,
-    partyProvisionCapacity(selectedCompanion),
+    partyProvisionCapacity(game.player.selectedCompanions),
     game.player.provisions,
   );
   if (previousCompanion !== selectedCompanion) {
@@ -881,10 +1036,19 @@ function selectCompanion(companionId) {
         : "Traveling Alone",
       message: selectedCompanion
         ? "The company is ready to depart."
-        : "Arthur will carry the expedition alone.",
+        : "This companion slot is open.",
       type: "success",
     });
   }
+  savePlayer();
+  refreshPreparation();
+}
+
+function selectExpedition(expeditionId) {
+  if (!EXPEDITION_DEFINITIONS[expeditionId]
+    || !ExpeditionCatalog.isUnlocked(game.player, expeditionId)) return;
+  if (game.player.selectedExpeditionId === expeditionId) return;
+  game.player.selectedExpeditionId = expeditionId;
   savePlayer();
   refreshPreparation();
 }
@@ -893,7 +1057,7 @@ function changeSupplies(amount) {
   game.preparationSupplies = clamp(
     game.preparationSupplies + amount,
     0,
-    Math.min(partyProvisionCapacity(game.player.selectedCompanion), game.player.provisions),
+    Math.min(partyProvisionCapacity(selectedCompanionIds(game.player)), game.player.provisions),
   );
   refreshPreparation();
 }
@@ -910,7 +1074,9 @@ function rerenderPreservingScroll(selector, render) {
 }
 
 function startExpedition() {
-  const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
+  if (!isVillageUnlocked() || !ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId)) return;
+  const selectedCompanions = selectedCompanionIds(game.player);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
   if (game.preparationSupplies <= 0
     || HealingRules.arthurHealth(game.player) <= 0
     || game.preparationSupplies > game.player.provisions
@@ -920,7 +1086,8 @@ function startExpedition() {
   const committedProvisions = game.preparationSupplies;
   game.expedition = ExpeditionRules.startExpedition(game.player, {
     provisions: committedProvisions,
-    companion: game.player.selectedCompanion,
+    companions: selectedCompanions,
+    expeditionId: game.player.selectedExpeditionId,
   });
   savePlayer();
   showScreen("expedition");
@@ -932,9 +1099,9 @@ function renderExpedition() {
     renderCombat(expedition, expedition.combat);
     return;
   }
-  const companion = expedition.selectedCompanion
-    ? COMPANION_DEFINITIONS[expedition.selectedCompanion]
-    : null;
+  const companions = selectedCompanionIds(expedition)
+    .map((companionId) => COMPANION_DEFINITIONS[companionId])
+    .filter(Boolean);
   const activeEncounter = expedition.activeEncounter
     ? ENCOUNTER_DEFINITIONS[expedition.activeEncounter.encounterId]
     : null;
@@ -949,19 +1116,19 @@ function renderExpedition() {
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
         <div class="travelers" id="travelers" aria-hidden="true">
-          <span class="arthur">♞</span>${companion ? '<span class="companion">♞</span>' : ""}
+          <span class="arthur">♞</span>${companions.map((companion) => `<span class="companion companion-${companion.type}">${companion.type === "mount" ? "♞" : "♜"}</span>`).join("")}
         </div>
         <div class="ground" aria-hidden="true"></div>
         <div class="direction-banner" id="direction-banner">${activeEncounter ? `Encounter: ${activeEncounter.title}` : "Traveling Outbound →"}</div>
       </div>
       ${activeEncounter
         ? renderEncounterPanel(expedition, activeEncounter)
-        : renderTravelPanel(expedition, companion, loadoutEntries)}
+         : renderTravelPanel(expedition, companions, loadoutEntries)}
     </section>`;
   updateTravelHud();
 }
 
-function renderTravelPanel(expedition, companion, loadout) {
+function renderTravelPanel(expedition, companions, loadout) {
   const travelMessage = expedition.lastEncounterResult
     || (expedition.currentPathId === "overgrown_trail"
       ? "The overgrown trail narrows beneath ancient trees."
@@ -971,7 +1138,7 @@ function renderTravelPanel(expedition, companion, loadout) {
     <div class="travel-panel">
       <div class="screen-heading travel-heading">
         <p class="eyebrow">Chapter III</p>
-        <h1 id="region-title">Brocéliande</h1>
+        <h1 id="region-title">${ExpeditionCatalog.get(expedition.expeditionId).name}</h1>
         <p id="travel-message">${travelMessage}</p>
       </div>
       ${renderExpeditionResources(expedition)}
@@ -979,7 +1146,7 @@ function renderTravelPanel(expedition, companion, loadout) {
         <div class="progress-fill" id="distance-progress"></div>
       </div>
       <section class="run-details">
-        <p><span>Company</span><strong>${companion ? `Arthur &amp; ${companion.name}` : "Arthur"}</strong></p>
+        <p><span>Company</span><strong>${[PLAYER_CHARACTER_DEFINITION.name, ...companions.map((companion) => companion.name)].join(" &amp; ")}</strong></p>
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
         <div class="run-detail-collection"><span>Loadout</span><div class="run-item-list">${renderItemChips(loadout, "No equipment selected")}</div></div>
         <div class="run-detail-collection"><span>Carried</span><div class="run-item-list">${formatCarriedItems(expedition.carriedItems)}</div></div>
@@ -1285,7 +1452,10 @@ function updateExpedition(deltaSeconds) {
   const travel = ExpeditionRules.travel(
     expedition,
     game.player,
-    EXPEDITION_TUNING.outboundTravelSpeed * speedMultiplier * deltaSeconds,
+    EXPEDITION_TUNING.outboundTravelSpeed
+      * speedMultiplier
+      * (expedition.travelSpeedMultiplier ?? partyTravelSpeedMultiplier(expedition.selectedCompanions ?? expedition.selectedCompanion))
+      * deltaSeconds,
   );
 
   if (travel.failureReason) {
@@ -1895,6 +2065,7 @@ function resetSave() {
   game.provisionShopStock = createProvisionShopStock();
   game.itemShopStock = createItemShopStock();
   game.dialogueMessage = "";
+  game.dialogueSession = null;
   game.preparationSupplies = Math.min(18, game.player.provisions);
   savePlayer();
   showScreen("campaign");
@@ -1917,6 +2088,7 @@ const CATEGORY_ICON_MARKUP = Object.freeze({
   tool: '<path d="m14.5 5.5 4 4M13 7l4-4 2 2-4 4M4 20l7.8-7.8 2 2L6 22H4v-2Z"/>',
   treasure: '<path d="M4 9h16v10H4z"/><path d="M4 9 6 5h12l2 4M9 13h6M12 10v6"/>',
   curiosity: '<path d="M12 3.5 14 8l4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2 2-4.5Z"/><circle cx="18.5" cy="5.5" r="1.2"/>',
+  skull: '<path d="M7 10a5 5 0 0 1 10 0v3.5l-1.8 1.2v2.3H8.8v-2.3L7 13.5V10Z"/><path d="M9.3 18.2h5.4M10 10.2h.1m3.9 0h.1M10 13.5h4"/>',
 });
 
 function categoryIcon(kind, className = "") {
@@ -1935,6 +2107,7 @@ function itemIconKind(category, item = null) {
   }
   if (category === "currency") return "currency";
   if (category === "recipe") return "recipe";
+  if (category === "quest") return "relic";
   if (category === "weapon") return "weapon";
   if (category === "armor") return "armor";
   if (id === "rope") return "rope";

@@ -56,7 +56,7 @@ const CampaignSimulationRunner = Object.freeze({
       }
 
       const actualTargetDistance = decision.actualTargetDistance;
-      const capacity = ExpeditionRules.partyProvisionCapacity(player.selectedCompanion);
+      const capacity = ExpeditionRules.partyProvisionCapacity(selectedCompanionIds(player));
       const provisionsPacked = Math.min(player.provisions, decision.provisionsToPack, capacity);
       if (provisionsPacked < EXPEDITION_TUNING.minimumStartingProvisions) {
         stopReason = "cannot-support-any-expedition";
@@ -70,6 +70,7 @@ const CampaignSimulationRunner = Object.freeze({
         id: `${config.id}:expedition-${expeditionNumber}`,
         seed: expeditionSeed,
         companion: player.selectedCompanion,
+        companions: selectedCompanionIds(player),
         provisions: provisionsPacked,
         loadout: { ...player.equippedItems },
         packContents: decision.packContents,
@@ -384,18 +385,22 @@ function applyBetweenExpeditionPolicy(
     };
   }
 
-  const unavailableCompanionId = player.selectedCompanion
-    && (player.companionStates?.[player.selectedCompanion]?.health ?? 0) <= 0
-    ? player.selectedCompanion : null;
-  if (unavailableCompanionId) {
-    player.selectedCompanion = null;
+  const unavailableCompanionIds = selectedCompanionIds(player).filter((companionId) => (
+    (player.companionStates?.[companionId]?.health ?? 0) <= 0
+  ));
+  const unavailableCompanionId = unavailableCompanionIds[0] ?? null;
+  if (unavailableCompanionIds.length > 0) {
+    player.selectedCompanions = selectedCompanionIds(player)
+      .filter((companionId) => !unavailableCompanionIds.includes(companionId));
+    player.selectedCompanion = player.selectedCompanions[0] ?? null;
   }
 
   const goldAfterHealing = player.currentGold;
-  const capacity = ExpeditionRules.partyProvisionCapacity(player.selectedCompanion);
+  const activeCompanions = selectedCompanionIds(player);
+  const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions);
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
   const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
-    targetDistance, player.selectedCompanion, policy.provisionMargin, encounterProvisionReserve,
+    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve,
   );
   const desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
   const provisionStockBeforePurchase = player.provisions;
@@ -440,14 +445,14 @@ function applyBetweenExpeditionPolicy(
   const actualProvisionStockAfterPurchase = player.provisions;
   const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
   const preferredSafeDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, player.selectedCompanion,
+    provisionStockAvailableToPack, activeCompanions,
     policy.provisionMargin, encounterProvisionReserve,
   );
   const encounterReserveSupportedDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, player.selectedCompanion, 0, encounterProvisionReserve,
+    provisionStockAvailableToPack, activeCompanions, 0, encounterProvisionReserve,
   );
   const minimumSupportedDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, player.selectedCompanion, 0, 0,
+    provisionStockAvailableToPack, activeCompanions, 0, 0,
   );
   const safeAffordableDistance = preferredSafeDistance >= 1
     ? preferredSafeDistance
@@ -461,14 +466,14 @@ function applyBetweenExpeditionPolicy(
   const targetDistanceReduction = targetDistance - actualTargetDistance;
   const estimatedProvisionRequirementForChosenDistance = actualTargetDistance >= 1
     ? estimateCampaignProvisionRequirement(
-      actualTargetDistance, player.selectedCompanion,
+      actualTargetDistance, activeCompanions,
       safetyMarginUsed, encounterProvisionReserveUsed,
     ) : 0;
   const departurePassiveFoodEstimate = roundCampaignNumber(
-    estimateCampaignPassiveProvisionCost(actualTargetDistance, player.selectedCompanion),
+    estimateCampaignPassiveProvisionCost(actualTargetDistance, activeCompanions),
   );
   const desiredTargetPassiveFoodEstimate = roundCampaignNumber(
-    estimateCampaignPassiveProvisionCost(targetDistance, player.selectedCompanion),
+    estimateCampaignPassiveProvisionCost(targetDistance, activeCompanions),
   );
   const targetDistanceReductionReason = !targetDistanceReduced
     ? null
@@ -724,6 +729,12 @@ function createCampaignPlayer(overrides) {
   merged.learnedRecipes = [...(overrides.learnedRecipes ?? defaults.learnedRecipes)];
   merged.learnedKnowledge = [...(overrides.learnedKnowledge ?? defaults.learnedKnowledge)];
   merged.unlockedCompanions = [...(overrides.unlockedCompanions ?? defaults.unlockedCompanions)];
+  merged.selectedCompanions = [...(overrides.selectedCompanions ?? selectedCompanionIds(merged))];
+  merged.selectedCompanion = merged.selectedCompanions[0] ?? null;
+  merged.unlockedCompanions = [...new Set([
+    ...merged.unlockedCompanions,
+    ...merged.selectedCompanions,
+  ])];
   merged.companionStates = deepCampaignClone(overrides.companionStates ?? defaults.companionStates);
   return merged;
 }
@@ -749,6 +760,7 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
     arthurMaxHealth: HealingRules.arthurMaxHealth(player),
     companionStates: player.companionStates,
     unlockedCompanions: player.unlockedCompanions,
+    selectedCompanions: selectedCompanionIds(player),
     selectedCompanion: player.selectedCompanion,
     currentLocation: player.currentLocationId,
     shopStocks,

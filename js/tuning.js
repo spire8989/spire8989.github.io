@@ -18,6 +18,11 @@ const EXPEDITION_TUNING = Object.freeze({
   packSlots: 6,
   minimumStartingProvisions: 1,
   minimumTownProvisions: 10,
+  companionBonuses: Object.freeze({
+    llamreiProvisionCapacity: 10,
+    llamreiSoloTravelSpeed: 0.25,
+    llamreiPartyTravelSpeed: 0.10,
+  }),
 });
 
 const CAMPAIGN_TUNING = Object.freeze({

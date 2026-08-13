@@ -41,6 +41,16 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     description: "Protect Arthur from the next targeted attack.",
     effectType: "intercede",
   }),
+  charge: Object.freeze({
+    id: "charge",
+    name: "Charge",
+    description: "Llamrei strikes an enemy and pushes its action gauge back.",
+    target: "enemy",
+    selectionPrompt: "Choose an enemy for Charge",
+    effectType: "damageAndGauge",
+    damageMultiplier: 1.15,
+    gaugeReduction: 10,
+  }),
   flee: Object.freeze({ id: "flee", name: "Flee", target: "none", category: "action" }),
 });
 
@@ -60,6 +70,14 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     speed: 14,
     defense: 0,
     actionPattern: ["wolf_bite", "wolf_lunge", "wolf_bite"],
+  }),
+  summoned_guardian: Object.freeze({
+    id: "summoned_guardian",
+    name: "Summoned Guardian",
+    maxHp: 54,
+    speed: 10,
+    defense: 2,
+    actionPattern: ["guardian_sweep", "guardian_sweep"],
   }),
 });
 
@@ -88,6 +106,12 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     damage: Object.freeze({ minimum: 5, maximum: 8 }),
     target: "arthur",
   }),
+  guardian_sweep: Object.freeze({
+    id: "guardian_sweep",
+    name: "Spectral Sweep",
+    damage: Object.freeze({ minimum: 7, maximum: 11 }),
+    target: "arthur",
+  }),
 });
 
 const COMBAT_DEFINITIONS = Object.freeze({
@@ -98,5 +122,9 @@ const COMBAT_DEFINITIONS = Object.freeze({
   wolves: Object.freeze({
     id: "wolves",
     enemyIds: ["wolf", "wolf", "wolf"],
+  }),
+  summoned_guardian: Object.freeze({
+    id: "summoned_guardian",
+    enemyIds: ["summoned_guardian"],
   }),
 });
