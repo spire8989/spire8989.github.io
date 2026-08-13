@@ -10,18 +10,57 @@ const HealingRules = Object.freeze({
     return clampHealingNumber(player.arthurHealth, 0, this.arthurMaxHealth(player));
   },
 
+  activeParty(player) {
+    const members = [{
+      id: PLAYER_CHARACTER_DEFINITION.id,
+      name: PLAYER_CHARACTER_DEFINITION.name,
+      health: this.arthurHealth(player),
+      maxHealth: this.arthurMaxHealth(player),
+    }];
+    const companion = COMPANION_DEFINITIONS[player.selectedCompanion];
+    if (companion) {
+      const maxHealth = companion.combat?.maxHp ?? 0;
+      members.push({
+        id: companion.id,
+        name: companion.name,
+        health: clampHealingNumber(
+          player.companionStates?.[companion.id]?.health,
+          0,
+          maxHealth,
+        ),
+        maxHealth,
+      });
+    }
+    return members;
+  },
+
   quoteInnRest(player) {
-    const before = this.arthurHealth(player);
-    const maxHealth = this.arthurMaxHealth(player);
-    const amount = Math.min(HEALING_TUNING.innRestoration, maxHealth - before);
+    const partyMembers = this.activeParty(player).map((member) => {
+      const healingAmount = Math.min(HEALING_TUNING.innRestoration, member.maxHealth - member.health);
+      return {
+        id: member.id,
+        name: member.name,
+        healthBefore: member.health,
+        healthAfter: member.health + healingAmount,
+        maxHealth: member.maxHealth,
+        healingAmount,
+      };
+    });
+    const arthur = partyMembers[0];
+    const totalHealingAmount = partyMembers.reduce((sum, member) => sum + member.healingAmount, 0);
     return {
-      available: amount > 0 && player.currentGold >= HEALING_TUNING.innRestGoldCost,
-      fullHealth: amount <= 0,
+      available: totalHealingAmount > 0 && player.currentGold >= HEALING_TUNING.innRestGoldCost,
+      fullHealth: totalHealingAmount <= 0,
       affordable: player.currentGold >= HEALING_TUNING.innRestGoldCost,
-      healthBefore: before,
-      healthAfter: before + amount,
-      healingAmount: amount,
-      goldCost: amount > 0 ? HEALING_TUNING.innRestGoldCost : 0,
+      healthBefore: arthur.healthBefore,
+      healthAfter: arthur.healthAfter,
+      healingAmount: arthur.healingAmount,
+      totalHealingAmount,
+      partyMembers,
+      healingByPartyMember: Object.fromEntries(partyMembers.map(
+        (member) => [member.id, member.healingAmount],
+      )),
+      goldCost: totalHealingAmount > 0 ? HEALING_TUNING.innRestGoldCost : 0,
       resource: "gold",
     };
   },
@@ -32,7 +71,17 @@ const HealingRules = Object.freeze({
       return { ...quote, applied: false };
     }
     player.currentGold -= quote.goldCost;
-    player.arthurHealth = quote.healthAfter;
+    quote.partyMembers.forEach((member) => {
+      if (member.id === PLAYER_CHARACTER_DEFINITION.id) {
+        player.arthurHealth = member.healthAfter;
+        return;
+      }
+      player.companionStates ??= {};
+      player.companionStates[member.id] = {
+        ...(player.companionStates[member.id] ?? {}),
+        health: member.healthAfter,
+      };
+    });
     return { ...quote, applied: true };
   },
 });

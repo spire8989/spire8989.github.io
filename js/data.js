@@ -380,7 +380,7 @@ const COMPANION_DEFINITIONS = Object.freeze({
     tags: ["knight", "practical"],
     provisionCapacityBonus: 10,
     provisionConsumptionBonus: 0.3,
-    combat: Object.freeze({ maxHp: 85, speed: 9, defense: 2, basicDamage: Object.freeze({ minimum: 7, maximum: 10 }) }),
+    combat: Object.freeze({ maxHp: 50, speed: 9, defense: 2, basicDamage: Object.freeze({ minimum: 7, maximum: 10 }) }),
     combatAbilities: ["intercede"],
   },
 });

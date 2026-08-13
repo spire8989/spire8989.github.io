@@ -356,9 +356,14 @@ function renderDestination() {
 function renderInnInteraction(destination, npc) {
   const rest = HealingRules.quoteInnRest(game.player);
   const restStatus = rest.fullHealth
-    ? "Arthur is already at full health. No payment is needed."
-    : `Restore ${rest.healingAmount} health (${rest.healthBefore} → ${rest.healthAfter}) for ${rest.goldCost} gold.`;
+    ? "The active party is already at full health. No payment is needed."
+    : `One rest restores the whole active party for ${rest.goldCost} gold.`;
   const restButton = rest.fullHealth ? "Fully Rested" : rest.affordable ? `Rest · ${rest.goldCost}g` : "Cannot Afford Rest";
+  const partyHealth = rest.partyMembers.map((member) => `
+    <div>
+      <strong>${member.name}'s Health: ${member.healthBefore} / ${member.maxHealth}</strong>
+      <span>Restore ${member.healingAmount} health (${member.healthBefore} → ${member.healthAfter})</span>
+    </div>`).join("");
   return `
     <article class="npc-card">
       <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
@@ -369,7 +374,8 @@ function renderInnInteraction(destination, npc) {
       <button class="small-button" type="button" data-action="hear-rumor" data-npc-id="${npc.id}">Hear Rumor</button>
     </div>
     <article class="provision-offer inn-rest-offer">
-      <div><strong>Arthur's Health: ${rest.healthBefore} / ${HealingRules.arthurMaxHealth(game.player)}</strong><span>${restStatus}</span></div>
+      ${partyHealth}
+      <p>${restStatus}</p>
       <button class="game-button" type="button" data-action="rest-at-inn" ${rest.available ? "" : "disabled"}>${restButton}</button>
     </article>`;
 }
@@ -378,12 +384,15 @@ function restAtInn() {
   if (game.activeDestinationId !== "inn") return;
   const result = HealingRules.restAtInn(game.player);
   if (result.applied) {
-    game.interactionMessage = `Arthur rests and recovers ${result.healingAmount} health for ${result.goldCost} gold.`;
+    const recovery = result.partyMembers.map(
+      (member) => `${member.name} recovers ${member.healingAmount} health`,
+    ).join("; ");
+    game.interactionMessage = `The active party rests. ${recovery}. ${result.goldCost} gold was paid.`;
     savePlayer();
   } else if (result.fullHealth) {
-    game.interactionMessage = "Arthur is already fully rested. No gold was charged.";
+    game.interactionMessage = "The active party is already fully rested. No gold was charged.";
   } else {
-    game.interactionMessage = `Rest requires ${result.goldCost} gold. Arthur cannot afford it.`;
+    game.interactionMessage = `Rest requires ${result.goldCost} gold. The active party cannot afford it.`;
   }
   renderDestination();
 }

@@ -43,12 +43,6 @@ const CampaignSimulationRunner = Object.freeze({
         stopReason = "arthur-died";
         break;
       }
-      if (player.selectedCompanion
-        && (player.companionStates?.[player.selectedCompanion]?.health ?? 0) <= 0) {
-        stopReason = "required-companion-unavailable";
-        break;
-      }
-
       const decision = applyBetweenExpeditionPolicy(
         player, shopStocks, policy, targetDistance, config.healingEnabled,
       );
@@ -56,6 +50,11 @@ const CampaignSimulationRunner = Object.freeze({
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
 
+      if (player.selectedCompanion
+        && (player.companionStates?.[player.selectedCompanion]?.health ?? 0) <= 0) {
+        stopReason = "required-companion-unavailable";
+        break;
+      }
       if (decision.stopReason) {
         stopReason = decision.stopReason;
         break;
@@ -97,6 +96,8 @@ const CampaignSimulationRunner = Object.freeze({
         endingHealth: run.finalArthurHealth,
         damageTaken,
         healingBefore: decision.healing,
+        healingByPartyMember: decision.healing.healingByPartyMember,
+        healingCost: decision.healing.goldCost,
         startingGold: goldAtStart,
         endingGold: player.currentGold,
         startingProvisionStock: provisionStockAtStart,
@@ -217,10 +218,15 @@ const CampaignSimulationTelemetry = Object.freeze({
       seed: campaign.seed,
       strategy: campaign.strategy,
       policy: campaign.betweenExpeditionPolicy,
+      arthurHealing: expedition.healingByPartyMember?.arthur ?? 0,
+      companionId: expedition.stateBefore.selectedCompanion ?? "",
+      companionHealing: expedition.stateBefore.selectedCompanion
+        ? expedition.healingByPartyMember?.[expedition.stateBefore.selectedCompanion] ?? 0 : 0,
       ...expedition,
     })));
     const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "success",
       "targetDistance", "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
+      "arthurHealing", "companionId", "companionHealing", "healingCost",
       "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "lootValueRecovered",
       "netGold", "failureReason"];
     return campaignCsv(fields, rows);
@@ -237,13 +243,26 @@ function resolveBetweenPolicy(value) {
 }
 
 function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance, healingEnabled) {
-  const healthBefore = HealingRules.arthurHealth(player);
-  const maxHealth = HealingRules.arthurMaxHealth(player);
+  const restQuote = HealingRules.quoteInnRest(player);
   let healing = {
     attempted: false, intentionallySkipped: true, skippedInsufficientResources: false,
-    healthBefore, healthAfter: healthBefore, healingAmount: 0, goldCost: 0, resource: "gold",
+    ...restQuote,
+    available: false,
+    healthAfter: restQuote.healthBefore,
+    healingAmount: 0,
+    totalHealingAmount: 0,
+    goldCost: 0,
+    partyMembers: restQuote.partyMembers.map((member) => ({
+      ...member, healthAfter: member.healthBefore, healingAmount: 0,
+    })),
+    healingByPartyMember: Object.fromEntries(restQuote.partyMembers.map(
+      (member) => [member.id, 0],
+    )),
   };
-  if (healingEnabled && healthBefore / maxHealth < policy.healingThreshold) {
+  const partyNeedsRest = restQuote.partyMembers.some(
+    (member) => member.maxHealth > 0 && member.healthBefore / member.maxHealth < policy.healingThreshold,
+  );
+  if (healingEnabled && partyNeedsRest) {
     const result = HealingRules.restAtInn(player);
     healing = {
       attempted: true,
@@ -385,7 +404,8 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalProvisionsConsumed: totals((entry) => entry.provisionsConsumed),
     totalProvisionsFound: totals((entry) => entry.provisionsFound),
     totalDamageTaken: totals((entry) => entry.damageTaken),
-    totalHealingReceived: totals((entry) => entry.healingBefore.healingAmount),
+    totalHealingReceived: totals((entry) => entry.healingBefore.totalHealingAmount),
+    healingByPartyMember: campaignHealingByPartyMember(expeditions),
     totalCombats: totals((entry) => entry.combats),
     totalEncounters: totals((entry) => entry.encounters),
     startingLiquidWealth: startingWealth,
@@ -394,7 +414,7 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     averageStartingHealth: campaignAverage(startingHealthValues),
     averageEndingHealth: campaignAverage(endingHealthValues),
     averageHealthLost: campaignAverage(expeditions.map((entry) => entry.damageTaken)),
-    averageHealing: campaignAverage(expeditions.map((entry) => entry.healingBefore.healingAmount)),
+    averageHealing: campaignAverage(expeditions.map((entry) => entry.healingBefore.totalHealingAmount)),
     damagePerSuccessfulExpedition: successful.length ? totals((entry) => entry.success ? entry.damageTaken : 0) / successful.length : 0,
     damagePerFailedExpedition: failed.length ? totals((entry) => !entry.success ? entry.damageTaken : 0) / failed.length : 0,
     healingCostPerSuccessfulExpedition: successful.length ? totalHealingCost / successful.length : 0,
@@ -414,8 +434,8 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     successfulExpeditionsBeforeInsolvency: stopReason === "cannot-afford-minimum-provisions" ? successful.length : null,
     expeditionsUntilHealthUnsustainable: ["arthur-died", "cannot-afford-required-healing"].includes(stopReason)
       ? expeditions.length : null,
-    averageCostPerHealthRestored: totals((entry) => entry.healingBefore.healingAmount) > 0
-      ? totalHealingCost / totals((entry) => entry.healingBefore.healingAmount) : 0,
+    averageCostPerHealthRestored: totals((entry) => entry.healingBefore.totalHealingAmount) > 0
+      ? totalHealingCost / totals((entry) => entry.healingBefore.totalHealingAmount) : 0,
     profitAfterHealingAndRestocking: netCampaignWealth,
     economicTrend,
     betweenExpeditionDecisions: decisions,
@@ -474,6 +494,15 @@ function campaignLiquidWealth(state) {
   }, 0);
   const provisionPrice = shop.provisionsForSale.price;
   return (state.gold ?? 0) + (state.provisionStock ?? 0) * provisionPrice + inventoryValue;
+}
+
+function campaignHealingByPartyMember(expeditions) {
+  const totals = {};
+  expeditions.forEach((entry) => Object.entries(entry.healingBefore.healingByPartyMember ?? {})
+    .forEach(([memberId, amount]) => {
+      totals[memberId] = (totals[memberId] ?? 0) + amount;
+    }));
+  return totals;
 }
 
 function campaignAverage(values) {

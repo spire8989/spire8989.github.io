@@ -18,7 +18,7 @@ The campaign runner extends rather than replaces `SimulationRunner`. Each campai
 
 ## Persistent health
 
-Arthur's authoritative base maximum is `PLAYER_CHARACTER_DEFINITION.combat.maxHp`, currently **40 HP**. `HealingRules.arthurMaxHealth(player)` is the future extension point for equipment, relic, injury, buff, or progression modifiers. Combat damage was not rescaled.
+Arthur's authoritative base maximum is `PLAYER_CHARACTER_DEFINITION.combat.maxHp`, currently **40 HP**. Companion maxima remain in each companion definition; Sir Kay is currently **50 HP**. `HealingRules.arthurMaxHealth(player)` is the future extension point for equipment, relic, injury, buff, or progression modifiers. Combat damage was not rescaled.
 
 Save schema 6 adds:
 
@@ -26,12 +26,12 @@ Save schema 6 adds:
 {
   arthurHealth: 40,
   companionStates: {
-    sir_kay: { health: 85 }
+    sir_kay: { health: 50 }
   }
 }
 ```
 
-`ExpeditionRules.startExpedition` snapshots persistent health. `ExpeditionRules.settle` writes surviving Arthur and companion health back after success or failure. Entering town and starting another expedition do not heal anyone implicitly. Old saves migrate to valid full health without changing the localStorage key.
+`ExpeditionRules.startExpedition` snapshots persistent health. `ExpeditionRules.settle` writes surviving Arthur and companion health back after success or failure. Entering town and starting another expedition do not heal anyone implicitly. Old saves migrate without changing the localStorage key, and sanitization clamps stored health to current data-defined maxima; a former Kay value above 50 therefore loads as 50.
 
 ## Inn healing
 
@@ -44,9 +44,9 @@ HEALING_TUNING.innRestoration = 10;
 HEALING_TUNING.innRestGoldCost = 3;
 ```
 
-The Inn shows current/max health, exact healing amount, resulting health, and cost. `HealingRules.quoteInnRest` is non-mutating. `HealingRules.restAtInn` charges only when healing is possible and affordable, persists immediately through the normal save path, and never charges at full health.
+The Inn shows current/max health, exact healing amount, and resulting health for Arthur and the selected companion. `HealingRules.quoteInnRest` is non-mutating. `HealingRules.restAtInn` applies one party operation: each active member restores up to 10 HP, each is capped at their own maximum, and the shared action costs 3 gold once. It charges only when at least one active member can heal and the player can afford it, persists immediately through the normal save path, and never charges when the whole active party is full. With no selected companion, only Arthur participates.
 
-Campaign policies automate this exact same action. Healing telemetry distinguishes policy skip, insufficient resources, amount restored, before/after health, cost, and resource.
+Campaign policies automate this exact same action and consider every active party member when applying their healing threshold. Healing telemetry records before/after health and healing separately in `partyMembers` and `healingByPartyMember`, while retaining one shared rest cost. Per-expedition CSV also exposes `arthurHealing`, `companionId`, `companionHealing`, and `healingCost`. A zero-health companion is marked unavailable only if the companion remains at zero after the normal between-expedition action.
 
 ## Running a campaign
 
@@ -160,7 +160,7 @@ python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-The focused campaign suite covers save migration, player-facing Inn display/affordability/save behavior, normal-game health persistence, shared healing parity, campaign determinism/divergence, insolvency, ten-expedition completion, persistent economy, batch aggregation/CSV, and replay metadata.
+The focused campaign suite covers save migration and clamping, player-facing active-party Inn display/affordability/save behavior, flat-cost capped party healing, normal-game health persistence, shared campaign healing parity and per-member telemetry, campaign determinism/divergence, insolvency, ten-expedition completion, persistent economy, batch aggregation/CSV, and replay metadata.
 
 ## Current limitations
 

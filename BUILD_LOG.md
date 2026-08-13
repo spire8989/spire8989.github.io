@@ -568,3 +568,31 @@ The human developer supplied the complete campaign-simulation guide and the addi
 ### Resulting prototype state
 
 Arthur and Kay now carry wounds beyond an expedition instead of resetting at town. Arthur can pay to recover at the existing playable Inn, and campaign policies automate precisely that action. Balance tests can follow gold, provisions, recovered goods, sales, healing, health, party availability, and expedition outcomes across deterministic campaign sequences and batches, revealing whether a plan grows, sustains, declines, dies, or becomes insolvent.
+
+## 2026-08-12 — Active-Party Inn Healing Correction
+
+### Goal
+
+Set Sir Kay's data-defined maximum to 50 HP and make the existing flat-cost Inn rest heal the entire active party consistently in player gameplay and campaign simulation.
+
+### Human prompt and direction
+
+The human developer requested a focused pre-testing correction: preserve all combat, encounter, provision, and Inn tuning while adding shared party healing, per-member telemetry, safe old-save clamping, and post-healing companion availability checks.
+
+### AI-assisted implementation
+
+- Changed Sir Kay's companion-definition maximum from 85 to 50 HP without adding combat or simulation special cases.
+- Expanded `HealingRules` to quote and mutate Arthur plus the selected companion in one operation, capped by each member's maximum and charged once at the existing 3-gold cost for up to 10 HP each.
+- Updated the Inn to show both active members' current, maximum, healing, and resulting health, with whole-party confirmation and immediate persistent saving.
+- Updated campaign policies to evaluate the active party, invoke the same production rest action, retain a single shared cost, record healing per member, and check zero-health companion availability after between-expedition actions.
+- Kept save schema 6 and used its current data-driven sanitizer to clamp older Kay health values above 50 while preserving lower current values.
+- Added focused browser assertions for the 20/40 Arthur and 30/50 Kay case, individual caps, one-time cost, save/reload, solo rest behavior, settlement/next-expedition persistence, campaign parity, per-member telemetry, and zero-health post-action ordering.
+- Verified 23 focused campaign/health/Inn assertions, 9 deterministic simulation assertions, and all 207 existing UI/location/browser assertions; `git diff --check` also passed.
+
+### Manual changes
+
+The human developer supplied the correction requirements. No manual code edits were reported for this pass.
+
+### Resulting prototype state
+
+Sir Kay now has 50 maximum HP. A paid Inn rest serves the current active party as one economic action, and the campaign simulator automates that exact action with member-level health reporting rather than an Arthur-only approximation.
