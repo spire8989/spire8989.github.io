@@ -247,6 +247,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
+      "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
       "totalGoldEarned", "totalGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
     return campaignCsv(fields, results.map((campaign) => ({
       ...campaign,
