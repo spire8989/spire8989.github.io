@@ -54,7 +54,7 @@ def run():
         devtools.click('[data-action="enter-location"]')
         devtools.click('[data-destination-id="inn"]')
         devtools.evaluate("game.player.arthurHealth=20; game.player.companionStates.sir_kay.health=30; game.player.selectedCompanion='sir_kay'; game.player.currentGold=12; savePlayer(); renderDestination()")
-        check("document.body.textContent.includes(\"Arthur's Health: 20 / 40\") && document.body.textContent.includes(\"Sir Kay's Health: 30 / 50\") && document.body.textContent.match(/Restore 10 health/g).length===2 && document.body.textContent.includes('whole active party')", "Inn did not show both active-party health quotes")
+        check("document.body.textContent.includes('20 / 40') && document.body.textContent.includes('30 / 40') && document.body.textContent.includes('30 / 50') && document.body.textContent.includes('40 / 50') && document.body.textContent.includes('Rest restores the active company')", "Inn did not show both active-party current and restored health values")
         devtools.click('[data-action="rest-at-inn"]')
         check("game.player.arthurHealth===30 && game.player.companionStates.sir_kay.health===40 && game.player.currentGold===9 && [...document.querySelectorAll('.toast-success')].some(toast=>toast.textContent.includes('Rested at the Inn'))", "One flat-cost Inn rest did not heal Arthur and Kay or show its success toast")
         check("SaveSystem.load().arthurHealth===30 && SaveSystem.load().companionStates.sir_kay.health===40 && SaveSystem.load().currentGold===9", "Party healing did not persist through save/load")
@@ -62,7 +62,7 @@ def run():
         devtools.evaluate("game.player.arthurHealth=35; game.player.companionStates.sir_kay.health=45; game.player.currentGold=12; renderDestination()")
         devtools.click('[data-action="rest-at-inn"]')
         check("game.player.arthurHealth===40 && game.player.companionStates.sir_kay.health===50 && game.player.currentGold===9", "Party rest exceeded a maximum or charged more than once")
-        check("document.querySelector('[data-action=\"rest-at-inn\"]')?.disabled && HealingRules.quoteInnRest(game.player).goldCost===0", "Full-health rest can still charge resources")
+        check("!Boolean(document.querySelector('[data-action=\"rest-at-inn\"]')) && HealingRules.quoteInnRest(game.player).goldCost===0 && document.body.textContent.includes('Everyone is fully rested')", "Full-health rest can still charge resources")
 
         devtools.evaluate("game.player.arthurHealth=12; game.player.companionStates.sir_kay.health=21; game.player.currentGold=12; renderDestination()")
         devtools.click('[data-action="rest-at-inn"]')
@@ -70,15 +70,15 @@ def run():
         devtools.click('[data-action="rest-at-inn"]')
         check("game.player.arthurHealth===32&&game.player.companionStates.sir_kay.health===41&&game.player.currentGold===6&&!document.querySelector('[data-action=\"rest-at-inn\"]')?.disabled", "Second repeated Inn rest did not heal and charge independently")
         devtools.click('[data-action="rest-at-inn"]')
-        check("game.player.arthurHealth===40&&game.player.companionStates.sir_kay.health===50&&game.player.currentGold===3&&document.querySelector('[data-action=\"rest-at-inn\"]')?.disabled&&SaveSystem.load().arthurHealth===40&&SaveSystem.load().companionStates.sir_kay.health===50", "Repeated Inn rests did not cap, stop, or save correctly")
+        check("game.player.arthurHealth===40&&game.player.companionStates.sir_kay.health===50&&game.player.currentGold===3&&!Boolean(document.querySelector('[data-action=\"rest-at-inn\"]'))&&SaveSystem.load().arthurHealth===40&&SaveSystem.load().companionStates.sir_kay.health===50", "Repeated Inn rests did not cap, stop, or save correctly")
 
         devtools.evaluate("game.player.arthurHealth=7; game.player.companionStates.sir_kay.health=50; game.player.currentGold=6; renderDestination()")
         devtools.click('[data-action="rest-at-inn"]')
         devtools.click('[data-action="rest-at-inn"]')
-        check("game.player.arthurHealth===27&&game.player.currentGold===0&&document.querySelector('[data-action=\"rest-at-inn\"]')?.disabled&&document.body.textContent.includes('Cannot Afford Rest')", "Inn allowed another repeated rest without enough gold")
+        check("game.player.arthurHealth===27&&game.player.currentGold===0&&document.querySelector('[data-action=\"rest-at-inn\"]')?.disabled&&document.body.textContent.includes('Cannot Afford')", "Inn allowed another repeated rest without enough gold")
 
         devtools.evaluate("game.player.arthurHealth=20; game.player.companionStates.sir_kay.health=30; game.player.currentGold=2; savePlayer(); renderDestination()")
-        check("!HealingRules.quoteInnRest(game.player).available && document.body.textContent.includes('Cannot Afford Rest')", "Unaffordable Inn healing is not clearly blocked")
+        check("!HealingRules.quoteInnRest(game.player).available && document.body.textContent.includes('Cannot Afford')", "Unaffordable Inn healing is not clearly blocked")
         check("(() => { const before=JSON.stringify(game.player); const result=HealingRules.restAtInn(game.player); return !result.applied && JSON.stringify(game.player)===before; })()", "Unaffordable healing mutated player resources")
         check("(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanion=null; player.arthurHealth=20; player.companionStates.sir_kay.health=30; const result=HealingRules.restAtInn(player); return player.arthurHealth===30 && player.companionStates.sir_kay.health===30 && result.partyMembers.length===1; })()", "A non-selected companion was healed")
 

@@ -369,15 +369,16 @@ function renderDestination() {
 
 function renderInnInteraction(destination, npc) {
   const rest = HealingRules.quoteInnRest(game.player);
-  const restStatus = rest.fullHealth
-    ? "The active party is already at full health. No payment is needed."
-    : `One rest restores the whole active party for ${rest.goldCost} gold.`;
-  const restButton = rest.fullHealth ? "Fully Rested" : rest.affordable ? `Rest · ${rest.goldCost}g` : "Cannot Afford Rest";
   const partyHealth = rest.partyMembers.map((member) => `
-    <div>
-      <strong>${member.name}'s Health: ${member.healthBefore} / ${member.maxHealth}</strong>
-      <span>Restore ${member.healingAmount} health (${member.healthBefore} → ${member.healthAfter})</span>
+    <div class="inn-health-row">
+      <strong>${member.name}</strong>
+      <span>${rest.fullHealth ? `${member.healthBefore} / ${member.maxHealth}` : `${member.healthBefore} / ${member.maxHealth} &rarr; ${member.healthAfter} / ${member.maxHealth}`}</span>
+      <span class="inn-health-result">${rest.fullHealth ? "Full Health" : `+${member.healingAmount} HP`}</span>
     </div>`).join("");
+  const restAction = rest.fullHealth
+    ? `<p class="inn-rest-complete">Everyone is fully rested.</p>`
+    : `<div class="inn-rest-action"><span>Rest restores the active company</span><strong>${rest.goldCost}g</strong></div>
+      <button class="game-button" type="button" data-action="rest-at-inn" ${rest.available ? "" : "disabled"}>${rest.available ? `Rest · ${rest.goldCost}g` : `Cannot Afford · ${rest.goldCost}g`}</button>`;
   return `
     <article class="npc-card">
       <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
@@ -388,9 +389,9 @@ function renderInnInteraction(destination, npc) {
       <button class="small-button" type="button" data-action="hear-rumor" data-npc-id="${npc.id}">Hear Rumor</button>
     </div>
     <article class="provision-offer inn-rest-offer">
-      ${partyHealth}
-      <p>${restStatus}</p>
-      <button class="game-button" type="button" data-action="rest-at-inn" ${rest.available ? "" : "disabled"}>${restButton}</button>
+      <div class="inn-rest-heading"><strong>Rest the Company</strong><span>${rest.fullHealth ? "No payment needed" : "One rest"}</span></div>
+      <div class="inn-health-list">${partyHealth}</div>
+      ${restAction}
     </article>`;
 }
 
@@ -462,7 +463,7 @@ function renderMaterialInventory() {
       - (RARITY_DEFINITIONS[MATERIAL_DEFINITIONS[right].rarity]?.rank ?? 0)
       || MATERIAL_DEFINITIONS[left].name.localeCompare(MATERIAL_DEFINITIONS[right].name));
   const chips = entries.map(([materialId, quantity]) => (
-    `<span class="material-chip rarity-${MATERIAL_DEFINITIONS[materialId].rarity}">${MATERIAL_DEFINITIONS[materialId].name} <strong>${quantity}</strong></span>`
+    `<span class="material-chip rarity-${MATERIAL_DEFINITIONS[materialId].rarity}">${itemIcon("material", { ...MATERIAL_DEFINITIONS[materialId], id: materialId })}<span>${MATERIAL_DEFINITIONS[materialId].name}</span> <strong>${quantity}</strong></span>`
   )).join("");
   return `<div class="material-inventory"><span>Materials</span><div>${chips || '<em>None owned</em>'}</div></div>`;
 }
@@ -475,7 +476,7 @@ function craftingRow(recipe, providerId) {
   const cost = recipe.goldCost > 0 ? ` · ${recipe.goldCost} gold` : "";
   return `
     <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
-      <div class="item-icon" aria-hidden="true">${itemIcon(quote.item.category)}</div>
+      <div class="item-icon" aria-hidden="true">${itemIcon(quote.item.category, quote.item)}</div>
       <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost">${ingredients}${cost}</span><span>Creates ${quote.item.name}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}</span></div>
       <button class="small-button" type="button" data-action="craft-item" data-recipe-id="${recipe.id}">Craft</button>
     </article>`;
@@ -509,7 +510,7 @@ function shopBuyRow(shop, itemId, offer) {
   const unavailable = stock <= 0;
   return `
     <article class="shop-item-row ${ownedUnique || unavailable ? "is-blocked" : ""}">
-      <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
+      <div class="item-icon" aria-hidden="true">${itemIcon(item.category, item)}</div>
       <div><strong>${item.name}</strong><span>${ownedUnique ? "Owned · unique equipment" : unavailable ? "Sold out" : `${item.description} · ${stock} available`}</span></div>
       <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${ownedUnique || unavailable ? "disabled" : ""}>${ownedUnique ? "Owned" : unavailable ? "Sold Out" : `Buy · ${offer.price}g`}</button>
     </article>`;
@@ -521,7 +522,7 @@ function shopSellRow(shop, itemId, quantity) {
   const value = shop.sellValues[itemId];
   return `
     <article class="shop-item-row ${reason ? "is-blocked" : ""}">
-      <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
+      <div class="item-icon" aria-hidden="true">${itemIcon(item.category, item)}</div>
       <div><strong>${item.name}${quantity > 1 ? ` ×${quantity}` : ""}</strong><span>${reason || `${value} gold each`}</span></div>
       <button class="small-button" type="button" data-action="sell-item" data-item-id="${itemId}" ${reason ? "disabled" : ""}>${reason ? "Cannot Sell" : `Sell · ${value}g`}</button>
     </article>`;
@@ -792,7 +793,7 @@ function inventoryCard(item, quantity) {
 
   return `
     <article class="inventory-card ${equipped ? "is-equipped" : ""}">
-      <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
+      <div class="item-icon" aria-hidden="true">${itemIcon(item.category, item)}</div>
       <div class="item-copy">
         <div class="item-title-row"><h3>${item.name}</h3>${quantity > 1 ? `<span>×${quantity}</span>` : ""}</div>
         <p>${item.description}</p>
@@ -960,10 +961,9 @@ function renderExpedition() {
   const activeEncounter = expedition.activeEncounter
     ? ENCOUNTER_DEFINITIONS[expedition.activeEncounter.encounterId]
     : null;
-  const loadout = Object.values(expedition.selectedEquipment)
-    .map((itemId) => ITEM_DEFINITIONS[itemId]?.name)
-    .filter(Boolean)
-    .join(" · ");
+  const loadoutEntries = Object.values(expedition.selectedEquipment)
+    .map((itemId) => ({ itemId, quantity: 1 }))
+    .filter(({ itemId }) => ITEM_DEFINITIONS[itemId]);
 
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
@@ -979,7 +979,7 @@ function renderExpedition() {
       </div>
       ${activeEncounter
         ? renderEncounterPanel(expedition, activeEncounter)
-        : renderTravelPanel(expedition, companion, loadout)}
+        : renderTravelPanel(expedition, companion, loadoutEntries)}
     </section>`;
   updateTravelHud();
 }
@@ -1004,9 +1004,9 @@ function renderTravelPanel(expedition, companion, loadout) {
       <section class="run-details">
         <p><span>Company</span><strong>${companion ? `Arthur &amp; ${companion.name}` : "Arthur"}</strong></p>
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
-        <p><span>Loadout</span><strong>${loadout || "No equipment selected"}</strong></p>
-        <p><span>Carried</span><strong>${formatCarriedItems(expedition.carriedItems)}</strong></p>
-        <div id="loot-list" class="loot-list">${renderLootList(expedition.unsecuredLoot)}</div>
+        <div class="run-detail-collection"><span>Loadout</span><div class="run-item-list">${renderItemChips(loadout, "No equipment selected")}</div></div>
+        <div class="run-detail-collection"><span>Carried</span><div class="run-item-list">${formatCarriedItems(expedition.carriedItems)}</div></div>
+        <div class="run-detail-collection"><span>Discoveries</span><div id="loot-list" class="loot-list">${renderDiscoveryList(expedition)}</div></div>
       </section>
       ${renderEncounterDebugControls(expedition)}
       <div class="footer-actions travel-actions">
@@ -1101,6 +1101,7 @@ function renderCombat(expedition, combat) {
   const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
   const awaitingAction = combat.status === "awaitingAction";
   const choosingTarget = ["enemyTarget", "allyTarget"].includes(combat.interactionMode);
+  const selectedEnemy = combat.enemies.find((enemy) => enemy.id === combat.selectedEnemyId && enemy.hp > 0);
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen combat-screen" aria-label="Combat">
       <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""}">
@@ -1114,14 +1115,18 @@ function renderCombat(expedition, combat) {
       </div>
       <div class="combat-panel">
         <div class="combat-state-line">
-          <p class="eyebrow">${awaitingAction ? "Combat Paused" : "Battle in Progress"}</p>
-          <strong>${activeActor ? `${activeActor.name} is ready` : "Action gauges are filling"}</strong>
-        </div>
-        <div class="combat-log" aria-live="polite">
-          ${combat.log.slice(-4).map((message) => `<p>${message}</p>`).join("")}
+          <div>
+            <p class="eyebrow">${awaitingAction ? "Current Turn" : "Battle in Progress"}</p>
+            <strong>${activeActor ? `${activeActor.name}'s turn` : "Action gauges are filling"}</strong>
+          </div>
+          <span class="combat-target-summary">${selectedEnemy ? `${selectedEnemy.name} selected` : choosingTarget ? "Choose a target" : "No target selected"}</span>
         </div>
         <div class="combat-controls">
           ${renderCombatControls(combat, activeActor)}
+        </div>
+        <div class="combat-log" aria-live="polite">
+          <strong class="combat-log-label">Combat Log</strong>
+          <div class="combat-log-entries">${combat.log.slice(-4).map((message) => `<p>${message}</p>`).join("")}</div>
         </div>
       </div>
     </section>`;
@@ -1191,7 +1196,7 @@ function renderCombatControls(combat, activeActor) {
     const disabled = available.includes(actionId) ? "" : " disabled";
     return `<button type="button" data-action="combat-action" data-combat-action-id="${actionId}"${disabled}><strong>${action.name}</strong>${action.description ? `<span>${action.description}</span>` : ""}</button>`;
   }).join("");
-  return `<p>Choose ${activeActor.name}'s action</p><div class="combat-action-grid">${buttons}</div>`;
+  return `<div class="combat-action-grid">${buttons}</div>`;
 }
 
 function combatGaugePercent(combatant) {
@@ -1223,6 +1228,7 @@ function unsecuredMaterialQuantity(expedition) {
 function renderExpeditionResources(expedition) {
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);
+  const totalDiscoveries = itemQuantity + materialQuantity;
   return `
     <div class="resource-grid compact-resources">
       <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
@@ -1230,8 +1236,13 @@ function renderExpeditionResources(expedition) {
       <div class="resource-card"><span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong></div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
       <div class="resource-card unsecured-card">
-        <div class="resource-card-heading"><span>Unsecured Loot</span><strong id="loot-count">${itemQuantity}</strong></div>
-        <small id="loot-breakdown">${itemQuantity} items · ${materialQuantity} materials · ${expedition.goldCarried}g</small>
+        <div class="resource-card-heading"><span>Unsecured Loot</span><strong id="loot-count">${totalDiscoveries}</strong></div>
+        <div id="loot-breakdown" class="unsecured-breakdown">
+          <span>${itemIcon("treasure")}<strong id="loot-item-count">${itemQuantity}</strong> items</span>
+          <span>${itemIcon("material")}<strong id="loot-material-count">${materialQuantity}</strong> materials</span>
+          <span>${itemIcon("currency")}<strong id="loot-gold-count">${expedition.goldCarried}</strong> gold</span>
+        </div>
+        <p id="loot-empty-state" class="unsecured-empty" ${totalDiscoveries > 0 || expedition.goldCarried > 0 ? "hidden" : ""}>Nothing found yet</p>
       </div>
     </div>`;
 }
@@ -1628,47 +1639,103 @@ function rewardBucketEntries(bucket = {}, statusLabel = "") {
   ];
 }
 
-function rewardIconLabel(reward) {
-  if (reward.type === "gold") return "GOLD";
-  if (reward.type === "material") return "MAT";
-  if (reward.type === "recipe") return "REC";
-  return ({
-    weapon: "WPN", armor: "ARM", gear: "GEAR", relic: "REL",
-    valuable: "VAL", supply: "SUP", quest: "QUEST", treasure: "TREAS",
-  })[ITEM_DEFINITIONS[reward.itemId]?.category] ?? "ITEM";
+function rewardDefinition(reward) {
+  return reward.type === "item" ? ITEM_DEFINITIONS[reward.itemId]
+    : reward.type === "material" ? MATERIAL_DEFINITIONS[reward.materialId]
+      : reward.type === "recipe" ? RECIPE_DEFINITIONS[reward.recipeId] : null;
+}
+
+function rewardIconKind(reward) {
+  if (reward.type === "gold") return "currency";
+  if (reward.type === "material") return itemIconKind("material", { ...MATERIAL_DEFINITIONS[reward.materialId], id: reward.materialId, category: "material" });
+  if (reward.type === "recipe") return "recipe";
+  const definition = rewardDefinition(reward);
+  return itemIconKind(definition?.category, definition);
+}
+
+function rewardPresentation(reward) {
+  const definition = rewardDefinition(reward);
+  const rarityRank = RARITY_DEFINITIONS[definition?.rarity ?? "common"]?.rank ?? 0;
+  if (reward.type === "recipe" || definition?.questItem || definition?.category === "relic" || rarityRank >= 3
+    || (rarityRank >= 2 && definition?.category !== "valuable" && reward.type !== "material")) {
+    return "major";
+  }
+  if (rarityRank >= 1 || ["valuable", "curiosity"].includes(definition?.category)) {
+    return "notable";
+  }
+  return "routine";
+}
+
+function rewardDisplayName(reward) {
+  return reward.type === "gold" ? "Gold" : rewardDefinition(reward)?.name ?? "Unknown reward";
+}
+
+function rewardQuantityLabel(reward) {
+  if (reward.type === "gold") return `+${reward.quantity}`;
+  return reward.quantity > 1 ? `×${reward.quantity}` : "";
+}
+
+function rewardCategoryLabel(reward) {
+  const definition = rewardDefinition(reward);
+  return reward.type === "gold" ? "Currency"
+    : reward.type === "material" ? "Crafting Material"
+      : reward.type === "recipe" ? "Recipe" : capitalize(definition?.category ?? "Item");
+}
+
+function renderRewardCard(reward, options = {}) {
+  const definition = rewardDefinition(reward);
+  const rarity = definition?.rarity ?? "common";
+  const rarityName = RARITY_DEFINITIONS[rarity]?.name ?? capitalize(rarity);
+  const name = rewardDisplayName(reward);
+  const description = reward.type === "gold" ? "Coins recovered from the journey."
+    : definition?.description ?? "A useful discovery from the road.";
+  const quantity = rewardQuantityLabel(reward);
+  const statusLabel = reward.statusLabel || (reward.unsecured ? "UNSECURED" : "");
+  return `
+    <article class="reward-card rarity-${rarity} ${options.variant === "summary" ? "is-summary-highlight" : ""}">
+      <div class="reward-icon">${categoryIcon(rewardIconKind(reward))}</div>
+      <div class="reward-copy">
+        <div class="reward-heading"><strong>${name}</strong>${quantity ? `<span class="reward-quantity">${quantity}</span>` : ""}</div>
+        <div class="reward-meta"><span>${rarityName}</span><span>${rewardCategoryLabel(reward)}</span></div>
+        <p>${description}</p>
+        ${statusLabel ? `<span class="reward-status">${statusLabel}</span>` : ""}
+      </div>
+    </article>`;
 }
 
 function renderRewardCards(rewards = [], options = {}) {
   if (rewards.length === 0) {
     return `<p class="empty-rewards">${options.emptyMessage ?? "No rewards this time."}</p>`;
   }
+  return `<div class="reward-card-list">${rewards.map((reward) => renderRewardCard(reward, options)).join("")}</div>`;
+}
 
-  return `<div class="reward-card-list">${rewards.map((reward) => {
-    const definition = reward.type === "item" ? ITEM_DEFINITIONS[reward.itemId]
-      : reward.type === "material" ? MATERIAL_DEFINITIONS[reward.materialId]
-        : reward.type === "recipe" ? RECIPE_DEFINITIONS[reward.recipeId] : null;
-    const rarity = definition?.rarity ?? "common";
-    const rarityName = RARITY_DEFINITIONS[rarity]?.name ?? capitalize(rarity);
-    const category = reward.type === "gold" ? "Currency"
-      : reward.type === "material" ? "Crafting Material"
-        : reward.type === "recipe" ? "Recipe" : capitalize(definition?.category ?? "Item");
-    const name = reward.type === "gold" ? "Gold" : definition?.name ?? "Unknown reward";
-    const description = reward.type === "gold" ? "Coins recovered from the journey."
-      : definition?.description ?? "A useful discovery from the road.";
-    const quantity = reward.type === "gold" ? `+${reward.quantity}`
-      : reward.quantity > 1 ? `×${reward.quantity}` : "";
-    const statusLabel = reward.statusLabel || (reward.unsecured ? "UNSECURED" : "");
-    return `
-      <article class="reward-card rarity-${rarity}">
-        <div class="reward-icon" aria-hidden="true">${rewardIconLabel(reward)}</div>
-        <div class="reward-copy">
-          <div class="reward-heading"><strong>${name}</strong>${quantity ? `<span class="reward-quantity">${quantity}</span>` : ""}</div>
-          <div class="reward-meta"><span>${rarityName}</span><span>${category}</span></div>
-          <p>${description}</p>
-          ${statusLabel ? `<span class="reward-status">${statusLabel}</span>` : ""}
-        </div>
-      </article>`;
-  }).join("")}</div>`;
+function renderCompactRewardRow(reward) {
+  const definition = rewardDefinition(reward);
+  const rarity = definition?.rarity ?? "common";
+  const statusLabel = reward.statusLabel || "";
+  return `<li class="summary-reward-row ${rewardPresentation(reward) === "notable" ? "is-notable" : ""}">
+    <span class="summary-reward-icon">${categoryIcon(rewardIconKind(reward))}</span>
+    <span class="summary-reward-name">${rewardDisplayName(reward)}</span>
+    <strong>${rewardQuantityLabel(reward)}</strong>
+    ${rewardPresentation(reward) === "notable" ? `<em>${RARITY_DEFINITIONS[rarity]?.name ?? capitalize(rarity)}</em>` : ""}
+    ${statusLabel ? `<small>${statusLabel}</small>` : ""}
+  </li>`;
+}
+
+function renderSummaryRewardCollection(rewards = [], options = {}) {
+  if (rewards.length === 0) {
+    return `<p class="empty-rewards">${options.emptyMessage ?? "No rewards this time."}</p>`;
+  }
+  const routineAndNotable = rewards.filter((reward) => rewardPresentation(reward) !== "major");
+  const major = rewards.filter((reward) => rewardPresentation(reward) === "major");
+  const groups = [
+    ["Items", routineAndNotable.filter((reward) => reward.type === "item")],
+    ["Materials", routineAndNotable.filter((reward) => reward.type === "material")],
+    ["Gold", routineAndNotable.filter((reward) => reward.type === "gold")],
+  ].filter(([, group]) => group.length > 0);
+  return `<div class="summary-reward-collection">${groups.map(([label, group]) => `<div class="summary-reward-group"><h3>${label}</h3><ul class="summary-reward-list">${group.map(renderCompactRewardRow).join("")}</ul></div>`).join("")}
+    ${major.length > 0 ? `<div class="summary-major-rewards"><h3>Highlighted Discoveries</h3>${renderRewardCards(major, { variant: "summary" })}</div>` : ""}</div>`;
 }
 
 function renderSummary() {
@@ -1703,13 +1770,13 @@ function renderSummary() {
 
         <section class="summary-reward-section" aria-labelledby="expedition-haul-title">
           <div class="summary-reward-heading"><strong id="expedition-haul-title">Expedition Haul</strong><span>${returned ? "Secured on return" : "Lost with the expedition"}</span></div>
-          ${renderRewardCards(expeditionRewards, { emptyMessage: returned ? "No discoveries from the expedition." : "No unsecured discoveries were lost." })}
+          ${renderSummaryRewardCollection(expeditionRewards, { emptyMessage: returned ? "No discoveries from the expedition." : "No unsecured discoveries were lost." })}
         </section>
 
         ${returned ? `
           <section class="summary-reward-section return-reward-section" aria-labelledby="return-reward-title">
             <div class="summary-reward-heading"><strong id="return-reward-title">${capitalize(summary.returnRewardTier ?? "minor")} Return Reward</strong><span>Distance-tier bonus</span></div>
-            ${renderRewardCards(returnRewards, { emptyMessage: "No additional return reward this time." })}
+            ${renderSummaryRewardCollection(returnRewards, { emptyMessage: "No additional return reward this time." })}
           </section>` : ""}
 
         <p class="protected-note">Your original equipment and companion remain available.</p>
@@ -1733,8 +1800,14 @@ function updateTravelHud() {
   setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);
-  setText("#loot-count", itemQuantity);
-  setText("#loot-breakdown", `${itemQuantity} items · ${materialQuantity} materials · ${expedition.goldCarried}g`);
+  const totalDiscoveries = itemQuantity + materialQuantity;
+  setText("#loot-count", totalDiscoveries);
+  setText("#loot-item-count", itemQuantity);
+  setText("#loot-material-count", materialQuantity);
+  setText("#loot-gold-count", expedition.goldCarried);
+  document.querySelector("#loot-empty-state")?.toggleAttribute(
+    "hidden", totalDiscoveries > 0 || expedition.goldCarried > 0,
+  );
 
   const returning = expedition.direction === "returning";
   const activeEncounter = expedition.activeEncounter
@@ -1769,19 +1842,45 @@ function updateTravelHud() {
   setText("#debug-state", debugExpeditionState(expedition));
 }
 
-function renderLootList(loot) {
-  if (loot.length === 0) {
-    return '<p class="empty-loot">No discoveries yet. Travel farther into the forest.</p>';
-  }
+function renderItemChip(itemId, quantity = 1, className = "") {
+  const item = ITEM_DEFINITIONS[itemId];
+  if (!item) return "";
+  return `<span class="run-item-chip ${className}">${itemIcon(item.category, item)}<span>${item.name}</span>${quantity > 1 ? `<strong>×${quantity}</strong>` : ""}</span>`;
+}
 
-  return loot.map(({ itemId }) => `<span class="loot-chip">${ITEM_DEFINITIONS[itemId].name}</span>`).join("");
+function renderItemChips(entries = [], emptyLabel = "None") {
+  const chips = entries
+    .filter((entry) => ITEM_DEFINITIONS[entry.itemId])
+    .map((entry) => renderItemChip(entry.itemId, entry.quantity ?? 1))
+    .filter(Boolean)
+    .join("");
+  return chips || `<span class="item-list-empty">${emptyLabel}</span>`;
+}
+
+function renderDiscoveryList(expedition) {
+  const itemChips = (expedition?.unsecuredLoot ?? [])
+    .map(({ itemId, quantity }) => renderItemChip(itemId, quantity, "loot-chip"))
+    .join("");
+  const materialChips = Object.entries(expedition?.unsecuredMaterials ?? {})
+    .filter(([, quantity]) => quantity > 0)
+    .map(([materialId, quantity]) => `<span class="run-item-chip loot-chip">${itemIcon("material", { ...MATERIAL_DEFINITIONS[materialId], id: materialId, category: "material" })}<span>${MATERIAL_DEFINITIONS[materialId]?.name ?? materialId}</span><strong>×${quantity}</strong></span>`)
+    .join("");
+  const goldChip = expedition?.goldCarried > 0
+    ? `<span class="run-item-chip loot-chip loot-chip-gold">${categoryIcon("currency")}<span>Gold</span><strong>+${expedition.goldCarried}</strong></span>`
+    : "";
+  return itemChips + materialChips + goldChip
+    || '<p class="empty-loot">No discoveries yet. Travel farther into the forest.</p>';
+}
+
+function renderLootList(loot) {
+  return renderDiscoveryList({ unsecuredLoot: loot });
 }
 
 function announceTravelEvent(message) {
   setText("#travel-message", message);
   const lootList = document.querySelector("#loot-list");
   if (lootList) {
-    lootList.innerHTML = renderLootList(game.expedition.unsecuredLoot);
+    lootList.innerHTML = renderDiscoveryList(game.expedition);
   }
 }
 
@@ -1810,16 +1909,57 @@ function resetSave() {
   showScreen("campaign");
 }
 
-function itemIcon(category) {
-  return ({
-    weapon: "⚔",
-    armor: "◈",
-    gear: "⌁",
-    relic: "✦",
-    quest: "◆",
-    treasure: "●",
-    supply: "+",
-  })[category] ?? "•";
+const CATEGORY_ICON_MARKUP = Object.freeze({
+  weapon: '<path d="m14.5 3.5 6-1.5-1.5 6-8.8 8.8-2.9-2.9 8.8-8.8Z"/><path d="m5.6 14.4-2.1 2.1m4.2 1-2.1 2.1m4.2-1-2.1 2.1"/>',
+  armor: '<path d="M12 3 19 6v5.3c0 4.5-2.8 7.6-7 9.7-4.2-2.1-7-5.2-7-9.7V6l7-3Z"/><path d="M8.5 12h7M12 8.5v7"/>',
+  potion: '<path d="M9 3h6M10 3v4l-3.2 5.1A4 4 0 0 0 10.2 18h3.6a4 4 0 0 0 3.4-5.9L14 7V3"/><path d="M8.2 12h7.6"/>',
+  healing: '<path d="M8 5.2 12 3l4 2.2v5.1c0 3-1.7 5.4-4 7.2-2.3-1.8-4-4.2-4-7.2V5.2Z"/><path d="M12 7.2v5.2m-2.6-2.6h5.2"/>',
+  herb: '<path d="M12 20V9"/><path d="M12 13C8 13 5 11 5 6c4.8 0 7 2.5 7 7Zm0-3c0-4 2.5-6 7-6 0 4.5-2.3 6-7 6Z"/>',
+  wood: '<path d="M5 5h14v5H5zM7 10v9m10-9v9M4 19h16"/><path d="M8 7h8"/>',
+  material: '<path d="m5 8 7-4 7 4-7 4-7-4Z"/><path d="m5 8v8l7 4 7-4V8M8.5 10l7-4"/>',
+  currency: '<circle cx="12" cy="12" r="8"/><path d="M14.5 9.2c-.5-.7-1.3-1.1-2.5-1.1-1.3 0-2.2.7-2.2 1.6 0 2.4 4.8 1 4.8 3.6 0 1-.9 1.7-2.4 1.7-1.2 0-2.2-.4-2.8-1.2M12 6.7v10.6"/>',
+  gem: '<path d="m4 9 3.5-5h9L20 9l-8 10L4 9Z"/><path d="M4 9h16M8 4l4 15 4-15M7.5 9h9"/>',
+  relic: '<circle cx="12" cy="12" r="8"/><path d="M12 7v10M8.5 10.5h7M8.5 13.5h7"/>',
+  recipe: '<path d="M6 4h11a2 2 0 0 1 2 2v13H8a2 2 0 0 1-2-2V4Z"/><path d="M6 17a2 2 0 0 0 2 2M9 8h7M9 11h7M9 14h4"/>',
+  rope: '<path d="M7 5c-2.5 0-3.5 2.8-1.5 4.3l7.2 5.4c2 1.5 1 4.3-1.5 4.3-1.8 0-3.1-1.1-3.1-2.7 0-1.1.6-1.9 1.3-2.4"/><path d="M17 19c2.5 0 3.5-2.8 1.5-4.3l-7.2-5.4c-2-1.5-1-4.3 1.5-4.3 1.8 0 3.1 1.1 3.1 2.7 0 1.1-.6 1.9-1.3 2.4"/>',
+  torch: '<path d="M10 12.5h4l1.2 7H8.8l1.2-7Z"/><path d="M12 3c2.8 2.3 3.4 4.2 1.7 6.2-.8.9-1.8 1.4-1.7 3.3-2.8-1.4-3.1-4-.9-6.4.4-.5.8-1.4.9-3.1Z"/>',
+  tool: '<path d="m14.5 5.5 4 4M13 7l4-4 2 2-4 4M4 20l7.8-7.8 2 2L6 22H4v-2Z"/>',
+  treasure: '<path d="M4 9h16v10H4z"/><path d="M4 9 6 5h12l2 4M9 13h6M12 10v6"/>',
+  curiosity: '<path d="M12 3.5 14 8l4.5 2-4.5 2-2 4.5-2-4.5-4.5-2 4.5-2 2-4.5Z"/><circle cx="18.5" cy="5.5" r="1.2"/>',
+});
+
+function categoryIcon(kind, className = "") {
+  const iconId = CATEGORY_ICON_MARKUP[kind] ? kind : "curiosity";
+  return `<svg class="category-icon ${className}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${CATEGORY_ICON_MARKUP[iconId]}</svg>`;
+}
+
+function itemIconKind(category, item = null) {
+  const definition = item && typeof item === "object" ? item : { category };
+  const tags = definition.tags ?? [];
+  const id = definition.id ?? "";
+  if (category === "material" || definition.category === "material") {
+    if (id.includes("herb")) return "herb";
+    if (id === "wood") return "wood";
+    return "material";
+  }
+  if (category === "currency") return "currency";
+  if (category === "recipe") return "recipe";
+  if (category === "weapon") return "weapon";
+  if (category === "armor") return "armor";
+  if (id === "rope") return "rope";
+  if (id === "torch") return "torch";
+  if (tags.includes("medical")) return "healing";
+  if (tags.includes("herbal") || tags.includes("plant")) return "herb";
+  if (tags.includes("tool") || category === "supply") return "tool";
+  if (category === "consumable") return tags.includes("alchemical") ? "potion" : "healing";
+  if (category === "relic") return "relic";
+  if (category === "valuable") return tags.includes("coin") ? "currency" : tags.includes("silver") ? "gem" : "treasure";
+  if (category === "curiosity") return "curiosity";
+  return category === "gear" ? "tool" : "curiosity";
+}
+
+function itemIcon(category, item = null) {
+  return categoryIcon(itemIconKind(category, item));
 }
 
 function debugExpeditionState(expedition) {
@@ -1855,10 +1995,10 @@ function formatResource(value) {
 }
 
 function formatCarriedItems(carriedItems) {
-  const labels = Object.entries(carriedItems)
+  const entries = Object.entries(carriedItems)
     .filter(([, quantity]) => quantity > 0)
-    .map(([itemId, quantity]) => `${ITEM_DEFINITIONS[itemId]?.name ?? itemId} ×${quantity}`);
-  return labels.join(" · ") || "None";
+    .map(([itemId, quantity]) => ({ itemId, quantity }));
+  return renderItemChips(entries, "Nothing carried");
 }
 
 function setText(selector, text) {

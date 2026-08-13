@@ -1078,3 +1078,33 @@ The human developer supplied the bug report, visual evidence, and commit/push au
 ### Resulting prototype state
 
 The Apothecary remains stationary and comfortably clickable during pointer-down while preserving the same tactile press feedback as the other village hotspots.
+
+## 2026-08-13 — Focused Mobile UI Cleanup Pass
+
+### Goal
+
+Reduce visual weight in reward summaries and clean up the remaining phone-tested expedition, Inn, and combat presentation rough spots without changing game content, balance, or progression scope.
+
+### Human prompt and direction
+
+The human developer supplied a focused UI/UX guide requesting compact-versus-important reward presentation, coherent medieval category icons, a full-width Unsecured Loot HUD, wrapping expedition collections, a simpler Inn rest state, combat controls immediately above the log, and a compact Returned to Safety report that preserves separate Expedition Haul and distance-tier Return Reward data. Dialogue, tutorials, and location unlocking were explicitly deferred. Commit and push were intentionally not authorized for this pass.
+
+### AI-assisted implementation
+
+- Replaced reward placeholder labels and weak item symbols with a reusable inline-SVG category icon system covering weapons, armor, potions/healing, herbs, wood/materials, currency, gems, relics, recipes, rope, torches, tools, treasure, and curiosity fallbacks. Reused the mapping through shop, crafting, inventory, material, encounter, expedition, and summary renderers.
+- Added data-driven reward significance classification: routine rewards render compact rows, uncommon/interesting rewards receive restrained emphasis, and recipes, relics, quest items, and exceptional discoveries retain full reward cards. Encounter results keep the full discovery treatment while summary reports use compact collections.
+- Made Unsecured Loot a full-width bar below the primary expedition resource grid with live item/material/gold counts, category icons, and a clean zero state. Loadout, Carried, and Discoveries now use wrapping item chips with quantities instead of ellipsized text.
+- Simplified Inn presentation to show party health and current-to-post-rest values, actual cost, and a concise fully-rested state while preserving HealingRules, repeated rests, prices, and toast feedback.
+- Reordered combat to Battlefield, current turn/selected target, action controls, and bounded scrolling Combat Log. Persistent target selection, submenu behavior, and mechanics remain unchanged.
+- Restored a compact Returned to Safety report with grouped Expedition Haul and distance-tier Return Reward sections. Routine rewards use short rows; major discoveries stand out individually, while settlement and source buckets remain separate.
+- Expanded browser assertions for icon fallback, reward hierarchy, zero-state/full-width loot, wrapping expedition data, Inn states, combat ordering at portrait sizes, and compact source-separated reports.
+
+### Manual changes
+
+The human developer supplied the design guide and requested local changes only. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The prototype now presents routine information quickly on narrow screens while reserving visual emphasis for discoveries that merit it. Village, shops, inventory/loadout structure, encounter hierarchy, toast behavior, travel artwork, combat targeting, save behavior, reward tables, and balance were intentionally left unchanged.
+
+Verified 284 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. Changes remain unstaged and uncommitted for the human developer to commit and push.
