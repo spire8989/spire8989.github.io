@@ -159,7 +159,7 @@ def run():
         check("[0,20,40,60,90].map(distance=>LootRules.returnRewardTier(distance).id).join(',')==='minor,low,medium,high,deep'", "Expedition return reward tiers are invalid")
         check("!document.querySelector('.location-panel') && Boolean(document.querySelector('.location-scene') && document.querySelector('.hub-hud'))", "Village scene and HUD structure is invalid")
         check("document.querySelector('.hub-status')?.textContent.includes('Provisions')", "Village provision overlay missing")
-        for width, height in ((360, 640), (390, 844), (430, 932)):
+        for width, height in ((320, 480), (360, 640), (390, 844), (430, 932)):
             devtools.call("Emulation.setDeviceMetricsOverride", {
                 "width": width,
                 "height": height,
@@ -172,6 +172,9 @@ def run():
             check("[...document.querySelectorAll('.hub-hotspot')].every(hotspot => hotspot.getBoundingClientRect().bottom <= document.querySelector('.hub-hud').getBoundingClientRect().top)", f"Village hotspot overlaps HUD at {width}x{height}")
             check("(() => { const apothecary=document.querySelector('[data-destination-id=\"apothecary\"]').getBoundingClientRect(); const scene=document.querySelector('.location-scene').getBoundingClientRect(); const road=document.querySelector('.village-road').getBoundingClientRect(); return Math.abs((apothecary.left+apothecary.right)/2-(scene.left+scene.right)/2)<2 && apothecary.bottom<road.top; })()", f"Apothecary is not centered above the foreground road at {width}x{height}")
             check("(() => { const button=document.querySelector('[data-destination-id=\"apothecary\"]'); const scene=document.querySelector('.location-scene').getBoundingClientRect(); button.classList.add('is-pressed'); const pressed=button.getBoundingClientRect(); button.classList.remove('is-pressed'); return Math.abs((pressed.left+pressed.right)/2-(scene.left+scene.right)/2)<2; })()", f"Pressed Apothecary jumps away from center at {width}x{height}")
+            devtools.evaluate("ToastNotifications.dismissAll(); showToast({title:'Viewport check',duration:800})")
+            check("(() => { const toast=document.querySelector('.toast'); const region=document.querySelector('#toast-region').getBoundingClientRect(); const header=document.querySelector('.game-header').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); const title=document.querySelector('.hub-identity').getBoundingClientRect(); return toast && region.top >= header.bottom + 8 && region.left >= viewport.left && region.right <= viewport.right && toast.getBoundingClientRect().top >= title.bottom; })()", f"Toast stack does not clear the header and location title at {width}x{height}")
+            devtools.evaluate("ToastNotifications.dismissAll()")
         check("document.querySelector('.hub-identity').clientHeight < document.querySelector('.location-scene').clientHeight * 0.12", "Village title card is not compact")
 
         devtools.click('[data-action="view-inventory"]')
@@ -276,6 +279,7 @@ def run():
 
         devtools.evaluate("ToastNotifications.dismissAll(); const before=document.querySelector('.interaction-scroll').getBoundingClientRect(); ['First','Second','Third','Fourth'].forEach(title=>showToast({title,message:'Rapid feedback',type:'success'})); const after=document.querySelector('.interaction-scroll').getBoundingClientRect(); window.toastLayoutStable=Math.abs(before.top-after.top)<0.01&&Math.abs(before.height-after.height)<0.01")
         check("document.querySelectorAll('.toast').length === 3 && !document.querySelector('.toast')?.textContent.includes('First') && window.toastLayoutStable", "Rapid toasts did not cap, stack, or preserve page layout")
+        check("(() => { const toasts=[...document.querySelectorAll('.toast')]; const header=document.querySelector('.game-header').getBoundingClientRect(); return toasts.length===3 && toasts[0].getBoundingClientRect().top>=header.bottom+8 && toasts.every((toast,index)=>index===0||toast.getBoundingClientRect().top>=toasts[index-1].getBoundingClientRect().bottom); })()", "Rapid toasts did not stack downward from the upper anchor")
         check("(() => { const toast=document.querySelector('.toast'); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); return toast && toast.getBoundingClientRect().left >= viewport.left && toast.getBoundingClientRect().right <= viewport.right && getComputedStyle(document.querySelector('#toast-region')).pointerEvents === 'none'; })()", "Toast stack is not contained in the portrait viewport")
         devtools.evaluate("ToastNotifications.dismissAll(); showToast({title:'Short Toast',duration:800})")
         time.sleep(1.1)

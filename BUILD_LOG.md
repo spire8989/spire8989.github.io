@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-13 — Upper-Viewport Toast Placement
+
+### Goal
+
+Move transient toast feedback out of the lower interactive area and into passive upper viewport space without changing the existing notification system.
+
+### Human prompt and direction
+
+The human developer confirmed that bottom-center toasts looked good but could cover shop items, expedition options, and other controls during actual play. The requested fix was limited to upper placement below the permanent header, downward entrance motion, upward dismissal, portrait safety, and short-viewport verification.
+
+### AI-assisted implementation
+
+- Changed only the toast overlay anchor from the lower viewport to a top-center position with a safe header-clearing offset. The overlay remains outside document flow and pointer-transparent.
+- Reversed the entrance motion so new toasts fade and slide slightly downward into place; retained the existing upward fade-out, timeout, reduced-motion handling, semantic types, API, and three-toast cap.
+- Added browser assertions across the intended portrait sizes and a shorter viewport to confirm the toast stack stays inside the viewport, clears the permanent header, and does not obscure the location title card.
+
+### Manual changes
+
+The human developer supplied the placement correction and viewport requirements. No manual code edits were reported.
+
+### Resulting prototype state
+
+Temporary feedback now occupies upper visual space below the game header, leaving the lower shop, preparation, and expedition controls available while notifications are visible.
+
+### Verification
+
+Verified 263 UI/provision/location assertions, 65 campaign/health/Inn assertions, 16 deterministic simulation assertions, and `git diff --check` after the CSS and viewport-test change.
+
 ## 2026-08-12 — Reusable Toast Notifications
 
 ### Goal
