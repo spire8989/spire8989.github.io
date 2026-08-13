@@ -79,11 +79,13 @@ const batch = await SimulationRunner.runBatchAsync({
 - `maxSimulationSteps`, `maxCombatSteps`: infinite-loop safeguards.
 - `travelStepDistance`: rule-step size in leagues; defaults to one.
 
-Built-in strategies are `random`, `cautious`, `aggressive`, and `greedy`. They score only choices that pass the production requirement and affordability checks. Built-in policies are created by `TurnaroundPolicies.fixedDistance(distance)` and `TurnaroundPolicies.provisionReserve({ reserve, minimumDistance })`.
+Built-in strategies are `random`, `cautious`, `aggressive`, and `greedy`. They score only choices that pass the production requirement and affordability checks. Aggressive still attacks normally, but on Arthur's turn it deterministically estimates the maximum damage from living enemies due before his next action. If that damage is lethal, it Defends when mitigation makes the window survivable, otherwise it attempts to Flee. Built-in policies are created by `TurnaroundPolicies.fixedDistance(distance)` and `TurnaroundPolicies.provisionReserve({ reserve, minimumDistance })`.
 
 ## Adding behavior
 
-A strategy needs a stable `name`, `chooseEncounter(availableChoices, context)`, `chooseCombatAction(combat, expedition, context)`, and `chooseCombatTarget(combat, expedition, context)`. Pass the object as `scenario.strategy`; no runner change is required. The context includes the seeded random source.
+A strategy needs a stable `name`, `chooseEncounter(availableChoices, context)`, `chooseCombatAction(combat, expedition, context)`, and `chooseCombatTarget(combat, expedition, context)`. Pass the object as `scenario.strategy`; no runner change is required. The context includes the seeded random source and an optional emergency-decision recorder used by built-in telemetry.
+
+Combat telemetry records Arthur's entry HP, below-50% and below-25% entry flags, and every aggressive emergency decision with chosen action, threatened enemies, estimated unguarded damage, and estimated defended damage. Run/batch summaries and CSV expose emergency-action and low-health-combat counts.
 
 A turnaround policy needs `name`, optional serializable `configuration`, and `shouldTurn(expedition, telemetry)`. Pass it as `scenario.turnaroundPolicy`.
 

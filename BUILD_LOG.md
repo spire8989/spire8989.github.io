@@ -627,3 +627,31 @@ The human developer supplied the focused campaign-agent correction guide. No man
 ### Resulting prototype state
 
 Campaign agents now respond to scarce provisions by lowering ambition rather than falsely ending the campaign, while remaining observably distinct by policy. Logs cleanly separate planned versus executed distance and quoted versus applied healing, giving the next balance sweep a more trustworthy behavioral foundation.
+
+## 2026-08-12 — Aggressive Survival Heuristic Pass
+
+### Goal
+
+Keep aggressive simulation meaningfully risk-seeking while preventing unconditional attacks in a clearly lethal combat window and making its wounded-party decisions inspectable.
+
+### Human prompt and direction
+
+The human developer requested a targeted aggressive AI pass while explicitly preserving Arthur and Kay HP, Inn amount/cost, combat damage, enemy statistics, provisions, loot, and all other balance values. Resulting sweep data was to be reported without automatic follow-on tuning.
+
+### AI-assisted implementation
+
+- Changed aggressive-reinvestor healing from the previous 60% boundary to Arthur strictly below 50%, with a distinct `arthur-critical-below-25-percent` priority. Healthy and exact-50% Arthur do not rest solely for Arthur; critical Arthur may automate one additional shared production Inn action when the first still leaves him below 50% and another is affordable. Each action still uses `HealingRules`, +10 HP, and 3 gold.
+- Kept ordinary aggressive combat attack-first. On Arthur's turn only, the simulator now estimates maximum incoming damage from living enemies due before his next action; it intervenes only when that window is lethal, choosing Defend if mitigation becomes survivable and otherwise Flee.
+- Kept the emergency heuristic deterministic and read-only over existing gauges, intents, speeds, defense, and damage definitions; no combat mechanics or values changed.
+- Added per-decision healing trigger reasons, combat-entry HP and below-50%/25% flags, detailed emergency threat/damage/action payloads, run/campaign totals, batch averages, and CSV fields.
+- Added focused browser assertions for healthy, exact-boundary, low, and critical aggressive healing; emergency Defend; ordinary healthy Attack; detailed emergency/entry telemetry; and existing same-seed determinism.
+- Verified 33 focused campaign/health/Inn assertions, 9 deterministic simulation assertions, all 207 existing UI/location assertions, and `git diff --check`.
+- Repeated the constrained aggressive sweep with the same 100 seeds, desired distance 75, ten planned expeditions, 20 starting gold, and 15 provisions. It averaged 63.25 actual distance, 6.14 expeditions, 2.38 emergency actions, 0.99 combats entered below 50%, 0.54 below 25%, 9.63 gold healing spend, 37.15 recovered loot value, 35% plan completion, and 66% death. Compared with the immediately prior 29% completion/75% death sample, survival improved while remaining substantially riskier than the cautious/conservative comparison; no further tuning was made.
+
+### Manual changes
+
+The human developer supplied the aggressive healing, emergency combat, telemetry, and regression requirements. No manual code edits were reported.
+
+### Resulting prototype state
+
+Aggressive simulation remains attack-oriented and materially riskier than cautious behavior, but its logs now distinguish low-health rest triggers and the narrow combat moments where it stops blindly attacking. The unchanged high death rate in the constrained sweep is preserved as evidence for the next human balance decision.

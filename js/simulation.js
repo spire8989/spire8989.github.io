@@ -232,6 +232,9 @@ const SimulationTelemetry = Object.freeze({
       lootRecovered: run.lootRecovered,
       lootLost: run.lootLost,
       estimatedLootValue: run.estimatedLootValue,
+      aggressiveEmergencyActions: run.aggressiveEmergencyActions,
+      combatsStartedBelow50Percent: run.combatsStartedBelow50Percent,
+      combatsStartedBelow25Percent: run.combatsStartedBelow25Percent,
       turnaroundDistance: run.turnaroundDistance,
       encounters: run.encounters,
       combats: run.combats,
@@ -259,7 +262,8 @@ const SimulationTelemetry = Object.freeze({
       "runId", "scenarioId", "seed", "strategy", "turnaroundPolicy", "companion",
       "outcome", "failureReason", "maximumDistance", "finalDistance", "finalArthurHealth",
       "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
-      "estimatedLootValue", "encounterCount", "combatCount", "stepCount", "durationMs",
+      "estimatedLootValue", "encounterCount", "combatCount", "aggressiveEmergencyActions",
+      "combatsStartedBelow50Percent", "combatsStartedBelow25Percent", "stepCount", "durationMs",
     ];
     return [fields.join(","), ...results.map((run) => fields.map((field) => csvCell(run[field])).join(","))].join("\n");
   },
@@ -274,6 +278,13 @@ function createStrategy(name, chooseEncounter) {
       const maxHealth = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
       if (name === "cautious" && expedition.health < maxHealth * 0.3 && actions.includes("flee")) return "flee";
       if (name === "random") return context.random.pick(actions);
+      if (name === "aggressive") {
+        const emergency = aggressiveEmergencyCombatDecision(combat, expedition, actions);
+        if (emergency) {
+          context.recordEmergency?.(emergency);
+          return emergency.actionId;
+        }
+      }
       if (name === "cautious" && actions.includes("intercede") && expedition.health < maxHealth * 0.55) return "intercede";
       return actions.includes("attack") ? "attack" : actions[0];
     },
@@ -284,6 +295,45 @@ function createStrategy(name, chooseEncounter) {
         : targets.sort((left, right) => left.hp - right.hp)[0]?.id;
     },
   });
+}
+
+function aggressiveEmergencyCombatDecision(combat, expedition, actions) {
+  if (combat.activeActorId !== "arthur" || expedition.health <= 0) return null;
+  const arthur = combat.allies.find((ally) => ally.id === "arthur");
+  if (!arthur) return null;
+  const secondsUntilArthurActs = COMBAT_TUNING.actionGaugeMaximum
+    / (arthur.speed * COMBAT_TUNING.actionGaugeRate);
+  const threats = combat.enemies.filter((enemy) => {
+    if (enemy.hp <= 0) return false;
+    const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
+    if (!action || action.target !== "arthur") return false;
+    const secondsUntilEnemyActs = (COMBAT_TUNING.actionGaugeMaximum - enemy.gauge)
+      / (enemy.speed * COMBAT_TUNING.actionGaugeRate);
+    return secondsUntilEnemyActs <= secondsUntilArthurActs;
+  }).map((enemy) => {
+    const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
+    const unguardedDamage = Math.max(1, action.damage.maximum - arthur.defense);
+    return {
+      enemyId: enemy.id,
+      intentId: enemy.intentId,
+      unguardedDamage,
+      defendedDamage: Math.max(1, Math.floor(unguardedDamage * COMBAT_TUNING.defendDamageMultiplier)),
+    };
+  });
+  const estimatedIncomingDamage = threats.reduce((sum, threat) => sum + threat.unguardedDamage, 0);
+  if (estimatedIncomingDamage < expedition.health) return null;
+  const estimatedDefendedDamage = threats.reduce((sum, threat) => sum + threat.defendedDamage, 0);
+  const actionId = actions.includes("defend") && estimatedDefendedDamage < expedition.health
+    ? "defend" : actions.includes("flee") ? "flee" : actions.includes("defend") ? "defend" : null;
+  return actionId ? {
+    triggered: true,
+    reason: "lethal-damage-before-next-action",
+    actionId,
+    arthurHealth: expedition.health,
+    estimatedIncomingDamage,
+    estimatedDefendedDamage,
+    threats,
+  } : null;
 }
 
 function choiceText(choice) {
@@ -455,7 +505,15 @@ function startSimulationCombat(expedition, combatId, encounterHistory, telemetry
   if (!combat) return false;
   expedition.combat = combat;
   encounterHistory.combatTriggered = true;
-  telemetry.events.push({ type: "combat-start", combatId, enemies: combat.enemies.map((enemy) => enemy.definitionId) });
+  const healthRatio = expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp;
+  telemetry.events.push({
+    type: "combat-start",
+    combatId,
+    enemies: combat.enemies.map((enemy) => enemy.definitionId),
+    arthurHealth: expedition.health,
+    arthurEnteredBelow50Percent: healthRatio < 0.5,
+    arthurEnteredBelow25Percent: healthRatio < 0.25,
+  });
   return true;
 }
 
@@ -473,6 +531,10 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
     actions: 0,
     rounds: 0,
     actionEvents: [],
+    arthurHealthAtStart: combat.allies.find((ally) => ally.id === "arthur")?.hp ?? expedition.health,
+    arthurEnteredBelow50Percent: expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp < 0.5,
+    arthurEnteredBelow25Percent: expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp < 0.25,
+    aggressiveEmergencyActions: [],
   };
   telemetry.combats.push(history);
   let combatSteps = 0;
@@ -482,7 +544,13 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
     if (combat.status === "awaitingAction") {
       const actor = [...combat.allies, ...combat.enemies].find((entry) => entry.id === combat.activeActorId);
       const before = combatTotals(combat);
-      const actionId = strategy.chooseCombatAction(combat, expedition, { random }) ?? "attack";
+      let emergency = null;
+      const actionId = strategy.chooseCombatAction(combat, expedition, {
+        random,
+        recordEmergency(details) {
+          emergency = deepClone(details);
+        },
+      }) ?? "attack";
       let result = CombatSystem.chooseAction(combat, expedition, actionId);
       let targetId = null;
       if (result.needsTarget) {
@@ -493,8 +561,15 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
       history.damageDealt += Math.max(0, before.enemyHp - after.enemyHp);
       history.damageReceived += Math.max(0, before.allyHp - after.allyHp);
       history.actions += 1;
-      telemetry.decisions.push({ type: "combat-action", combatId: combat.id, actorId: actor?.id, actionId, targetId });
-      telemetry.events.push({ type: "combat-action", combatId: combat.id, actor: actor?.id, action: actionId, target: targetId });
+      if (emergency) history.aggressiveEmergencyActions.push(emergency);
+      telemetry.decisions.push({
+        type: "combat-action", combatId: combat.id, actorId: actor?.id, actionId, targetId,
+        aggressiveEmergencyTriggered: Boolean(emergency), emergency,
+      });
+      telemetry.events.push({
+        type: "combat-action", combatId: combat.id, actor: actor?.id, action: actionId, target: targetId,
+        aggressiveEmergencyTriggered: Boolean(emergency), emergency,
+      });
       recordedCombatEvents = flushCombatEvents(combat, recordedCombatEvents, history, telemetry);
       continue;
     }
@@ -613,6 +688,15 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     lootLost: subtractItemEntries(lootDiscovered, lootRecovered),
     estimatedLootValue: estimateLootValue(lootRecovered),
     damageTaken: calculateRunDamageTaken(telemetry),
+    aggressiveEmergencyActions: telemetry.combats.reduce(
+      (sum, combat) => sum + combat.aggressiveEmergencyActions.length, 0,
+    ),
+    combatsStartedBelow50Percent: telemetry.combats.filter(
+      (combat) => combat.arthurEnteredBelow50Percent,
+    ).length,
+    combatsStartedBelow25Percent: telemetry.combats.filter(
+      (combat) => combat.arthurEnteredBelow25Percent,
+    ).length,
     encounterCount: telemetry.encounters.length,
     combatCount: telemetry.combats.length,
     stepCount: steps,
@@ -780,6 +864,9 @@ function summarizeRuns(results) {
     averageGold: average(values("goldGained")),
     averageEncounterCount: average(values("encounterCount")),
     averageCombatCount: average(values("combatCount")),
+    averageAggressiveEmergencyActions: average(values("aggressiveEmergencyActions")),
+    averageCombatsStartedBelow50Percent: average(values("combatsStartedBelow50Percent")),
+    averageCombatsStartedBelow25Percent: average(values("combatsStartedBelow25Percent")),
   };
 }
 

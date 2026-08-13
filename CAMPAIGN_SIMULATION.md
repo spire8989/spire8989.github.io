@@ -46,7 +46,7 @@ HEALING_TUNING.innRestGoldCost = 3;
 
 The Inn shows current/max health, exact healing amount, and resulting health for Arthur and the selected companion. `HealingRules.quoteInnRest` is non-mutating. `HealingRules.restAtInn` applies one party operation: each active member restores up to 10 HP, each is capped at their own maximum, and the shared action costs 3 gold once. It charges only when at least one active member can heal and the player can afford it, persists immediately through the normal save path, and never charges when the whole active party is full. With no selected companion, only Arthur participates.
 
-Campaign policies automate this exact same action and consider every active party member when applying their healing threshold. Healing telemetry records quoted/potential recovery separately from actual applied recovery: an unaffordable rest retains `quotedHealthAfter`, `quotedHealingAmount`, and `quotedGoldCost`, while actual `healthAfter` remains unchanged and actual healing/cost remain zero. Per-member detail remains in `partyMembers` and `healingByPartyMember`; per-expedition CSV also exposes `arthurHealing`, `companionId`, `companionHealing`, and `healingCost`. A zero-health companion is marked unavailable only if the companion remains at zero after the normal between-expedition action.
+Campaign policies automate this exact same action and consider every active party member when applying their healing threshold. Healing telemetry records quoted/potential recovery separately from actual applied recovery: an unaffordable rest retains `quotedHealthAfter`, `quotedHealingAmount`, and `quotedGoldCost`, while actual `healthAfter` remains unchanged and actual healing/cost remain zero. Per-member detail remains in `partyMembers` and `healingByPartyMember`; multi-rest critical preparation also retains each production call in `restActions`. Per-expedition CSV exposes `arthurHealing`, `companionId`, `companionHealing`, and `healingCost`. A zero-health companion is marked unavailable only if the companion remains at zero after the normal between-expedition action.
 
 ## Running a campaign
 
@@ -88,7 +88,7 @@ Expedition seeds are stable and derived as:
 ## Between-expedition policies
 
 - `conservative-sustainer`: heals at or below 75%, plans with a five-unit provision margin, and shortens expeditions more readily when supplies are constrained.
-- `aggressive-reinvestor`: heals at or below 60%, plans with a three-unit provision margin, and therefore accepts longer expeditions from the same constrained stock without waiting for obvious critical health.
+- `aggressive-reinvestor`: heals Arthur below 50%; below 25%, if one rest still leaves Arthur below 50%, it strongly prioritizes one additional affordable production Inn rest. It can still rest for a selected companion below its policy threshold, plans with a three-unit provision margin, and accepts longer expeditions than conservative from the same constrained stock.
 - `minimal-restock`: heals at or below 25%, plans with a one-unit provision margin, and avoids discretionary reserves.
 
 Configured expedition distances are nominal targets. Each policy buys toward its preferred round-trip stock, estimates the maximum supported out-and-back distance from the shared base provision rate and party consumption multiplier, then uses the lesser of nominal and supported distance. Missing a preferred buffer reduces the target rather than ending the campaign. Policy decisions record desired/actual distance, reduction and reason, safety margin, provision stock before/after purchase, nominal/chosen requirements, affordable stock, gold before/after preparation, and party health before/after healing.
@@ -125,7 +125,7 @@ const batch = CampaignSimulationRunner.runBatch({
 });
 ```
 
-Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, ending gold/health, net campaign wealth, healing/provision spending, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
+Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, low-HP and critical healing triggers, emergency aggressive actions, combats entered below 50%/25%, ending gold/health, net campaign wealth, healing/provision spending, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
 
 - `economically-growing`
 - `roughly-sustainable`

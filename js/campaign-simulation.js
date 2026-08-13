@@ -3,14 +3,18 @@
 const BetweenExpeditionPolicies = Object.freeze({
   "conservative-sustainer": createBetweenPolicy("conservative-sustainer", {
     healingThreshold: 0.75,
+    healingThresholdInclusive: true,
     provisionMargin: 5,
   }),
   "aggressive-reinvestor": createBetweenPolicy("aggressive-reinvestor", {
-    healingThreshold: 0.6,
+    healingThreshold: 0.5,
+    healingThresholdInclusive: false,
+    criticalHealingThreshold: 0.25,
     provisionMargin: 3,
   }),
   "minimal-restock": createBetweenPolicy("minimal-restock", {
     healingThreshold: 0.25,
+    healingThresholdInclusive: true,
     provisionMargin: 1,
   }),
 });
@@ -96,6 +100,8 @@ const CampaignSimulationRunner = Object.freeze({
         endingHealth: run.finalArthurHealth,
         damageTaken,
         healingBefore: decision.healing,
+        healingTriggeredByLowHp: decision.healingTriggeredByLowHp,
+        healingTriggerReason: decision.healingTriggerReason,
         healingByPartyMember: decision.healing.healingByPartyMember,
         healingCost: decision.healing.goldCost,
         startingGold: goldAtStart,
@@ -118,6 +124,9 @@ const CampaignSimulationRunner = Object.freeze({
         soldItems: sales.sales,
         netGold: player.currentGold - stateBeforeDecisions.gold,
         combats: run.combatCount,
+        aggressiveEmergencyActions: run.aggressiveEmergencyActions,
+        combatsStartedBelow50Percent: run.combatsStartedBelow50Percent,
+        combatsStartedBelow25Percent: run.combatsStartedBelow25Percent,
         encounters: run.encounterCount,
         provisionsConsumed: run.provisionsConsumed,
         provisionsFound: run.provisionsGained,
@@ -208,6 +217,8 @@ const CampaignSimulationTelemetry = Object.freeze({
     const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "expeditionsAttempted",
       "expeditionsReturned", "stopReason", "startingGold", "endingGold", "endingArthurHealth",
       "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
+      "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
+      "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalGoldEarned", "totalGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
     return campaignCsv(fields, results);
   },
@@ -229,6 +240,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
       "arthurHealing", "companionId", "companionHealing", "healingCost",
+      "healingTriggeredByLowHp", "healingTriggerReason",
+      "aggressiveEmergencyActions", "combatsStartedBelow50Percent", "combatsStartedBelow25Percent",
       "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "provisionsPacked", "lootValueRecovered",
       "netGold", "failureReason"];
     return campaignCsv(fields, rows);
@@ -262,15 +275,33 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
       (member) => [member.id, 0],
     )),
   };
-  const partyNeedsRest = restQuote.partyMembers.some(
-    (member) => member.maxHealth > 0 && member.healthBefore / member.maxHealth <= policy.healingThreshold,
-  );
+  const arthurQuote = restQuote.partyMembers.find((member) => member.id === "arthur");
+  const arthurHealthRatio = arthurQuote.healthBefore / arthurQuote.maxHealth;
+  const arthurCritical = Number.isFinite(policy.criticalHealingThreshold)
+    && arthurHealthRatio < policy.criticalHealingThreshold;
+  const partyMembersBelowThreshold = restQuote.partyMembers.filter((member) => {
+    if (member.maxHealth <= 0) return false;
+    const ratio = member.healthBefore / member.maxHealth;
+    return policy.healingThresholdInclusive
+      ? ratio <= policy.healingThreshold : ratio < policy.healingThreshold;
+  });
+  const partyNeedsRest = arthurCritical || partyMembersBelowThreshold.length > 0;
+  const healingTriggerReason = arthurCritical
+    ? "arthur-critical-below-25-percent"
+    : partyMembersBelowThreshold.some((member) => member.id === "arthur")
+      ? "arthur-low-below-50-percent"
+      : partyMembersBelowThreshold.length > 0 ? "active-companion-below-threshold" : null;
   if (healingEnabled && partyNeedsRest) {
-    const result = HealingRules.restAtInn(player);
+    const restActions = [HealingRules.restAtInn(player)];
+    if (arthurCritical && restActions[0].applied
+      && HealingRules.arthurHealth(player) / HealingRules.arthurMaxHealth(player) < policy.healingThreshold) {
+      restActions.push(HealingRules.restAtInn(player));
+    }
+    const result = summarizePolicyHealing(player, restQuote, restActions);
     healing = {
       attempted: true,
       intentionallySkipped: false,
-      skippedInsufficientResources: !result.applied && !result.fullHealth,
+      skippedInsufficientResources: restActions.some((action) => !action.applied && !action.fullHealth),
       ...result,
     };
   }
@@ -326,7 +357,10 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
   return {
     policy: policy.name,
     healingThreshold: policy.healingThreshold,
-    healingThresholdComparison: "at-or-below",
+    healingThresholdComparison: policy.healingThresholdInclusive ? "at-or-below" : "below",
+    criticalHealingThreshold: policy.criticalHealingThreshold ?? null,
+    healingTriggeredByLowHp: partyNeedsRest,
+    healingTriggerReason,
     desiredTargetDistance: targetDistance,
     actualTargetDistance,
     safeAffordableDistance,
@@ -358,6 +392,34 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
     goldAfterHealing,
     goldAfterPreparation: player.currentGold,
     stopReason: !canSupportAnyExpedition ? "cannot-support-any-expedition" : null,
+  };
+}
+
+function summarizePolicyHealing(player, initialQuote, restActions) {
+  const finalParty = HealingRules.activeParty(player);
+  const partyMembers = initialQuote.partyMembers.map((quotedMember) => {
+    const finalMember = finalParty.find((member) => member.id === quotedMember.id) ?? quotedMember;
+    return {
+      ...quotedMember,
+      healthAfter: finalMember.health,
+      healingAmount: finalMember.health - quotedMember.healthBefore,
+    };
+  });
+  const arthur = partyMembers.find((member) => member.id === "arthur");
+  return {
+    ...restActions[0],
+    applied: restActions.some((action) => action.applied),
+    healthAfter: arthur.healthAfter,
+    healingAmount: arthur.healingAmount,
+    totalHealingAmount: partyMembers.reduce((sum, member) => sum + member.healingAmount, 0),
+    goldCost: restActions.reduce((sum, action) => sum + action.goldCost, 0),
+    quotedGoldCost: restActions.reduce((sum, action) => sum + action.quotedGoldCost, 0),
+    partyMembers,
+    healingByPartyMember: Object.fromEntries(partyMembers.map(
+      (member) => [member.id, member.healingAmount],
+    )),
+    restActionCount: restActions.filter((action) => action.applied).length,
+    restActions,
   };
 }
 
@@ -490,8 +552,15 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalProvisionsFound: totals((entry) => entry.provisionsFound),
     totalDamageTaken: totals((entry) => entry.damageTaken),
     totalHealingReceived: totals((entry) => entry.healingBefore.totalHealingAmount),
+    totalLowHpHealingTriggers: expeditions.filter((entry) => entry.healingTriggeredByLowHp).length,
+    totalCriticalArthurHealingTriggers: expeditions.filter(
+      (entry) => entry.healingTriggerReason === "arthur-critical-below-25-percent",
+    ).length,
     healingByPartyMember: campaignHealingByPartyMember(expeditions),
     totalCombats: totals((entry) => entry.combats),
+    totalAggressiveEmergencyActions: totals((entry) => entry.aggressiveEmergencyActions),
+    totalCombatsStartedBelow50Percent: totals((entry) => entry.combatsStartedBelow50Percent),
+    totalCombatsStartedBelow25Percent: totals((entry) => entry.combatsStartedBelow25Percent),
     totalEncounters: totals((entry) => entry.encounters),
     startingLiquidWealth: startingWealth,
     endingLiquidWealth: endingWealth,
@@ -563,10 +632,15 @@ function summarizeCampaigns(results) {
     averageTotalProfit: averageField("netCampaignWealth"),
     averageNetCampaignWealth: averageField("netCampaignWealth"),
     averageHealingSpend: averageField("totalHealingCost"),
+    averageLowHpHealingTriggers: averageField("totalLowHpHealingTriggers"),
+    averageCriticalArthurHealingTriggers: averageField("totalCriticalArthurHealingTriggers"),
     averageProvisionSpend: averageField("totalProvisionCost"),
     averageTotalLootRecovered: averageField("totalLootValueRecovered"),
     averageTotalDamage: averageField("totalDamageTaken"),
     averageCombats: averageField("totalCombats"),
+    averageAggressiveEmergencyActions: averageField("totalAggressiveEmergencyActions"),
+    averageCombatsStartedBelow50Percent: averageField("totalCombatsStartedBelow50Percent"),
+    averageCombatsStartedBelow25Percent: averageField("totalCombatsStartedBelow25Percent"),
     economicallyGrowingRate: results.length
       ? results.filter((entry) => entry.economicTrend === "economically-growing").length / results.length : 0,
   };
