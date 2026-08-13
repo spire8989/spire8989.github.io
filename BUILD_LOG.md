@@ -684,3 +684,29 @@ The human developer supplied the party-targeting, telemetry, persistence, comple
 ### Resulting prototype state
 
 Kay now participates in combat risk as well as offense, making his persistent wounds and shared Inn recovery operationally relevant. Campaign logs distinguish target selection, actual recipients, and per-member damage, while completion rates now represent campaigns that truly reach their configured terminal condition alive.
+
+## 2026-08-12 — Rare Treasure Loot-Economy Test Pass
+
+### Goal
+
+Add a small set of rare, higher-value discoveries for campaign economy testing without changing existing loot values or any combat, provision, healing, encounter-frequency, or strategy tuning.
+
+### Human prompt and direction
+
+The human developer requested four named sellable treasures worth 15–30 gold, progressively lower weighted rarity at higher values, reuse of existing unsecured-loot and merchant rules, minimal deterministic coverage, and a finished commit and push.
+
+### AI-assisted implementation
+
+- Added the rare Silver Reliquary (15 gold), Gilded Brooch (20 gold), Roman Signet (25 gold), and Jeweled Saint’s Locket (30 gold) as data-defined valuables accepted by General Goods.
+- Added only low-weight entries to fitting existing pools: the reliquary and locket at the Ruined Wayside Shrine, the brooch at the Abandoned Cart, and the signet along the Sunken Road. Their respective weights are 0.8, 0.6, 0.4, and 0.2.
+- Reused `gainWeightedRandomUnsecuredItem`, normal expedition settlement, and `CampaignRules.sellMerchantItems`; no treasure-specific award, loss, or simulation sale path was added.
+- Added focused browser assertions that deterministically select every new weighted entry, verify failure loses the unsecured items, and verify successful recovery auto-sells them for exactly 15, 20, 25, and 30 gold.
+- Verified 41 campaign/health/Inn assertions, 208 UI/provision/location browser assertions, 9 deterministic simulation assertions, and `git diff --check`.
+
+### Manual changes
+
+The human developer selected the treasure names and values and requested the constrained loot-economy pass. No manual code edits were reported.
+
+### Resulting prototype state
+
+Existing treasure searches now have a small chance to produce meaningfully valuable campaign finds, with value increasing as authored weight decreases. The items remain ordinary unsecured discoveries: failure loses them, safe return settles them, and campaign automation sells them through the same village merchant economy used by playable interactions.
