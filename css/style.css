@@ -1054,11 +1054,15 @@ button:active:not(:disabled) {
   }
 }
 
-/* Active interaction screens reserve a reusable, artwork-ready 16:9 frame. */
+/* Active interaction screens share a reusable, artwork-ready visual frame. */
 .visual-frame {
   width: 100%;
-  aspect-ratio: var(--interaction-visual-aspect);
   flex: 0 0 auto;
+}
+
+.travel-scene,
+.combat-scene {
+  aspect-ratio: var(--interaction-visual-aspect);
 }
 
 .expedition-screen {
@@ -2574,6 +2578,7 @@ button.combatant {
   display: flex;
   align-items: flex-end;
   gap: 1rem;
+  aspect-ratio: 16 / 9;
   padding: clamp(1rem, 6cqw, 2rem);
   background:
     radial-gradient(circle at 72% 38%, rgb(239 178 86 / 44%), transparent 16%),

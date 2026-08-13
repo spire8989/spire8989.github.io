@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-13 - Brocéliande Destination Visual Cleanup
+
+### Goal
+
+Make two small presentation-only cleanup changes in the current Brocéliande implementation: clarify empty companion slots and make destination/interior hero visuals explicit 16:9 artwork frames.
+
+### Human prompt and direction
+
+The human developer requested a narrowly scoped follow-up pass. Empty companion options should say `None` with concise empty-slot wording, while only village destination visuals should receive an explicit 16:9 constraint. Village maps, expedition travel, combat, encounter visuals, party mechanics, and campaign behavior were to remain unchanged.
+
+### AI-assisted implementation
+
+- Changed the empty companion option label to `None` and its description to `Leave this companion slot empty.` without changing selection, save, party, provision, or combat logic.
+- Removed the aspect-ratio declaration from the generic `.visual-frame` rule and explicitly applied `aspect-ratio: 16 / 9` to `.destination-visual`; travel and combat retain their existing shared aspect rule through their own selectors.
+- Added browser assertions for both empty companion slots, explicit destination aspect styling and rendered ratios for Hall, Inn, Merchant, Blacksmith, and Apothecary, plus containment of the Hall emblem/title frame.
+
+### Manual changes
+
+The human developer supplied the focused UI cleanup guide and requested another local Git commit. No manual code edits were reported.
+
+### Resulting prototype state
+
+Companion slot placeholders no longer imply that Arthur is traveling alone, and destination interiors now have a clear 16:9 frame contract for future artwork while preserving the existing composition and all non-destination visual regions.
+
+### Verification
+
+Verified 360 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production startup through the browser regression server, and `git diff --check`. Changes were committed locally; no push was performed.
+
 ## 2026-08-13 - Brocéliande Mobile Preparation Flow Polish
 
 ### Goal

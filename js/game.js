@@ -1113,10 +1113,10 @@ function companionCard(companion, slotIndex = 0, selectedCompanion = null) {
   const selected = selectedCompanion === (companion?.id ?? null);
   const alreadyInOtherSlot = companion?.id
     && selectedCompanionIds(game.player).some((id, index) => id === companion.id && index !== slotIndex);
-  const name = companion?.name ?? "None — Travel Alone";
+  const name = companion?.name ?? "None";
   const description = companion
     ? `${companion.description} +${companion.provisionCapacityBonus} capacity · +${companion.provisionConsumptionBonus.toFixed(2)}× consumption.`
-    : "Leave this slot open for a smaller company.";
+    : "Leave this companion slot empty.";
   return `
     <button class="choice-card ${selected ? "is-selected" : ""} ${alreadyInOtherSlot ? "is-unavailable" : ""}" type="button" data-action="select-companion" data-companion-id="${companion?.id ?? ""}" data-slot-index="${slotIndex}" ${alreadyInOtherSlot ? "disabled" : ""}>
       <strong>${name}</strong>
