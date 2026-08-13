@@ -711,6 +711,33 @@ The human developer selected the treasure names and values and requested the con
 
 Existing treasure searches now have a small chance to produce meaningfully valuable campaign finds, with value increasing as authored weight decreases. The items remain ordinary unsecured discoveries: failure loses them, safe return settles them, and campaign automation sells them through the same village merchant economy used by playable interactions.
 
+## 2026-08-12 — Combat Abilities and Items Pass
+
+### Goal
+
+Add the next focused combat interaction layer without replacing the existing ATB, multi-enemy, expedition, or campaign architecture: character-specific abilities, equipment-granted Pommel Strike, functional combat Items, Bandage healing, friendly targeting, and corrected Intercede duration.
+
+### Human prompt and direction
+
+The human developer requested a rescan of the newest repository state and implementation of the attached combat guide. The pass was explicitly constrained to a small, data-driven proving ground with no new content systems, large UI redesign, or extra abilities/items.
+
+### AI-assisted implementation
+
+- Added consistent Attack / Defend / Abilities / Items / Flee top-level actions with paused Abilities and Items submenus, reusable Back/Cancel transitions, and enemy or ally plate targeting.
+- Added generic ability gathering from innate definitions and equipped weapon, armor, and relic effects. The Iron Longsword now grants Pommel Strike through `grantedAbilityIds`; the ability uses tunable reduced weapon damage and clamped gauge pushback.
+- Added data-defined combat effects for Bandages. The Items submenu reads carried expedition quantities, heals one living injured ally for 8 HP without overhealing or reviving, and immediately records consumption through shared expedition inventory rules.
+- Kept combat HP synchronized with expedition Arthur health and run-specific companion HP, and separated persistent Intercede duration from one-ready-state Defend expiry. Intercede now remains until it redirects one applicable Arthur attack, incapacitation, or combat resolution.
+- Updated deterministic simulation strategies to use Pommel Strike and Bandages in simple health/gauge situations. Run, combat, campaign, JSON, CSV, and aggregate telemetry now expose ability uses, item uses, healing performed, and gauge control.
+- Added focused browser assertions for equipment grants, no-grant loadouts, submenu pause/back behavior, multi-enemy Pommel targeting and gauge clamping, Bandage healing/consumption/friendly targeting, and Intercede persistence. Existing location, simulation, and campaign coverage remains intact.
+
+### Manual changes
+
+The human developer supplied the combat interaction goals, tuning ranges, data-driven boundaries, target-selection semantics, inventory/HP persistence requirements, and commit/push authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+Combat now offers meaningful ATB decisions without expanding the action grid: Arthur can manipulate a nearly-ready enemy with Pommel Strike or spend a turn treating an injured ally with a real packed Bandage, while Kay's Intercede behaves as a one-interception defensive effect. Automated expeditions and campaigns exercise and report these choices for later balance tuning.
+
 ## 2026-08-12 — Passive Provision Consumption Reduction
 
 ### Goal

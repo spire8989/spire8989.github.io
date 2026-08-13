@@ -25,6 +25,9 @@ const COMBAT_TUNING = Object.freeze({
   defendDamageMultiplier: 0.5,
   fleeChance: 0.7,
   combatLogLimit: 5,
+  pommelStrikeDamageMultiplier: 0.6,
+  pommelStrikeGaugeReduction: 25,
+  bandageHealAmount: 8,
   enemyTargetWeights: Object.freeze({ arthur: 0.65, activeCompanions: 0.35 }),
 });
 

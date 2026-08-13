@@ -2,15 +2,39 @@
 
 // Combat content stays separate from the frame-rate-independent simulation.
 const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
-  attack: Object.freeze({ id: "attack", name: "Attack", target: "enemy" }),
-  defend: Object.freeze({ id: "defend", name: "Defend", target: "self" }),
+  attack: Object.freeze({ id: "attack", name: "Attack", target: "enemy", category: "action" }),
+  defend: Object.freeze({ id: "defend", name: "Defend", target: "self", category: "action" }),
+  abilities: Object.freeze({
+    id: "abilities",
+    name: "Abilities",
+    description: "Use a learned or equipped combat ability.",
+    target: "menu",
+    category: "action",
+  }),
+  items: Object.freeze({
+    id: "items",
+    name: "Items",
+    description: "Use a carried combat item.",
+    target: "menu",
+    category: "action",
+  }),
+  pommel_strike: Object.freeze({
+    id: "pommel_strike",
+    name: "Pommel Strike",
+    description: "Deal reduced weapon damage and push an enemy's action gauge back.",
+    target: "enemy",
+    effectType: "damageAndGauge",
+    damageMultiplier: 0.6,
+    gaugeReduction: 25,
+  }),
   intercede: Object.freeze({
     id: "intercede",
     name: "Intercede",
     target: "self",
     description: "Protect Arthur from the next targeted attack.",
+    effectType: "intercede",
   }),
-  flee: Object.freeze({ id: "flee", name: "Flee", target: "none" }),
+  flee: Object.freeze({ id: "flee", name: "Flee", target: "none", category: "action" }),
 });
 
 const COMBAT_ENEMY_DEFINITIONS = Object.freeze({

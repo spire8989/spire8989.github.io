@@ -144,6 +144,10 @@ const CampaignSimulationRunner = Object.freeze({
         companionCombatAttacksReceived: run.companionCombatAttacksReceived,
         arthurCombatDamageReceived: run.arthurCombatDamageReceived,
         companionCombatDamageReceived: run.companionCombatDamageReceived,
+        abilityUsesById: run.abilityUsesById,
+        itemUsesById: run.itemUsesById,
+        totalHealingPerformed: run.totalHealingPerformed,
+        totalGaugeControl: run.totalGaugeControl,
         encounters: run.encounterCount,
         provisionsConsumed: run.provisionsConsumed,
         provisionsFound: run.provisionsGained,
@@ -277,6 +281,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "aggressiveEmergencyActions", "combatsStartedBelow50Percent", "combatsStartedBelow25Percent",
       "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
+      "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
       "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "provisionsPacked", "lootValueRecovered",
       "netGold", "failureReason"];
     return campaignCsv(fields, rows);
@@ -632,6 +637,8 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
   const totalProvisionCost = totals((entry) => entry.provisionCost);
   const totalGoldEarned = totals((entry) => entry.goldEarnedFromSales + entry.goldEarnedDirect);
   const totalGoldSpent = totalHealingCost + totalProvisionCost;
+  const abilityUsesById = campaignCombatTotals(expeditions, "abilityUsesById");
+  const itemUsesById = campaignCombatTotals(expeditions, "itemUsesById");
   const netGold = endingState.gold - startingState.gold;
   const successful = expeditions.filter((entry) => entry.success);
   const failed = expeditions.filter((entry) => !entry.success);
@@ -704,6 +711,10 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalCompanionCombatAttacksReceived: totals((entry) => entry.companionCombatAttacksReceived),
     totalArthurCombatDamageReceived: totals((entry) => entry.arthurCombatDamageReceived),
     totalCompanionCombatDamageReceived: totals((entry) => entry.companionCombatDamageReceived),
+    abilityUsesById,
+    itemUsesById,
+    totalHealingPerformed: totals((entry) => entry.totalHealingPerformed),
+    totalGaugeControl: totals((entry) => entry.totalGaugeControl),
     totalEncounters: totals((entry) => entry.encounters),
     startingLiquidWealth: startingWealth,
     endingLiquidWealth: endingWealth,
@@ -806,6 +817,8 @@ function summarizeCampaigns(results) {
     averageCombatsStartedBelow25Percent: averageField("totalCombatsStartedBelow25Percent"),
     averageArthurCombatDamageReceived: averageField("totalArthurCombatDamageReceived"),
     averageCompanionCombatDamageReceived: averageField("totalCompanionCombatDamageReceived"),
+    averageHealingPerformed: averageField("totalHealingPerformed"),
+    averageGaugeControl: averageField("totalGaugeControl"),
     economicallyGrowingRate: results.length
       ? results.filter((entry) => entry.economicTrend === "economically-growing").length / results.length : 0,
   };
@@ -848,6 +861,10 @@ function campaignPartyCombatTotals(expeditions, field) {
     totals[id] = (totals[id] ?? 0) + (Number(value) || 0);
   }));
   return totals;
+}
+
+function campaignCombatTotals(expeditions, field) {
+  return campaignPartyCombatTotals(expeditions, field);
 }
 
 function campaignCompletedPlan(config, expeditions, stopReason) {

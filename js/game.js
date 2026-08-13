@@ -137,6 +137,15 @@ function handleAction(event) {
     case "combat-target":
       chooseCombatTarget(control.dataset.targetId);
       break;
+    case "combat-ability":
+      chooseCombatAbility(control.dataset.abilityId);
+      break;
+    case "combat-item":
+      chooseCombatItem(control.dataset.itemId);
+      break;
+    case "combat-menu-back":
+      backCombatMenu();
+      break;
     case "combat-cancel-target":
       cancelCombatTargetSelection();
       break;
@@ -913,7 +922,7 @@ function renderEncounterResultPanel(expedition, encounter, active) {
 function renderCombat(expedition, combat) {
   const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
   const awaitingAction = combat.status === "awaitingAction";
-  const choosingTarget = combat.pendingActionId === "attack";
+  const choosingTarget = ["enemyTarget", "allyTarget"].includes(combat.interactionMode);
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen combat-screen" aria-label="Combat">
       <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""}">
@@ -944,7 +953,10 @@ function renderCombat(expedition, combat) {
 function renderCombatant(combatant, combat) {
   const defeated = combatant.hp <= 0;
   const ready = combatant.id === combat.activeActorId;
-  const selectable = combat.pendingActionId === "attack" && combatant.side === "enemy" && !defeated;
+  const selectable = !defeated && (
+    (combat.interactionMode === "enemyTarget" && combatant.side === "enemy")
+    || (combat.interactionMode === "allyTarget" && combatant.side === "ally" && combatant.hp < combatant.maxHp)
+  );
   const intent = combatant.side === "enemy" && !defeated
     ? `<div class="combat-intent">${COMBAT_ENEMY_ACTION_DEFINITIONS[combatant.intentId]?.name ?? "Attack"}</div>`
     : "";
@@ -970,24 +982,33 @@ function renderCombatControls(combat, activeActor) {
   if (!activeActor) {
     return '<p class="combat-waiting">Watch enemy intent and prepare your response.</p>';
   }
-  if (combat.pendingActionId === "attack") {
-    return `
-      <div class="combat-target-prompt">
-        <p>Choose a target in the enemy lineup</p>
-        <button type="button" data-action="combat-cancel-target">Cancel</button>
-      </div>`;
+  if (combat.interactionMode === "enemyTarget") {
+    return `<div class="combat-target-prompt"><p>Choose an enemy target</p><button type="button" data-action="combat-cancel-target">Cancel</button></div>`;
   }
-  const available = CombatSystem.availableActions(combat);
-  const buttons = available.map((actionId) => {
+  if (combat.interactionMode === "allyTarget") {
+    return `<div class="combat-target-prompt"><p>Choose an ally to heal</p><button type="button" data-action="combat-cancel-target">Cancel</button></div>`;
+  }
+  if (combat.interactionMode === "abilities") {
+    const abilities = CombatSystem.availableAbilities(combat, game.expedition);
+    const entries = abilities.length > 0
+      ? abilities.map((ability) => `<button type="button" data-action="combat-ability" data-ability-id="${ability.id}"><strong>${ability.name}</strong><span>${ability.description ?? ""}</span></button>`).join("")
+      : '<p class="combat-empty-menu">No usable abilities.</p>';
+    return `<div class="combat-submenu-heading"><p>${activeActor.name}'s Abilities</p><button type="button" data-action="combat-menu-back">Back</button></div><div class="combat-action-grid combat-submenu-list">${entries}</div>`;
+  }
+  if (combat.interactionMode === "items") {
+    const items = CombatSystem.availableItems(combat, game.expedition);
+    const entries = items.length > 0
+      ? items.map((entry) => `<button type="button" data-action="combat-item" data-item-id="${entry.itemId}"><strong>${entry.item.name} ×${entry.quantity}</strong><span>${entry.item.effects.combat.description}</span></button>`).join("")
+      : '<p class="combat-empty-menu">No usable combat items.</p>';
+    return `<div class="combat-submenu-heading"><p>${activeActor.name}'s Items</p><button type="button" data-action="combat-menu-back">Back</button></div><div class="combat-action-grid combat-submenu-list">${entries}</div>`;
+  }
+  const available = CombatSystem.availableActions(combat, game.expedition);
+  const buttons = ["attack", "defend", "abilities", "items", "flee"].map((actionId) => {
     const action = COMBAT_ABILITY_DEFINITIONS[actionId];
-    return `<button type="button" data-action="combat-action" data-combat-action-id="${actionId}">
-      <strong>${action.name}</strong>${action.description ? `<span>${action.description}</span>` : ""}
-    </button>`;
+    const disabled = available.includes(actionId) ? "" : " disabled";
+    return `<button type="button" data-action="combat-action" data-combat-action-id="${actionId}"${disabled}><strong>${action.name}</strong>${action.description ? `<span>${action.description}</span>` : ""}</button>`;
   }).join("");
-  return `
-    <p>Choose ${activeActor.name}'s action</p>
-    <div class="combat-action-grid">${buttons}</div>
-    <button class="combat-item-button" type="button" disabled>Item · None usable</button>`;
+  return `<p>Choose ${activeActor.name}'s action</p><div class="combat-action-grid">${buttons}</div>`;
 }
 
 function combatGaugePercent(combatant) {
@@ -1195,9 +1216,35 @@ function chooseCombatTarget(targetId) {
   if (!combat?.pendingActionId) {
     return;
   }
-  const result = CombatSystem.chooseAction(combat, expedition, combat.pendingActionId, targetId);
+  const result = CombatSystem.choosePendingTarget(combat, expedition, targetId);
   if (result.resolved) {
     finishCombatResolution(expedition);
+  }
+}
+
+function chooseCombatAbility(abilityId) {
+  const expedition = game.expedition;
+  const combat = expedition?.combat;
+  if (!combat) return;
+  const result = CombatSystem.chooseAbility(combat, expedition, abilityId);
+  if (result.needsTarget) renderCombat(expedition, combat);
+  else if (result.resolved) finishCombatResolution(expedition);
+}
+
+function chooseCombatItem(itemId) {
+  const expedition = game.expedition;
+  const combat = expedition?.combat;
+  if (!combat) return;
+  const result = CombatSystem.chooseItem(combat, expedition, itemId);
+  if (result.needsTarget) renderCombat(expedition, combat);
+  else if (result.resolved) finishCombatResolution(expedition);
+}
+
+function backCombatMenu() {
+  const expedition = game.expedition;
+  const combat = expedition?.combat;
+  if (combat && CombatSystem.chooseAction(combat, expedition, "back").menu === "main") {
+    renderCombat(expedition, combat);
   }
 }
 

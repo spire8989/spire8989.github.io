@@ -12,7 +12,10 @@ const ITEM_DEFINITIONS = Object.freeze({
     equipmentSlot: "weapon",
     carriable: false,
     consumable: false,
-    effects: { combatDamage: Object.freeze({ minimum: 8, maximum: 12 }) },
+    effects: {
+      combatDamage: Object.freeze({ minimum: 8, maximum: 12 }),
+      grantedAbilityIds: ["pommel_strike"],
+    },
     questItem: false,
     unique: true,
   },
@@ -320,7 +323,15 @@ const ITEM_DEFINITIONS = Object.freeze({
     carriable: true,
     consumable: true,
     maxStack: 4,
-    effects: {},
+    effects: {
+      combat: Object.freeze({
+        usable: true,
+        effectType: "heal",
+        amount: 8,
+        target: "ally",
+        description: "Restore 8 HP to one injured ally.",
+      }),
+    },
     questItem: false,
   },
   dried_herbs: {

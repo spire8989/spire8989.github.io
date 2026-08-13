@@ -132,6 +132,17 @@ const ExpeditionRules = Object.freeze({
     expedition.consumablesSettled = true;
   },
 
+  consumeCarriedItem(expedition, itemId, quantity = 1) {
+    const amount = Math.max(0, Math.floor(Number(quantity) || 0));
+    if (!expedition || amount <= 0 || (expedition.carriedItems?.[itemId] ?? 0) < amount) {
+      return false;
+    }
+    expedition.carriedItems[itemId] -= amount;
+    if (expedition.carriedItems[itemId] <= 0) delete expedition.carriedItems[itemId];
+    expedition.consumedItems[itemId] = (expedition.consumedItems[itemId] ?? 0) + amount;
+    return true;
+  },
+
   settleProvisions(player, expedition, returnedSafely) {
     if (expedition.provisionsSettled) return;
     const purchased = Math.max(0, Math.floor(expedition.committedProvisionsRemaining));

@@ -303,6 +303,10 @@ const SimulationTelemetry = Object.freeze({
       combatsStartedBelow25Percent: run.combatsStartedBelow25Percent,
       attacksReceivedByPartyMember: run.attacksReceivedByPartyMember,
       damageReceivedByPartyMember: run.damageReceivedByPartyMember,
+      abilityUsesById: run.abilityUsesById,
+      itemUsesById: run.itemUsesById,
+      totalHealingPerformed: run.totalHealingPerformed,
+      totalGaugeControl: run.totalGaugeControl,
       turnaroundDistance: run.turnaroundDistance,
       encounters: run.encounters,
       combats: run.combats,
@@ -337,6 +341,7 @@ const SimulationTelemetry = Object.freeze({
       "combatsStartedBelow50Percent", "combatsStartedBelow25Percent", "stepCount", "durationMs",
       "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
+      "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
     ];
     return [fields.join(","), ...results.map((run) => fields.map((field) => csvCell(run[field])).join(","))].join("\n");
   },
@@ -347,7 +352,7 @@ function createStrategy(name, chooseEncounter) {
     name,
     chooseEncounter,
     chooseCombatAction(combat, expedition, context) {
-      const actions = CombatSystem.availableActions(combat);
+      const actions = CombatSystem.availableActions(combat, expedition);
       const maxHealth = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
       if (name === "cautious" && expedition.health < maxHealth * 0.3 && actions.includes("flee")) return "flee";
       if (name === "random") return context.random.pick(actions);
@@ -358,14 +363,43 @@ function createStrategy(name, chooseEncounter) {
           return emergency.actionId;
         }
       }
-      if (name === "cautious" && actions.includes("intercede") && expedition.health < maxHealth * 0.55) return "intercede";
+      const abilities = CombatSystem.availableAbilities(combat, expedition);
+      if (name === "aggressive" && actions.includes("abilities")
+        && abilities.some((ability) => ability.id === "pommel_strike")
+        && expedition.health < maxHealth
+        && combat.enemies.some((enemy) => enemy.hp > 0 && enemy.gauge >= 75)) {
+        return "abilities";
+      }
+      if (name === "cautious" && actions.includes("abilities")
+        && abilities.some((ability) => ability.id === "intercede")
+        && expedition.health < maxHealth * 0.55) {
+        return "abilities";
+      }
+      if (name !== "random" && actions.includes("items")
+        && expedition.health < maxHealth * 0.55
+        && CombatSystem.availableItems(combat, expedition).length > 0) {
+        return "items";
+      }
       return actions.includes("attack") ? "attack" : actions[0];
     },
-    chooseCombatTarget(combat, _expedition, context) {
-      const targets = combat.enemies.filter((enemy) => enemy.hp > 0);
-      return name === "random"
-        ? context.random.pick(targets)?.id
-        : targets.sort((left, right) => left.hp - right.hp)[0]?.id;
+    chooseCombatAbility(combat, _expedition, context) {
+      const abilities = CombatSystem.availableAbilities(combat, _expedition);
+      if (name === "random") return context.random.pick(abilities)?.id;
+      return abilities.find((ability) => ability.id === "pommel_strike")?.id
+        ?? abilities.find((ability) => ability.id === "intercede")?.id
+        ?? abilities[0]?.id;
+    },
+    chooseCombatItem(combat, _expedition, context) {
+      const items = CombatSystem.availableItems(combat, _expedition);
+      if (name === "random") return context.random.pick(items)?.itemId;
+      return items.find((entry) => entry.itemId === "bandages")?.itemId ?? items[0]?.itemId;
+    },
+    chooseCombatTarget(combat, _expedition, context, targetType = "enemy") {
+      const targets = targetType === "ally"
+        ? combat.allies.filter((ally) => ally.hp > 0 && ally.hp < ally.maxHp)
+        : combat.enemies.filter((enemy) => enemy.hp > 0);
+      if (name === "random") return context.random.pick(targets)?.id;
+      return targets.sort((left, right) => (left.hp / left.maxHp) - (right.hp / right.maxHp))[0]?.id;
     },
   });
 }
@@ -604,6 +638,10 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
     actions: 0,
     rounds: 0,
     actionEvents: [],
+    abilityUsesById: {},
+    itemUsesById: {},
+    healingPerformed: 0,
+    gaugeControl: 0,
     arthurHealthAtStart: combat.allies.find((ally) => ally.id === "arthur")?.hp ?? expedition.health,
     arthurEnteredBelow50Percent: expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp < 0.5,
     arthurEnteredBelow25Percent: expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp < 0.25,
@@ -618,7 +656,7 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
       const actor = [...combat.allies, ...combat.enemies].find((entry) => entry.id === combat.activeActorId);
       const before = combatTotals(combat);
       let emergency = null;
-      const actionId = strategy.chooseCombatAction(combat, expedition, {
+      let actionId = strategy.chooseCombatAction(combat, expedition, {
         random,
         recordEmergency(details) {
           emergency = deepClone(details);
@@ -626,9 +664,34 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
       }) ?? "attack";
       let result = CombatSystem.chooseAction(combat, expedition, actionId);
       let targetId = null;
+      let abilityId = COMBAT_ABILITY_DEFINITIONS[actionId]?.category ? null : actionId;
+      let itemId = null;
+      if (result.menu === "abilities") {
+        abilityId = strategy.chooseCombatAbility?.(combat, expedition, { random })
+          ?? CombatSystem.availableAbilities(combat, expedition)[0]?.id;
+        if (abilityId) {
+          result = CombatSystem.chooseAbility(combat, expedition, abilityId);
+        } else {
+          CombatSystem.chooseAction(combat, expedition, "back");
+          actionId = "attack";
+          result = CombatSystem.chooseAction(combat, expedition, actionId);
+        }
+      } else if (result.menu === "items") {
+        itemId = strategy.chooseCombatItem?.(combat, expedition, { random })
+          ?? CombatSystem.availableItems(combat, expedition)[0]?.itemId;
+        if (itemId) {
+          result = CombatSystem.chooseItem(combat, expedition, itemId);
+        } else {
+          CombatSystem.chooseAction(combat, expedition, "back");
+          actionId = "attack";
+          result = CombatSystem.chooseAction(combat, expedition, actionId);
+        }
+      }
       if (result.needsTarget) {
-        targetId = strategy.chooseCombatTarget(combat, expedition, { random });
-        result = CombatSystem.chooseAction(combat, expedition, actionId, targetId);
+        targetId = strategy.chooseCombatTarget(
+          combat, expedition, { random }, result.targetType ?? "enemy",
+        );
+        result = CombatSystem.choosePendingTarget(combat, expedition, targetId);
       }
       const after = combatTotals(combat);
       history.damageDealt += Math.max(0, before.enemyHp - after.enemyHp);
@@ -636,11 +699,12 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
       history.actions += 1;
       if (emergency) history.aggressiveEmergencyActions.push(emergency);
       telemetry.decisions.push({
-        type: "combat-action", combatId: combat.id, actorId: actor?.id, actionId, targetId,
+        type: "combat-action", combatId: combat.id, actorId: actor?.id, actionId, abilityId, itemId, targetId,
         aggressiveEmergencyTriggered: Boolean(emergency), emergency,
       });
       telemetry.events.push({
-        type: "combat-action", combatId: combat.id, actor: actor?.id, action: actionId, target: targetId,
+        type: "combat-action", combatId: combat.id, actor: actor?.id, action: actionId,
+        abilityId, itemId, target: targetId,
         aggressiveEmergencyTriggered: Boolean(emergency), emergency,
       });
       recordedCombatEvents = flushCombatEvents(combat, recordedCombatEvents, history, telemetry);
@@ -666,6 +730,7 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
   history.result = combat.result;
   history.fled = combat.result === "fled";
   history.partyHealthAfter = combatHealth(combat);
+  Object.assign(history, combatActionTelemetry(history));
   Object.assign(history, combatPartyDamageTelemetry(history, combat));
   telemetry.events.push({
     type: "combat-result", combatId: combat.id, result: combat.result,
@@ -761,6 +826,8 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
   const damageReceivedByPartyMember = aggregateRunPartyCombatField(
     telemetry, "damageReceivedByPartyMember",
   );
+  const abilityUsesById = aggregateRunCombatField(telemetry, "abilityUsesById");
+  const itemUsesById = aggregateRunCombatField(telemetry, "itemUsesById");
   Object.assign(telemetry, {
     outcome: returned ? "returned" : "failed",
     success: returned,
@@ -796,6 +863,14 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     damageTaken: calculateRunDamageTaken(telemetry),
     attacksReceivedByPartyMember,
     damageReceivedByPartyMember,
+    abilityUsesById,
+    itemUsesById,
+    totalHealingPerformed: telemetry.combats.reduce(
+      (sum, combat) => sum + (Number(combat.healingPerformed) || 0), 0,
+    ),
+    totalGaugeControl: telemetry.combats.reduce(
+      (sum, combat) => sum + (Number(combat.gaugeControl) || 0), 0,
+    ),
     arthurCombatAttacksReceived: attacksReceivedByPartyMember.arthur ?? 0,
     companionCombatAttacksReceived: sumPartyFieldExceptArthur(attacksReceivedByPartyMember),
     arthurCombatDamageReceived: damageReceivedByPartyMember.arthur ?? 0,
@@ -945,7 +1020,33 @@ function combatPartyDamageTelemetry(history, combat) {
   };
 }
 
+function combatActionTelemetry(history) {
+  const abilityUsesById = {};
+  const itemUsesById = {};
+  let healingPerformed = 0;
+  let gaugeControl = 0;
+  history.actionEvents.forEach((event) => {
+    if (event.action === "ability" && event.abilityId) {
+      abilityUsesById[event.abilityId] = (abilityUsesById[event.abilityId] ?? 0) + 1;
+      gaugeControl += Number(event.gaugeReduction) || 0;
+    }
+    if (event.action === "item" && event.itemId) {
+      itemUsesById[event.itemId] = (itemUsesById[event.itemId] ?? 0) + 1;
+      healingPerformed += Number(event.healingAmount) || 0;
+    }
+  });
+  return { abilityUsesById, itemUsesById, healingPerformed, gaugeControl };
+}
+
 function aggregateRunPartyCombatField(telemetry, field) {
+  const totals = {};
+  telemetry.combats.forEach((combat) => Object.entries(combat[field] ?? {}).forEach(([id, value]) => {
+    totals[id] = (totals[id] ?? 0) + (Number(value) || 0);
+  }));
+  return totals;
+}
+
+function aggregateRunCombatField(telemetry, field) {
   const totals = {};
   telemetry.combats.forEach((combat) => Object.entries(combat[field] ?? {}).forEach(([id, value]) => {
     totals[id] = (totals[id] ?? 0) + (Number(value) || 0);
@@ -1011,6 +1112,8 @@ function summarizeRuns(results) {
     averageCombatsStartedBelow25Percent: average(values("combatsStartedBelow25Percent")),
     averageArthurCombatDamageReceived: average(values("arthurCombatDamageReceived")),
     averageCompanionCombatDamageReceived: average(values("companionCombatDamageReceived")),
+    averageHealingPerformed: average(values("totalHealingPerformed")),
+    averageGaugeControl: average(values("totalGaugeControl")),
     emergencyProvisionTurnaroundRate: ratio(
       results.filter((run) => run.emergencyProvisionTurnaround).length, total,
     ),

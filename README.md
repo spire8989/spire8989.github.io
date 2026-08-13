@@ -8,6 +8,13 @@ The playable vertical slice begins at a deliberately non-canonical fake campaign
 
 Equipped gear and packed items are snapshotted when the expedition begins, so encounter options can distinguish what Arthur owns from what the company actually brought. Selected provisions are removed from the village stockpile and consumed during travel. Unused purchased food returns after either outcome; food found on the road is immediately usable and returns to the stockpile only after a successful return. A growing pool of data-driven encounters pauses travel and presents resource, equipment, knowledge, path, and risk/reward choices. Main Road and Overgrown Trail content differ, as do outbound and return encounter pools. Hostile choices can launch reusable active-time combat: the Wild Boar demonstrates one sturdy, heavily telegraphed threat, while Wolves in the Brush creates three fast individual enemies with independent HP, intent, and action gauges. Arthur and the expedition's actually selected companion are directly controlled through Attack, Defend, character abilities, and Flee. Attacking multiple living enemies pauses on direct lineup target selection, with Cancel returning to the action menu; one remaining enemy is targeted automatically. Combat damage remains part of the expedition instead of disappearing after a fight. Discovered loot remains unsecured: a successful return banks it into the permanent inventory, while failure discards it without removing equipment or packed items owned before the run. Both outcomes return to the village for the next local gameplay loop.
 
+Combat actions stay compact on mobile: Attack, Defend, Abilities, Items, and Flee. Abilities are gathered for the active
+combatant from innate data and equipped gear, so the Iron Longsword grants the data-defined Pommel Strike without an
+Arthur-specific branch. Pommel Strike deals reduced weapon damage and pushes one enemy gauge backward. The Items
+submenu reads the actual carried expedition inventory; Bandages heal 8 HP on one living injured ally, consume
+immediately on successful use, and remain synchronized with Arthur's or Kay's run HP. Menus and enemy or ally targeting
+pause the ATB gauges, while Intercede remains active until Kay intercepts one applicable Arthur attack.
+
 Distance influences which encounters are eligible, but does not directly award loot. Rewards currently come from encounter choices.
 
 Progress is stored in the browser with `localStorage`. The reset button in the top-right corner restores the initial prototype save.
@@ -16,7 +23,7 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 
 - `index.html` defines the game page, persistent header, screen container, and script loading order. Think of it as the initial level/UI hierarchy.
 - `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, input feedback, and the reusable `--interaction-visual-aspect` value for 16:9 active visual frames.
-- `js/data.js` contains data-driven item, knowledge, companion, and placeholder chapter definitions with stable string IDs.
+- `js/data.js` contains data-driven item, knowledge, companion, and placeholder chapter definitions with stable string IDs, including equipment-granted abilities and combat item effects.
 - `js/tuning.js` centralizes expedition and combat pacing, resource, gauge, defense, and flee values for playtesting.
 - `js/combat-data.js` defines reusable combat encounters, enemies, enemy actions, and player-facing ability metadata.
 - `js/location-data.js` contains reusable location, destination, NPC, and specialized shop definitions.
@@ -27,7 +34,7 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `js/healing-rules.js`, `js/economy-rules.js`, `js/campaign-rules.js`, and `js/campaign-simulation.js` share persistent party health, repeatable flat-cost active-party Inn recovery, trading/restocking, and provision-aware repeated-expedition campaign simulation.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
 - `js/game.js` owns screen flow, input, temporary expedition state, travel/combat presentation, loot resolution, and the shared `requestAnimationFrame` loop.
-- `tests/location_system_test.py` serves the game and drives headless Chrome through its DevTools protocol to cover the village, shops, loadout, encounters, combat, and return flow.
+- `tests/location_system_test.py`, `tests/simulation_system_test.py`, and `tests/campaign_system_test.py` serve the game and drive headless Chrome through its DevTools protocol to cover the village, shops, loadout, encounters, combat, simulation, campaign, and return flow.
 - `assets/` is reserved for future images, audio, fonts, and other game content.
 - `vendor/` is reserved for any third-party browser libraries added later. It is empty for now.
 

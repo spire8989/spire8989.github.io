@@ -36,6 +36,8 @@ const CombatSystem = Object.freeze({
       readyQueue: [],
       activeActorId: null,
       pendingActionId: null,
+      pendingActionKind: null,
+      interactionMode: "main",
       log: [],
       events: [],
       result: null,
@@ -45,6 +47,7 @@ const CombatSystem = Object.freeze({
         : typeof expedition.random === "function" ? expedition.random : GameRandom.random,
       eventCounter: 0,
     };
+    Object.defineProperty(state, "expedition", { value: expedition, enumerable: false });
     enemies.forEach((enemy) => {
       enemy.intentId = nextEnemyIntent(enemy);
       addCombatLog(state, `${enemy.name} prepares ${enemyIntentName(enemy)}.`);
@@ -97,16 +100,36 @@ const CombatSystem = Object.freeze({
       return { resolved: false, needsTarget: false };
     }
     const actor = findCombatant(state, state.activeActorId);
-    if (!actor || !isLivingCombatant(actor) || !availableActionIds(actor).includes(actionId)) {
+    if (!actor || !isLivingCombatant(actor)) {
+      return { resolved: false, needsTarget: false };
+    }
+
+    if (actionId === "back" || actionId === "cancel") {
+      state.interactionMode = "main";
+      state.pendingActionId = null;
+      state.pendingActionKind = null;
+      return { resolved: false, menu: "main" };
+    }
+    if (actionId === "abilities") {
+      if (availableAbilityIds(state, expedition).length === 0) return { resolved: false, unavailable: true };
+      state.interactionMode = "abilities";
+      return { resolved: false, menu: "abilities" };
+    }
+    if (actionId === "items") {
+      if (availableItemEntries(state, expedition).length === 0) return { resolved: false, unavailable: true };
+      state.interactionMode = "items";
+      return { resolved: false, menu: "items" };
+    }
+    if (availableAbilityIds(state, expedition).includes(actionId)) {
+      return this.chooseAbility(state, expedition, actionId, targetId);
+    }
+    if (!topLevelActionIds().includes(actionId)) {
       return { resolved: false, needsTarget: false };
     }
 
     if (actionId === "attack") {
       const targets = state.enemies.filter(isLivingCombatant);
-      if (!targetId && targets.length > 1) {
-        state.pendingActionId = actionId;
-        return { resolved: false, needsTarget: true };
-      }
+      if (!targetId && targets.length > 1) return enterTargetSelection(state, actionId, "enemy");
       const target = targetId
         ? targets.find((candidate) => candidate.id === targetId)
         : targets[0];
@@ -118,10 +141,6 @@ const CombatSystem = Object.freeze({
       actor.defending = true;
       addCombatLog(state, `${actor.name} braces for the next attack.`);
       recordCombatEvent(state, { actor: actor.id, action: "defend", target: actor.id, damage: 0 });
-    } else if (actionId === "intercede") {
-      actor.interceding = true;
-      addCombatLog(state, `${actor.name} uses Intercede and moves to protect Arthur.`);
-      recordCombatEvent(state, { actor: actor.id, action: "intercede", target: "arthur", damage: 0 });
     } else if (actionId === "flee") {
       const escaped = state.random() < COMBAT_TUNING.fleeChance;
       recordCombatEvent(state, { actor: actor.id, action: "flee", target: null, damage: 0, escaped });
@@ -136,6 +155,8 @@ const CombatSystem = Object.freeze({
     actor.gauge = 0;
     state.activeActorId = null;
     state.pendingActionId = null;
+    state.pendingActionKind = null;
+    state.interactionMode = "main";
     if (state.status === "awaitingAction") {
       state.status = "running";
       activateNextAlly(state);
@@ -144,9 +165,76 @@ const CombatSystem = Object.freeze({
     return { resolved: true, needsTarget: false, result: state.result };
   },
 
+  chooseAbility(state, expedition, abilityId, targetId = null) {
+    if (!state || state.status !== "awaitingAction") return { resolved: false, needsTarget: false };
+    const actor = findCombatant(state, state.activeActorId);
+    const ability = COMBAT_ABILITY_DEFINITIONS[abilityId];
+    if (!actor || !ability || !availableAbilityIds(state, expedition).includes(abilityId)) {
+      return { resolved: false, needsTarget: false };
+    }
+    const targets = ability.target === "enemy"
+      ? state.enemies.filter(isLivingCombatant)
+      : ability.target === "ally" ? state.allies.filter(isLivingCombatant) : [];
+    if (["enemy", "ally"].includes(ability.target) && !targetId && targets.length > 1) {
+      return enterTargetSelection(state, abilityId, ability.target, "ability");
+    }
+    const target = ability.target === "self" ? actor : targetId ? targets.find((entry) => entry.id === targetId) : targets[0];
+    if (["enemy", "ally"].includes(ability.target) && !target) {
+      return { resolved: false, needsTarget: targets.length > 1, targetType: ability.target };
+    }
+    if (ability.effectType === "intercede") {
+      actor.interceding = true;
+      addCombatLog(state, `${actor.name} uses Intercede and moves to protect Arthur.`);
+      recordCombatEvent(state, { actor: actor.id, action: "ability", abilityId, target: "arthur", damage: 0 });
+    } else if (ability.effectType === "damageAndGauge") {
+      resolvePommelStrike(state, actor, target, ability);
+    } else {
+      return { resolved: false, needsTarget: false };
+    }
+    return finishActorAction(state, expedition, actor, { action: "ability", abilityId, target: target?.id ?? null });
+  },
+
+  chooseItem(state, expedition, itemId, targetId = null) {
+    if (!state || state.status !== "awaitingAction") return { resolved: false, needsTarget: false };
+    const actor = findCombatant(state, state.activeActorId);
+    const entry = availableItemEntries(state, expedition).find((candidate) => candidate.itemId === itemId);
+    const itemEffect = entry?.item?.effects?.combat;
+    if (!actor || !entry || !itemEffect) return { resolved: false, needsTarget: false };
+    const targets = itemEffect.target === "ally"
+      ? state.allies.filter((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp)
+      : [];
+    if (!targetId && targets.length > 1) return enterTargetSelection(state, itemId, "ally", "item");
+    const target = targetId ? targets.find((ally) => ally.id === targetId) : targets[0];
+    if (!target) return { resolved: false, needsTarget: targets.length > 1, targetType: "ally" };
+    const amount = Math.min(Number(itemEffect.amount) || 0, target.maxHp - target.hp);
+    if (amount <= 0 || !consumeCombatItem(expedition, itemId)) return { resolved: false, needsTarget: false };
+    target.hp += amount;
+    addCombatLog(state, `${actor.name} uses ${entry.item.name} on ${target.name}, restoring ${amount} HP.`);
+    recordCombatEvent(state, { actor: actor.id, action: "item", itemId, target: target.id, damage: 0, healingAmount: amount });
+    return finishActorAction(state, expedition, actor, { action: "item", itemId, target: target.id });
+  },
+
   availableActions(state) {
+    const expedition = arguments[1] ?? state?.expedition;
     const actor = findCombatant(state, state?.activeActorId);
-    return actor ? availableActionIds(actor) : [];
+    return actor ? topLevelActionIds().filter((actionId) => (
+      actionId !== "abilities" || availableAbilityIds(state, expedition).length > 0
+    )).filter((actionId) => actionId !== "items" || availableItemEntries(state, expedition).length > 0) : [];
+  },
+
+  availableAbilities(state, expedition) {
+    return availableAbilityIds(state, expedition).map((id) => COMBAT_ABILITY_DEFINITIONS[id]);
+  },
+
+  availableItems(state, expedition) {
+    return availableItemEntries(state, expedition);
+  },
+
+  choosePendingTarget(state, expedition, targetId) {
+    if (!state?.pendingActionId) return { resolved: false, needsTarget: false };
+    if (state.pendingActionKind === "ability") return this.chooseAbility(state, expedition, state.pendingActionId, targetId);
+    if (state.pendingActionKind === "item") return this.chooseItem(state, expedition, state.pendingActionId, targetId);
+    return this.chooseAction(state, expedition, state.pendingActionId, targetId);
   },
 
   cancelTargetSelection(state) {
@@ -154,6 +242,8 @@ const CombatSystem = Object.freeze({
       return false;
     }
     state.pendingActionId = null;
+    state.pendingActionKind = null;
+    state.interactionMode = "main";
     return true;
   },
 });
@@ -161,6 +251,7 @@ const CombatSystem = Object.freeze({
 function createArthurCombatant(expedition) {
   const weapon = ITEM_DEFINITIONS[expedition.selectedEquipment.weapon];
   const armor = ITEM_DEFINITIONS[expedition.selectedEquipment.armor];
+  const relic = ITEM_DEFINITIONS[expedition.selectedEquipment.relic];
   return {
     id: "arthur",
     definitionId: "arthur",
@@ -174,7 +265,13 @@ function createArthurCombatant(expedition) {
     gauge: 0,
     defending: false,
     interceding: false,
-    abilityIds: [],
+    abilityIds: collectAbilityIds(
+      PLAYER_CHARACTER_DEFINITION.combatAbilities,
+      weapon,
+      armor,
+      relic,
+    ),
+    sourceItemIds: [weapon?.id, armor?.id, relic?.id].filter(Boolean),
   };
 }
 
@@ -199,7 +296,8 @@ function createCompanionCombatant(expedition, companionId) {
     gauge: 0,
     defending: false,
     interceding: false,
-    abilityIds: [...(companion.combatAbilities ?? [])],
+    abilityIds: collectAbilityIds(companion.combatAbilities),
+    sourceItemIds: [],
   };
 }
 
@@ -235,7 +333,6 @@ function activateNextAlly(state) {
       continue;
     }
     actor.defending = false;
-    actor.interceding = false;
     state.activeActorId = actor.id;
     state.status = "awaitingAction";
     addCombatLog(state, `${actor.name} is ready.`);
@@ -254,6 +351,28 @@ function resolveAttack(state, actor, target) {
   if (!state.enemies.some(isLivingCombatant)) {
     finishCombat(state, "victory");
   }
+}
+
+function resolvePommelStrike(state, actor, target, ability) {
+  const multiplier = Number(ability.damageMultiplier ?? COMBAT_TUNING.pommelStrikeDamageMultiplier) || 0;
+  const rawDamage = Math.floor(rollCombatDamage(actor.damage, state.random) * multiplier);
+  const damage = calculateCombatDamage(Math.max(1, rawDamage), target.defense);
+  applyCombatDamage(state, target, damage);
+  const reduction = Number(ability.gaugeReduction ?? COMBAT_TUNING.pommelStrikeGaugeReduction) || 0;
+  const previousGauge = target.gauge;
+  target.gauge = Math.max(0, target.gauge - reduction);
+  recordCombatEvent(state, {
+    actor: actor.id,
+    action: "ability",
+    abilityId: ability.id,
+    target: target.id,
+    damage,
+    gaugeReduction: Math.max(0, previousGauge - target.gauge),
+  });
+  addCombatLog(state, `${actor.name} uses ${ability.name} on ${target.name} for ${damage} damage.`);
+  if (previousGauge > target.gauge) addCombatLog(state, `${target.name}'s action gauge is pushed back.`);
+  if (!isLivingCombatant(target)) addCombatLog(state, `${target.name} is defeated.`);
+  if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
 }
 
 function resolveEnemyAction(state, expedition, enemy) {
@@ -336,6 +455,9 @@ function rollCombatDamage(range, random) {
 function applyCombatDamage(state, target, amount) {
   target.hp = Math.max(0, target.hp - amount);
   target.lastHitEvent = ++state.eventCounter;
+  if (target.hp <= 0) {
+    target.interceding = false;
+  }
 }
 
 function syncCombatHealth(state, expedition) {
@@ -350,14 +472,80 @@ function syncCombatHealth(state, expedition) {
 }
 
 function availableActionIds(actor) {
-  return ["attack", "defend", ...(actor.abilityIds ?? []), "flee"];
+  return topLevelActionIds();
+}
+
+function topLevelActionIds() {
+  return ["attack", "defend", "abilities", "items", "flee"];
+}
+
+function collectAbilityIds(...sources) {
+  return [...new Set(sources.flatMap((source) => {
+    if (Array.isArray(source)) return source;
+    return source?.effects?.grantedAbilityIds ?? [];
+  }).filter((id) => COMBAT_ABILITY_DEFINITIONS[id] && !COMBAT_ABILITY_DEFINITIONS[id].category))];
+}
+
+function availableAbilityIds(state, expedition = state?.expedition) {
+  const actor = findCombatant(state, state?.activeActorId);
+  return actor && isLivingCombatant(actor)
+    ? (actor.abilityIds ?? []).filter((id) => COMBAT_ABILITY_DEFINITIONS[id])
+    : [];
+}
+
+function availableItemEntries(state, expedition = state?.expedition) {
+  if (!expedition) return [];
+  const hasInjuredAlly = state.allies.some((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp);
+  return Object.entries(expedition.carriedItems ?? {})
+    .filter(([itemId, quantity]) => quantity > 0)
+    .map(([itemId, quantity]) => ({ itemId, quantity, item: ITEM_DEFINITIONS[itemId] }))
+    .filter((entry) => entry.item?.effects?.combat?.usable
+      && entry.item.effects.combat.effectType === "heal"
+      && hasInjuredAlly
+    );
+}
+
+function enterTargetSelection(state, actionId, targetType, kind = "action") {
+  state.pendingActionId = actionId;
+  state.pendingActionKind = kind;
+  state.interactionMode = targetType === "ally" ? "allyTarget" : "enemyTarget";
+  return { resolved: false, needsTarget: true, targetType };
+}
+
+function finishActorAction(state, expedition, actor, event = {}) {
+  actor.gauge = 0;
+  state.activeActorId = null;
+  state.pendingActionId = null;
+  state.pendingActionKind = null;
+  state.interactionMode = "main";
+  if (state.status === "awaitingAction") {
+    state.status = "running";
+    activateNextAlly(state);
+  }
+  syncCombatHealth(state, expedition);
+  return { resolved: true, needsTarget: false, result: state.result, ...event };
+}
+
+function consumeCombatItem(expedition, itemId) {
+  if (typeof ExpeditionRules?.consumeCarriedItem === "function") {
+    return ExpeditionRules.consumeCarriedItem(expedition, itemId, 1);
+  }
+  const quantity = expedition?.carriedItems?.[itemId] ?? 0;
+  if (quantity < 1) return false;
+  expedition.carriedItems[itemId] = quantity - 1;
+  if (expedition.carriedItems[itemId] <= 0) delete expedition.carriedItems[itemId];
+  expedition.consumedItems[itemId] = (expedition.consumedItems[itemId] ?? 0) + 1;
+  return true;
 }
 
 function finishCombat(state, result) {
   state.status = "resolved";
   state.result = result;
+  state.allies.forEach((ally) => { ally.interceding = false; });
   state.activeActorId = null;
   state.pendingActionId = null;
+  state.pendingActionKind = null;
+  state.interactionMode = "main";
   state.readyQueue.length = 0;
 }
 

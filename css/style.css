@@ -1330,6 +1330,39 @@ button.combatant {
   cursor: pointer;
 }
 
+.combat-submenu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  margin-bottom: 0.38rem;
+}
+
+.combat-submenu-heading p {
+  margin: 0;
+  color: #fff0c5;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.56rem, 2.35cqw, 0.7rem);
+  font-weight: 700;
+}
+
+.combat-submenu-heading button {
+  min-width: 3.9rem;
+  min-height: 2rem;
+  border: 1px solid #7b877b;
+  border-radius: 0.3rem;
+  background: #273029;
+  color: #d8ded5;
+  cursor: pointer;
+}
+
+.combat-empty-menu {
+  margin: 0;
+  color: #aab4aa;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.2cqw, 0.66rem);
+}
+
 .combat-controls > p,
 .combat-waiting {
   margin: 0 0 0.38rem;
@@ -1361,6 +1394,14 @@ button.combatant {
 .combat-action-grid button span {
   color: #c3baa7;
   font-size: clamp(0.44rem, 1.9cqw, 0.56rem);
+}
+
+.combat-action-grid button:disabled {
+  border-color: #4f5a50;
+  background: #273029;
+  color: #89958a;
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .combat-item-button {
