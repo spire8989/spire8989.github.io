@@ -710,3 +710,27 @@ The human developer selected the treasure names and values and requested the con
 ### Resulting prototype state
 
 Existing treasure searches now have a small chance to produce meaningfully valuable campaign finds, with value increasing as authored weight decreases. The items remain ordinary unsecured discoveries: failure loses them, safe return settles them, and campaign automation sells them through the same village merchant economy used by playable interactions.
+
+## 2026-08-12 — Passive Provision Consumption Reduction
+
+### Goal
+
+Reduce passive expedition provision consumption by exactly 15% without changing any other economy, encounter, combat, healing, loot, or campaign-strategy setting.
+
+### Human prompt and direction
+
+The human developer requested one isolated balance adjustment and explicitly preserved starting provisions, prices, encounter rewards and frequency, loot, combat, healing, and campaign strategy behavior.
+
+### AI-assisted implementation
+
+- Reduced the centralized `baseProvisionsPerDistance` tuning value from 0.08 to 0.068.
+- Updated the narrow browser assertions for the resulting Arthur rate of 0.068 provisions per league and Arthur-plus-Kay rate of 0.0884 provisions per league.
+- Left all other production and tuning values unchanged.
+
+### Manual changes
+
+The human developer selected the exact percentage adjustment. No manual code edits were reported.
+
+### Resulting prototype state
+
+Expeditions consume provisions 15% more slowly through the same shared distance-based rule used by playable travel and simulation, with all other balance inputs unchanged.
