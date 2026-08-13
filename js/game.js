@@ -1229,11 +1229,16 @@ function renderExpeditionResources(expedition) {
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);
   const totalDiscoveries = itemQuantity + materialQuantity;
+  const provisionStatus = ExpeditionRules.returnProvisionStatus(expedition);
   return `
     <div class="resource-grid compact-resources">
       <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
       <div class="resource-card"><span>Max reached</span><strong id="max-distance-value">${formatDistance(expedition.maxDistanceReached)}</strong></div>
-      <div class="resource-card"><span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong></div>
+      <div id="provisions-card" class="resource-card provisions-card provision-state-${provisionStatus.state}" data-provision-state="${provisionStatus.state}" aria-describedby="provisions-return-hint">
+        <span>Provisions</span>
+        <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
+        <small id="provisions-return-hint" ${provisionStatus.state === "safe" ? "hidden" : ""}>${provisionStatusHint(provisionStatus)}</small>
+      </div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
       <div class="resource-card unsecured-card">
         <div class="resource-card-heading"><span>Unsecured Loot</span><strong id="loot-count">${totalDiscoveries}</strong></div>
@@ -1245,6 +1250,16 @@ function renderExpeditionResources(expedition) {
         <p id="loot-empty-state" class="unsecured-empty" ${totalDiscoveries > 0 || expedition.goldCarried > 0 ? "hidden" : ""}>Nothing found yet</p>
       </div>
     </div>`;
+}
+
+function provisionStatusHint(status) {
+  if (status.state === "danger") {
+    return `Return needs ${formatResource(status.required)} · not covered`;
+  }
+  if (status.state === "warning") {
+    return `Return needs ${formatResource(status.required)} · margin low`;
+  }
+  return "";
 }
 
 function renderEncounterChoice(choice, expedition) {
@@ -1797,6 +1812,22 @@ function updateTravelHud() {
   setText("#distance-value", formatDistance(expedition.distance));
   setText("#max-distance-value", formatDistance(expedition.maxDistanceReached));
   setText("#provisions-value", formatResource(expedition.provisions));
+  const provisionStatus = ExpeditionRules.returnProvisionStatus(expedition);
+  const provisionsCard = document.querySelector("#provisions-card");
+  provisionsCard?.classList.remove(
+    "provision-state-safe",
+    "provision-state-warning",
+    "provision-state-danger",
+  );
+  provisionsCard?.classList.add(`provision-state-${provisionStatus.state}`);
+  if (provisionsCard) {
+    provisionsCard.dataset.provisionState = provisionStatus.state;
+  }
+  const provisionsHint = document.querySelector("#provisions-return-hint");
+  if (provisionsHint) {
+    provisionsHint.textContent = provisionStatusHint(provisionStatus);
+    provisionsHint.toggleAttribute("hidden", provisionStatus.state === "safe");
+  }
   setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);

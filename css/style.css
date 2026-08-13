@@ -945,6 +945,60 @@ button:active:not(:disabled) {
   font-size: clamp(0.62rem, 2.7cqw, 0.78rem);
 }
 
+.provisions-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.1rem 0.35rem;
+  align-content: center;
+}
+
+.provisions-card small {
+  grid-column: 1 / -1;
+  color: #b8a970;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.4rem, 1.65cqw, 0.5rem);
+  line-height: 1.15;
+}
+
+.provisions-card.provision-state-warning {
+  border-color: rgb(217 189 114 / 68%);
+  background: linear-gradient(145deg, rgb(67 57 29 / 58%), rgb(30 28 15 / 62%));
+  animation: provision-warning-pulse 1.8s ease-in-out infinite;
+}
+
+.provisions-card.provision-state-warning strong {
+  color: #f0d88c;
+}
+
+.provisions-card.provision-state-danger {
+  border-color: rgb(157 80 65 / 78%);
+  background: linear-gradient(145deg, rgb(76 38 31 / 62%), rgb(35 20 17 / 68%));
+  animation: provision-danger-pulse 1.6s ease-in-out infinite;
+}
+
+.provisions-card.provision-state-danger strong,
+.provisions-card.provision-state-danger small {
+  color: #d99b87;
+}
+
+@keyframes provision-warning-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgb(217 189 114 / 0%);
+  }
+  50% {
+    box-shadow: 0 0 0.55rem rgb(217 189 114 / 16%);
+  }
+}
+
+@keyframes provision-danger-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 rgb(157 80 65 / 0%);
+  }
+  50% {
+    box-shadow: 0 0 0.7rem rgb(157 80 65 / 24%);
+  }
+}
+
 .unsecured-card strong {
   color: var(--gold-bright);
 }
@@ -2612,6 +2666,10 @@ button.combatant {
     animation: none;
   }
   .reward-card {
+    animation: none;
+  }
+  .provisions-card.provision-state-warning,
+  .provisions-card.provision-state-danger {
     animation: none;
   }
   button,

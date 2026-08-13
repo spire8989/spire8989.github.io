@@ -14,6 +14,39 @@ const ExpeditionRules = Object.freeze({
       + (companion?.provisionConsumptionBonus ?? 0);
   },
 
+  provisionConsumptionMultiplier(expedition) {
+    const snapshot = Number(expedition?.provisionConsumptionMultiplier);
+    return Number.isFinite(snapshot)
+      ? Math.max(0, snapshot)
+      : this.partyProvisionConsumptionMultiplier(expedition?.selectedCompanion);
+  },
+
+  provisionCostForDistance(distance, consumptionMultiplier) {
+    return Math.max(0, Number(distance) || 0)
+      * EXPEDITION_TUNING.baseProvisionsPerDistance
+      * Math.max(0, Number(consumptionMultiplier) || 0);
+  },
+
+  estimateReturnProvisionCost(expedition) {
+    return this.provisionCostForDistance(
+      expedition?.distance,
+      this.provisionConsumptionMultiplier(expedition),
+    );
+  },
+
+  returnProvisionStatus(expedition) {
+    const current = Math.max(0, Number(expedition?.provisions) || 0);
+    const required = this.estimateReturnProvisionCost(expedition);
+    const warningThreshold = required
+      * (1 + EXPEDITION_TUNING.returnProvisionWarningMarginRatio);
+    const state = required > 0 && current < required
+      ? "danger"
+      : required > 0 && current <= warningThreshold
+        ? "warning"
+        : "safe";
+    return { current, required, warningThreshold, state };
+  },
+
   createCarriedItems(player, packedItems = player.packedItems) {
     const isList = Array.isArray(packedItems);
     const itemIds = isList ? packedItems : Object.keys(packedItems ?? {});
@@ -110,8 +143,10 @@ const ExpeditionRules = Object.freeze({
     }
     adjustExpeditionProvisions(
       expedition,
-      -(distanceTraveled * EXPEDITION_TUNING.baseProvisionsPerDistance
-        * expedition.provisionConsumptionMultiplier),
+      -this.provisionCostForDistance(
+        distanceTraveled,
+        this.provisionConsumptionMultiplier(expedition),
+      ),
     );
     if (expedition.provisions <= 0) {
       expedition.provisions = 0;

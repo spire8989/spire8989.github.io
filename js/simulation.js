@@ -15,9 +15,7 @@ const SimulationProvisionPlanning = Object.freeze({
   },
 
   passiveTravelCost(distance, consumptionMultiplier) {
-    return Math.max(0, Number(distance) || 0)
-      * EXPEDITION_TUNING.baseProvisionsPerDistance
-      * Math.max(0, Number(consumptionMultiplier) || 0);
+    return ExpeditionRules.provisionCostForDistance(distance, consumptionMultiplier);
   },
 
   passiveRoundTripCost(distance, consumptionMultiplier) {
@@ -63,8 +61,7 @@ const TurnaroundPolicies = Object.freeze({
       name: "provision-reserve",
       configuration: { reserve, minimumDistance },
       shouldTurn(expedition) {
-        const returnCost = expedition.distance * EXPEDITION_TUNING.baseProvisionsPerDistance
-          * expedition.provisionConsumptionMultiplier;
+        const returnCost = ExpeditionRules.estimateReturnProvisionCost(expedition);
         return expedition.direction === "outbound"
           && expedition.distance >= minimumDistance
           && expedition.provisions <= returnCost + reserve;

@@ -1108,3 +1108,30 @@ The human developer supplied the design guide and requested local changes only. 
 The prototype now presents routine information quickly on narrow screens while reserving visual emphasis for discoveries that merit it. Village, shops, inventory/loadout structure, encounter hierarchy, toast behavior, travel artwork, combat targeting, save behavior, reward tables, and balance were intentionally left unchanged.
 
 Verified 284 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. Changes remain unstaged and uncommitted for the human developer to commit and push.
+
+## 2026-08-13 - Expedition Return Provision Warning
+
+### Goal
+
+Give the expedition Provisions stat a focused advisory warning as the party approaches the provision requirement for returning safely, without changing push-your-luck travel behavior or provision balance.
+
+### Human prompt and direction
+
+The human developer supplied a focused expedition UX guide requiring an authoritative return estimate, proportional warning threshold, safe/warning/danger states, restrained motion, reduced-motion support, portrait/mobile verification, and no automatic turnaround or travel restrictions. Commit and push were intentionally not authorized for this pass.
+
+### AI-assisted implementation
+
+- Centralized provision cost per distance and return estimation in `ExpeditionRules`, reusing the expedition's snapshotted party consumption multiplier and the same base rate used by actual travel. Simulation planning now uses the shared cost helper where it models passive travel cost.
+- Added a named `returnProvisionWarningMarginRatio` tuning value of 0.2. Warning begins when current provisions are still at least the estimated return requirement but no more than 20% above it; danger begins strictly below the estimate.
+- Added a compact contextual return estimate to the Provisions card only in warning/danger states. Warning uses aged gold with a slow 1.8-second pulse; danger uses muted oxblood/red with a somewhat stronger 1.6-second pulse. Neither state disables continued travel.
+- Added browser coverage for safe start state, proportional warning and strict danger transitions, recovery back to warning/safe, party multiplier effects, reduced-motion colors without animation, and the four intended portrait viewport sizes.
+
+### Manual changes
+
+The human developer supplied the UX guide and requested local changes only. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Expedition supplies now communicate whether the current push is comfortably return-covered, approaching the return requirement, or already below it. The warning is based on the actual distance and party consumption rules, remains advisory, and updates as distance or provisions change. Existing travel, return, encounter, save, and simulation behavior remain unchanged.
+
+Verified 293 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. Changes remain unstaged and uncommitted for the human developer to commit and push.

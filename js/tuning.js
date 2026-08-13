@@ -5,6 +5,7 @@ const EXPEDITION_TUNING = Object.freeze({
   outboundTravelSpeed: 2.25,
   returnSpeedMultiplier: 4,
   baseProvisionsPerDistance: 0.068,
+  returnProvisionWarningMarginRatio: 0.2,
   encounterMinimumDistance: 14,
   encounterMaximumDistance: 22,
   encounterActionDelays: Object.freeze({
