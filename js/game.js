@@ -14,7 +14,7 @@ const game = {
   shopTab: "buy",
   provisionShopStock: createProvisionShopStock(),
   itemShopStock: createItemShopStock(),
-  interactionMessage: "",
+  dialogueMessage: "",
   summary: null,
   elapsedSeconds: 0,
   lastTimestamp: null,
@@ -76,7 +76,7 @@ function handleAction(event) {
     case "shop-tab":
       game.shopTab = ["buy", "sell", "craft"].includes(control.dataset.tab)
         ? control.dataset.tab : "buy";
-      game.interactionMessage = "";
+      game.dialogueMessage = "";
       refreshDestination();
       break;
     case "buy-item":
@@ -268,7 +268,7 @@ function showLocation() {
     savePlayer();
   }
   game.activeDestinationId = null;
-  game.interactionMessage = "";
+  game.dialogueMessage = "";
   showScreen("location");
 }
 
@@ -322,7 +322,7 @@ function openDestination(destinationId) {
   }
   game.activeDestinationId = destinationId;
   game.shopTab = "buy";
-  game.interactionMessage = "";
+  game.dialogueMessage = "";
   showScreen("destination");
 }
 
@@ -360,7 +360,7 @@ function renderDestination() {
             <p class="eyebrow">${capitalize(destination.type.replace("_", " "))}</p>
             <p>${destination.description}</p>
           </div>
-          ${game.interactionMessage ? `<div class="interaction-message" aria-live="polite">${game.interactionMessage}</div>` : ""}
+          ${game.dialogueMessage ? `<div class="interaction-message" aria-live="polite">${game.dialogueMessage}</div>` : ""}
           ${interaction}
         </div>
       </div>
@@ -401,12 +401,24 @@ function restAtInn() {
     const recovery = result.partyMembers.map(
       (member) => `${member.name} recovers ${member.healingAmount} health`,
     ).join("; ");
-    game.interactionMessage = `The active party rests. ${recovery}. ${result.goldCost} gold was paid.`;
+    showToast({
+      title: "Rested at the Inn",
+      message: `${recovery}. ${result.goldCost} gold was paid.`,
+      type: "success",
+    });
     savePlayer();
   } else if (result.fullHealth) {
-    game.interactionMessage = "The active party is already fully rested. No gold was charged.";
+    showToast({
+      title: "Already Fully Rested",
+      message: "No gold was charged.",
+      type: "normal",
+    });
   } else {
-    game.interactionMessage = `Rest requires ${result.quotedGoldCost} gold. The active party cannot afford it.`;
+    showToast({
+      title: "Cannot Afford Rest",
+      message: `The active party needs ${result.quotedGoldCost} gold.`,
+      type: "warning",
+    });
   }
   refreshDestination();
 }
@@ -465,7 +477,7 @@ function craftingRow(recipe, providerId) {
     <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
       <div class="item-icon" aria-hidden="true">${itemIcon(quote.item.category)}</div>
       <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost">${ingredients}${cost}</span><span>Creates ${quote.item.name}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}</span></div>
-      <button class="small-button" type="button" data-action="craft-item" data-recipe-id="${recipe.id}" ${quote.available ? "" : "disabled"}>Craft</button>
+      <button class="small-button" type="button" data-action="craft-item" data-recipe-id="${recipe.id}">Craft</button>
     </article>`;
 }
 
@@ -480,12 +492,11 @@ function renderForestGateInteraction() {
 
 function renderProvisionOffer(shop, offer) {
   const stock = game.provisionShopStock[shop.id] ?? 0;
-  const affordableMaximum = Math.min(stock, Math.floor(game.player.currentGold / offer.price));
   return `
     <article class="provision-offer">
       <div><strong>Provisions</strong><span>Owned: ${game.player.provisions} · ${offer.price} gold each · ${stock} available</span></div>
       <div class="provision-buy-actions">
-        ${[1, 5, 10].map((quantity) => `<button class="small-button" type="button" data-action="buy-provisions" data-quantity="${quantity}" ${affordableMaximum < quantity ? "disabled" : ""}>Buy ${quantity}</button>`).join("")}
+        ${[1, 5, 10].map((quantity) => `<button class="small-button" type="button" data-action="buy-provisions" data-quantity="${quantity}" ${stock < quantity ? "disabled" : ""}>Buy ${quantity}</button>`).join("")}
       </div>
     </article>`;
 }
@@ -493,7 +504,6 @@ function renderProvisionOffer(shop, offer) {
 function shopBuyRow(shop, itemId, offer) {
   const item = ITEM_DEFINITIONS[itemId];
   const ownedUnique = item.unique && Boolean(game.player.ownedItems[itemId]);
-  const affordable = game.player.currentGold >= offer.price;
   const stock = game.itemShopStock[`${shop.id}:${itemId}`]
     ?? offer.stock ?? Infinity;
   const unavailable = stock <= 0;
@@ -501,7 +511,7 @@ function shopBuyRow(shop, itemId, offer) {
     <article class="shop-item-row ${ownedUnique || unavailable ? "is-blocked" : ""}">
       <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
       <div><strong>${item.name}</strong><span>${ownedUnique ? "Owned · unique equipment" : unavailable ? "Sold out" : `${item.description} · ${stock} available`}</span></div>
-      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${affordable && !ownedUnique && !unavailable ? "" : "disabled"}>${ownedUnique ? "Owned" : unavailable ? "Sold Out" : `Buy · ${offer.price}g`}</button>
+      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${ownedUnique || unavailable ? "disabled" : ""}>${ownedUnique ? "Owned" : unavailable ? "Sold Out" : `Buy · ${offer.price}g`}</button>
     </article>`;
 }
 
@@ -534,8 +544,19 @@ function buyShopItem(itemId) {
     return;
   }
   const result = EconomyRules.buyItem(game.player, shop, game.itemShopStock, itemId, 1);
-  if (!result.applied) return;
-  game.interactionMessage = `Purchased ${item.name} for ${result.goldCost} gold.`;
+  if (!result.applied) {
+    showToast({
+      title: "Purchase Unavailable",
+      message: game.player.currentGold < offer.price ? "Not enough gold." : "That item cannot be purchased.",
+      type: "warning",
+    });
+    return;
+  }
+  showToast({
+    title: `Purchased ${item.name}`,
+    message: `-${result.goldCost} gold`,
+    type: "success",
+  });
   savePlayer();
   refreshDestination();
 }
@@ -545,8 +566,21 @@ function buyProvisions(quantity) {
   const shop = SHOP_DEFINITIONS[destination?.shopId];
   const offer = shop?.provisionsForSale;
   const result = EconomyRules.buyProvisions(game.player, shop, game.provisionShopStock, quantity);
-  if (!result.applied) return;
-  game.interactionMessage = `Purchased ${quantity} provision${quantity === 1 ? "" : "s"} for ${result.goldCost} gold.`;
+  if (!result.applied) {
+    showToast({
+      title: "Provision Purchase Unavailable",
+      message: game.player.currentGold < (offer?.price ?? 0) * quantity
+        ? "Not enough gold."
+        : "That quantity is not available.",
+      type: "warning",
+    });
+    return;
+  }
+  showToast({
+    title: `Purchased Provisions ×${quantity}`,
+    message: `-${result.goldCost} gold`,
+    type: "success",
+  });
   savePlayer();
   refreshDestination();
 }
@@ -556,8 +590,19 @@ function sellShopItem(itemId) {
   const shop = SHOP_DEFINITIONS[destination?.shopId];
   const item = ITEM_DEFINITIONS[itemId];
   const result = EconomyRules.sellItem(game.player, shop, itemId);
-  if (!result.applied) return;
-  game.interactionMessage = `Sold ${item.name} for ${result.goldEarned} gold.`;
+  if (!result.applied) {
+    showToast({
+      title: "Cannot Sell Item",
+      message: result.reason ?? "This item cannot be sold here.",
+      type: "warning",
+    });
+    return;
+  }
+  showToast({
+    title: `Sold ${item.name}`,
+    message: `+${result.goldEarned} gold`,
+    type: "success",
+  });
   savePlayer();
   refreshDestination();
 }
@@ -565,20 +610,54 @@ function sellShopItem(itemId) {
 function craftItem(recipeId) {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   const result = CraftingRules.craft(game.player, recipeId, destination?.craftingProviderId);
-  if (!result.applied) return;
+  if (!result.applied) {
+    showToast({
+      title: craftingFailureTitle(result),
+      message: craftingFailureMessage(result),
+      type: "warning",
+    });
+    return;
+  }
   const item = ITEM_DEFINITIONS[result.itemId];
-  game.interactionMessage = `Crafted ${item.name}${result.quantity > 1 ? ` ×${result.quantity}` : ""}.`;
+  showToast({
+    title: `Crafted ${item.name}${result.quantity > 1 ? ` ×${result.quantity}` : ""}`,
+    message: `${result.quantity} ${item.name} added to your inventory`,
+    type: "success",
+  });
   savePlayer();
   refreshDestination();
+}
+
+function craftingFailureTitle(result) {
+  if (result.reason === "insufficient-materials") return "Not Enough Materials";
+  if (result.reason === "insufficient-gold") return "Not Enough Gold";
+  if (result.reason === "unique-item-owned") return "Already Owned";
+  if (result.reason === "recipe-unknown") return "Recipe Locked";
+  return "Cannot Craft";
+}
+
+function craftingFailureMessage(result) {
+  if (result.reason === "insufficient-materials") {
+    return (result.quote?.ingredientStatus ?? [])
+      .filter((entry) => !entry.sufficient)
+      .map((entry) => `${MATERIAL_DEFINITIONS[entry.materialId]?.name ?? entry.materialId} ${entry.owned}/${entry.required}`)
+      .join(" · ") || "Required materials are missing.";
+  }
+  if (result.reason === "insufficient-gold") {
+    return `Requires ${result.quote?.recipe?.goldCost ?? "additional"} gold.`;
+  }
+  if (result.reason === "unique-item-owned") return "This unique item is already in your inventory.";
+  if (result.reason === "recipe-unknown") return "Learn this recipe before crafting it.";
+  return "The current crafting station cannot make that item.";
 }
 
 function showNpcDialogue(npcId, field) {
   const npc = NPC_DEFINITIONS[npcId];
   const lines = npc?.[field];
   if (!Array.isArray(lines) || lines.length === 0) {
-    game.interactionMessage = `${npc?.name ?? "The villager"} has nothing more to add.`;
+    game.dialogueMessage = `${npc?.name ?? "The villager"} has nothing more to add.`;
   } else {
-    game.interactionMessage = `“${lines[Math.floor(Math.random() * lines.length)]}”`;
+    game.dialogueMessage = `“${lines[Math.floor(Math.random() * lines.length)]}”`;
   }
   refreshDestination();
 }
@@ -760,8 +839,16 @@ function equipItem(itemId) {
     return;
   }
 
+  const previousItemId = game.player.equippedItems[item.equipmentSlot];
   game.player.equippedItems[item.equipmentSlot] = itemId;
   game.player.packedItems = game.player.packedItems.filter((packedItemId) => packedItemId !== itemId);
+  showToast({
+    title: `Equipped ${item.name}`,
+    message: previousItemId && previousItemId !== itemId
+      ? `Replaced ${ITEM_DEFINITIONS[previousItemId]?.name ?? "previous gear"}.`
+      : "Ready for the next expedition.",
+    type: "success",
+  });
   savePlayer();
   refreshPreparation();
 }
@@ -777,8 +864,16 @@ function togglePackItem(itemId) {
   const packedIndex = game.player.packedItems.indexOf(itemId);
   if (packedIndex >= 0) {
     game.player.packedItems.splice(packedIndex, 1);
+    showToast({
+      title: `Removed ${item.name} from Pack`,
+      type: "normal",
+    });
   } else if (game.player.packedItems.length < EXPEDITION_TUNING.packSlots) {
     game.player.packedItems.push(itemId);
+    showToast({
+      title: `Packed ${item.name}`,
+      type: "success",
+    });
   }
   savePlayer();
   refreshPreparation();
@@ -790,12 +885,24 @@ function selectCompanion(companionId) {
     return;
   }
 
+  const previousCompanion = game.player.selectedCompanion;
   game.player.selectedCompanion = selectedCompanion;
   game.preparationSupplies = Math.min(
     game.preparationSupplies,
     partyProvisionCapacity(selectedCompanion),
     game.player.provisions,
   );
+  if (previousCompanion !== selectedCompanion) {
+    showToast({
+      title: selectedCompanion
+        ? `${COMPANION_DEFINITIONS[selectedCompanion].name} Joined the Party`
+        : "Traveling Alone",
+      message: selectedCompanion
+        ? "The company is ready to depart."
+        : "Arthur will carry the expedition alone.",
+      type: "success",
+    });
+  }
   savePlayer();
   refreshPreparation();
 }
@@ -1296,6 +1403,16 @@ function handleCombatInteractionResult(expedition, combat, result) {
     return;
   }
   if (result?.resolved) {
+    if (result.action === "item") {
+      const item = ITEM_DEFINITIONS[result.itemId];
+      const event = combat.events.at(-1);
+      const target = combat.allies.find((ally) => ally.id === result.target);
+      showToast({
+        title: `Used ${item?.name ?? "Item"}`,
+        message: `${target?.name ?? "Ally"} recovered ${event?.healingAmount ?? 0} HP`,
+        type: "success",
+      });
+    }
     finishCombatResolution(expedition);
   }
 }
@@ -1579,7 +1696,7 @@ function resetSave() {
   game.shopTab = "buy";
   game.provisionShopStock = createProvisionShopStock();
   game.itemShopStock = createItemShopStock();
-  game.interactionMessage = "";
+  game.dialogueMessage = "";
   game.preparationSupplies = Math.min(18, game.player.provisions);
   savePlayer();
   showScreen("campaign");

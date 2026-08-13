@@ -1,5 +1,35 @@
 # Build Log
 
+## 2026-08-12 — Reusable Toast Notifications
+
+### Goal
+
+Replace temporary inline action confirmations with a reusable, layout-neutral notification layer that supports crafting, commerce, healing, preparation, and combat consumable feedback.
+
+### Human prompt and direction
+
+The human developer reported that the new crafting flow exposed an inline Apothecary confirmation that changed page height and supplied a guide requesting a lightweight, portrait-safe toast system with stacking, semantic types, accessible announcements, cleanup, and regression coverage. The guide also asked that dialogue and decision-critical information remain persistent UI.
+
+### AI-assisted implementation
+
+- Added `js/toast.js` with the global `showToast({ title, message, type, duration })` API and `ToastNotifications` lifecycle controls. Toasts render in a persistent overlay, use safe text nodes, cap visible notifications at three, remove expired entries, and provide normal, success, warning, and major styling hooks.
+- Added the portrait viewport toast region and dark green/gold presentation in `index.html` and `css/style.css`, including reduced-motion behavior, ARIA live-region semantics, and pointer-event isolation so bottom controls remain usable.
+- Converted Apothecary crafting, merchant buying/selling, provision purchases, Inn rest results, equipment changes, pack/party changes, and combat consumable use toasts. Blocked craft, purchase, provision, sale, and rest attempts now explain actionable failures where the action can be invoked.
+- Kept NPC dialogue, encounter outcomes, combat state, expedition discoveries, and the final expedition report as persistent UI because those messages require reading, context, or player decisions. Renamed the remaining destination message state to `dialogueMessage` so it does not compete with the toast API.
+- Expanded browser assertions for craft success/failure, buy/sell/rest feedback, overlay layout stability, portrait containment, stacking limits, and timer cleanup.
+
+### Manual changes
+
+The human developer supplied the toast behavior, visual, accessibility, and migration requirements. No manual code edits were reported.
+
+### Resulting prototype state
+
+Transient feedback now appears as compact animated overlays that survive screen rerenders without shifting game content. Future gameplay code can call the same semantic API without creating page-flow status markup.
+
+### Verification
+
+Verified 253 UI/provision/location assertions, 65 campaign/health/Inn assertions, 16 deterministic simulation assertions, clean production startup over local HTTP, and `git diff --check`.
+
 This log documents the AI-assisted development of **Quest for the Holy Grail**, an HTML5 prototype being created for an AI-assisted game prototype competition. Entries focus on meaningful milestones, the human direction provided, the AI-assisted work performed, any manual changes, and the resulting state of the prototype.
 
 ## 2026-08-12 — Campaign Automation Consumable Purchasing

@@ -56,7 +56,7 @@ def run():
         devtools.evaluate("game.player.arthurHealth=20; game.player.companionStates.sir_kay.health=30; game.player.selectedCompanion='sir_kay'; game.player.currentGold=12; savePlayer(); renderDestination()")
         check("document.body.textContent.includes(\"Arthur's Health: 20 / 40\") && document.body.textContent.includes(\"Sir Kay's Health: 30 / 50\") && document.body.textContent.match(/Restore 10 health/g).length===2 && document.body.textContent.includes('whole active party')", "Inn did not show both active-party health quotes")
         devtools.click('[data-action="rest-at-inn"]')
-        check("game.player.arthurHealth===30 && game.player.companionStates.sir_kay.health===40 && game.player.currentGold===9 && document.body.textContent.includes('active party rests')", "One flat-cost Inn rest did not heal Arthur and Kay")
+        check("game.player.arthurHealth===30 && game.player.companionStates.sir_kay.health===40 && game.player.currentGold===9 && [...document.querySelectorAll('.toast-success')].some(toast=>toast.textContent.includes('Rested at the Inn'))", "One flat-cost Inn rest did not heal Arthur and Kay or show its success toast")
         check("SaveSystem.load().arthurHealth===30 && SaveSystem.load().companionStates.sir_kay.health===40 && SaveSystem.load().currentGold===9", "Party healing did not persist through save/load")
 
         devtools.evaluate("game.player.arthurHealth=35; game.player.companionStates.sir_kay.health=45; game.player.currentGold=12; renderDestination()")
