@@ -77,7 +77,7 @@ function handleAction(event) {
       game.shopTab = ["buy", "sell", "craft"].includes(control.dataset.tab)
         ? control.dataset.tab : "buy";
       game.interactionMessage = "";
-      renderDestination();
+      refreshDestination();
       break;
     case "buy-item":
       buyShopItem(itemId);
@@ -408,7 +408,7 @@ function restAtInn() {
   } else {
     game.interactionMessage = `Rest requires ${result.quotedGoldCost} gold. The active party cannot afford it.`;
   }
-  renderDestination();
+  refreshDestination();
 }
 
 function renderShopInteraction(destination, npc) {
@@ -537,7 +537,7 @@ function buyShopItem(itemId) {
   if (!result.applied) return;
   game.interactionMessage = `Purchased ${item.name} for ${result.goldCost} gold.`;
   savePlayer();
-  renderDestination();
+  refreshDestination();
 }
 
 function buyProvisions(quantity) {
@@ -548,7 +548,7 @@ function buyProvisions(quantity) {
   if (!result.applied) return;
   game.interactionMessage = `Purchased ${quantity} provision${quantity === 1 ? "" : "s"} for ${result.goldCost} gold.`;
   savePlayer();
-  renderDestination();
+  refreshDestination();
 }
 
 function sellShopItem(itemId) {
@@ -559,7 +559,7 @@ function sellShopItem(itemId) {
   if (!result.applied) return;
   game.interactionMessage = `Sold ${item.name} for ${result.goldEarned} gold.`;
   savePlayer();
-  renderDestination();
+  refreshDestination();
 }
 
 function craftItem(recipeId) {
@@ -569,7 +569,7 @@ function craftItem(recipeId) {
   const item = ITEM_DEFINITIONS[result.itemId];
   game.interactionMessage = `Crafted ${item.name}${result.quantity > 1 ? ` ×${result.quantity}` : ""}.`;
   savePlayer();
-  renderDestination();
+  refreshDestination();
 }
 
 function showNpcDialogue(npcId, field) {
@@ -580,7 +580,11 @@ function showNpcDialogue(npcId, field) {
   } else {
     game.interactionMessage = `“${lines[Math.floor(Math.random() * lines.length)]}”`;
   }
-  renderDestination();
+  refreshDestination();
+}
+
+function refreshDestination() {
+  rerenderPreservingScroll(".interaction-scroll", renderDestination);
 }
 
 function inventoryQuantity() {
@@ -809,12 +813,14 @@ function changeSupplies(amount) {
 }
 
 function refreshPreparation() {
-  const scrollTop = document.querySelector(".preparation-screen")?.scrollTop ?? 0;
-  renderPreparation();
-  const refreshedScreen = document.querySelector(".preparation-screen");
-  if (refreshedScreen) {
-    refreshedScreen.scrollTop = scrollTop;
-  }
+  rerenderPreservingScroll(".preparation-screen", renderPreparation);
+}
+
+function rerenderPreservingScroll(selector, render) {
+  const scrollTop = document.querySelector(selector)?.scrollTop ?? 0;
+  render();
+  const refreshedScroller = document.querySelector(selector);
+  if (refreshedScroller) refreshedScroller.scrollTop = scrollTop;
 }
 
 function startExpedition() {
@@ -1286,7 +1292,7 @@ function chooseCombatItem(itemId) {
 
 function handleCombatInteractionResult(expedition, combat, result) {
   if (result?.menu || result?.needsTarget || result?.unavailable) {
-    renderCombat(expedition, combat);
+    refreshCombat(expedition, combat);
     return;
   }
   if (result?.resolved) {
@@ -1298,7 +1304,7 @@ function backCombatMenu() {
   const expedition = game.expedition;
   const combat = expedition?.combat;
   if (combat && CombatSystem.chooseAction(combat, expedition, "back").menu === "main") {
-    renderCombat(expedition, combat);
+    refreshCombat(expedition, combat);
   }
 }
 
@@ -1306,7 +1312,7 @@ function cancelCombatTargetSelection() {
   const expedition = game.expedition;
   const combat = expedition?.combat;
   if (CombatSystem.cancelTargetSelection(combat)) {
-    renderCombat(expedition, combat);
+    refreshCombat(expedition, combat);
   }
 }
 
@@ -1320,7 +1326,7 @@ function updateCombat(deltaSeconds) {
   if (update.result) {
     finishCombatResolution(expedition);
   } else if (update.changed) {
-    renderCombat(expedition, combat);
+    refreshCombat(expedition, combat);
   }
 }
 
@@ -1330,7 +1336,7 @@ function finishCombatResolution(expedition) {
     return;
   }
   if (!combat.result) {
-    renderCombat(expedition, combat);
+    refreshCombat(expedition, combat);
     return;
   }
   if (combat.resultHandled) {
@@ -1343,6 +1349,10 @@ function finishCombatResolution(expedition) {
   if (expedition.status === "active") {
     renderExpedition();
   }
+}
+
+function refreshCombat(expedition, combat) {
+  rerenderPreservingScroll(".combat-panel", () => renderCombat(expedition, combat));
 }
 
 function clearPendingEncounterActionTimer() {

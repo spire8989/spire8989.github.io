@@ -158,7 +158,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "shop",
     description: "Drying herbs hang above a workbench crowded with jars and small brass scales.",
     visualKey: "apothecary_interior",
-    scenePosition: "south",
+    scenePosition: "center",
     npcIds: ["village_apothecary"],
     shopId: "village_apothecary_shop",
     craftingProviderId: "apothecary",

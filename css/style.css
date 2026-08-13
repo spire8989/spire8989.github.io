@@ -1636,8 +1636,8 @@ button.combatant {
 .position-northeast { right: 5%; top: 16%; }
 .position-southwest { left: 8%; bottom: 5%; }
 .position-southeast { right: 7%; bottom: 5%; }
-.position-south { left: 50%; bottom: 5%; transform: translateX(-50%); }
-.position-south:active { transform: translateX(-50%) translateY(0.1rem) scale(0.98); }
+.position-center { left: 50%; top: 48%; transform: translate(-50%, -50%); }
+.position-center:active { transform: translate(-50%, calc(-50% + 0.1rem)) scale(0.98); }
 
 .destination-panel {
   display: flex;

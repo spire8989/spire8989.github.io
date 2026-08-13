@@ -909,3 +909,31 @@ The human developer provided the complete design guide, content scale, architect
 Materials found in authored encounters or successful-return tables now feed a persistent provider-specific crafting loop: players can buy expensive finished remedies immediately, or discover permanent recipes and turn secured resources into the same ordinary item/ability system. The framework supports future providers, rare equipment outputs, unique authored loot pools, and additional reward sources without provider switches or parallel inventory/effect systems.
 
 Intentional first-pass limits remain: Antidote and Repair Kit have no poison/durability action yet; no such subsystem was invented for this pass. The current expedition has no authored story-completion boundary, so 90+ leagues uses the best generic Deep return tier rather than claiming chapter completion. Loot traces are available to debug/simulation output and the browser console, while the normal UI shows only concise rewards.
+
+## 2026-08-12 — Scroll Preservation and Apothecary Hub Fix
+
+### Goal
+
+Prevent same-screen interaction rerenders from resetting scrollable panels, and move the Apothecary hotspot out from behind the village foreground road.
+
+### Human prompt and direction
+
+The human developer reported that buying shop items jumped the interaction scrollbar to the top, requested an audit of other scroll boxes and buttons against the already-correct inventory/loadout behavior, identified the new Apothecary hotspot as obscured, and authorized committing and pushing the completed fix.
+
+### AI-assisted implementation
+
+- Added one reusable same-screen rerender helper that snapshots and restores the active scroller's `scrollTop`.
+- Routed Buy, Buy Provisions, Sell, Craft, shop-tab, NPC dialogue, and Inn-rest destination updates through a scroll-preserving destination refresh.
+- Refactored the existing preparation refresh to use the same helper without changing its established behavior.
+- Routed combat submenu, target-selection, cancel/back, and changed-state rerenders through a scroll-preserving combat refresh. True destination, expedition phase, and combat-result transitions still render normally at their natural starting position.
+- Moved the Apothecary from the bottom-center hotspot row to the open center of the village scene, above the foreground road.
+- Added portrait-browser assertions for centered/unobscured Apothecary placement and preserved Buy, Sell, shop-tab, and preparation scroll positions.
+- Verified 242 UI/provision/location assertions, 16 deterministic simulation assertions, and 65 campaign/health/Inn assertions.
+
+### Manual changes
+
+The human developer supplied the bug report, screenshot, desired placement direction, cross-screen audit request, and commit/push authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+Players can repeatedly transact in long shop lists without being returned to the top. Other normal-play same-screen scrollers now share one preservation mechanism, while intentional navigation and phase changes remain unaffected. The Apothecary is fully visible in the center of the village scene across the tested portrait sizes.
