@@ -8,9 +8,10 @@ const game = {
   expedition: null,
   screen: "campaign",
   preparationSupplies: 18,
+  // Retained as a compatibility field for older runtime callers; preparation
+  // is now always the unified expedition setup screen.
   preparationMode: "expedition",
   activeDestinationId: null,
-  preparationReturnDestinationId: "forest_gate",
   shopTab: "buy",
   provisionShopStock: createProvisionShopStock(),
   itemShopStock: createItemShopStock(),
@@ -92,12 +93,8 @@ function handleAction(event) {
       craftItem(recipeId);
       break;
     case "view-inventory":
-      game.preparationMode = "inventory";
-      showScreen("preparation");
-      break;
     case "prepare-expedition":
       game.preparationMode = "expedition";
-      game.preparationReturnDestinationId = "forest_gate";
       game.preparationSupplies = Math.min(
         Math.max(game.preparationSupplies, EXPEDITION_TUNING.minimumStartingProvisions),
         game.player.provisions,
@@ -106,11 +103,7 @@ function handleAction(event) {
       showScreen("preparation");
       break;
     case "return-from-preparation":
-      if (game.preparationMode === "expedition" && game.preparationReturnDestinationId) {
-        openDestination(game.preparationReturnDestinationId);
-      } else {
-        showLocation();
-      }
+      showLocation();
       break;
     case "equip-item":
       equipItem(itemId);
@@ -309,7 +302,7 @@ function renderLocation() {
         </div>
         <div class="hub-actions">
           <button class="text-button" type="button" data-action="show-campaign">Chapter Select</button>
-          <button class="game-button" type="button" data-action="view-inventory">Inventory / Pack</button>
+          <button class="game-button" type="button" data-action="prepare-expedition">Prepare for Expedition</button>
         </div>
       </div>
     </section>`;
@@ -335,9 +328,7 @@ function renderDestination() {
   const npc = NPC_DEFINITIONS[destination.npcIds[0]];
   let interaction = "";
 
-  if (destination.type === "expedition_gate") {
-    interaction = renderForestGateInteraction();
-  } else if (destination.shopId) {
+  if (destination.shopId) {
     interaction = renderShopInteraction(destination, npc);
   } else {
     interaction = renderInnInteraction(destination, npc);
@@ -480,15 +471,6 @@ function craftingRow(recipe, providerId) {
       <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost">${ingredients}${cost}</span><span>Creates ${quote.item.name}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}</span></div>
       <button class="small-button" type="button" data-action="craft-item" data-recipe-id="${recipe.id}">Craft</button>
     </article>`;
-}
-
-function renderForestGateInteraction() {
-  return `
-    <div class="gate-status">
-      <p><span>Current region</span><strong>Brocéliande</strong></p>
-      <article><div><strong>Expedition</strong><span>Available</span></div><button class="game-button" type="button" data-action="prepare-expedition">Prepare Expedition</button></article>
-      <article class="is-locked"><div><strong>Campaign Quest</strong><span>Not Yet Available</span></div><button class="small-button" type="button" disabled>Locked</button></article>
-    </div>`;
 }
 
 function renderProvisionOffer(shop, offer) {
@@ -688,11 +670,10 @@ function partyProvisionConsumptionMultiplier(selectedCompanionId) {
 }
 
 function destinationIcon(type) {
-  return ({ inn: "⌂", shop: "◆", expedition_gate: "♞" })[type] ?? "•";
+  return ({ inn: "⌂", shop: "◆" })[type] ?? "•";
 }
 
 function renderPreparation() {
-  const expeditionPreparation = game.preparationMode === "expedition";
   const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
   const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(
     game.player.selectedCompanion,
@@ -713,9 +694,10 @@ function renderPreparation() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen preparation-screen" aria-labelledby="preparation-title">
+      <button class="text-button preparation-back" type="button" data-action="show-location">← Village</button>
       <div class="screen-heading compact-heading">
         <p class="eyebrow">Chapter III — Brocéliande</p>
-        <h1 id="preparation-title">${expeditionPreparation ? "Prepare the Company" : "Inventory & Pack"}</h1>
+        <h1 id="preparation-title">Prepare for Expedition</h1>
       </div>
 
       <section class="preparation-section" aria-labelledby="equipment-title">
@@ -746,7 +728,7 @@ function renderPreparation() {
         <div class="inventory-list">${inventory}</div>
       </section>
 
-      ${expeditionPreparation ? `<section class="preparation-section" aria-labelledby="companion-title">
+      <section class="preparation-section" aria-labelledby="companion-title">
         <div class="section-title-row">
           <h2 id="companion-title">Party</h2>
           <span>${PLAYER_CHARACTER_DEFINITION.name}${game.player.selectedCompanion ? ` · ${COMPANION_DEFINITIONS[game.player.selectedCompanion].name}` : " · Traveling Alone"}</span>
@@ -767,11 +749,10 @@ function renderPreparation() {
           <button type="button" data-action="change-supplies" data-amount="1" aria-label="Add one provision">+</button>
           <button type="button" data-action="change-supplies" data-amount="5" aria-label="Add five provisions">+5</button>
         </div>
-      </section>` : ""}
+      </section>
 
       <div class="footer-actions">
-        <button class="text-button" type="button" data-action="return-from-preparation">Back</button>
-        ${expeditionPreparation ? `<button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 && HealingRules.arthurHealth(game.player) > 0 ? "" : "disabled"}>Begin Expedition</button>` : ""}
+        <button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 && HealingRules.arthurHealth(game.player) > 0 ? "" : "disabled"}>Begin Expedition</button>
       </div>
     </section>`;
 }
@@ -909,9 +890,6 @@ function selectCompanion(companionId) {
 }
 
 function changeSupplies(amount) {
-  if (game.preparationMode !== "expedition") {
-    return;
-  }
   game.preparationSupplies = clamp(
     game.preparationSupplies + amount,
     0,
@@ -933,8 +911,7 @@ function rerenderPreservingScroll(selector, render) {
 
 function startExpedition() {
   const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
-  if (game.preparationMode !== "expedition"
-    || game.preparationSupplies <= 0
+  if (game.preparationSupplies <= 0
     || HealingRules.arthurHealth(game.player) <= 0
     || game.preparationSupplies > game.player.provisions
     || game.preparationSupplies > provisionCapacity) {
@@ -1234,10 +1211,9 @@ function renderExpeditionResources(expedition) {
     <div class="resource-grid compact-resources">
       <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
       <div class="resource-card"><span>Max reached</span><strong id="max-distance-value">${formatDistance(expedition.maxDistanceReached)}</strong></div>
-      <div id="provisions-card" class="resource-card provisions-card provision-state-${provisionStatus.state}" data-provision-state="${provisionStatus.state}" aria-describedby="provisions-return-hint">
+      <div id="provisions-card" class="resource-card provisions-card provision-state-${provisionStatus.state}" data-provision-state="${provisionStatus.state}">
         <span>Provisions</span>
         <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
-        <small id="provisions-return-hint" ${provisionStatus.state === "safe" ? "hidden" : ""}>${provisionStatusHint(provisionStatus)}</small>
       </div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
       <div class="resource-card unsecured-card">
@@ -1250,16 +1226,6 @@ function renderExpeditionResources(expedition) {
         <p id="loot-empty-state" class="unsecured-empty" ${totalDiscoveries > 0 || expedition.goldCarried > 0 ? "hidden" : ""}>Nothing found yet</p>
       </div>
     </div>`;
-}
-
-function provisionStatusHint(status) {
-  if (status.state === "danger") {
-    return `Return needs ${formatResource(status.required)} · not covered`;
-  }
-  if (status.state === "warning") {
-    return `Return needs ${formatResource(status.required)} · margin low`;
-  }
-  return "";
 }
 
 function renderEncounterChoice(choice, expedition) {
@@ -1823,11 +1789,6 @@ function updateTravelHud() {
   if (provisionsCard) {
     provisionsCard.dataset.provisionState = provisionStatus.state;
   }
-  const provisionsHint = document.querySelector("#provisions-return-hint");
-  if (provisionsHint) {
-    provisionsHint.textContent = provisionStatusHint(provisionStatus);
-    provisionsHint.toggleAttribute("hidden", provisionStatus.state === "safe");
-  }
   setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);
@@ -1930,7 +1891,6 @@ function resetSave() {
   game.summary = null;
   game.activeDestinationId = null;
   game.preparationMode = "expedition";
-  game.preparationReturnDestinationId = "forest_gate";
   game.shopTab = "buy";
   game.provisionShopStock = createProvisionShopStock();
   game.itemShopStock = createItemShopStock();

@@ -164,17 +164,6 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     craftingProviderId: "apothecary",
     actions: ["talk", "shop"],
   },
-  forest_gate: {
-    id: "forest_gate",
-    name: "Forest Gate",
-    type: "expedition_gate",
-    description: "The last roofs give way to the old road beneath Brocéliande's trees.",
-    visualKey: "forest_gate",
-    scenePosition: "southeast",
-    npcIds: [],
-    shopId: null,
-    actions: ["prepare_expedition"],
-  },
 });
 
 const LOCATION_DEFINITIONS = Object.freeze({
@@ -186,7 +175,7 @@ const LOCATION_DEFINITIONS = Object.freeze({
     chapterId: "chapter_03",
     regionId: "broceliande",
     visualKey: "broceliande_village",
-    destinations: ["inn", "merchant", "blacksmith", "apothecary", "forest_gate"],
+    destinations: ["inn", "merchant", "blacksmith", "apothecary"],
     npcs: ["village_innkeeper", "village_merchant", "village_blacksmith", "village_apothecary"],
     shops: ["village_general_goods", "village_smithy", "village_apothecary_shop"],
     availableExpeditions: ["broceliande_expedition"],

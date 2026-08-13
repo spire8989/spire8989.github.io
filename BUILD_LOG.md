@@ -1135,3 +1135,32 @@ The human developer supplied the UX guide and requested local changes only. No m
 Expedition supplies now communicate whether the current push is comfortably return-covered, approaching the return requirement, or already below it. The warning is based on the actual distance and party consumption rules, remains advisory, and updates as distance or provisions change. Existing travel, return, encounter, save, and simulation behavior remain unchanged.
 
 Verified 293 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. Changes remain unstaged and uncommitted for the human developer to commit and push.
+
+## 2026-08-13 - Unified Village Expedition Preparation
+
+### Goal
+
+Simplify the Village to Inventory to Expedition path by making Prepare for Expedition the single inventory, equipment, packing, party, provision, and expedition setup screen.
+
+### Human prompt and direction
+
+The human developer supplied a focused mobile UX guide requesting removal of the redundant Forest Gate destination and separate Inventory / Pack navigation, actionable permanent inventory controls, top Village navigation, preserved expedition rules, location-based crafting, and removal of the new provision warning explanation line. Commit and push were not requested for this pass.
+
+### AI-assisted implementation
+
+- Removed Forest Gate from the village destination definitions, clickable hotspots, destination interaction, icon mapping, and unused presentation styles. The village now keeps the Inn, Merchant, Apothecary, and Blacksmith, with the existing scene composition left otherwise intact.
+- Replaced the village Inventory / Pack button with the oxblood Prepare for Expedition primary action. Legacy runtime callers of the old inventory action are routed into the same unified preparation screen rather than a separate mode.
+- Reframed preparation as Prepare for Expedition and kept its existing Equipped Gear, Expedition Pack, Permanent Inventory, Party, Provisions, and Begin Expedition sections together. Permanent inventory continues to expose the existing Equip, Pack, Packed, and valid disabled states governed by current equipment and pack rules.
+- Added an immediate top-level ← Village navigation control and removed the bottom-only Back action. Begin Expedition remains the final commit action at the bottom of the flow.
+- Removed only the explanatory line from the Provisions warning card. The authoritative return estimate, safe/warning/danger state colors, restrained pulses, and reduced-motion behavior remain unchanged.
+- Expanded portrait-browser coverage for the consolidated path, direct inventory actions, packing removal and limits, Forest Gate absence, top/back navigation, end-of-flow commit placement, mobile containment, and text-free provision states.
+
+### Manual changes
+
+The human developer supplied the UX consolidation guide and requested local changes only. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The village now leads directly into one practical preparation screen. Players can inspect owned items, equip valid gear, manage the expedition pack, select the company, choose provisions, and begin the expedition without passing through a physical gate or a duplicate inventory screen. Crafting remains location-based, and existing save, travel, combat, reward, and simulation behavior remains intact.
+
+Verified 308 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. Changes remain unstaged and uncommitted for the human developer to commit and push.

@@ -468,6 +468,13 @@ button:active:not(:disabled) {
   padding-bottom: 1.2rem;
 }
 
+.preparation-back {
+  align-self: flex-start;
+  min-height: 2rem;
+  margin-bottom: 0.55rem;
+  padding: 0.35rem 0.55rem;
+}
+
 .preparation-section {
   margin-bottom: 1rem;
 }
@@ -945,21 +952,6 @@ button:active:not(:disabled) {
   font-size: clamp(0.62rem, 2.7cqw, 0.78rem);
 }
 
-.provisions-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.1rem 0.35rem;
-  align-content: center;
-}
-
-.provisions-card small {
-  grid-column: 1 / -1;
-  color: #b8a970;
-  font-family: system-ui, sans-serif;
-  font-size: clamp(0.4rem, 1.65cqw, 0.5rem);
-  line-height: 1.15;
-}
-
 .provisions-card.provision-state-warning {
   border-color: rgb(217 189 114 / 68%);
   background: linear-gradient(145deg, rgb(67 57 29 / 58%), rgb(30 28 15 / 62%));
@@ -976,8 +968,7 @@ button:active:not(:disabled) {
   animation: provision-danger-pulse 1.6s ease-in-out infinite;
 }
 
-.provisions-card.provision-state-danger strong,
-.provisions-card.provision-state-danger small {
+.provisions-card.provision-state-danger strong {
   color: #d99b87;
 }
 
@@ -2183,7 +2174,6 @@ button.combatant {
 .position-northwest { left: 5%; top: 15%; }
 .position-northeast { right: 5%; top: 16%; }
 .position-southwest { left: 8%; bottom: 5%; }
-.position-southeast { right: 7%; bottom: 5%; }
 .position-center { left: 50%; top: 48%; transform: translate(-50%, -50%); }
 .hub-hotspot.position-center.is-pressed,
 .hub-hotspot.position-center:active:not(:disabled) {
@@ -2343,12 +2333,6 @@ button.combatant {
     linear-gradient(145deg, #111411, #3a2d27 70%);
 }
 
-.visual-forest_gate {
-  background:
-    linear-gradient(90deg, transparent 45%, rgb(166 151 99 / 38%) 46% 54%, transparent 55%),
-    linear-gradient(#647a70 0 42%, #213b2b 43% 100%);
-}
-
 .destination-emblem {
   color: var(--gold-bright);
   font-size: clamp(3rem, 20cqw, 6rem);
@@ -2402,8 +2386,7 @@ button.combatant {
 }
 
 .npc-card,
-.shopkeeper-row,
-.gate-status > p {
+.shopkeeper-row {
   margin-top: 0.65rem;
   padding: 0.65rem;
   border: 1px solid rgb(217 189 114 / 20%);
@@ -2413,8 +2396,6 @@ button.combatant {
 
 .npc-card div,
 .shopkeeper-row,
-.gate-status > p,
-.gate-status article,
 .shop-item-row {
   display: flex;
   align-items: center;
@@ -2424,7 +2405,6 @@ button.combatant {
 
 .npc-card span,
 .shopkeeper-row span,
-.gate-status span,
 .shop-item-row span {
   display: block;
   color: #94a394;
@@ -2635,28 +2615,6 @@ button.combatant {
 }
 
 .shop-item-row.is-blocked {
-  opacity: 0.7;
-}
-
-.gate-status > p {
-  color: #9da99d;
-  font-family: system-ui, sans-serif;
-  font-size: clamp(0.58rem, 2.5cqw, 0.74rem);
-}
-
-.gate-status > p strong {
-  color: #f0e2b8;
-}
-
-.gate-status article {
-  margin-top: 0.5rem;
-  padding: 0.65rem;
-  border-radius: 0.4rem;
-  background: #233528;
-}
-
-.gate-status article.is-locked {
-  background: #222922;
   opacity: 0.7;
 }
 
