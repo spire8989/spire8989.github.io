@@ -1,5 +1,35 @@
 # Build Log
 
+## 2026-08-13 - Brocéliande Dialogue and Notification Polish
+
+### Goal
+
+Polish the existing Brocéliande dialogue and notification presentation without changing the dialogue architecture, village layout, or story content.
+
+### Human prompt and direction
+
+The human developer requested a focused UI pass: move the RPG dialogue card upward, reduce background dimming, route all NPC Talk and Rumor interactions through the reusable dialogue system, retire the old inline dialogue message, improve mobile text/choice handling, move toasts closer beneath the permanent header, preserve layering and click protection, and add regression coverage before committing.
+
+### AI-assisted implementation
+
+- Added a transient one-node dialogue-session helper for ambient NPC speech and routed Innkeeper, Merchant, Blacksmith, Apothecary, and fallback rumor interactions through the existing RPG dialogue overlay.
+- Removed the legacy `dialogueMessage` state, inline destination quote block, and unused presentation styling. Story sequences and Hall behavior remain unchanged.
+- Repositioned the dialogue overlay into a responsive middle/lower-middle placement, reduced its dimming gradient, constrained the card to the portrait viewport, preserved future portrait space, and added internal text handling plus mobile-safe choice layout.
+- Anchored toast notifications just below the permanent header with a safe minimum offset and retained their stacking, semantic styling, timers, pointer behavior, and motion support.
+- Expanded browser coverage for overlay placement, dimming, mobile containment, long text, three choices, click-layer properties, all NPC Talk/Rumor paths, no-rumor fallback, toast placement, and intro completion feedback.
+
+### Manual changes
+
+The human developer supplied the dialogue/UI polish guide and requested another local Git commit. No manual code edits were reported.
+
+### Resulting prototype state
+
+Conversation now feels attached to the destination scene instead of reading as a bottom sheet. Ambient NPC speech, rumors, and story dialogue share one presentation path, while destination pages remain free of inline conversational quote blocks. Toasts sit closer to the game header, and longer dialogue or multiple choices remain usable on portrait phones.
+
+### Verification
+
+Verified 349 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, and `git diff --check`. Changes were committed locally; no push was performed.
+
 ## 2026-08-13 - First Brocéliande Campaign Structure
 
 ### Goal

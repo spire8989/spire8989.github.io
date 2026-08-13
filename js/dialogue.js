@@ -7,8 +7,27 @@ const DialogueSystem = Object.freeze({
     return { sequenceId, nodeId: sequence.start };
   },
 
+  startSimple(speakerId, text, portraitKey = "placeholder") {
+    if (!speakerId || !text) return null;
+    return {
+      sequenceId: null,
+      nodeId: "simple",
+      transientSequence: {
+        start: "simple",
+        nodes: {
+          simple: {
+            speakerId,
+            portraitKey,
+            text,
+          },
+        },
+      },
+    };
+  },
+
   sequence(session) {
-    return session ? DIALOGUE_DEFINITIONS[session.sequenceId] : null;
+    return session?.transientSequence
+      ?? (session ? DIALOGUE_DEFINITIONS[session.sequenceId] : null);
   },
 
   currentNode(session) {

@@ -182,7 +182,7 @@ button:focus-visible {
   position: absolute;
   z-index: 20;
   right: 7%;
-  top: max(6rem, 16%);
+  top: max(3.15rem, calc(6.5% + 0.65rem));
   left: 7%;
   display: flex;
   flex-direction: column;
@@ -208,7 +208,7 @@ button:focus-visible {
 
 .toast.is-entering {
   opacity: 0;
-  transform: translateY(-0.55rem);
+  transform: translateY(0.35rem);
 }
 
 .toast.is-leaving {
@@ -2509,17 +2509,6 @@ button.combatant {
   line-height: 1.4;
 }
 
-.interaction-message {
-  margin: 0.65rem 0;
-  padding: 0.65rem;
-  border-left: 3px solid var(--gold);
-  background: rgb(217 189 114 / 10%);
-  color: #f2e5bd;
-  font-size: clamp(0.66rem, 2.9cqw, 0.84rem);
-  font-style: italic;
-  line-height: 1.4;
-}
-
 .npc-card,
 .shopkeeper-row {
   margin-top: 0.65rem;
@@ -2614,17 +2603,21 @@ button.combatant {
   z-index: 18;
   inset: 0;
   display: flex;
-  align-items: flex-end;
-  padding: 0.8rem;
-  background: linear-gradient(transparent 35%, rgb(4 8 5 / 66%) 58%, rgb(4 8 5 / 82%));
+  align-items: center;
+  padding: clamp(0.8rem, 7cqw, 1.6rem) clamp(0.65rem, 4cqw, 1rem);
+  background: linear-gradient(transparent 12%, rgb(4 8 5 / 18%) 42%, rgb(4 8 5 / 38%) 100%);
   pointer-events: auto;
 }
 
 .dialogue-box {
+  align-self: center;
+  margin-top: clamp(2rem, 9cqh, 5.5rem);
   display: grid;
-  grid-template-columns: 4.2rem 1fr;
+  grid-template-columns: clamp(3.6rem, 18cqw, 5rem) minmax(0, 1fr);
   gap: 0.7rem;
   width: 100%;
+  max-height: min(78%, 30rem);
+  overflow: hidden;
   padding: 0.7rem;
   border: 1px solid var(--gold);
   border-radius: 0.5rem;
@@ -2634,13 +2627,17 @@ button.combatant {
 
 .dialogue-portrait {
   display: grid;
-  min-height: 5rem;
+  align-self: start;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  min-height: 3.8rem;
+  max-height: 6rem;
   place-items: center;
   border: 1px solid rgb(244 221 160 / 58%);
   border-radius: 0.35rem;
   background: radial-gradient(circle, rgb(217 189 114 / 22%), rgb(5 12 7 / 80%));
   color: var(--gold-bright);
-  font-size: 1.25rem;
+  font-size: clamp(0.9rem, 5cqw, 1.25rem);
   font-weight: 700;
 }
 
@@ -2648,6 +2645,9 @@ button.combatant {
   display: grid;
   gap: 0.35rem;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .dialogue-copy > strong {
@@ -2656,8 +2656,11 @@ button.combatant {
 }
 
 .dialogue-copy p {
-  min-height: 3.2em;
+  min-height: 0;
   margin: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
   color: #f2e8cd;
   font-size: clamp(0.7rem, 3cqw, 0.9rem);
   line-height: 1.4;
@@ -2673,6 +2676,13 @@ button.combatant {
 .dialogue-choices {
   display: grid;
   gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+@media (max-width: 360px) {
+  .dialogue-overlay { padding-inline: 0.5rem; }
+  .dialogue-box { grid-template-columns: 3.25rem minmax(0, 1fr); gap: 0.55rem; padding: 0.55rem; }
+  .dialogue-portrait { min-height: 3.35rem; }
 }
 
 .material-inventory {

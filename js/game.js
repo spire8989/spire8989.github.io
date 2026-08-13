@@ -15,7 +15,6 @@ const game = {
   shopTab: "buy",
   provisionShopStock: createProvisionShopStock(),
   itemShopStock: createItemShopStock(),
-  dialogueMessage: "",
   dialogueSession: null,
   summary: null,
   elapsedSeconds: 0,
@@ -84,7 +83,6 @@ function handleAction(event) {
     case "shop-tab":
       game.shopTab = ["buy", "sell", "craft"].includes(control.dataset.tab)
         ? control.dataset.tab : "buy";
-      game.dialogueMessage = "";
       refreshDestination();
       break;
     case "buy-item":
@@ -271,7 +269,6 @@ function showLocation() {
     savePlayer();
   }
   game.activeDestinationId = null;
-  game.dialogueMessage = "";
   game.dialogueSession = null;
   showScreen("location");
 }
@@ -331,7 +328,6 @@ function openDestination(destinationId) {
   if (destination.requiresIntro !== false && !isVillageUnlocked()) return;
   game.activeDestinationId = destinationId;
   game.shopTab = "buy";
-  game.dialogueMessage = "";
   game.dialogueSession = null;
   const npc = NPC_DEFINITIONS[destination.npcIds[0]];
   if (destination.type === "story" && !isVillageUnlocked()) {
@@ -374,7 +370,6 @@ function renderDestination() {
             <p class="eyebrow">${capitalize(destination.type.replace("_", " "))}</p>
             <p>${destination.description}</p>
           </div>
-          ${game.dialogueMessage ? `<div class="interaction-message" aria-live="polite">${game.dialogueMessage}</div>` : ""}
           ${interaction}
         </div>
       </div>
@@ -677,18 +672,23 @@ function craftingFailureMessage(result) {
 function showNpcDialogue(npcId, field) {
   const npc = NPC_DEFINITIONS[npcId];
   if (field === "dialogue" && npc?.dialogueSequenceId) {
-    game.dialogueMessage = "";
     game.dialogueSession = DialogueSystem.start(npc.dialogueSequenceId, { player: game.player });
     renderDestination();
     return;
   }
-  const lines = npc?.[field];
-  if (!Array.isArray(lines) || lines.length === 0) {
-    game.dialogueMessage = `${npc?.name ?? "The villager"} has nothing more to add.`;
-  } else {
-    game.dialogueMessage = `“${lines[Math.floor(Math.random() * lines.length)]}”`;
-  }
-  refreshDestination();
+  const lines = Array.isArray(npc?.[field]) ? npc[field] : [];
+  const fallback = field === "rumors"
+    ? "They have heard nothing new."
+    : "They have nothing more to say for now.";
+  const text = lines.length > 0
+    ? lines[Math.floor(Math.random() * lines.length)]
+    : fallback;
+  game.dialogueSession = DialogueSystem.startSimple(
+    npc?.id ?? npcId ?? "village_reeve",
+    text,
+    npc?.portraitKey ?? npc?.id ?? "placeholder",
+  );
+  renderDestination();
 }
 
 function isVillageUnlocked() {
@@ -2064,7 +2064,6 @@ function resetSave() {
   game.shopTab = "buy";
   game.provisionShopStock = createProvisionShopStock();
   game.itemShopStock = createItemShopStock();
-  game.dialogueMessage = "";
   game.dialogueSession = null;
   game.preparationSupplies = Math.min(18, game.player.provisions);
   savePlayer();

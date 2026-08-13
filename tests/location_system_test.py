@@ -155,9 +155,11 @@ def run():
         time.sleep(0.1)
         check("game.screen === 'destination' && game.dialogueSession?.sequenceId === 'broceliande_intro' && Boolean(document.querySelector('.dialogue-overlay'))", "Hall did not open the first-entry dialogue overlay")
         check("Boolean(document.querySelector('#dialogue-speaker')?.textContent && document.querySelector('#dialogue-text')?.textContent && document.querySelector('.dialogue-portrait'))", "Dialogue presentation is missing speaker, text, or portrait placeholder")
+        check("(() => { const overlay=document.querySelector('.dialogue-overlay'); const box=document.querySelector('.dialogue-box').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); const header=document.querySelector('.game-header').getBoundingClientRect(); const style=getComputedStyle(overlay); return style.alignItems==='center' && box.top>header.bottom && box.top<viewport.top+viewport.height*0.75 && box.bottom<viewport.bottom-8 && style.pointerEvents==='auto'; })()", "Dialogue card is still bottom-anchored or outside the portrait viewport")
+        check("(() => { const background=getComputedStyle(document.querySelector('.dialogue-overlay')).backgroundImage; return background!=='none' && !background.includes('0.82'); })()", "Dialogue background dimming remains too aggressive")
         for _ in range(5):
             devtools.click('[data-action="dialogue-continue"]')
-        check("game.player.campaignFlags.broceliande_intro_complete && SaveSystem.load().campaignFlags.broceliande_intro_complete && !game.dialogueSession", "Completing the introduction did not unlock the village")
+        check("game.player.campaignFlags.broceliande_intro_complete && SaveSystem.load().campaignFlags.broceliande_intro_complete && !game.dialogueSession && Boolean(document.querySelector('.toast-major')) && document.querySelector('.toast').getBoundingClientRect().top >= document.querySelector('.game-header').getBoundingClientRect().bottom + 8", "Completing the introduction did not unlock the village or show its toast cleanly")
         devtools.click('[data-action="show-location"]')
         check("document.querySelectorAll('.hub-hotspot').length === 5 && [...document.querySelectorAll('.hub-hotspot')].every(button => !button.disabled) && document.querySelector('[data-action=\"prepare-expedition\"]') && !document.querySelector('[data-action=\"prepare-expedition\"]').disabled", "Post-intro village destinations did not unlock")
         check("document.querySelector('[data-destination-id=\"apothecary\"]')?.classList.contains('position-southeast')", "Apothecary did not move to the southeast hotspot")
@@ -165,6 +167,33 @@ def run():
         check("game.screen === 'destination' && !game.dialogueSession && document.body.textContent.includes('Find a way to reach Merlin.')", "Hall replayed the first-entry introduction or lost its objective")
         devtools.click('[data-action="npc-talk"][data-npc-id="village_reeve"]')
         check("Boolean(document.querySelector('.dialogue-overlay') && document.querySelectorAll('.dialogue-choice').length === 2)", "Post-intro Hall dialogue did not render its choices as an overlay")
+        for width, height in ((320, 480), (360, 640), (390, 844), (430, 932)):
+            devtools.call("Emulation.setDeviceMetricsOverride", {
+                "width": width,
+                "height": height,
+                "deviceScaleFactor": 1,
+                "mobile": True,
+            })
+            time.sleep(0.04)
+            check("(() => { const overlay=document.querySelector('.dialogue-overlay').getBoundingClientRect(); const box=document.querySelector('.dialogue-box').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); return overlay.left>=viewport.left&&overlay.right<=viewport.right&&box.top>=viewport.top&&box.bottom<=viewport.bottom; })()", f"Dialogue overlay escaped the portrait viewport at {width}x{height}")
+        devtools.call("Emulation.clearDeviceMetricsOverride")
+        time.sleep(0.04)
+        devtools.evaluate("game.dialogueSession=DialogueSystem.startSimple('village_reeve','A longer test line establishes that the dialogue copy can hold several lines of readable text without pushing the presentation outside the phone viewport.'); game.dialogueSession.transientSequence.nodes.simple.choices=[{id:'choice_one',label:'First choice'},{id:'choice_two',label:'Second choice'},{id:'choice_three',label:'Third choice'}]; renderDestination()")
+        check("(() => { const box=document.querySelector('.dialogue-box').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); const choices=[...document.querySelectorAll('.dialogue-choice')]; return choices.length===3 && box.bottom<=viewport.bottom && box.top>=viewport.top && choices.every(choice=>{const rect=choice.getBoundingClientRect(); return rect.left>=box.left&&rect.right<=box.right&&rect.bottom<=box.bottom;}); })()", "Three dialogue choices or longer dialogue text overflowed the portrait viewport")
+        for width, height in ((320, 480), (360, 640)):
+            devtools.call("Emulation.setDeviceMetricsOverride", {
+                "width": width,
+                "height": height,
+                "deviceScaleFactor": 1,
+                "mobile": True,
+            })
+            time.sleep(0.04)
+            check("(() => { const box=document.querySelector('.dialogue-box').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); return document.querySelectorAll('.dialogue-choice').length===3&&box.top>=viewport.top&&box.bottom<=viewport.bottom; })()", f"Three dialogue choices escaped the viewport at {width}x{height}")
+        devtools.call("Emulation.clearDeviceMetricsOverride")
+        time.sleep(0.04)
+        devtools.click('[data-action="dialogue-choice"][data-choice-id="choice_one"]')
+        check("!game.dialogueSession && !document.querySelector('.dialogue-overlay')", "Three-choice dialogue did not close cleanly")
+        devtools.click('[data-action="npc-talk"][data-npc-id="village_reeve"]')
         devtools.click('[data-action="dialogue-choice"][data-choice-id="ask_forest"]')
         devtools.click('[data-action="dialogue-continue"]')
         devtools.click('[data-action="dialogue-continue"]')
@@ -195,7 +224,7 @@ def run():
             check("(() => { const apothecary=document.querySelector('[data-destination-id=\"apothecary\"]').getBoundingClientRect(); const scene=document.querySelector('.location-scene').getBoundingClientRect(); return apothecary.left > scene.left + scene.width * 0.45 && apothecary.top > scene.top + scene.height * 0.45; })()", f"Apothecary is not southeast of the village at {width}x{height}")
             check("(() => { const button=document.querySelector('[data-destination-id=\"apothecary\"]'); const before=button.getBoundingClientRect(); button.classList.add('is-pressed'); const pressed=button.getBoundingClientRect(); button.classList.remove('is-pressed'); return Math.abs(pressed.left-before.left)<5 && Math.abs(pressed.top-before.top)<5; })()", f"Pressed Apothecary jumps away from its southeast position at {width}x{height}")
             devtools.evaluate("ToastNotifications.dismissAll(); showToast({title:'Viewport check',duration:800})")
-            check("(() => { const toast=document.querySelector('.toast'); const region=document.querySelector('#toast-region').getBoundingClientRect(); const header=document.querySelector('.game-header').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); const title=document.querySelector('.hub-identity').getBoundingClientRect(); return toast && region.top >= header.bottom + 8 && region.left >= viewport.left && region.right <= viewport.right && toast.getBoundingClientRect().top >= title.bottom; })()", f"Toast stack does not clear the header and location title at {width}x{height}")
+            check("(() => { const toast=document.querySelector('.toast'); const region=document.querySelector('#toast-region').getBoundingClientRect(); const header=document.querySelector('.game-header').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); return toast && region.top >= header.bottom + 8 && region.left >= viewport.left && region.right <= viewport.right && toast.getBoundingClientRect().bottom <= viewport.bottom; })()", f"Toast stack is not anchored safely beneath the header at {width}x{height}")
             devtools.evaluate("ToastNotifications.dismissAll()")
         check("document.querySelector('.hub-identity').clientHeight < document.querySelector('.location-scene').clientHeight * 0.12", "Village title card is not compact")
 
@@ -239,11 +268,21 @@ def run():
         check("document.querySelectorAll('.inn-health-row').length === 2 && Boolean(document.querySelector('[data-action=\"rest-at-inn\"]'))", "Injured Inn state lost active-party rest controls")
         devtools.evaluate("game.player.arthurHealth=40; game.player.companionStates.sir_kay.health=50; renderDestination()")
         devtools.click('[data-action="hear-rumor"]')
-        check("document.querySelector('.interaction-message')?.textContent.length > 20", "Rumor did not appear")
+        check("Boolean(game.dialogueSession && document.querySelector('.dialogue-overlay') && document.querySelector('#dialogue-text')?.textContent.length > 20 && !document.querySelector('.interaction-message'))", "Innkeeper rumor did not use the RPG dialogue overlay")
+        devtools.click('[data-action="dialogue-continue"]')
+        devtools.click('[data-action="npc-talk"][data-npc-id="village_innkeeper"]')
+        check("Boolean(game.dialogueSession && document.querySelector('.dialogue-overlay') && document.querySelector('#dialogue-speaker')?.textContent.includes('Innkeeper') && !document.querySelector('.interaction-message'))", "Innkeeper Talk did not use the RPG dialogue overlay")
+        devtools.click('[data-action="dialogue-continue"]')
         devtools.click('[data-action="show-location"]')
 
         devtools.evaluate("game.player.currentGold = 100; game.player.ownedItems.old_coin = 2; game.player.ownedItems.antler_fragment = 1; savePlayer()")
         devtools.click('[data-destination-id="merchant"]')
+        devtools.click('[data-action="npc-talk"][data-npc-id="village_merchant"]')
+        check("Boolean(game.dialogueSession && document.querySelector('.dialogue-overlay') && !document.querySelector('.interaction-message'))", "Merchant Talk did not use the RPG dialogue overlay")
+        devtools.click('[data-action="dialogue-continue"]')
+        devtools.evaluate("showNpcDialogue('village_merchant','rumors')")
+        check("Boolean(game.dialogueSession && document.querySelector('.dialogue-overlay') && document.querySelector('#dialogue-text')?.textContent.includes('nothing new') && !document.querySelector('.interaction-message'))", "NPC without rumors did not fail gracefully through the dialogue UI")
+        devtools.click('[data-action="dialogue-continue"]')
         check("Math.abs(document.querySelector('.visual-frame').clientWidth / document.querySelector('.visual-frame').clientHeight - 16/9) < 0.02", "Merchant visual is not 16:9")
         check("document.querySelector('.destination-panel').clientHeight > document.querySelector('.visual-frame').clientHeight", "Merchant interaction area is not the majority")
         check("typeof showToast === 'function' && document.querySelector('#toast-region')?.getAttribute('aria-live') === 'polite'", "Toast notification API or live region is missing")
@@ -289,6 +328,9 @@ def run():
         devtools.click('[data-action="show-location"]')
         devtools.click('[data-destination-id="blacksmith"]')
         check("Math.abs(document.querySelector('.visual-frame').clientWidth / document.querySelector('.visual-frame').clientHeight - 16/9) < 0.02", "Blacksmith visual is not 16:9")
+        devtools.click('[data-action="npc-talk"][data-npc-id="village_blacksmith"]')
+        check("Boolean(game.dialogueSession && document.querySelector('.dialogue-overlay') && !document.querySelector('.interaction-message'))", "Blacksmith Talk did not use the RPG dialogue overlay")
+        devtools.click('[data-action="dialogue-continue"]')
         devtools.click('[data-action="shop-tab"][data-tab="buy"]')
         check("document.querySelector('[data-action=\"buy-item\"][data-item-id=\"arthur_sword\"]')?.disabled", "Duplicate unique sword can be purchased")
         check("document.querySelector('[data-action=\"buy-item\"][data-item-id=\"quilted_hauberk\"]')?.disabled", "Duplicate unique armor can be purchased")
@@ -314,6 +356,9 @@ def run():
         devtools.click('[data-action="show-location"]')
         devtools.click('[data-destination-id="apothecary"]')
         check("game.activeDestinationId === 'apothecary' && SHOP_DEFINITIONS.village_apothecary_shop.itemsForSale.antidote.price === 9", "Apothecary location or finished-goods shop is invalid")
+        devtools.click('[data-action="npc-talk"][data-npc-id="village_apothecary"]')
+        check("Boolean(game.dialogueSession && document.querySelector('.dialogue-overlay') && !document.querySelector('.interaction-message'))", "Apothecary Talk did not use the RPG dialogue overlay")
+        devtools.click('[data-action="dialogue-continue"]')
         bandages_before_craft = devtools.evaluate("game.player.ownedItems.bandages || 0")
         devtools.click('[data-action="shop-tab"][data-tab="craft"]')
         check("document.body.textContent.includes('Bandages') && !document.body.textContent.includes('Healing Poultice')", "Crafting UI did not hide unknown Apothecary recipes")
