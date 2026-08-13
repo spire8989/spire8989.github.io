@@ -596,3 +596,34 @@ The human developer supplied the correction requirements. No manual code edits w
 ### Resulting prototype state
 
 Sir Kay now has 50 maximum HP. A paid Inn rest serves the current active party as one economic action, and the campaign simulator automates that exact action with member-level health reporting rather than an Arthur-only approximation.
+
+## 2026-08-12 — Adaptive Campaign-Agent Planning
+
+### Goal
+
+Correct unrealistic campaign-agent bailouts before further balance judgments by making healing thresholds explicit, adapting desired expedition distance to affordable supplies, and reserving insolvency for a genuinely unlaunchable campaign.
+
+### Human prompt and direction
+
+The human developer requested simulation-behavior corrections only: no changes to character HP, combat damage, encounters, provision tuning/prices, loot, healing amount, or healing price, and no rare high-value treasure experiment yet.
+
+### AI-assisted implementation
+
+- Raised the aggressive-reinvestor healing threshold from 35% to 60% while retaining conservative at 75%, and made all policy thresholds explicitly trigger at or below the boundary.
+- Changed configured campaign distance into a desired target. Preparation buys toward nominal round-trip needs, derives a supported distance from shared provision tuning and party consumption, and reduces the actual turnaround instead of treating a missed preferred buffer as insolvency.
+- Preserved policy identity through safety margins: conservative uses five provisions, aggressive three, and minimal restock one, so constrained conservative runs shorten at least as much as aggressive runs.
+- Replaced misleading preferred-stock/healing shortfall stops with `cannot-support-any-expedition`, reserved for failure to support even a distance-one expedition after normal preparation. Planning respects pack capacity and, as a last resort, drops an unavailable preferred safety margin before declaring insolvency. The production ten-provision town floor therefore keeps ordinary broke campaigns moving at reduced distance.
+- Expanded decision telemetry with desired/actual distance, reduction and reason, nominal/chosen provision estimates, safety margin, affordable and actual stock, purchase state, gold preparation flow, and party health before/after healing.
+- Separated quoted Inn recovery and cost from actual mutation. An unaffordable attempt reports its potential result but records unchanged actual HP, zero actual healing, zero actual cost, and `applied: false`.
+- Added desired/actual distance, reduction frequency/amount, true insolvency, completion, death, spending, loot, and net-wealth fields to summaries and adaptive-distance columns to CSV exports.
+- Added focused browser coverage for healing boundaries, constrained-distance policy comparisons, production town-floor continuation, true no-expedition support, failed-healing telemetry, party-healing parity, updated summaries/CSV, and campaign determinism.
+- Verified 30 focused campaign/health/Inn assertions, 9 deterministic single-expedition assertions, all 207 existing UI/location assertions, and `git diff --check`.
+- Ran a descriptive 200-campaign sweep (100 conservative/cautious and 100 aggressive/aggressive, desired distance 75, ten planned expeditions, 20 starting gold, 15 provisions). Average actual distance was 38.24 conservative versus 64.35 aggressive; reduction frequency was 77.7% versus 32.6%; true insolvency was 0% for both. Conservative completed 98% of planned campaigns with 2% death, while aggressive completed 29% with 75% death. These are post-correction observations for human review, not balance changes or recommendations.
+
+### Manual changes
+
+The human developer supplied the focused campaign-agent correction guide. No manual code edits were reported for this pass.
+
+### Resulting prototype state
+
+Campaign agents now respond to scarce provisions by lowering ambition rather than falsely ending the campaign, while remaining observably distinct by policy. Logs cleanly separate planned versus executed distance and quoted versus applied healing, giving the next balance sweep a more trustworthy behavioral foundation.

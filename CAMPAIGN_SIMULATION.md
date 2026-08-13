@@ -46,7 +46,7 @@ HEALING_TUNING.innRestGoldCost = 3;
 
 The Inn shows current/max health, exact healing amount, and resulting health for Arthur and the selected companion. `HealingRules.quoteInnRest` is non-mutating. `HealingRules.restAtInn` applies one party operation: each active member restores up to 10 HP, each is capped at their own maximum, and the shared action costs 3 gold once. It charges only when at least one active member can heal and the player can afford it, persists immediately through the normal save path, and never charges when the whole active party is full. With no selected companion, only Arthur participates.
 
-Campaign policies automate this exact same action and consider every active party member when applying their healing threshold. Healing telemetry records before/after health and healing separately in `partyMembers` and `healingByPartyMember`, while retaining one shared rest cost. Per-expedition CSV also exposes `arthurHealing`, `companionId`, `companionHealing`, and `healingCost`. A zero-health companion is marked unavailable only if the companion remains at zero after the normal between-expedition action.
+Campaign policies automate this exact same action and consider every active party member when applying their healing threshold. Healing telemetry records quoted/potential recovery separately from actual applied recovery: an unaffordable rest retains `quotedHealthAfter`, `quotedHealingAmount`, and `quotedGoldCost`, while actual `healthAfter` remains unchanged and actual healing/cost remain zero. Per-member detail remains in `partyMembers` and `healingByPartyMember`; per-expedition CSV also exposes `arthurHealing`, `companionId`, `companionHealing`, and `healingCost`. A zero-health companion is marked unavailable only if the companion remains at zero after the normal between-expedition action.
 
 ## Running a campaign
 
@@ -87,11 +87,13 @@ Expedition seeds are stable and derived as:
 
 ## Between-expedition policies
 
-- `conservative-sustainer`: heals below 75%, buys round-trip provisions plus a five-unit margin, and stops if required restocking or healing is unaffordable.
-- `aggressive-reinvestor`: heals below 35%, uses a smaller provision margin, and tolerates provision shortfalls when at least one provision can be packed.
-- `minimal-restock`: heals only below 25%, buys the estimated round-trip requirement plus one, and avoids discretionary purchases.
+- `conservative-sustainer`: heals at or below 75%, plans with a five-unit provision margin, and shortens expeditions more readily when supplies are constrained.
+- `aggressive-reinvestor`: heals at or below 60%, plans with a three-unit provision margin, and therefore accepts longer expeditions from the same constrained stock without waiting for obvious critical health.
+- `minimal-restock`: heals at or below 25%, plans with a one-unit provision margin, and avoids discretionary reserves.
 
-Each policy returns a structured decision record. Later policies can add equipment purchases, recruitment, route selection, or dynamic targets without changing the campaign loop.
+Configured expedition distances are nominal targets. Each policy buys toward its preferred round-trip stock, estimates the maximum supported out-and-back distance from the shared base provision rate and party consumption multiplier, then uses the lesser of nominal and supported distance. Missing a preferred buffer reduces the target rather than ending the campaign. Policy decisions record desired/actual distance, reduction and reason, safety margin, provision stock before/after purchase, nominal/chosen requirements, affordable stock, gold before/after preparation, and party health before/after healing.
+
+The planning estimate deliberately covers ordinary round-trip travel plus policy margin and is bounded by party carrying capacity. It does not predict random encounter costs or future loot. If supplies support a real expedition but not even the preferred margin, the agent drops the margin and launches the shorter minimally supported run; a safety preference never becomes a false minimum.
 
 Town provision safety grants, persistent merchant stock, provision prices, item sale protection, sale values, expedition settlement, and Inn costs are production rules. By default recovered sellable loot is auto-sold through the real village merchant rules. `autoSellRecoveredLoot: false` disables that simulation convenience. Gear spending is reported as zero because the current default loadout already owns the available combat equipment and no useful upgrade-selection policy has been authored.
 
@@ -102,12 +104,10 @@ Campaign stop reasons currently include:
 - `max-expeditions-reached`
 - `arthur-died`
 - `required-companion-unavailable`
-- `cannot-afford-minimum-provisions`
-- `cannot-afford-required-healing`
-- `no-viable-expedition`
+- `cannot-support-any-expedition`
 - `simulation-safety-limit`
 
-Expedition failure does not automatically equal campaign death. A surviving Arthur retains health and resources and may continue if policy and economy permit.
+`cannot-support-any-expedition` means the player cannot meet the production minimum and support even a distance-one round trip after normal preparation, including a last-resort calculation without the preferred safety margin. Failure to afford a preferred rest or target stock is recorded but is not insolvency. The production town provision floor normally prevents this stop in ordinary campaign flow. Expedition failure does not automatically equal campaign death; a surviving Arthur retains health and resources and may continue if policy and economy permit.
 
 ## Batches and aggregation
 
@@ -125,7 +125,7 @@ const batch = CampaignSimulationRunner.runBatch({
 });
 ```
 
-Aggregation reports completion, expeditions survived, death/insolvency, ending gold/health, profit, healing/provision spending, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
+Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, ending gold/health, net campaign wealth, healing/provision spending, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
 
 - `economically-growing`
 - `roughly-sustainable`
@@ -160,12 +160,12 @@ python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-The focused campaign suite covers save migration and clamping, player-facing active-party Inn display/affordability/save behavior, flat-cost capped party healing, normal-game health persistence, shared campaign healing parity and per-member telemetry, campaign determinism/divergence, insolvency, ten-expedition completion, persistent economy, batch aggregation/CSV, and replay metadata.
+The focused campaign suite covers save migration and clamping, player-facing active-party Inn behavior, flat-cost capped party healing, normal-game health persistence, shared campaign healing parity, exact policy thresholds, failed-healing quote/application semantics, adaptive policy distances, true insolvency, deterministic campaigns, persistent economy, summaries/CSV, and replay metadata.
 
 ## Current limitations
 
 - The only production settlement is Brocéliande village; Camelot has not been authored.
-- Companion health persists, but there is no player-facing companion healing action yet. A selected incapacitated companion stops a campaign as unavailable.
+- Companion health persists and the selected companion shares the player-facing Inn rest. An unselected companion is not healed; a selected incapacitated companion stops a campaign only if still at zero after normal preparation.
 - Policies do not buy equipment because no meaningful upgrade path is currently available from the default loadout.
 - Merchant stock persists within a simulated campaign exactly like the current browser session but is not saved in localStorage by the normal game.
 - There is no injury, disease, fatigue, durability, chapter progression, optimal shopping, or balance recommendation system.

@@ -22,6 +22,7 @@ This file records project-specific knowledge that should survive across Codex co
 - `js/storage.js` owns defaults, localStorage, validation, and save migration.
 - `js/healing-rules.js`, `js/economy-rules.js`, and `js/campaign-rules.js` own shared persistent health recovery, shop mutations, and between-expedition production rules. Normal UI and simulations must call them rather than duplicate formulas.
 - `js/simulation.js` remains the isolated single-expedition runner; `js/campaign-simulation.js` strings settled production-style player states across repeated expeditions.
+- Campaign expedition distances are desired targets, not hard requirements. Policies plan round-trip provisions from shared tuning and their own safety margin, then reduce the actual target when constrained; only inability to support any reasonable expedition is provision insolvency. Failed-healing telemetry must distinguish quoted recovery/cost from zero actual mutation.
 - `js/game.js` owns screen flow, input dispatch, UI rendering, expedition state, settlement, and the `requestAnimationFrame` loop.
 - `js/location-data.js` and `tests/location_system_test.py` may be present as part of the data-driven village/location work. Check the worktree before touching them.
 - `assets/` and `vendor/` are intentionally empty/reserved unless a later request changes that.

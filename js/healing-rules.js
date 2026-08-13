@@ -42,8 +42,10 @@ const HealingRules = Object.freeze({
         name: member.name,
         healthBefore: member.health,
         healthAfter: member.health + healingAmount,
+        quotedHealthAfter: member.health + healingAmount,
         maxHealth: member.maxHealth,
         healingAmount,
+        quotedHealingAmount: healingAmount,
       };
     });
     const arthur = partyMembers[0];
@@ -55,12 +57,16 @@ const HealingRules = Object.freeze({
       healthBefore: arthur.healthBefore,
       healthAfter: arthur.healthAfter,
       healingAmount: arthur.healingAmount,
+      quotedHealthAfter: arthur.healthAfter,
+      quotedHealingAmount: arthur.healingAmount,
       totalHealingAmount,
+      quotedTotalHealingAmount: totalHealingAmount,
       partyMembers,
       healingByPartyMember: Object.fromEntries(partyMembers.map(
         (member) => [member.id, member.healingAmount],
       )),
       goldCost: totalHealingAmount > 0 ? HEALING_TUNING.innRestGoldCost : 0,
+      quotedGoldCost: totalHealingAmount > 0 ? HEALING_TUNING.innRestGoldCost : 0,
       resource: "gold",
     };
   },
@@ -68,7 +74,22 @@ const HealingRules = Object.freeze({
   restAtInn(player) {
     const quote = this.quoteInnRest(player);
     if (!quote.available) {
-      return { ...quote, applied: false };
+      return {
+        ...quote,
+        applied: false,
+        healthAfter: quote.healthBefore,
+        healingAmount: 0,
+        totalHealingAmount: 0,
+        goldCost: 0,
+        partyMembers: quote.partyMembers.map((member) => ({
+          ...member,
+          healthAfter: member.healthBefore,
+          healingAmount: 0,
+        })),
+        healingByPartyMember: Object.fromEntries(quote.partyMembers.map(
+          (member) => [member.id, 0],
+        )),
+      };
     }
     player.currentGold -= quote.goldCost;
     quote.partyMembers.forEach((member) => {

@@ -392,7 +392,7 @@ function restAtInn() {
   } else if (result.fullHealth) {
     game.interactionMessage = "The active party is already fully rested. No gold was charged.";
   } else {
-    game.interactionMessage = `Rest requires ${result.goldCost} gold. The active party cannot afford it.`;
+    game.interactionMessage = `Rest requires ${result.quotedGoldCost} gold. The active party cannot afford it.`;
   }
   renderDestination();
 }

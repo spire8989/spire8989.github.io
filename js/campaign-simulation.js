@@ -4,20 +4,14 @@ const BetweenExpeditionPolicies = Object.freeze({
   "conservative-sustainer": createBetweenPolicy("conservative-sustainer", {
     healingThreshold: 0.75,
     provisionMargin: 5,
-    stopOnShortfall: true,
-    stopOnHealingShortfall: true,
   }),
   "aggressive-reinvestor": createBetweenPolicy("aggressive-reinvestor", {
-    healingThreshold: 0.35,
+    healingThreshold: 0.6,
     provisionMargin: 3,
-    stopOnShortfall: false,
-    stopOnHealingShortfall: false,
   }),
   "minimal-restock": createBetweenPolicy("minimal-restock", {
     healingThreshold: 0.25,
     provisionMargin: 1,
-    stopOnShortfall: true,
-    stopOnHealingShortfall: true,
   }),
 });
 
@@ -34,7 +28,7 @@ const CampaignSimulationRunner = Object.freeze({
 
     for (let index = 0; index < config.maxExpeditions; index += 1) {
       const expeditionNumber = index + 1;
-      const targetDistance = config.expeditionPlan[index % config.expeditionPlan.length];
+      const desiredTargetDistance = config.expeditionPlan[index % config.expeditionPlan.length];
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       const townEntry = CampaignRules.enterLocation(player);
@@ -44,7 +38,7 @@ const CampaignSimulationRunner = Object.freeze({
         break;
       }
       const decision = applyBetweenExpeditionPolicy(
-        player, shopStocks, policy, targetDistance, config.healingEnabled,
+        player, shopStocks, policy, desiredTargetDistance, config.healingEnabled,
       );
       decision.expeditionNumber = expeditionNumber;
       decision.townProvisionGrant = townEntry.provisionsGranted;
@@ -60,10 +54,11 @@ const CampaignSimulationRunner = Object.freeze({
         break;
       }
 
+      const actualTargetDistance = decision.actualTargetDistance;
       const capacity = ExpeditionRules.partyProvisionCapacity(player.selectedCompanion);
       const provisionsPacked = Math.min(player.provisions, decision.provisionsToPack, capacity);
       if (provisionsPacked < EXPEDITION_TUNING.minimumStartingProvisions) {
-        stopReason = "no-viable-expedition";
+        stopReason = "cannot-support-any-expedition";
         break;
       }
 
@@ -78,7 +73,7 @@ const CampaignSimulationRunner = Object.freeze({
         loadout: { ...player.equippedItems },
         packContents: [...player.packedItems],
         strategy: config.strategy,
-        turnaroundPolicy: { type: "fixedDistance", distance: targetDistance },
+        turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
         startingState: deepCampaignClone(player),
       });
 
@@ -91,7 +86,12 @@ const CampaignSimulationRunner = Object.freeze({
       expeditions.push({
         expeditionNumber,
         expeditionSeed,
-        targetDistance,
+        targetDistance: actualTargetDistance,
+        desiredTargetDistance,
+        actualTargetDistance,
+        targetDistanceReduced: decision.targetDistanceReduced,
+        targetDistanceReduction: decision.targetDistanceReduction,
+        targetDistanceReductionReason: decision.targetDistanceReductionReason,
         startingHealth: healthAtStart,
         endingHealth: run.finalArthurHealth,
         damageTaken,
@@ -140,7 +140,7 @@ const CampaignSimulationRunner = Object.freeze({
 
     stopReason ??= expeditions.length >= config.maxExpeditions
       ? "max-expeditions-reached"
-      : "no-viable-expedition";
+      : "cannot-support-any-expedition";
     return finalizeCampaignTelemetry(
       config, policy, startingState, player, shopStocks, expeditions,
       betweenExpeditionDecisions, stopReason,
@@ -207,7 +207,8 @@ const CampaignSimulationTelemetry = Object.freeze({
     const results = Array.isArray(batchOrResults) ? batchOrResults : batchOrResults.results;
     const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "expeditionsAttempted",
       "expeditionsReturned", "stopReason", "startingGold", "endingGold", "endingArthurHealth",
-      "totalGoldEarned", "totalGoldSpent", "totalHealingCost", "totalProvisionCost", "economicTrend"];
+      "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
+      "totalGoldEarned", "totalGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
     return campaignCsv(fields, results);
   },
 
@@ -225,9 +226,10 @@ const CampaignSimulationTelemetry = Object.freeze({
       ...expedition,
     })));
     const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "success",
-      "targetDistance", "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
+      "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
+      "targetDistanceReductionReason", "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
       "arthurHealing", "companionId", "companionHealing", "healingCost",
-      "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "lootValueRecovered",
+      "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "provisionsPacked", "lootValueRecovered",
       "netGold", "failureReason"];
     return campaignCsv(fields, rows);
   },
@@ -243,6 +245,7 @@ function resolveBetweenPolicy(value) {
 }
 
 function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance, healingEnabled) {
+  const goldBeforePreparation = player.currentGold;
   const restQuote = HealingRules.quoteInnRest(player);
   let healing = {
     attempted: false, intentionallySkipped: true, skippedInsufficientResources: false,
@@ -260,7 +263,7 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
     )),
   };
   const partyNeedsRest = restQuote.partyMembers.some(
-    (member) => member.maxHealth > 0 && member.healthBefore / member.maxHealth < policy.healingThreshold,
+    (member) => member.maxHealth > 0 && member.healthBefore / member.maxHealth <= policy.healingThreshold,
   );
   if (healingEnabled && partyNeedsRest) {
     const result = HealingRules.restAtInn(player);
@@ -272,27 +275,109 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
     };
   }
 
-  const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(player.selectedCompanion);
-  const required = Math.ceil(
-    targetDistance * 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier
-      + policy.provisionMargin,
-  );
+  const goldAfterHealing = player.currentGold;
   const capacity = ExpeditionRules.partyProvisionCapacity(player.selectedCompanion);
-  const desired = Math.min(required, capacity);
-  const provisionPurchase = CampaignRules.buyProvisionsTo(player, shopStocks, desired);
-  const shortfall = player.provisions < desired;
-  const healingShortfall = healing.attempted && healing.skippedInsufficientResources;
+  const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
+    targetDistance, player.selectedCompanion, policy.provisionMargin,
+  );
+  const desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
+  const provisionStockBeforePurchase = player.provisions;
+  const shop = SHOP_DEFINITIONS.village_general_goods;
+  const shopStockBeforePurchase = shopStocks[shop.id] ?? 0;
+  const affordablePurchaseQuantity = Math.min(
+    Math.floor(player.currentGold / shop.provisionsForSale.price),
+    shopStockBeforePurchase,
+    Math.max(0, capacity - provisionStockBeforePurchase),
+  );
+  const affordableProvisionStock = Math.min(
+    capacity, provisionStockBeforePurchase + affordablePurchaseQuantity,
+  );
+  const provisionPurchase = CampaignRules.buyProvisionsTo(player, shopStocks, desiredProvisionStock);
+  const actualProvisionStockAfterPurchase = player.provisions;
+  const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
+  const preferredSafeDistance = maximumCampaignDistanceForProvisions(
+    provisionStockAvailableToPack, player.selectedCompanion, policy.provisionMargin,
+  );
+  const minimumSupportedDistance = maximumCampaignDistanceForProvisions(
+    provisionStockAvailableToPack, player.selectedCompanion, 0,
+  );
+  const safeAffordableDistance = preferredSafeDistance >= 1
+    ? preferredSafeDistance : minimumSupportedDistance;
+  const safetyMarginUsed = preferredSafeDistance >= 1 ? policy.provisionMargin : 0;
+  const actualTargetDistance = Math.min(targetDistance, safeAffordableDistance);
+  const targetDistanceReduced = actualTargetDistance < targetDistance;
+  const targetDistanceReduction = targetDistance - actualTargetDistance;
+  const estimatedProvisionRequirementForChosenDistance = actualTargetDistance >= 1
+    ? estimateCampaignProvisionRequirement(
+      actualTargetDistance, player.selectedCompanion, safetyMarginUsed,
+    ) : 0;
+  const targetDistanceReductionReason = !targetDistanceReduced
+    ? null
+    : desiredProvisionStockForNominalDistance > capacity
+      && actualProvisionStockAfterPurchase >= capacity
+      ? "party-provision-capacity"
+      : preferredSafeDistance < 1 && minimumSupportedDistance >= 1
+        ? "preferred-safety-margin-unavailable"
+        : affordableProvisionStock < desiredProvisionStock
+          ? "cannot-afford-target-provisions"
+          : "insufficient-provisions-for-target";
+  const canSupportAnyExpedition = actualTargetDistance >= 1
+    && provisionStockAvailableToPack >= EXPEDITION_TUNING.minimumStartingProvisions;
   return {
     policy: policy.name,
-    targetDistance,
+    healingThreshold: policy.healingThreshold,
+    healingThresholdComparison: "at-or-below",
+    desiredTargetDistance: targetDistance,
+    actualTargetDistance,
+    safeAffordableDistance,
+    targetDistanceReduced,
+    targetDistanceReduction,
+    targetDistanceReductionReason,
     healing,
-    desiredProvisionStock: desired,
+    healthBeforeHealing: Object.fromEntries(restQuote.partyMembers.map(
+      (member) => [member.id, member.healthBefore],
+    )),
+    healthAfterHealing: Object.fromEntries(HealingRules.activeParty(player).map(
+      (member) => [member.id, member.health],
+    )),
+    preferredSafetyMargin: policy.provisionMargin,
+    safetyMargin: safetyMarginUsed,
+    provisionStockBeforePurchase,
+    desiredProvisionStock,
+    desiredProvisionStockForNominalDistance,
+    affordableProvisionStock,
+    actualProvisionStockAfterPurchase,
+    provisionStockAvailableToPack,
+    preferredSafeDistance,
+    minimumSupportedDistance,
+    estimatedProvisionRequirementForChosenDistance,
+    preferredProvisionTargetMet: actualProvisionStockAfterPurchase >= desiredProvisionStockForNominalDistance,
     provisionPurchase,
     provisionsToPack: Math.min(player.provisions, capacity),
-    stopReason: healingShortfall && policy.stopOnHealingShortfall
-      ? "cannot-afford-required-healing"
-      : shortfall && policy.stopOnShortfall ? "cannot-afford-minimum-provisions" : null,
+    goldBeforePreparation,
+    goldAfterHealing,
+    goldAfterPreparation: player.currentGold,
+    stopReason: !canSupportAnyExpedition ? "cannot-support-any-expedition" : null,
   };
+}
+
+function estimateCampaignProvisionRequirement(distance, companionId, safetyMargin) {
+  const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
+  return Math.ceil(
+    Math.max(0, distance) * 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier
+      + safetyMargin,
+  );
+}
+
+function maximumCampaignDistanceForProvisions(provisions, companionId, safetyMargin) {
+  const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
+  const roundTripRate = 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier;
+  let distance = Math.max(0, Math.floor((provisions - safetyMargin) / roundTripRate + 1e-9));
+  while (distance > 0
+    && estimateCampaignProvisionRequirement(distance, companionId, safetyMargin) > provisions) {
+    distance -= 1;
+  }
+  return distance;
 }
 
 function normalizeCampaignConfiguration(configuration) {
@@ -415,6 +500,12 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     averageEndingHealth: campaignAverage(endingHealthValues),
     averageHealthLost: campaignAverage(expeditions.map((entry) => entry.damageTaken)),
     averageHealing: campaignAverage(expeditions.map((entry) => entry.healingBefore.totalHealingAmount)),
+    averageDesiredExpeditionDistance: campaignAverage(expeditions.map((entry) => entry.desiredTargetDistance)),
+    averageActualExpeditionDistance: campaignAverage(expeditions.map((entry) => entry.actualTargetDistance)),
+    targetDistanceReductionFrequency: expeditions.length
+      ? expeditions.filter((entry) => entry.targetDistanceReduced).length / expeditions.length : 0,
+    averageDistanceReduced: campaignAverage(expeditions.map((entry) => entry.targetDistanceReduction)),
+    expeditionsWithReducedTarget: expeditions.filter((entry) => entry.targetDistanceReduced).length,
     damagePerSuccessfulExpedition: successful.length ? totals((entry) => entry.success ? entry.damageTaken : 0) / successful.length : 0,
     damagePerFailedExpedition: failed.length ? totals((entry) => !entry.success ? entry.damageTaken : 0) / failed.length : 0,
     healingCostPerSuccessfulExpedition: successful.length ? totalHealingCost / successful.length : 0,
@@ -431,9 +522,8 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     averageLootValueRecovered: expeditions.length ? totals((entry) => entry.lootValueRecovered) / expeditions.length : 0,
     breakEvenExpeditionRate: expeditions.length
       ? expeditions.filter((entry) => entry.netGold >= 0).length / expeditions.length : 0,
-    successfulExpeditionsBeforeInsolvency: stopReason === "cannot-afford-minimum-provisions" ? successful.length : null,
-    expeditionsUntilHealthUnsustainable: ["arthur-died", "cannot-afford-required-healing"].includes(stopReason)
-      ? expeditions.length : null,
+    successfulExpeditionsBeforeInsolvency: stopReason === "cannot-support-any-expedition" ? successful.length : null,
+    expeditionsUntilHealthUnsustainable: stopReason === "arthur-died" ? expeditions.length : null,
     averageCostPerHealthRestored: totals((entry) => entry.healingBefore.totalHealingAmount) > 0
       ? totalHealingCost / totals((entry) => entry.healingBefore.totalHealingAmount) : 0,
     profitAfterHealingAndRestocking: netCampaignWealth,
@@ -454,16 +544,24 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
 
 function summarizeCampaigns(results) {
   const averageField = (field) => campaignAverage(results.map((entry) => entry[field]));
+  const expeditions = results.flatMap((entry) => entry.expeditions);
   return {
     totalCampaigns: results.length,
     campaignCompletionRate: results.length ? results.filter((entry) => entry.completedPlan).length / results.length : 0,
+    successfulCompletionRate: results.length ? results.filter((entry) => entry.completedPlan).length / results.length : 0,
     averageExpeditionsSurvived: averageField("expeditionsAttempted"),
     medianExpeditionsSurvived: campaignMedian(results.map((entry) => entry.expeditionsAttempted)),
     deathRate: results.length ? results.filter((entry) => entry.stopReason === "arthur-died").length / results.length : 0,
-    insolvencyRate: results.length ? results.filter((entry) => entry.stopReason === "cannot-afford-minimum-provisions").length / results.length : 0,
+    insolvencyRate: results.length ? results.filter((entry) => entry.stopReason === "cannot-support-any-expedition").length / results.length : 0,
+    averageDesiredExpeditionDistance: campaignAverage(expeditions.map((entry) => entry.desiredTargetDistance)),
+    averageActualExpeditionDistance: campaignAverage(expeditions.map((entry) => entry.actualTargetDistance)),
+    targetDistanceReductionFrequency: expeditions.length
+      ? expeditions.filter((entry) => entry.targetDistanceReduced).length / expeditions.length : 0,
+    averageDistanceReduced: campaignAverage(expeditions.map((entry) => entry.targetDistanceReduction)),
     averageEndingGold: averageField("endingGold"),
     averageEndingHealth: averageField("endingArthurHealth"),
     averageTotalProfit: averageField("netCampaignWealth"),
+    averageNetCampaignWealth: averageField("netCampaignWealth"),
     averageHealingSpend: averageField("totalHealingCost"),
     averageProvisionSpend: averageField("totalProvisionCost"),
     averageTotalLootRecovered: averageField("totalLootValueRecovered"),
