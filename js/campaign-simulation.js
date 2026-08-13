@@ -48,11 +48,6 @@ const CampaignSimulationRunner = Object.freeze({
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
 
-      if (player.selectedCompanion
-        && (player.companionStates?.[player.selectedCompanion]?.health ?? 0) <= 0) {
-        stopReason = "required-companion-unavailable";
-        break;
-      }
       if (decision.stopReason) {
         stopReason = decision.stopReason;
         break;
@@ -87,6 +82,10 @@ const CampaignSimulationRunner = Object.freeze({
         : { sales: [], goldEarned: 0 };
       const endingState = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       const damageTaken = run.damageTaken;
+      const expeditionHardFailureReason = !run.returnedSafely && run.finalArthurHealth <= 0
+        ? "arthur-died"
+        : !run.returnedSafely && isCampaignResourceExhaustion(run.failureReason)
+          ? "expedition-resource-exhaustion" : null;
       expeditions.push({
         expeditionNumber,
         expeditionSeed,
@@ -96,6 +95,9 @@ const CampaignSimulationRunner = Object.freeze({
         targetDistanceReduced: decision.targetDistanceReduced,
         targetDistanceReduction: decision.targetDistanceReduction,
         targetDistanceReductionReason: decision.targetDistanceReductionReason,
+        strategyConstraints: decision.strategyConstraints,
+        hardFailure: Boolean(expeditionHardFailureReason),
+        hardFailureReason: expeditionHardFailureReason,
         startingHealth: healthAtStart,
         endingHealth: run.finalArthurHealth,
         damageTaken,
@@ -144,6 +146,10 @@ const CampaignSimulationRunner = Object.freeze({
 
       if (!run.returnedSafely && run.finalArthurHealth <= 0) {
         stopReason = "arthur-died";
+        break;
+      }
+      if (expeditionHardFailureReason) {
+        stopReason = expeditionHardFailureReason;
         break;
       }
       if (run.failureReason?.includes("Maximum simulation step count")
@@ -221,13 +227,17 @@ const CampaignSimulationTelemetry = Object.freeze({
   campaignsToCsv(batchOrResults) {
     const results = Array.isArray(batchOrResults) ? batchOrResults : batchOrResults.results;
     const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "expeditionsAttempted",
-      "expeditionsReturned", "stopReason", "startingGold", "endingGold", "endingArthurHealth",
+      "expeditionsReturned", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
+      "strategyConstraintCount", "strategyConstraintTypes", "startingGold", "endingGold", "endingArthurHealth",
       "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalGoldEarned", "totalGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
-    return campaignCsv(fields, results);
+    return campaignCsv(fields, results.map((campaign) => ({
+      ...campaign,
+      strategyConstraintTypes: campaign.strategyConstraints.map((constraint) => constraint.type).join("|"),
+    })));
   },
 
   expeditionsToCsv(batchOrResults) {
@@ -241,11 +251,13 @@ const CampaignSimulationTelemetry = Object.freeze({
       companionId: expedition.stateBefore.selectedCompanion ?? "",
       companionHealing: expedition.stateBefore.selectedCompanion
         ? expedition.healingByPartyMember?.[expedition.stateBefore.selectedCompanion] ?? 0 : 0,
+      strategyConstraintTypes: expedition.strategyConstraints.map((constraint) => constraint.type).join("|"),
       ...expedition,
     })));
     const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "success",
       "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
-      "targetDistanceReductionReason", "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
+      "targetDistanceReductionReason", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
+      "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
       "arthurHealing", "companionId", "companionHealing", "healingCost",
       "healingTriggeredByLowHp", "healingTriggerReason",
       "aggressiveEmergencyActions", "combatsStartedBelow50Percent", "combatsStartedBelow25Percent",
@@ -315,6 +327,13 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
     };
   }
 
+  const unavailableCompanionId = player.selectedCompanion
+    && (player.companionStates?.[player.selectedCompanion]?.health ?? 0) <= 0
+    ? player.selectedCompanion : null;
+  if (unavailableCompanionId) {
+    player.selectedCompanion = null;
+  }
+
   const goldAfterHealing = player.currentGold;
   const capacity = ExpeditionRules.partyProvisionCapacity(player.selectedCompanion);
   const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
@@ -363,6 +382,37 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
           : "insufficient-provisions-for-target";
   const canSupportAnyExpedition = actualTargetDistance >= 1
     && provisionStockAvailableToPack >= EXPEDITION_TUNING.minimumStartingProvisions;
+  const strategyConstraints = [];
+  if (healing.attempted && healing.skippedInsufficientResources) {
+    strategyConstraints.push({
+      type: "preferred-healing-unaffordable",
+      quotedGoldCost: healing.quotedGoldCost,
+      availableGold: goldBeforePreparation,
+    });
+  }
+  if (unavailableCompanionId) {
+    strategyConstraints.push({
+      type: "active-companion-unavailable",
+      companionId: unavailableCompanionId,
+      resolution: "continue-without-companion",
+    });
+  }
+  if (actualProvisionStockAfterPurchase < desiredProvisionStock) {
+    strategyConstraints.push({
+      type: "preferred-provision-buffer-unavailable",
+      desiredProvisionStock,
+      actualProvisionStock: actualProvisionStockAfterPurchase,
+    });
+  }
+  if (targetDistanceReduced) {
+    strategyConstraints.push({
+      type: "target-distance-reduced",
+      desiredTargetDistance: targetDistance,
+      actualTargetDistance,
+      reason: targetDistanceReductionReason,
+    });
+  }
+  const hardFailureReason = canSupportAnyExpedition ? null : "cannot-support-any-expedition";
   return {
     policy: policy.name,
     healingThreshold: policy.healingThreshold,
@@ -376,12 +426,17 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
     targetDistanceReduced,
     targetDistanceReduction,
     targetDistanceReductionReason,
+    strategyConstraints,
+    hardFailure: Boolean(hardFailureReason),
+    hardFailureReason,
     healing,
     healthBeforeHealing: Object.fromEntries(restQuote.partyMembers.map(
       (member) => [member.id, member.healthBefore],
     )),
-    healthAfterHealing: Object.fromEntries(HealingRules.activeParty(player).map(
-      (member) => [member.id, member.health],
+    healthAfterHealing: Object.fromEntries(restQuote.partyMembers.map(
+      (member) => [member.id, member.id === "arthur"
+        ? HealingRules.arthurHealth(player)
+        : player.companionStates?.[member.id]?.health ?? 0],
     )),
     preferredSafetyMargin: policy.provisionMargin,
     safetyMargin: safetyMarginUsed,
@@ -400,7 +455,7 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
     goldBeforePreparation,
     goldAfterHealing,
     goldAfterPreparation: player.currentGold,
-    stopReason: !canSupportAnyExpedition ? "cannot-support-any-expedition" : null,
+    stopReason: hardFailureReason,
   };
 }
 
@@ -522,6 +577,10 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
   const startingWealth = campaignLiquidWealth(startingState);
   const endingWealth = campaignLiquidWealth(endingState);
   const netCampaignWealth = endingWealth - startingWealth;
+  const stopCategory = campaignStopCategory(stopReason);
+  const strategyConstraints = decisions.flatMap((decision) => (
+    decision.strategyConstraints ?? []
+  ).map((constraint) => ({ expeditionNumber: decision.expeditionNumber, ...constraint })));
   const economicTrend = netCampaignWealth > Math.max(2, expeditions.length)
     ? "economically-growing"
     : netCampaignWealth >= -Math.max(2, expeditions.length)
@@ -549,6 +608,11 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     expeditionsReturned: successful.length,
     expeditionsFailed: failed.length,
     stopReason,
+    stopCategory,
+    hardFailure: stopCategory === "hard-failure",
+    hardFailureReason: stopCategory === "hard-failure" ? stopReason : null,
+    strategyConstraints,
+    strategyConstraintCount: strategyConstraints.length,
     completedPlan: campaignCompletedPlan(config, expeditions, stopReason),
     totalGoldEarned,
     totalGoldSpent,
@@ -637,6 +701,12 @@ function summarizeCampaigns(results) {
     medianExpeditionsSurvived: campaignMedian(results.map((entry) => entry.expeditionsAttempted)),
     deathRate: results.length ? results.filter((entry) => entry.stopReason === "arthur-died").length / results.length : 0,
     insolvencyRate: results.length ? results.filter((entry) => entry.stopReason === "cannot-support-any-expedition").length / results.length : 0,
+    resourceExhaustionRate: results.length
+      ? results.filter((entry) => entry.stopReason === "expedition-resource-exhaustion").length / results.length : 0,
+    hardFailureRate: results.length ? results.filter((entry) => entry.hardFailure).length / results.length : 0,
+    campaignsWithStrategyConstraintsRate: results.length
+      ? results.filter((entry) => entry.strategyConstraintCount > 0).length / results.length : 0,
+    averageStrategyConstraintCount: averageField("strategyConstraintCount"),
     averageDesiredExpeditionDistance: campaignAverage(expeditions.map((entry) => entry.desiredTargetDistance)),
     averageActualExpeditionDistance: campaignAverage(expeditions.map((entry) => entry.actualTargetDistance)),
     targetDistanceReductionFrequency: expeditions.length
@@ -704,6 +774,20 @@ function campaignPartyCombatTotals(expeditions, field) {
 
 function campaignCompletedPlan(config, expeditions, stopReason) {
   return stopReason === "max-expeditions-reached" && expeditions.length === config.maxExpeditions;
+}
+
+function campaignStopCategory(stopReason) {
+  if (["arthur-died", "expedition-resource-exhaustion", "cannot-support-any-expedition"]
+    .includes(stopReason)) {
+    return "hard-failure";
+  }
+  if (stopReason === "max-expeditions-reached") return "completed";
+  return "simulation-error";
+}
+
+function isCampaignResourceExhaustion(failureReason) {
+  return typeof failureReason === "string"
+    && failureReason.toLowerCase().includes("exhausted its provisions");
 }
 
 function campaignAverage(values) {

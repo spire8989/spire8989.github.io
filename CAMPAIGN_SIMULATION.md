@@ -91,7 +91,7 @@ Expedition seeds are stable and derived as:
 - `aggressive-reinvestor`: heals Arthur below 50%; below 25%, if one rest still leaves Arthur below 50%, it strongly prioritizes one additional affordable production Inn rest. It can still rest for a selected companion below its policy threshold, plans with a three-unit provision margin, and accepts longer expeditions than conservative from the same constrained stock.
 - `minimal-restock`: heals at or below 25%, plans with a one-unit provision margin, and avoids discretionary reserves.
 
-Configured expedition distances are nominal targets. Each policy buys toward its preferred round-trip stock, estimates the maximum supported out-and-back distance from the shared base provision rate and party consumption multiplier, then uses the lesser of nominal and supported distance. Missing a preferred buffer reduces the target rather than ending the campaign. Policy decisions record desired/actual distance, reduction and reason, safety margin, provision stock before/after purchase, nominal/chosen requirements, affordable stock, gold before/after preparation, and party health before/after healing.
+Configured expedition distances are nominal targets. Each policy buys toward its preferred round-trip stock, estimates the maximum supported out-and-back distance from the shared base provision rate and party consumption multiplier, then uses the lesser of nominal and supported distance. Missing a preferred buffer reduces the target rather than ending the campaign. An unaffordable preferred rest is likewise recorded without stopping a viable departure. If a selected companion remains at zero after that normal rest attempt, the campaign records the constraint and launches the next viable expedition without that companion. Policy decisions record desired/actual distance, reduction and reason, safety margin, provision stock before/after purchase, nominal/chosen requirements, affordable stock, gold before/after preparation, and party health before/after healing.
 
 The planning estimate deliberately covers ordinary round-trip travel plus policy margin and is bounded by party carrying capacity. It does not predict random encounter costs or future loot. If supplies support a real expedition but not even the preferred margin, the agent drops the margin and launches the shorter minimally supported run; a safety preference never becomes a false minimum.
 
@@ -103,11 +103,11 @@ Campaign stop reasons currently include:
 
 - `max-expeditions-reached`
 - `arthur-died`
-- `required-companion-unavailable`
+- `expedition-resource-exhaustion`
 - `cannot-support-any-expedition`
 - `simulation-safety-limit`
 
-`cannot-support-any-expedition` means the player cannot meet the production minimum and support even a distance-one round trip after normal preparation, including a last-resort calculation without the preferred safety margin. Failure to afford a preferred rest or target stock is recorded but is not insolvency. The production town provision floor normally prevents this stop in ordinary campaign flow. Expedition failure does not automatically equal campaign death; a surviving Arthur retains health and resources and may continue if policy and economy permit.
+Telemetry classifies `arthur-died`, `expedition-resource-exhaustion`, and `cannot-support-any-expedition` as hard failures. `cannot-support-any-expedition` means the player cannot meet the production minimum and support even a distance-one round trip after normal preparation, including a last-resort calculation without the preferred safety margin. Unaffordable healing, unavailable preferred provision buffers, reduced target distances, and continuing without an incapacitated companion are separate strategy constraints; none ends a campaign while a viable expedition remains. `simulation-safety-limit` is classified separately as a simulation error, and `max-expeditions-reached` as completion. JSON and CSV telemetry expose the stop category, hard-failure reason, and constraint types.
 
 ## Batches and aggregation
 

@@ -734,3 +734,31 @@ The human developer selected the exact percentage adjustment. No manual code edi
 ### Resulting prototype state
 
 Expeditions consume provisions 15% more slowly through the same shared distance-based rule used by playable travel and simulation, with all other balance inputs unchanged.
+
+## 2026-08-12 — Campaign Economy Continuation and Safe Wins
+
+### Goal
+
+Distinguish genuine campaign-ending failures from unmet strategy preferences, then give low-risk play a few modest economic wins without changing strategy logic or protected combat, health, healing, provision-price, or passive-drain balance.
+
+### Human prompt and direction
+
+The human developer identified premature campaign stops when preferred healing or provision behavior was unaffordable, requested explicit hard-failure versus strategy-constraint telemetry, and asked for a handful of 1–4 gold-equivalent rewards on existing safe outcomes. Aggressive behavior and all listed combat and economy constants were explicitly held fixed.
+
+### AI-assisted implementation
+
+- Removed the campaign-ending `required-companion-unavailable` path. Shared Inn healing still runs first; if an unaffordable rest leaves the selected companion at zero, telemetry records the constraint and the next viable expedition launches without that companion.
+- Kept `arthur-died`, actual expedition provision exhaustion, and true inability to support even a minimum expedition as hard failures. Completion and simulation safety errors are classified separately.
+- Added structured per-decision strategy constraints for unaffordable preferred healing, unavailable active companions, missed provision buffers, and reduced target distances. Campaign/expedition JSON, CSV, and batch summaries now expose constraint types, counts, stop category, and hard-failure reason.
+- Added four small authored safe wins without altering choice heuristics: a 15% Dried Herbs find on the main road, a 20% Dried Herbs bonus while gathering safe plants, a 20% +1 provision recovery when using Rope at the fallen tree, and a 15% Hunting Supplies find when using Rope at the stream.
+- Added deterministic assertions for viable continuation after unaffordable healing, solo continuation after an unaffordable companion rest, distance reduction, true inability to launch, death/resource-exhaustion classification, constraint CSV fields, and all four safe rewards.
+- Verified 44 campaign/health/Inn assertions, 209 UI/provision/location browser assertions, 9 deterministic simulation assertions, and `git diff --check`.
+- Ran 100 ten-expedition campaigns per strategy at desired distance 75 with 20 starting gold, 15 provisions, and the conservative policy for a controlled comparison. Cautious completed 98%, averaged 47.37 actual distance, 17.5 recovered loot value, 1.21 ending gold, and no resource-exhaustion stops. Random completed 50%, averaged 58.48 distance, 28.2 loot value, and 10.58 ending gold; 49% stopped on actual resource exhaustion and 1% on death. These are observations only, with no automatic follow-on balance changes.
+
+### Manual changes
+
+The human developer supplied the stop classification, safe-reward boundaries, target strategy outcomes, prohibited balance changes, and batch request. No manual code edits were reported.
+
+### Resulting prototype state
+
+Campaign agents now continue through affordable compromises instead of treating preferences as survival requirements, while genuine death, provision exhaustion, and inability to depart remain explicit terminal failures. Cautious play receives occasional low-value support from routes it already prefers, but longer and riskier play retains higher reward potential.

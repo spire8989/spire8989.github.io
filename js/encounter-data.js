@@ -58,6 +58,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 lockedLabel: "Requires Rope",
               },
             ],
+            outcomes: [{
+              type: "randomChance",
+              chance: 0.2,
+              effects: [{ type: "modifyResource", resource: "provisions", amount: 1 }],
+              resultText: "The rope makes the passage easy, and Arthur recovers a small packet of usable trail food from the branches.",
+            }],
             resultText: "The rope provides an easy handline over the fallen trunk.",
             pendingAction: {
               text: "Arthur secures the rope and guides the company past the obstacle...",
@@ -153,6 +159,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "main_road",
             label: "Stay on the Main Road",
+            outcomes: [{
+              type: "randomChance",
+              chance: 0.15,
+              effects: [{ type: "gainUnsecuredItem", itemId: "dried_herbs", quantity: 1 }],
+              resultText: "Along the clear verge, Arthur finds a small bundle of dried herbs dropped by an earlier traveler.",
+            }],
             resultText: "Arthur keeps the company on the clearer road.",
             endEncounter: true,
           },
@@ -392,6 +404,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               unavailable: "locked",
               lockedLabel: "Requires Rope",
             }],
+            outcomes: [{
+              type: "randomChance",
+              chance: 0.15,
+              effects: [{ type: "gainUnsecuredItem", itemId: "hunting_supplies", quantity: 1 }],
+              resultText: "The secured rope lets Arthur retrieve a small set of hooks and twine snagged beside the bank.",
+            }],
             resultText: "With a rope secured across the stream, the company crosses safely.",
             pendingAction: {
               text: "Arthur secures the rope across the stream before the company begins crossing...",
@@ -459,6 +477,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
                 resultText: "Arthur gathers a small supply, but one of the plants leaves him sick and weakened.",
                 elseResultText: "Arthur gathers a small supply of edible plants without ill effect.",
+              },
+              {
+                type: "randomChance",
+                chance: 0.2,
+                effects: [{ type: "gainUnsecuredItem", itemId: "dried_herbs", quantity: 1 }],
               },
             ],
             pendingAction: {
