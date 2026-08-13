@@ -69,6 +69,9 @@ function handleAction(event) {
     case "hear-rumor":
       showNpcDialogue(control.dataset.npcId, "rumors");
       break;
+    case "rest-at-inn":
+      restAtInn();
+      break;
     case "shop-tab":
       game.shopTab = control.dataset.tab === "sell" ? "sell" : "buy";
       game.interactionMessage = "";
@@ -246,8 +249,8 @@ function enterLocation(locationId) {
 }
 
 function showLocation() {
-  if (game.player.provisions < EXPEDITION_TUNING.minimumTownProvisions) {
-    game.player.provisions = EXPEDITION_TUNING.minimumTownProvisions;
+  const locationEntry = CampaignRules.enterLocation(game.player);
+  if (locationEntry.provisionsGranted > 0) {
     savePlayer();
   }
   game.activeDestinationId = null;
@@ -285,9 +288,10 @@ function renderLocation() {
         ${destinations}
       </div>
       <div class="hub-hud" aria-label="Village resources and navigation">
-        <div class="hub-status">
+      <div class="hub-status">
           <span><strong>${Math.floor(game.player.currentGold)}g</strong> Gold</span>
           <span><strong>${game.player.provisions}</strong> Provisions</span>
+          <span><strong>${Math.ceil(HealingRules.arthurHealth(game.player))}/${HealingRules.arthurMaxHealth(game.player)}</strong> Health</span>
         </div>
         <div class="hub-actions">
           <button class="text-button" type="button" data-action="show-campaign">Chapter Select</button>
@@ -350,6 +354,11 @@ function renderDestination() {
 }
 
 function renderInnInteraction(destination, npc) {
+  const rest = HealingRules.quoteInnRest(game.player);
+  const restStatus = rest.fullHealth
+    ? "Arthur is already at full health. No payment is needed."
+    : `Restore ${rest.healingAmount} health (${rest.healthBefore} → ${rest.healthAfter}) for ${rest.goldCost} gold.`;
+  const restButton = rest.fullHealth ? "Fully Rested" : rest.affordable ? `Rest · ${rest.goldCost}g` : "Cannot Afford Rest";
   return `
     <article class="npc-card">
       <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
@@ -358,7 +367,25 @@ function renderInnInteraction(destination, npc) {
     <div class="interaction-actions">
       <button class="small-button" type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
       <button class="small-button" type="button" data-action="hear-rumor" data-npc-id="${npc.id}">Hear Rumor</button>
-    </div>`;
+    </div>
+    <article class="provision-offer inn-rest-offer">
+      <div><strong>Arthur's Health: ${rest.healthBefore} / ${HealingRules.arthurMaxHealth(game.player)}</strong><span>${restStatus}</span></div>
+      <button class="game-button" type="button" data-action="rest-at-inn" ${rest.available ? "" : "disabled"}>${restButton}</button>
+    </article>`;
+}
+
+function restAtInn() {
+  if (game.activeDestinationId !== "inn") return;
+  const result = HealingRules.restAtInn(game.player);
+  if (result.applied) {
+    game.interactionMessage = `Arthur rests and recovers ${result.healingAmount} health for ${result.goldCost} gold.`;
+    savePlayer();
+  } else if (result.fullHealth) {
+    game.interactionMessage = "Arthur is already fully rested. No gold was charged.";
+  } else {
+    game.interactionMessage = `Rest requires ${result.goldCost} gold. Arthur cannot afford it.`;
+  }
+  renderDestination();
 }
 
 function renderShopInteraction(destination, npc) {
@@ -431,24 +458,11 @@ function shopSellRow(shop, itemId, quantity) {
 }
 
 function itemSaleBlockReason(shop, item) {
-  if (item.questItem || item.protected || item.sellable === false) {
-    return "Protected special item";
-  }
-  if (Object.values(game.player.equippedItems).includes(item.id)) {
-    return "Currently equipped";
-  }
-  if (game.player.packedItems.includes(item.id)) {
-    return "Currently packed";
-  }
-  if (!shopAcceptsItem(shop, item) || !Number.isFinite(shop.sellValues[item.id])) {
-    return "This vendor does not buy this item";
-  }
-  return "";
+  return EconomyRules.itemSaleBlockReason(game.player, shop, item);
 }
 
 function shopAcceptsItem(shop, item) {
-  return shop.acceptedCategories.includes(item.category)
-    || item.tags.some((tag) => shop.acceptedTags.includes(tag));
+  return EconomyRules.shopAcceptsItem(shop, item);
 }
 
 function buyShopItem(itemId) {
@@ -472,16 +486,9 @@ function buyProvisions(quantity) {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   const shop = SHOP_DEFINITIONS[destination?.shopId];
   const offer = shop?.provisionsForSale;
-  const totalPrice = offer?.price * quantity;
-  const stock = game.provisionShopStock[shop?.id] ?? 0;
-  if (!offer || !Number.isInteger(quantity) || quantity <= 0
-    || quantity > stock || game.player.currentGold < totalPrice) {
-    return;
-  }
-  game.player.currentGold -= totalPrice;
-  game.player.provisions += quantity;
-  game.provisionShopStock[shop.id] -= quantity;
-  game.interactionMessage = `Purchased ${quantity} provision${quantity === 1 ? "" : "s"} for ${totalPrice} gold.`;
+  const result = EconomyRules.buyProvisions(game.player, shop, game.provisionShopStock, quantity);
+  if (!result.applied) return;
+  game.interactionMessage = `Purchased ${quantity} provision${quantity === 1 ? "" : "s"} for ${result.goldCost} gold.`;
   savePlayer();
   renderDestination();
 }
@@ -490,16 +497,9 @@ function sellShopItem(itemId) {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   const shop = SHOP_DEFINITIONS[destination?.shopId];
   const item = ITEM_DEFINITIONS[itemId];
-  if (!shop || !item || !game.player.ownedItems[itemId] || itemSaleBlockReason(shop, item)) {
-    return;
-  }
-  const price = shop.sellValues[itemId];
-  game.player.ownedItems[itemId] -= 1;
-  if (game.player.ownedItems[itemId] <= 0) {
-    delete game.player.ownedItems[itemId];
-  }
-  game.player.currentGold += price;
-  game.interactionMessage = `Sold ${item.name} for ${price} gold.`;
+  const result = EconomyRules.sellItem(game.player, shop, itemId);
+  if (!result.applied) return;
+  game.interactionMessage = `Sold ${item.name} for ${result.goldEarned} gold.`;
   savePlayer();
   renderDestination();
 }
@@ -520,11 +520,7 @@ function inventoryQuantity() {
 }
 
 function createProvisionShopStock() {
-  return Object.fromEntries(
-    Object.values(SHOP_DEFINITIONS)
-      .filter((shop) => shop.provisionsForSale)
-      .map((shop) => [shop.id, shop.provisionsForSale.stock]),
-  );
+  return CampaignRules.createShopStocks();
 }
 
 function partyProvisionCapacity(selectedCompanionId) {
@@ -619,7 +615,7 @@ function renderPreparation() {
 
       <div class="footer-actions">
         <button class="text-button" type="button" data-action="return-from-preparation">Back</button>
-        ${expeditionPreparation ? `<button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 ? "" : "disabled"}>Begin Expedition</button>` : ""}
+        ${expeditionPreparation ? `<button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 && HealingRules.arthurHealth(game.player) > 0 ? "" : "disabled"}>Begin Expedition</button>` : ""}
       </div>
     </section>`;
 }
@@ -753,6 +749,7 @@ function startExpedition() {
   const provisionCapacity = partyProvisionCapacity(game.player.selectedCompanion);
   if (game.preparationMode !== "expedition"
     || game.preparationSupplies <= 0
+    || HealingRules.arthurHealth(game.player) <= 0
     || game.preparationSupplies > game.player.provisions
     || game.preparationSupplies > provisionCapacity) {
     return;
@@ -1007,7 +1004,7 @@ function renderExpeditionResources(expedition) {
       <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
       <div class="resource-card"><span>Max reached</span><strong id="max-distance-value">${formatDistance(expedition.maxDistanceReached)}</strong></div>
       <div class="resource-card"><span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong></div>
-      <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)}%</strong></div>
+      <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
       <div class="resource-card unsecured-card"><span>Unsecured</span><strong id="loot-count">${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g</strong></div>
     </div>`;
 }
@@ -1370,7 +1367,7 @@ function updateTravelHud() {
   setText("#distance-value", formatDistance(expedition.distance));
   setText("#max-distance-value", formatDistance(expedition.maxDistanceReached));
   setText("#provisions-value", formatResource(expedition.provisions));
-  setText("#health-value", `${Math.ceil(expedition.health)}%`);
+  setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
   setText("#loot-count", `${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g`);
 
   const returning = expedition.direction === "returning";

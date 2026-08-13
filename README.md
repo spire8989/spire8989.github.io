@@ -24,6 +24,7 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `js/encounters.js` contains reusable encounter selection, requirement checking, outcome application, and stage-flow systems.
 - `js/combat.js` owns transient combat state, delta-time action gauges, targeting, damage, enemy intent/AI, abilities, HP synchronization, and battle results.
 - `js/random.js`, `js/expedition-rules.js`, and `js/simulation.js` provide seeded gameplay randomness, shared expedition rules, and instant deterministic balance simulations.
+- `js/healing-rules.js`, `js/economy-rules.js`, `js/campaign-rules.js`, and `js/campaign-simulation.js` share persistent health, Inn recovery, trading/restocking, and repeated-expedition campaign simulation.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
 - `js/game.js` owns screen flow, input, temporary expedition state, travel/combat presentation, loot resolution, and the shared `requestAnimationFrame` loop.
 - `tests/location_system_test.py` serves the game and drives headless Chrome through its DevTools protocol to cover the village, shops, loadout, encounters, combat, and return flow.
@@ -49,6 +50,7 @@ Then visit [http://localhost:8000](http://localhost:8000) in Chrome or Edge. Sto
 Run the current automated browser regression flow with:
 
 ```sh
+python tests/campaign_system_test.py
 python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
@@ -60,6 +62,8 @@ During development, visit [http://localhost:8000/?debug=1](http://localhost:8000
 ### Balance simulation tools
 
 Visit [http://localhost:8000/?sim=1](http://localhost:8000/?sim=1) for the developer-only instant simulation panel. It can run the current loadout, a standard strategy suite, and encounter-distribution batches, inspect individual telemetry, and export JSON or CSV. See [SIMULATION.md](SIMULATION.md) for the console API, scenario/strategy/policy interfaces, telemetry schema, and replay foundation.
+
+The same panel also runs persistent multi-expedition campaigns with between-run healing, selling, and provision restocking. See [CAMPAIGN_SIMULATION.md](CAMPAIGN_SIMULATION.md) for campaign policies, telemetry, exports, replay data, and limitations.
 
 ## Why use a local HTTP server?
 

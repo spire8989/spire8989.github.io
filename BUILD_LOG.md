@@ -534,3 +534,37 @@ The human developer supplied the complete determinism and production-parity corr
 ### Resulting prototype state
 
 Phase 1 now has an explicit regression boundary for deterministic gameplay: the same normalized scenario, seed, and decisions reproduce the same meaningful result, and seeded runs do not reach native randomness. Normal gameplay and simulation share the full core expedition lifecycle through settlement. Replay playback remains intentionally unbuilt, but the run output now retains the starting state, location/path, seed, and every player-controlled decision required to enforce or inspect a future replay.
+
+## 2026-08-12 — Persistent Health, Inn Recovery, and Campaign Simulation
+
+### Goal
+
+Extend deterministic balance testing across repeated expeditions with one evolving player/economy state, while making persistent 40-point health and shared paid Inn recovery real player-facing production systems.
+
+### Human prompt and direction
+
+The human developer supplied the multi-expedition campaign guide and added an explicit correction that healing must exist in the playable Inn, persist through saves, and invoke the exact same production rule automated by campaign policies. The pass was constrained against Phase 2 replay UI, injuries, fatigue, durability, sophisticated shopping, story progression, charts, or balance recommendations.
+
+### AI-assisted implementation
+
+- Changed Arthur's authoritative data-defined maximum from 100 to 40 HP without rescaling combat damage, and converted simulator health tactics to percentage thresholds.
+- Added save version 6 with persistent Arthur health and data-driven companion health states, safe old-save migration, expedition start snapshots, and success/failure settlement back into player state.
+- Added centralized Inn recovery tuning: one rest restores up to 10 HP for 3 gold. The existing Brocéliande Inn shows current/max/resulting health and cost, blocks full-health and unaffordable rests, saves immediately, and uses the same `HealingRules` as campaign policies.
+- Added shared production economy/campaign rules for town provision safety, persistent shop stock, provision buying, protected-item checks, real merchant sales, and recovered-loot auto-selling.
+- Added Conservative Sustainer, Aggressive Reinvestor, and Minimal Restock between-expedition policies with percentage-based healing thresholds, distance-derived provision targets, structured skips/shortfalls, and explicit stop reasons.
+- Added deterministic `CampaignSimulationRunner` single and batch APIs. Campaign expedition seeds derive as `<campaign-seed>:expedition-N`, and each settled ending player state becomes the next run's actual starting state.
+- Added campaign, per-expedition, economy, health, sustainability, stop-reason, replay, aggregate, and derived telemetry plus detailed JSON, per-campaign CSV, and per-expedition CSV export.
+- Extended `?sim=1` with practical campaign fields, one/batch execution, aggregate results, individual campaign timelines, and all three campaign exports.
+- Added a dedicated campaign/health/Inn Chrome suite covering migration, healing display/cost/affordability/save parity, actual normal-game return and next-departure persistence, deterministic/divergent campaigns, insolvency, viable ten-run completion, economy carryover, batches/CSV, and replay payloads.
+- Verified 19 focused campaign/health/Inn assertions, 9 single-expedition determinism assertions, and all 207 existing UI/location/browser assertions together; `git diff --check` also passed.
+- Measured a representative cautious 50-league campaign at roughly 12.2 ms for 10 expeditions and 202.2 ms for 100 ten-expedition campaigns in headless Chrome on this machine.
+- The measured 100-campaign sample completed all ten attempts 93% of the time, ended with 57.77 average gold from a 100-gold start, and averaged 25.57 ending health and 46.13 Arthur damage. This is descriptive test output, not an automatic balance recommendation.
+- Preserved all encounter, provision, equipment, enemy, and combat damage values; no hidden rebalance was performed.
+
+### Manual changes
+
+The human developer supplied the complete campaign-simulation guide and the additional player-facing Inn healing requirement. No manual code edits were reported for this milestone.
+
+### Resulting prototype state
+
+Arthur and Kay now carry wounds beyond an expedition instead of resetting at town. Arthur can pay to recover at the existing playable Inn, and campaign policies automate precisely that action. Balance tests can follow gold, provisions, recovered goods, sales, healing, health, party availability, and expedition outcomes across deterministic campaign sequences and batches, revealing whether a plan grows, sustains, declines, dies, or becomes insolvent.

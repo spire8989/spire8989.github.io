@@ -20,6 +20,8 @@ This file records project-specific knowledge that should survive across Codex co
 - `js/encounter-data.js` contains authored encounter content; `js/encounters.js` contains generic encounter selection, requirements, stages, costs, and outcomes.
 - `js/combat-data.js` contains combat definitions and abilities; `js/combat.js` owns reusable combat simulation, targeting, damage, AI, and result reporting.
 - `js/storage.js` owns defaults, localStorage, validation, and save migration.
+- `js/healing-rules.js`, `js/economy-rules.js`, and `js/campaign-rules.js` own shared persistent health recovery, shop mutations, and between-expedition production rules. Normal UI and simulations must call them rather than duplicate formulas.
+- `js/simulation.js` remains the isolated single-expedition runner; `js/campaign-simulation.js` strings settled production-style player states across repeated expeditions.
 - `js/game.js` owns screen flow, input dispatch, UI rendering, expedition state, settlement, and the `requestAnimationFrame` loop.
 - `js/location-data.js` and `tests/location_system_test.py` may be present as part of the data-driven village/location work. Check the worktree before touching them.
 - `assets/` and `vendor/` are intentionally empty/reserved unless a later request changes that.
@@ -35,8 +37,9 @@ This file records project-specific knowledge that should survive across Codex co
 - Failure loses unsecured discoveries only. Previously owned equipped and packed items remain owned, except consumables actually used.
 - Persistent provisions live in `player.provisions`. Starting a run commits the selected amount; temporary expedition state tracks remaining purchased and found provisions separately. Found provisions are consumed first. Unused purchased provisions return after success or failure, while unused found provisions return only after success.
 - Encounter requirements deliberately distinguish `ownsItem`, `equippedItem`, `carriedItem`, and `availableExpeditionItem`. The last may recognize an equipped, packed, or newly found unsecured item.
-- `expedition.combat` is transient and never saved. Arthur's combat HP synchronizes directly with `expedition.health`; companion HP lives in `expedition.companionCombatHp` for the duration of that run and resets on the next expedition.
+- `expedition.combat` is transient and never saved. Arthur's combat HP synchronizes directly with `expedition.health`; companion HP lives in `expedition.companionCombatHp` during a run, then settles into persistent `player.companionStates` for the next expedition.
 - Combat parties must be derived from `expedition.selectedCompanion`. Never assume Sir Kay is present.
+- Arthur's base maximum health is data-driven (currently 40). `player.arthurHealth` and `player.companionStates` persist through save version 6, settlement, town entry, and the next expedition. The existing Inn heals through `HealingRules`; never add a separate simulator healing formula.
 - Multi-enemy combat keeps independent objects in `combat.enemies`. Attack pauses in target-selection mode while multiple enemies live, rejects defeated targets, and may auto-target only when one valid enemy remains.
 
 Default reset state currently equips the Iron Longsword, Chainmail Hauberk, and Silver Stag Medallion. The pack contains the Traveler's Cloak, Rope, and Torches. Sir Kay is the only selectable companion.
@@ -80,6 +83,13 @@ For the current location, shop, layout, and provision work, the dependency-light
 
 ```powershell
 python tests/location_system_test.py
+```
+
+The focused deterministic and persistent-campaign suites are:
+
+```powershell
+python tests/simulation_system_test.py
+python tests/campaign_system_test.py
 ```
 
 It starts its own HTTP server and drives Chrome through the DevTools protocol. If that test belongs to active uncommitted work, inspect it and the worktree before modifying it.

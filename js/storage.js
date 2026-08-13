@@ -5,7 +5,7 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 5,
+      saveVersion: 6,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -27,6 +27,11 @@ const SaveSystem = Object.freeze({
       bestExpeditionDistance: 0,
       currentGold: 12,
       provisions: 24,
+      arthurHealth: PLAYER_CHARACTER_DEFINITION.combat.maxHp,
+      companionStates: Object.fromEntries(Object.values(COMPANION_DEFINITIONS).map((companion) => [
+        companion.id,
+        { health: companion.combat?.maxHp ?? 0 },
+      ])),
       currentLocationId: "broceliande_village",
     };
   },
@@ -121,7 +126,7 @@ function sanitizePlayerState(savedState, defaults) {
       : defaults.selectedCompanion;
 
   return {
-    saveVersion: 5,
+    saveVersion: 6,
     ownedItems,
     equippedItems,
     packedItems,
@@ -134,6 +139,12 @@ function sanitizePlayerState(savedState, defaults) {
     provisions: Number.isFinite(Number(savedState.provisions))
       ? Math.max(0, Math.floor(Number(savedState.provisions)))
       : defaults.provisions,
+    arthurHealth: sanitizeHealth(
+      savedState.arthurHealth,
+      PLAYER_CHARACTER_DEFINITION.combat.maxHp,
+      defaults.arthurHealth,
+    ),
+    companionStates: sanitizeCompanionStates(savedState.companionStates, defaults.companionStates),
     currentLocationId: LOCATION_DEFINITIONS[savedState.currentLocationId]
       ? savedState.currentLocationId
       : defaults.currentLocationId,
@@ -178,4 +189,22 @@ function sanitizeKnowledge(value, fallback) {
 function nonNegativeNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+function sanitizeHealth(value, maximum, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(Math.max(number, 0), maximum) : fallback;
+}
+
+function sanitizeCompanionStates(value, fallback) {
+  return Object.fromEntries(Object.values(COMPANION_DEFINITIONS).map((companion) => [
+    companion.id,
+    {
+      health: sanitizeHealth(
+        value?.[companion.id]?.health,
+        companion.combat?.maxHp ?? 0,
+        fallback?.[companion.id]?.health ?? companion.combat?.maxHp ?? 0,
+      ),
+    },
+  ]));
 }

@@ -26,3 +26,8 @@ const COMBAT_TUNING = Object.freeze({
   fleeChance: 0.7,
   combatLogLimit: 5,
 });
+
+const HEALING_TUNING = Object.freeze({
+  innRestoration: 10,
+  innRestGoldCost: 3,
+});

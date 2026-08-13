@@ -44,8 +44,12 @@ const ExpeditionRules = Object.freeze({
       foundProvisions: 0,
       provisionsSettled: false,
       rewardsSettled: false,
-      health: Number.isFinite(options.health) ? options.health : 100,
-      companionCombatHp: {},
+      health: Number.isFinite(options.health)
+        ? Math.min(Math.max(options.health, 0), HealingRules.arthurMaxHealth(player))
+        : HealingRules.arthurHealth(player),
+      companionCombatHp: Object.fromEntries(Object.entries(player.companionStates ?? {}).map(
+        ([companionId, state]) => [companionId, state.health],
+      )),
       combat: null,
       goldCarried: 0,
       selectedEquipment,
@@ -147,6 +151,17 @@ const ExpeditionRules = Object.freeze({
       player.currentGold += expedition.goldCarried;
     }
     expedition.rewardsSettled = true;
+    player.arthurHealth = Math.min(
+      Math.max(expedition.health, 0),
+      HealingRules.arthurMaxHealth(player),
+    );
+    player.companionStates ??= {};
+    Object.entries(expedition.companionCombatHp ?? {}).forEach(([companionId, health]) => {
+      const maximum = COMPANION_DEFINITIONS[companionId]?.combat?.maxHp ?? 0;
+      player.companionStates[companionId] = {
+        health: Math.min(Math.max(Number(health) || 0, 0), maximum),
+      };
+    });
     player.bestExpeditionDistance = Math.max(player.bestExpeditionDistance, expedition.maxDistanceReached);
   },
 });

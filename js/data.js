@@ -369,7 +369,7 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   name: "Arthur",
   provisionCapacity: 20,
   provisionConsumptionMultiplier: 1,
-  combat: Object.freeze({ maxHp: 100, speed: 10 }),
+  combat: Object.freeze({ maxHp: 40, speed: 10 }),
 });
 
 const COMPANION_DEFINITIONS = Object.freeze({

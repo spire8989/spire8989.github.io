@@ -115,7 +115,11 @@ const EncounterOutcomes = Object.freeze({
         }
 
         if (effect.resource === "health") {
-          expedition.health = clampNumber(expedition.health, 0, 100);
+          expedition.health = clampNumber(
+            expedition.health,
+            0,
+            PLAYER_CHARACTER_DEFINITION.combat.maxHp,
+          );
         } else {
           expedition[effect.resource] = Math.max(0, expedition[effect.resource]);
         }

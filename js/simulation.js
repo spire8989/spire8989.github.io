@@ -271,9 +271,10 @@ function createStrategy(name, chooseEncounter) {
     chooseEncounter,
     chooseCombatAction(combat, expedition, context) {
       const actions = CombatSystem.availableActions(combat);
-      if (name === "cautious" && expedition.health < 28 && actions.includes("flee")) return "flee";
+      const maxHealth = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
+      if (name === "cautious" && expedition.health < maxHealth * 0.3 && actions.includes("flee")) return "flee";
       if (name === "random") return context.random.pick(actions);
-      if (name === "cautious" && actions.includes("intercede") && expedition.health < 55) return "intercede";
+      if (name === "cautious" && actions.includes("intercede") && expedition.health < maxHealth * 0.55) return "intercede";
       return actions.includes("attack") ? "attack" : actions[0];
     },
     chooseCombatTarget(combat, _expedition, context) {
@@ -336,7 +337,11 @@ function normalizeScenario(scenario) {
     startingState: scenario.startingState ?? {},
     regionId: scenario.regionId ?? "broceliande",
     pathId: scenario.pathId ?? "old_forest_road",
-    startingHealth: Number.isFinite(scenario.startingState?.health) ? scenario.startingState.health : 100,
+    startingHealth: Number.isFinite(scenario.startingState?.health)
+      ? scenario.startingState.health
+      : Number.isFinite(scenario.startingState?.arthurHealth)
+        ? scenario.startingState.arthurHealth
+        : PLAYER_CHARACTER_DEFINITION.combat.maxHp,
     maxSimulationSteps: Math.max(100, Math.floor(Number(scenario.maxSimulationSteps) || 10000)),
     maxCombatSteps: Math.max(50, Math.floor(Number(scenario.maxCombatSteps) || 2000)),
     travelStepDistance: Math.max(0.1, Number(scenario.travelStepDistance) || 1),
@@ -600,12 +605,14 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     provisionsGained: rounded(expedition.totalProvisionsGained ?? 0),
     provisionsReturned: expedition.provisionsReturned ?? 0,
     endingProvisionStock: player.provisions,
+    endingPlayerState: deepClone(player),
     startingProvisionStock: startingStock,
     goldGained: returned ? expedition.goldCarried : 0,
     lootRecovered,
     lootDiscovered,
     lootLost: subtractItemEntries(lootDiscovered, lootRecovered),
     estimatedLootValue: estimateLootValue(lootRecovered),
+    damageTaken: calculateRunDamageTaken(telemetry),
     encounterCount: telemetry.encounters.length,
     combatCount: telemetry.combats.length,
     stepCount: steps,
@@ -656,6 +663,8 @@ function replayPlayerSnapshot(player) {
     packedItems: player.packedItems,
     unlockedCompanions: player.unlockedCompanions,
     selectedCompanion: player.selectedCompanion,
+    arthurHealth: HealingRules.arthurHealth(player),
+    companionStates: player.companionStates ?? {},
     learnedKnowledge: player.learnedKnowledge,
     campaignFlags: player.campaignFlags ?? {},
     provisions: player.provisions,
@@ -738,6 +747,19 @@ function estimateLootValue(loot) {
     const value = Math.max(0, ...Object.values(SHOP_DEFINITIONS).map((shop) => shop.sellValues?.[entry.itemId] ?? 0));
     return sum + value * entry.quantity;
   }, 0);
+}
+
+function calculateRunDamageTaken(telemetry) {
+  const combatDamage = telemetry.combats.reduce(
+    (sum, combat) => sum + combat.actionEvents
+      .filter((event) => event.target === "arthur")
+      .reduce((combatSum, event) => combatSum + (Number(event.damage) || 0), 0),
+    0,
+  );
+  const nonCombatDamage = telemetry.encounters
+    .filter((encounter) => !encounter.combatTriggered)
+    .reduce((sum, encounter) => sum + Math.max(0, -(encounter.healthChanges?.arthur ?? 0)), 0);
+  return rounded(combatDamage + nonCombatDamage);
 }
 
 function summarizeRuns(results) {
