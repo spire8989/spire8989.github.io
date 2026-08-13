@@ -1637,7 +1637,10 @@ button.combatant {
 .position-southwest { left: 8%; bottom: 5%; }
 .position-southeast { right: 7%; bottom: 5%; }
 .position-center { left: 50%; top: 48%; transform: translate(-50%, -50%); }
-.position-center:active { transform: translate(-50%, calc(-50% + 0.1rem)) scale(0.98); }
+.hub-hotspot.position-center.is-pressed,
+.hub-hotspot.position-center:active:not(:disabled) {
+  transform: translate(-50%, calc(-50% + 0.1rem)) scale(0.98);
+}
 
 .destination-panel {
   display: flex;

@@ -937,3 +937,28 @@ The human developer supplied the bug report, screenshot, desired placement direc
 ### Resulting prototype state
 
 Players can repeatedly transact in long shop lists without being returned to the top. Other normal-play same-screen scrollers now share one preservation mechanism, while intentional navigation and phase changes remain unaffected. The Apothecary is fully visible in the center of the village scene across the tested portrait sizes.
+
+## 2026-08-12 — Centered Apothecary Press-State Fix
+
+### Goal
+
+Stop the centered Apothecary hotspot from jumping sideways while pressed without changing the shared button feedback used elsewhere.
+
+### Human prompt and direction
+
+The human developer reported the centered Apothecary button shifting horizontally during pointer-down, supplied before/pressed screenshots, and authorized committing and pushing the fix.
+
+### AI-assisted implementation
+
+- Identified the generic `button:active` transform as overriding the hotspot's required `translate(-50%, -50%)` centering transform.
+- Added a more specific centered-hotspot pressed/active rule that retains both centering translations while applying the existing slight downward movement and scale feedback.
+- Added browser coverage that holds the Apothecary in its scripted pressed class and verifies its center point remains aligned with the village scene at all three tested portrait sizes.
+- Verified 245 UI/provision/location assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, and `git diff --check`.
+
+### Manual changes
+
+The human developer supplied the bug report, visual evidence, and commit/push authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+The Apothecary remains stationary and comfortably clickable during pointer-down while preserving the same tactile press feedback as the other village hotspots.
