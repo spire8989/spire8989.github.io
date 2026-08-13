@@ -25,6 +25,7 @@ const CampaignSimulationRunner = Object.freeze({
     const player = createCampaignPlayer(config.startingState);
     const shopStocks = { ...CampaignRules.createShopStocks(), ...(config.startingState.shopStocks ?? {}) };
     const policy = resolveBetweenPolicy(config.betweenExpeditionPolicy);
+    const preparationRandom = GameRandom.create(`${config.seed}:preparation`);
     const startingState = campaignStateSnapshot(player, shopStocks, 0);
     const expeditions = [];
     const betweenExpeditionDecisions = [];
@@ -43,6 +44,7 @@ const CampaignSimulationRunner = Object.freeze({
       }
       const decision = applyBetweenExpeditionPolicy(
         player, shopStocks, policy, desiredTargetDistance, config.healingEnabled, config.strategy,
+        preparationRandom.random,
       );
       decision.expeditionNumber = expeditionNumber;
       decision.townProvisionGrant = townEntry.provisionsGranted;
@@ -70,7 +72,7 @@ const CampaignSimulationRunner = Object.freeze({
         companion: player.selectedCompanion,
         provisions: provisionsPacked,
         loadout: { ...player.equippedItems },
-        packContents: [...player.packedItems],
+        packContents: decision.packContents,
         strategy: config.strategy,
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
         startingState: deepCampaignClone(player),
@@ -123,6 +125,17 @@ const CampaignSimulationRunner = Object.freeze({
         provisionCost: decision.provisionPurchase.goldCost,
         provisionsPacked,
         provisionsReturned: run.provisionsReturned,
+        itemsPurchasedById: decision.itemsPurchasedById,
+        itemPurchaseGoldSpentById: decision.itemPurchaseGoldSpentById,
+        itemPurchaseGoldSpent: decision.itemPurchaseGoldSpent,
+        bandagesPurchased: decision.bandagesPurchased,
+        bandagesPacked: decision.bandagesPacked,
+        itemsPackedById: run.itemsPackedById,
+        itemsConsumedById: run.itemsConsumedById,
+        itemsReturnedById: run.itemsReturnedById,
+        bandagesReturned: run.itemsReturnedById?.bandages ?? 0,
+        bandagesUsed: run.bandagesUsed ?? run.itemUsesById?.bandages ?? 0,
+        bandageHealingPerformed: run.bandageHealingPerformed ?? 0,
         success: run.returnedSafely,
         outcome: run.outcome,
         failureReason: run.failureReason,
@@ -248,7 +261,9 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
-      "totalGoldEarned", "totalGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
+      "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
+      "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
+      "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
     return campaignCsv(fields, results.map((campaign) => ({
       ...campaign,
       strategyConstraintTypes: campaign.strategyConstraints.map((constraint) => constraint.type).join("|"),
@@ -283,6 +298,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
+      "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
+      "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
       "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "provisionsPacked", "lootValueRecovered",
       "netGold", "failureReason"];
     return campaignCsv(fields, rows);
@@ -306,6 +323,7 @@ function defaultStrategyForBetweenPolicy(policy) {
 
 function applyBetweenExpeditionPolicy(
   player, shopStocks, policy, targetDistance, healingEnabled, strategyName = null,
+  preparationRandom = GameRandom.random,
 ) {
   const planningStrategy = strategyName ?? defaultStrategyForBetweenPolicy(policy);
   const goldBeforePreparation = player.currentGold;
@@ -386,6 +404,25 @@ function applyBetweenExpeditionPolicy(
     capacity, provisionStockBeforePurchase + affordablePurchaseQuantity,
   );
   const provisionPurchase = CampaignRules.buyProvisionsTo(player, shopStocks, desiredProvisionStock);
+  const bandagePlan = strategyName
+    ? chooseBandagePlan(strategyName, preparationRandom)
+    : { target: 0, minimum: 0, combatUseThreshold: 0, policy: "disabled" };
+  const bandagesBeforePurchase = player.ownedItems.bandages ?? 0;
+  const bandagePackAvailable = player.packedItems.includes("bandages")
+    || player.packedItems.length < EXPEDITION_TUNING.packSlots;
+  const bandagePurchaseTarget = provisionPurchase.shortfall > 0 || !bandagePackAvailable
+    ? bandagesBeforePurchase : bandagePlan.target;
+  const bandagePurchase = CampaignRules.buyItemsTo(
+    player, shopStocks, "bandages", bandagePurchaseTarget,
+    healing.attempted ? HEALING_TUNING.innRestGoldCost : 0,
+  );
+  const bandagesAfterPurchase = player.ownedItems.bandages ?? 0;
+  const bandagesPacked = packCampaignItems(player, {
+    bandages: Math.min(bandagePlan.target, bandagesAfterPurchase),
+  });
+  const itemPurchaseGoldSpent = bandagePurchase.goldCost;
+  const itemsPurchasedById = bandagePurchase.quantity > 0 ? { bandages: bandagePurchase.quantity } : {};
+  const itemPurchaseGoldSpentById = bandagePurchase.quantity > 0 ? { bandages: itemPurchaseGoldSpent } : {};
   const actualProvisionStockAfterPurchase = player.provisions;
   const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
   const preferredSafeDistance = maximumCampaignDistanceForProvisions(
@@ -455,6 +492,29 @@ function applyBetweenExpeditionPolicy(
       actualProvisionStock: actualProvisionStockAfterPurchase,
     });
   }
+  if (bandagePlan.target > bandagesBeforePurchase && bandagePurchase.quantity === 0) {
+    const reason = !bandagePackAvailable
+      ? "preferred-bandages-cannot-fit-pack"
+      : provisionPurchase.shortfall > 0
+      ? "bandage-purchase-skipped-for-provisions"
+      : bandagePurchase.stock <= 0
+        ? "preferred-bandage-stock-unavailable" : "preferred-bandages-unaffordable";
+    strategyConstraints.push({
+      type: reason,
+      desiredBandages: bandagePlan.target,
+      ownedBandages: bandagesBeforePurchase,
+      availableBandages: bandagePurchase.stock,
+      availableGold: player.currentGold,
+    });
+  }
+  if (bandagePlan.target > 0 && bandagesPacked < Math.min(bandagePlan.target, bandagesAfterPurchase)) {
+    strategyConstraints.push({
+      type: "preferred-bandages-cannot-fit-pack",
+      desiredBandages: bandagePlan.target,
+      bandagesPacked,
+      packSlots: EXPEDITION_TUNING.packSlots,
+    });
+  }
   if (targetDistanceReduced) {
     strategyConstraints.push({
       type: "target-distance-reduced",
@@ -509,6 +569,21 @@ function applyBetweenExpeditionPolicy(
     totalEstimatedProvisionRequirement: estimatedProvisionRequirementForChosenDistance,
     preferredProvisionTargetMet: actualProvisionStockAfterPurchase >= desiredProvisionStockForNominalDistance,
     provisionPurchase,
+    bandagePurchase,
+    bandagesBeforePurchase,
+    bandagesAfterPurchase,
+    bandagesPurchased: bandagePurchase.quantity,
+    bandagesPacked,
+    itemsPurchasedById,
+    itemPurchaseGoldSpentById,
+    itemPurchaseGoldSpent,
+    packContents: Object.fromEntries(player.packedItems.map((itemId) => [
+      itemId,
+      itemId === "bandages" ? bandagesPacked : player.ownedItems[itemId],
+    ])),
+    desiredBandages: bandagePlan.target,
+    minimumBandages: bandagePlan.minimum,
+    bandagePurchasePolicy: bandagePlan.policy,
     provisionsToPack: Math.min(player.provisions, capacity),
     goldBeforePreparation,
     goldAfterHealing,
@@ -543,6 +618,34 @@ function summarizePolicyHealing(player, initialQuote, restActions) {
     restActionCount: restActions.filter((action) => action.applied).length,
     restActions,
   };
+}
+
+function chooseBandagePlan(strategyName, random = GameRandom.random) {
+  const tuning = CAMPAIGN_TUNING.consumablePurchasing.bandages;
+  if (strategyName === "aggressive") return { ...tuning.aggressive, policy: "aggressive" };
+  if (strategyName === "cautious") return { ...tuning.cautious, policy: "cautious" };
+  const randomTuning = tuning.random;
+  const roll = () => Math.min(1 - Number.EPSILON, Math.max(0, Number(random()) || 0));
+  const shouldBuy = roll() < randomTuning.purchaseChance;
+  const target = shouldBuy
+    ? randomTuning.minimum + Math.floor(
+      roll() * (randomTuning.maximum - randomTuning.minimum + 1),
+    ) : 0;
+  return { ...randomTuning, target, policy: "random" };
+}
+
+function packCampaignItems(player, desiredQuantities) {
+  const packed = [...new Set(player.packedItems ?? [])];
+  Object.entries(desiredQuantities).forEach(([itemId, desiredQuantity]) => {
+    if (desiredQuantity <= 0 || (player.ownedItems[itemId] ?? 0) <= 0
+      || packed.includes(itemId) || packed.length >= EXPEDITION_TUNING.packSlots) return;
+    packed.push(itemId);
+  });
+  player.packedItems = packed.slice(0, EXPEDITION_TUNING.packSlots);
+  return Math.min(
+    Math.max(0, Math.floor(Number(desiredQuantities.bandages) || 0)),
+    player.ownedItems.bandages ?? 0,
+  ) * (player.packedItems.includes("bandages") ? 1 : 0);
 }
 
 function estimateCampaignPassiveProvisionCost(distance, companionId) {
@@ -636,8 +739,14 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
   const totals = (selector) => expeditions.reduce((sum, entry) => sum + (Number(selector(entry)) || 0), 0);
   const totalHealingCost = totals((entry) => entry.healingBefore.goldCost);
   const totalProvisionCost = totals((entry) => entry.provisionCost);
+  const itemPurchaseGoldSpentById = campaignCombatTotals(expeditions, "itemPurchaseGoldSpentById");
+  const itemsPurchasedById = campaignCombatTotals(expeditions, "itemsPurchasedById");
+  const itemsPackedById = campaignCombatTotals(expeditions, "itemsPackedById");
+  const itemsConsumedById = campaignCombatTotals(expeditions, "itemsConsumedById");
+  const itemsReturnedById = campaignCombatTotals(expeditions, "itemsReturnedById");
+  const totalItemPurchaseGoldSpent = totals((entry) => entry.itemPurchaseGoldSpent);
   const totalGoldEarned = totals((entry) => entry.goldEarnedFromSales + entry.goldEarnedDirect);
-  const totalGoldSpent = totalHealingCost + totalProvisionCost;
+  const totalGoldSpent = totalHealingCost + totalProvisionCost + totalItemPurchaseGoldSpent;
   const abilityUsesById = campaignCombatTotals(expeditions, "abilityUsesById");
   const itemUsesById = campaignCombatTotals(expeditions, "itemUsesById");
   const netGold = endingState.gold - startingState.gold;
@@ -690,7 +799,18 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalGoldSpent,
     totalHealingCost,
     totalProvisionCost,
+    totalItemPurchaseGoldSpent,
     totalGearSpending: 0,
+    itemsPurchasedById,
+    itemPurchaseGoldSpentById,
+    itemsPackedById,
+    itemsConsumedById,
+    itemsReturnedById,
+    totalBandagesPurchased: totals((entry) => entry.bandagesPurchased),
+    totalBandagesPacked: totals((entry) => entry.bandagesPacked),
+    totalBandagesUsed: totals((entry) => entry.bandagesUsed),
+    totalBandagesReturned: totals((entry) => entry.bandagesReturned),
+    totalBandageHealingPerformed: totals((entry) => entry.bandageHealingPerformed),
     totalLootValueRecovered: totals((entry) => entry.lootValueRecovered),
     totalLootValueLost: totals((entry) => estimateCampaignItems(entry.lootLost)),
     totalProvisionsConsumed: totals((entry) => entry.provisionsConsumed),
@@ -750,6 +870,9 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     medianNetGoldPerExpedition: campaignMedian(expeditions.map((entry) => entry.netGold)),
     campaignRoi: startingWealth > 0 ? netCampaignWealth / startingWealth : null,
     averageProvisionSpend: expeditions.length ? totalProvisionCost / expeditions.length : 0,
+    averageItemPurchaseSpend: expeditions.length ? totalItemPurchaseGoldSpent / expeditions.length : 0,
+    averageBandagesPurchased: campaignAverage(expeditions.map((entry) => entry.bandagesPurchased)),
+    averageBandagesUsed: campaignAverage(expeditions.map((entry) => entry.bandagesUsed)),
     averageHealingSpend: expeditions.length ? totalHealingCost / expeditions.length : 0,
     averageLootValueRecovered: expeditions.length ? totals((entry) => entry.lootValueRecovered) / expeditions.length : 0,
     breakEvenExpeditionRate: expeditions.length
@@ -810,6 +933,12 @@ function summarizeCampaigns(results) {
     averageLowHpHealingTriggers: averageField("totalLowHpHealingTriggers"),
     averageCriticalArthurHealingTriggers: averageField("totalCriticalArthurHealingTriggers"),
     averageProvisionSpend: averageField("totalProvisionCost"),
+    averageItemPurchaseSpend: averageField("totalItemPurchaseGoldSpent"),
+    averageBandagesPurchased: averageField("totalBandagesPurchased"),
+    averageBandagesPacked: averageField("totalBandagesPacked"),
+    averageBandagesUsed: averageField("totalBandagesUsed"),
+    averageBandagesReturned: averageField("totalBandagesReturned"),
+    averageBandageHealingPerformed: averageField("totalBandageHealingPerformed"),
     averageTotalLootRecovered: averageField("totalLootValueRecovered"),
     averageTotalDamage: averageField("totalDamageTaken"),
     averageCombats: averageField("totalCombats"),

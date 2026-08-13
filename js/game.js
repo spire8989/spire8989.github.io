@@ -13,6 +13,7 @@ const game = {
   preparationReturnDestinationId: "forest_gate",
   shopTab: "buy",
   provisionShopStock: createProvisionShopStock(),
+  itemShopStock: createItemShopStock(),
   interactionMessage: "",
   summary: null,
   elapsedSeconds: 0,
@@ -455,11 +456,14 @@ function shopBuyRow(itemId, offer) {
   const item = ITEM_DEFINITIONS[itemId];
   const ownedUnique = item.unique && Boolean(game.player.ownedItems[itemId]);
   const affordable = game.player.currentGold >= offer.price;
+  const stock = game.itemShopStock[`${SHOP_DEFINITIONS.village_general_goods.id}:${itemId}`]
+    ?? offer.stock ?? Infinity;
+  const unavailable = stock <= 0;
   return `
-    <article class="shop-item-row ${ownedUnique ? "is-blocked" : ""}">
+    <article class="shop-item-row ${ownedUnique || unavailable ? "is-blocked" : ""}">
       <div class="item-icon" aria-hidden="true">${itemIcon(item.category)}</div>
-      <div><strong>${item.name}</strong><span>${ownedUnique ? "Owned · unique equipment" : item.description}</span></div>
-      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${affordable && !ownedUnique ? "" : "disabled"}>${ownedUnique ? "Owned" : `Buy · ${offer.price}g`}</button>
+      <div><strong>${item.name}</strong><span>${ownedUnique ? "Owned · unique equipment" : unavailable ? "Sold out" : `${item.description} · ${stock} available`}</span></div>
+      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${affordable && !ownedUnique && !unavailable ? "" : "disabled"}>${ownedUnique ? "Owned" : unavailable ? "Sold Out" : `Buy · ${offer.price}g`}</button>
     </article>`;
 }
 
@@ -488,14 +492,12 @@ function buyShopItem(itemId) {
   const shop = SHOP_DEFINITIONS[destination?.shopId];
   const offer = shop?.itemsForSale[itemId];
   const item = ITEM_DEFINITIONS[itemId];
-  if (!item || !offer || !Number.isFinite(offer.price)
-    || game.player.currentGold < offer.price
-    || (item.unique && game.player.ownedItems[itemId])) {
+  if (!item || !offer || !Number.isFinite(offer.price)) {
     return;
   }
-  game.player.currentGold -= offer.price;
-  game.player.ownedItems[itemId] = (game.player.ownedItems[itemId] ?? 0) + 1;
-  game.interactionMessage = `Purchased ${item.name} for ${offer.price} gold.`;
+  const result = EconomyRules.buyItem(game.player, shop, game.itemShopStock, itemId, 1);
+  if (!result.applied) return;
+  game.interactionMessage = `Purchased ${item.name} for ${result.goldCost} gold.`;
   savePlayer();
   renderDestination();
 }
@@ -538,6 +540,10 @@ function inventoryQuantity() {
 }
 
 function createProvisionShopStock() {
+  return CampaignRules.createShopStocks();
+}
+
+function createItemShopStock() {
   return CampaignRules.createShopStocks();
 }
 
@@ -1493,6 +1499,7 @@ function resetSave() {
   game.preparationReturnDestinationId = "forest_gate";
   game.shopTab = "buy";
   game.provisionShopStock = createProvisionShopStock();
+  game.itemShopStock = createItemShopStock();
   game.interactionMessage = "";
   game.preparationSupplies = Math.min(18, game.player.provisions);
   savePlayer();

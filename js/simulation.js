@@ -282,6 +282,13 @@ const SimulationTelemetry = Object.freeze({
       emergencyReturnTotalRequirement: run.emergencyReturnTotalRequirement,
       loadout: run.loadout,
       packedItems: run.packedItems,
+      itemsPackedById: run.itemsPackedById,
+      itemsConsumedById: run.itemsConsumedById,
+      itemsReturnedById: run.itemsReturnedById,
+      bandagesPacked: run.bandagesPacked,
+      bandagesUsed: run.bandagesUsed,
+      bandagesReturned: run.bandagesReturned,
+      bandageHealingPerformed: run.bandageHealingPerformed,
       outcome: run.outcome,
       failureReason: run.failureReason,
       provisionExhaustionFailure: run.provisionExhaustionFailure,
@@ -342,6 +349,8 @@ const SimulationTelemetry = Object.freeze({
       "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
+      "itemsPackedById", "itemsConsumedById", "itemsReturnedById", "bandagesPacked", "bandagesUsed",
+      "bandagesReturned", "bandageHealingPerformed",
     ];
     return [fields.join(","), ...results.map((run) => fields.map((field) => csvCell(run[field])).join(","))].join("\n");
   },
@@ -724,6 +733,10 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
   }
   if (!combat.result) {
     fail(`Combat ${combat.id} exceeded ${scenario.maxCombatSteps} steps.`);
+    history.result = "incomplete";
+    history.partyHealthAfter = combatHealth(combat);
+    Object.assign(history, combatActionTelemetry(history));
+    Object.assign(history, combatPartyDamageTelemetry(history, combat));
     expedition.combat = null;
     return;
   }
@@ -778,6 +791,7 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     emergencyReturnTotalRequirement: null,
     loadout: deepClone(expedition.selectedEquipment),
     packedItems: deepClone(expedition.carriedItems),
+    itemsPackedById: deepClone(expedition.carriedItems),
     scenario: deepClone({
       ...scenario,
       strategy: strategy.name,
@@ -865,6 +879,11 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     damageReceivedByPartyMember,
     abilityUsesById,
     itemUsesById,
+    itemsConsumedById: deepClone(expedition.consumedItems ?? {}),
+    itemsReturnedById: deepClone(expedition.carriedItems ?? {}),
+    bandagesPacked: telemetry.itemsPackedById?.bandages ?? 0,
+    bandagesUsed: expedition.consumedItems?.bandages ?? 0,
+    bandagesReturned: expedition.carriedItems?.bandages ?? 0,
     totalHealingPerformed: telemetry.combats.reduce(
       (sum, combat) => sum + (Number(combat.healingPerformed) || 0), 0,
     ),
@@ -889,6 +908,9 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     stepCount: steps,
     durationMs: rounded(duration, 3),
   });
+  telemetry.bandageHealingPerformed = telemetry.combats.reduce(
+    (sum, combat) => sum + (Number(combat.itemHealingById?.bandages) || 0), 0,
+  );
   telemetry.encounters.forEach((encounter) => delete encounter.before);
   telemetry.replay.decisions = deepClone(telemetry.decisions);
   telemetry.events.push({
@@ -1023,6 +1045,7 @@ function combatPartyDamageTelemetry(history, combat) {
 function combatActionTelemetry(history) {
   const abilityUsesById = {};
   const itemUsesById = {};
+  const itemHealingById = {};
   let healingPerformed = 0;
   let gaugeControl = 0;
   history.actionEvents.forEach((event) => {
@@ -1032,10 +1055,12 @@ function combatActionTelemetry(history) {
     }
     if (event.action === "item" && event.itemId) {
       itemUsesById[event.itemId] = (itemUsesById[event.itemId] ?? 0) + 1;
-      healingPerformed += Number(event.healingAmount) || 0;
+      const healing = Number(event.healingAmount) || 0;
+      itemHealingById[event.itemId] = (itemHealingById[event.itemId] ?? 0) + healing;
+      healingPerformed += healing;
     }
   });
-  return { abilityUsesById, itemUsesById, healingPerformed, gaugeControl };
+  return { abilityUsesById, itemUsesById, itemHealingById, healingPerformed, gaugeControl };
 }
 
 function aggregateRunPartyCombatField(telemetry, field) {

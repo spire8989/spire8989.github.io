@@ -19,6 +19,16 @@ const EXPEDITION_TUNING = Object.freeze({
   minimumTownProvisions: 10,
 });
 
+const CAMPAIGN_TUNING = Object.freeze({
+  consumablePurchasing: Object.freeze({
+    bandages: Object.freeze({
+      aggressive: Object.freeze({ target: 3, minimum: 1, combatUseThreshold: 0.55 }),
+      cautious: Object.freeze({ target: 2, minimum: 0, combatUseThreshold: 0.5 }),
+      random: Object.freeze({ minimum: 0, maximum: 2, purchaseChance: 0.55, combatUseThreshold: 0.5 }),
+    }),
+  }),
+});
+
 const COMBAT_TUNING = Object.freeze({
   actionGaugeMaximum: 100,
   actionGaugeRate: 1.3,

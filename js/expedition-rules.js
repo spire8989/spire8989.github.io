@@ -15,10 +15,18 @@ const ExpeditionRules = Object.freeze({
   },
 
   createCarriedItems(player, packedItems = player.packedItems) {
-    const itemIds = Array.isArray(packedItems) ? packedItems : Object.keys(packedItems ?? {});
+    const isList = Array.isArray(packedItems);
+    const itemIds = isList ? packedItems : Object.keys(packedItems ?? {});
     return Object.fromEntries(itemIds
       .filter((itemId) => player.ownedItems[itemId] && ITEM_DEFINITIONS[itemId]?.carriable)
-      .map((itemId) => [itemId, Math.min(player.ownedItems[itemId], ITEM_DEFINITIONS[itemId].maxStack ?? 1)]));
+      .map((itemId) => {
+        const requested = isList ? player.ownedItems[itemId] : Number(packedItems[itemId]);
+        const quantity = Math.max(0, Math.floor(Number(requested) || 0));
+        return [itemId, Math.min(
+          player.ownedItems[itemId], quantity, ITEM_DEFINITIONS[itemId].maxStack ?? 1,
+        )];
+      })
+      .filter(([, quantity]) => quantity > 0));
   },
 
   createExpedition(player, options = {}) {

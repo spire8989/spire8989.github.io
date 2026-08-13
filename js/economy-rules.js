@@ -1,6 +1,24 @@
 "use strict";
 
 const EconomyRules = Object.freeze({
+  buyItem(player, shop, shopStocks, itemId, quantity = 1) {
+    const item = ITEM_DEFINITIONS[itemId];
+    const offer = shop?.itemsForSale?.[itemId];
+    const requested = Number(quantity);
+    const stockKey = `${shop?.id}:${itemId}`;
+    const stock = shopStocks?.[stockKey] ?? offer?.stock ?? Infinity;
+    const totalCost = offer?.price * requested;
+    if (!item || !offer || !Number.isFinite(offer.price) || !Number.isInteger(requested) || requested <= 0
+      || requested > stock || player.currentGold < totalCost
+      || (item.unique && player.ownedItems[itemId])) {
+      return { applied: false, quantity: 0, goldCost: 0, itemId, reason: "unavailable-or-unaffordable" };
+    }
+    player.currentGold -= totalCost;
+    player.ownedItems[itemId] = (player.ownedItems[itemId] ?? 0) + requested;
+    if (Number.isFinite(stock) && shopStocks) shopStocks[stockKey] = stock - requested;
+    return { applied: true, quantity: requested, goldCost: totalCost, itemId, reason: null };
+  },
+
   buyProvisions(player, shop, shopStocks, quantity) {
     const offer = shop?.provisionsForSale;
     const requested = Number(quantity);

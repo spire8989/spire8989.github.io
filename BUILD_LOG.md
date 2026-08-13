@@ -2,6 +2,36 @@
 
 This log documents the AI-assisted development of **Quest for the Holy Grail**, an HTML5 prototype being created for an AI-assisted game prototype competition. Entries focus on meaningful milestones, the human direction provided, the AI-assisted work performed, any manual changes, and the resulting state of the prototype.
 
+## 2026-08-12 — Campaign Automation Consumable Purchasing
+
+### Goal
+
+Make repeated campaign automation buy and carry usable combat consumables through the authored shop and pack systems, while preserving healing/provision priorities, utility gear, finite stock, and deterministic simulation behavior.
+
+### Human prompt and direction
+
+The human developer reported that automation never purchased items and supplied the next item-focused upgrade guide. It requested strategy-aware Bandage targets, real shop spending and stock, exact pack quantities, combat use, generic purchase/use/return telemetry, regression coverage, and a finished commit and push.
+
+### AI-assisted implementation
+
+- Added finite Bandage stock and a shared `EconomyRules.buyItem`/`CampaignRules.buyItemsTo` path used by both the normal shop and campaign preparation. Purchases deduct authored gold costs, reduce session/campaign stock, and record shortfalls without ending a viable expedition.
+- Added deterministic strategy targets: Aggressive prefers 3 (minimum 1), Cautious prefers 2, and Random makes a seeded 0–2 purchase decision. Healing and provisions are funded first, with a small rest-cost reserve protecting the next Inn action.
+- Preserved existing packed utility items and six-slot capacity, added Bandages only when space exists, and passed exact item quantities through `ExpeditionRules` into simulation combat. Existing Bandage use and settlement remain authoritative.
+- Added run, expedition, campaign, batch, JSON, and CSV telemetry for item purchases, gold by item, packed/consumed/returned inventories, Bandage counts, healing, and aggregate item spending. Updated the campaign and player-facing documentation.
+- Added focused browser assertions for shop price/stock, strategy targets, pack preservation, campaign purchase telemetry, exact simulation quantities, and consumable settlement.
+
+### Manual changes
+
+The human developer supplied the strategy targets, purchasing priorities, capacity/stock constraints, telemetry requirements, and Git authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+Automated campaigns now participate in the same item economy as the player: they can buy stocked Bandages, carry the selected quantity into combat, consume them through the existing ATB item flow, and expose every material resource change for deterministic analysis. Utility gear and provision-safe departure planning remain intact.
+
+### Verification
+
+Verified 65 campaign/health/Inn assertions, 219 UI/provision/location browser assertions, 15 deterministic simulation assertions, and `git diff --check`.
+
 ## 2026-08-12 — Multi-Enemy Wolves and Combat UI Refinement
 
 ### Goal

@@ -2,9 +2,13 @@
 
 const CampaignRules = Object.freeze({
   createShopStocks() {
-    return Object.fromEntries(Object.values(SHOP_DEFINITIONS)
+    const stocks = Object.fromEntries(Object.values(SHOP_DEFINITIONS)
       .filter((shop) => shop.provisionsForSale)
       .map((shop) => [shop.id, shop.provisionsForSale.stock]));
+    Object.values(SHOP_DEFINITIONS).forEach((shop) => Object.entries(shop.itemsForSale ?? {})
+      .filter(([, offer]) => Number.isFinite(offer.stock))
+      .forEach(([itemId, offer]) => { stocks[`${shop.id}:${itemId}`] = offer.stock; }));
+    return stocks;
   },
 
   enterLocation(player) {
@@ -45,5 +49,23 @@ const CampaignRules = Object.freeze({
     }
     const result = EconomyRules.buyProvisions(player, shop, shopStocks, quantity);
     return { ...result, shortfall: Math.max(0, needed - result.quantity) };
+  },
+
+  buyItemsTo(player, shopStocks, itemId, desiredQuantity, minimumGoldReserve = 0) {
+    const shop = SHOP_DEFINITIONS.village_general_goods;
+    const current = player.ownedItems[itemId] ?? 0;
+    const needed = Math.max(0, Math.floor(Number(desiredQuantity) || 0) - current);
+    const stock = shopStocks[`${shop.id}:${itemId}`] ?? shop.itemsForSale?.[itemId]?.stock ?? Infinity;
+    const affordable = Math.floor(Math.max(0, player.currentGold - minimumGoldReserve)
+      / (shop.itemsForSale?.[itemId]?.price ?? Infinity));
+    const quantity = Math.min(needed, stock, affordable);
+    if (quantity <= 0) {
+      return {
+        applied: false, quantity: 0, goldCost: 0, itemId,
+        shortfall: needed, stock, reason: needed > stock ? "stock-unavailable" : "unaffordable",
+      };
+    }
+    const result = EconomyRules.buyItem(player, shop, shopStocks, itemId, quantity);
+    return { ...result, shortfall: Math.max(0, needed - result.quantity), stockBefore: stock };
   },
 });

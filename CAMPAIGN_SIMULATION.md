@@ -14,7 +14,7 @@ normal game / single-run simulator / campaign simulator
 
 The campaign runner extends rather than replaces `SimulationRunner`. Each campaign expedition is still a complete deterministic production-rule simulation. Its settled ending player state becomes the next expedition's starting state.
 
-`CampaignRules` owns town-entry provision-floor behavior, real merchant sales, and real provision purchases. `HealingRules` owns the Inn quote and mutation. The normal UI and automated between-expedition policies invoke these same objects.
+`CampaignRules` owns town-entry provision-floor behavior, real merchant sales, and real provision/item purchases. `HealingRules` owns the Inn quote and mutation. The normal UI and automated between-expedition policies invoke these same objects.
 
 ## Persistent health
 
@@ -97,6 +97,14 @@ The reserve is deterministic and does not inspect future encounter identities, o
 
 Town provision safety grants, persistent merchant stock, provision prices, item sale protection, sale values, expedition settlement, and Inn costs are production rules. By default recovered sellable loot is auto-sold through the real village merchant rules. `autoSellRecoveredLoot: false` disables that simulation convenience. Gear spending is reported as zero because the current default loadout already owns the available combat equipment and no useful upgrade-selection policy has been authored.
 
+## Automated consumable purchasing
+
+Between-expedition preparation now uses the same authored General Goods offer and stock rules as the player shop. Healing and provisions are resolved first; remaining gold can then fund Bandages without changing the existing combat item behavior. Each campaign owns a deterministic Bandage stock pool (currently eight at five gold each), and purchases reduce both gold and stock before the next expedition.
+
+Bandage targets are strategy-driven: Aggressive targets 3 with a minimum preference of 1, Cautious targets 2, and Random makes a seeded purchase decision for 0–2. A small rest-cost reserve prevents a discretionary purchase from consuming the gold needed for an immediately available Inn rest. Existing packed utility items remain in place, and Bandages are added only when a free slot remains within the six-slot pack. Exact pack quantities are passed into `ExpeditionRules`, so only purchased/carried quantities can be consumed in combat.
+
+Campaign and expedition telemetry reports `itemsPurchasedById`, `itemPurchaseGoldSpentById`, `itemsPackedById`, `itemsConsumedById`, `itemsReturnedById`, Bandage purchase/pack/use/return counts, Bandage healing performed, and total item-purchase spending. Decisions also record preferred targets and constraints when stock, gold, or pack capacity prevents the preference from being met. Item stock is persistent for one simulated campaign and remains session-scoped in the normal browser shop, matching the existing provision-stock behavior.
+
 ## Stops and outcomes
 
 Campaign stop reasons currently include:
@@ -125,7 +133,7 @@ const batch = CampaignSimulationRunner.runBatch({
 });
 ```
 
-Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, low-HP and critical healing triggers, emergency aggressive actions, combats entered below 50%/25%, Arthur-versus-companion attacks and damage, ending gold/health, net campaign wealth, healing/provision spending, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. `completedPlan` and completion rate require `max-expeditions-reached`; dying during the final expedition is never completion. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
+Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, low-HP and critical healing triggers, emergency aggressive actions, combats entered below 50%/25%, Arthur-versus-companion attacks and damage, ending gold/health, net campaign wealth, healing/provision/item spending, Bandages purchased/packed/used/returned, Bandage healing, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. `completedPlan` and completion rate require `max-expeditions-reached`; dying during the final expedition is never completion. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
 
 - `economically-growing`
 - `roughly-sustainable`
@@ -166,6 +174,6 @@ The focused campaign suite covers save migration and clamping, player-facing act
 
 - The only production settlement is Brocéliande village; Camelot has not been authored.
 - Companion health persists and the selected companion shares the player-facing Inn rest. An unselected companion is not healed; a selected incapacitated companion stops a campaign only if still at zero after normal preparation.
-- Policies do not buy equipment because no meaningful upgrade path is currently available from the default loadout.
+- Policies do not buy equipment because no meaningful upgrade path is currently available from the default loadout; Bandages are the current automated consumable purchase.
 - Merchant stock persists within a simulated campaign exactly like the current browser session but is not saved in localStorage by the normal game.
 - There is no injury, disease, fatigue, durability, chapter progression, optimal shopping, or balance recommendation system.

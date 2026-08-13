@@ -42,7 +42,7 @@ const SHOP_DEFINITIONS = Object.freeze({
     itemsForSale: {
       rope: { price: 6 },
       torch: { price: 3 },
-      bandages: { price: 5 },
+      bandages: { price: 5, stock: 8 },
       dried_herbs: { price: 4 },
     },
     provisionsForSale: { price: 1, stock: 50 },
