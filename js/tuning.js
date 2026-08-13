@@ -25,6 +25,7 @@ const COMBAT_TUNING = Object.freeze({
   defendDamageMultiplier: 0.5,
   fleeChance: 0.7,
   combatLogLimit: 5,
+  enemyTargetWeights: Object.freeze({ arthur: 0.65, activeCompanions: 0.35 }),
 });
 
 const HEALING_TUNING = Object.freeze({

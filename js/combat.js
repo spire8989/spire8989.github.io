@@ -259,6 +259,7 @@ function resolveAttack(state, actor, target) {
 function resolveEnemyAction(state, expedition, enemy) {
   const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
   let target = chooseEnemyTarget(state, action);
+  const selectedTargetId = target?.id ?? null;
   const interceder = state.allies.find((ally) => (
     ally.interceding && isLivingCombatant(ally) && target?.id === "arthur"
   ));
@@ -278,6 +279,8 @@ function resolveEnemyAction(state, expedition, enemy) {
       actor: enemy.id,
       action: action.id,
       target: target.id,
+      selectedTarget: selectedTargetId,
+      redirectedByIntercede: target.id !== selectedTargetId,
       damage,
     });
     addCombatLog(state, `${enemy.name} uses ${action.name} on ${target.name} for ${damage} damage.`);
@@ -298,9 +301,14 @@ function resolveEnemyAction(state, expedition, enemy) {
 function chooseEnemyTarget(state, action) {
   if (action?.target === "arthur") {
     const arthur = state.allies.find((ally) => ally.id === "arthur" && isLivingCombatant(ally));
-    if (arthur) {
-      return arthur;
-    }
+    const companions = state.allies.filter((ally) => ally.id !== "arthur" && isLivingCombatant(ally));
+    if (!arthur) return companions[0] ?? null;
+    if (companions.length === 0) return arthur;
+    const roll = state.random();
+    if (roll < COMBAT_TUNING.enemyTargetWeights.arthur) return arthur;
+    const companionRoll = (roll - COMBAT_TUNING.enemyTargetWeights.arthur)
+      / COMBAT_TUNING.enemyTargetWeights.activeCompanions;
+    return companions[Math.min(companions.length - 1, Math.floor(companionRoll * companions.length))];
   }
   return state.allies.find(isLivingCombatant) ?? null;
 }

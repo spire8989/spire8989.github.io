@@ -125,7 +125,7 @@ const batch = CampaignSimulationRunner.runBatch({
 });
 ```
 
-Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, low-HP and critical healing triggers, emergency aggressive actions, combats entered below 50%/25%, ending gold/health, net campaign wealth, healing/provision spending, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
+Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, low-HP and critical healing triggers, emergency aggressive actions, combats entered below 50%/25%, Arthur-versus-companion attacks and damage, ending gold/health, net campaign wealth, healing/provision spending, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. `completedPlan` and completion rate require `max-expeditions-reached`; dying during the final expedition is never completion. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
 
 - `economically-growing`
 - `roughly-sustainable`

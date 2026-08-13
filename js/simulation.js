@@ -235,6 +235,8 @@ const SimulationTelemetry = Object.freeze({
       aggressiveEmergencyActions: run.aggressiveEmergencyActions,
       combatsStartedBelow50Percent: run.combatsStartedBelow50Percent,
       combatsStartedBelow25Percent: run.combatsStartedBelow25Percent,
+      attacksReceivedByPartyMember: run.attacksReceivedByPartyMember,
+      damageReceivedByPartyMember: run.damageReceivedByPartyMember,
       turnaroundDistance: run.turnaroundDistance,
       encounters: run.encounters,
       combats: run.combats,
@@ -264,6 +266,8 @@ const SimulationTelemetry = Object.freeze({
       "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
       "estimatedLootValue", "encounterCount", "combatCount", "aggressiveEmergencyActions",
       "combatsStartedBelow50Percent", "combatsStartedBelow25Percent", "stepCount", "durationMs",
+      "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
+      "arthurCombatDamageReceived", "companionCombatDamageReceived",
     ];
     return [fields.join(","), ...results.map((run) => fields.map((field) => csvCell(run[field])).join(","))].join("\n");
   },
@@ -593,9 +597,12 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
   history.result = combat.result;
   history.fled = combat.result === "fled";
   history.partyHealthAfter = combatHealth(combat);
+  Object.assign(history, combatPartyDamageTelemetry(history, combat));
   telemetry.events.push({
     type: "combat-result", combatId: combat.id, result: combat.result,
     damageDealt: history.damageDealt, damageReceived: history.damageReceived,
+    attacksReceivedByPartyMember: history.attacksReceivedByPartyMember,
+    damageReceivedByPartyMember: history.damageReceivedByPartyMember,
   });
   expedition.combat = null;
   EncounterManager.completeCombat(expedition, player, combat.result, { failExpedition: fail });
@@ -657,6 +664,12 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     telemetry.encounters.flatMap((encounter) => encounter.lootGained ?? []),
   );
   const lootRecovered = returned ? deepClone(expedition.unsecuredLoot) : [];
+  const attacksReceivedByPartyMember = aggregateRunPartyCombatField(
+    telemetry, "attacksReceivedByPartyMember",
+  );
+  const damageReceivedByPartyMember = aggregateRunPartyCombatField(
+    telemetry, "damageReceivedByPartyMember",
+  );
   Object.assign(telemetry, {
     outcome: returned ? "returned" : "failed",
     success: returned,
@@ -688,6 +701,12 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     lootLost: subtractItemEntries(lootDiscovered, lootRecovered),
     estimatedLootValue: estimateLootValue(lootRecovered),
     damageTaken: calculateRunDamageTaken(telemetry),
+    attacksReceivedByPartyMember,
+    damageReceivedByPartyMember,
+    arthurCombatAttacksReceived: attacksReceivedByPartyMember.arthur ?? 0,
+    companionCombatAttacksReceived: sumPartyFieldExceptArthur(attacksReceivedByPartyMember),
+    arthurCombatDamageReceived: damageReceivedByPartyMember.arthur ?? 0,
+    companionCombatDamageReceived: sumPartyFieldExceptArthur(damageReceivedByPartyMember),
     aggressiveEmergencyActions: telemetry.combats.reduce(
       (sum, combat) => sum + combat.aggressiveEmergencyActions.length, 0,
     ),
@@ -817,6 +836,36 @@ function combatHealth(combat) {
   return Object.fromEntries(combat.allies.map((actor) => [actor.id, actor.hp]));
 }
 
+function combatPartyDamageTelemetry(history, combat) {
+  const partyIds = new Set(combat.allies.map((ally) => ally.id));
+  const enemyIds = new Set(combat.enemies.map((enemy) => enemy.id));
+  const attacks = {};
+  const damage = {};
+  history.actionEvents.filter((event) => enemyIds.has(event.actor) && partyIds.has(event.target))
+    .forEach((event) => {
+      attacks[event.target] = (attacks[event.target] ?? 0) + 1;
+      damage[event.target] = (damage[event.target] ?? 0) + (Number(event.damage) || 0);
+    });
+  return {
+    attacksReceivedByPartyMember: Object.fromEntries([...partyIds].map((id) => [id, attacks[id] ?? 0])),
+    damageReceivedByPartyMember: Object.fromEntries([...partyIds].map((id) => [id, damage[id] ?? 0])),
+  };
+}
+
+function aggregateRunPartyCombatField(telemetry, field) {
+  const totals = {};
+  telemetry.combats.forEach((combat) => Object.entries(combat[field] ?? {}).forEach(([id, value]) => {
+    totals[id] = (totals[id] ?? 0) + (Number(value) || 0);
+  }));
+  return totals;
+}
+
+function sumPartyFieldExceptArthur(values) {
+  return Object.entries(values).reduce(
+    (sum, [id, value]) => sum + (id === "arthur" ? 0 : Number(value) || 0), 0,
+  );
+}
+
 function flushCombatEvents(combat, startIndex, history, telemetry) {
   combat.events.slice(startIndex).forEach((event) => {
     const recorded = { type: "combat-resolution", combatId: combat.id, ...event };
@@ -867,6 +916,8 @@ function summarizeRuns(results) {
     averageAggressiveEmergencyActions: average(values("aggressiveEmergencyActions")),
     averageCombatsStartedBelow50Percent: average(values("combatsStartedBelow50Percent")),
     averageCombatsStartedBelow25Percent: average(values("combatsStartedBelow25Percent")),
+    averageArthurCombatDamageReceived: average(values("arthurCombatDamageReceived")),
+    averageCompanionCombatDamageReceived: average(values("companionCombatDamageReceived")),
   };
 }
 

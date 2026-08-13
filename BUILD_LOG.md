@@ -655,3 +655,32 @@ The human developer supplied the aggressive healing, emergency combat, telemetry
 ### Resulting prototype state
 
 Aggressive simulation remains attack-oriented and materially riskier than cautious behavior, but its logs now distinguish low-health rest triggers and the narrow combat moments where it stops blindly attacking. The unchanged high death rate in the constrained sweep is preserved as evidence for the next human balance decision.
+
+## 2026-08-12 — Shared Party Targeting and Completion Correctness
+
+### Goal
+
+Make persistent companion health meaningful by allowing production enemies to attack living companions, expose party damage distribution, and stop final-expedition deaths from inflating campaign completion.
+
+### Human prompt and direction
+
+The human developer requested a small combat-correctness pass with approximately 65% Arthur / 35% active-companion targeting through shared production combat and injected RNG, while preserving every existing HP, damage, healing, encounter, strategy, loot, and provision value.
+
+### AI-assisted implementation
+
+- Added centralized enemy target weights of 65% Arthur and 35% collectively across living active companions. No companion yields 100% Arthur; dead combatants are excluded; target draws use only the combat's injected RNG.
+- Implemented selection in production `chooseEnemyTarget`, so playable combat and deterministic simulation share identical behavior. Existing Intercede still redirects attacks selected for Arthur.
+- Expanded enemy action events with the originally selected target, final recipient, and Intercede redirect flag. Combat and run telemetry now aggregate attacks and damage received per party member, with flattened Arthur/companion campaign totals and batch averages.
+- Retained companion settlement, save/load, shared Inn healing, and next-expedition snapshots, and added a regression that deals real production combat damage to Kay before exercising that complete lifecycle.
+- Corrected `completedPlan` to require the genuine `max-expeditions-reached` terminal condition. A death on the configured final expedition is no longer completion merely because the attempt count equals the plan length.
+- Added focused assertions for Arthur/Kay selection, dead and absent companion exclusion, seeded target-sequence equality, per-member damage telemetry, Kay persistence/healing, and final-expedition completion semantics.
+- Verified 40 focused campaign/health/combat assertions, 9 deterministic simulation assertions, all 207 UI/location assertions, and `git diff --check`.
+- A fixed-seed 1,000-draw example selected Arthur 652 times and Kay 348 times. In the comparable 100-campaign aggressive batch, enemies made 2,265 attacks for 6,599 damage against Arthur and 1,200 attacks for 4,632 damage against Kay. Corrected plan completion was 69%, death was 31%, average expeditions were 8.55, and average actual distance was 60.47. No follow-on balance changes were made.
+
+### Manual changes
+
+The human developer supplied the party-targeting, telemetry, persistence, completion-semantic, and regression requirements. No manual code edits were reported.
+
+### Resulting prototype state
+
+Kay now participates in combat risk as well as offense, making his persistent wounds and shared Inn recovery operationally relevant. Campaign logs distinguish target selection, actual recipients, and per-member damage, while completion rates now represent campaigns that truly reach their configured terminal condition alive.

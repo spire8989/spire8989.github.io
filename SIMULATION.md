@@ -87,6 +87,8 @@ A strategy needs a stable `name`, `chooseEncounter(availableChoices, context)`, 
 
 Combat telemetry records Arthur's entry HP, below-50% and below-25% entry flags, and every aggressive emergency decision with chosen action, threatened enemies, estimated unguarded damage, and estimated defended damage. Run/batch summaries and CSV expose emergency-action and low-health-combat counts.
 
+Enemy targeting is production combat behavior, not a simulator approximation. Hostile actions use the combat's injected RNG and centralized weights: Arthur receives 65% weight and all living active companions share 35%. With no living companion, Arthur receives every attack. Each enemy action event records `selectedTarget`, final `target`, and whether Intercede redirected it. Combat/run telemetry aggregates attacks and damage received by party member.
+
 A turnaround policy needs `name`, optional serializable `configuration`, and `shouldTurn(expedition, telemetry)`. Pass it as `scenario.turnaroundPolicy`.
 
 ## Telemetry and replay foundation
