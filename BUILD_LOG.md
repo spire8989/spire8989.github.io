@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-13 - Brocéliande Destination Hero Ratio Adjustment
+
+### Goal
+
+Reduce the vertical footprint of the existing village destination/interior hero visuals while preserving their composition and all other visual regions.
+
+### Human prompt and direction
+
+The human developer requested a tiny follow-up to change only `.destination-visual` from an explicit 16:9 frame to a responsive 2:1 banner for the Hall, Inn, Merchant, Blacksmith, and Apothecary. Companion wording and all gameplay/UI systems were to remain untouched.
+
+### AI-assisted implementation
+
+- Changed `.destination-visual` to `aspect-ratio: 2 / 1`; width, responsive sizing, clipping, gradients, emblem, and title/description composition remain unchanged.
+- Updated destination aspect assertions for all five interiors and expanded the existing portrait-width checks to verify the Hall emblem and title panel remain contained at each mobile viewport size.
+- Left Village map, expedition travel, combat, encounter, dialogue, preparation, toast, and destination interaction content unchanged.
+
+### Manual changes
+
+The human developer supplied the focused 2:1 destination-hero adjustment and requested another local Git commit. No manual code edits were reported.
+
+### Resulting prototype state
+
+Destination interiors now use a shorter wide 2:1 hero banner, leaving more vertical room for their interactive content while remaining ready for future `cover`-positioned artwork.
+
+### Verification
+
+Verified 364 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production startup through the browser regression server, and `git diff --check`. Changes were committed locally; no push was performed.
+
 ## 2026-08-13 - Brocéliande Destination Visual Cleanup
 
 ### Goal

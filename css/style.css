@@ -2578,7 +2578,7 @@ button.combatant {
   display: flex;
   align-items: flex-end;
   gap: 1rem;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 2 / 1;
   padding: clamp(1rem, 6cqw, 2rem);
   background:
     radial-gradient(circle at 72% 38%, rgb(239 178 86 / 44%), transparent 16%),
