@@ -129,6 +129,8 @@ const CampaignSimulationRunner = Object.freeze({
         itemPurchaseGoldSpentById: decision.itemPurchaseGoldSpentById,
         itemPurchaseGoldSpent: decision.itemPurchaseGoldSpent,
         bandagesPurchased: decision.bandagesPurchased,
+        bandagesCrafted: decision.bandagesCrafted,
+        craftingActions: decision.craftingActions,
         bandagesPacked: decision.bandagesPacked,
         itemsPackedById: run.itemsPackedById,
         itemsConsumedById: run.itemsConsumedById,
@@ -141,6 +143,10 @@ const CampaignSimulationRunner = Object.freeze({
         failureReason: run.failureReason,
         actualMaximumDistance: run.maximumDistance,
         lootRecovered: run.lootRecovered,
+        materialsRecovered: run.materialsRecovered,
+        recipesLearned: run.recipesLearned,
+        returnRewardTier: run.returnRewardTier,
+        returnRewardResults: run.returnRewardResults,
         lootLost: run.lootLost,
         lootValueRecovered: run.estimatedLootValue,
         goldEarnedFromSales: sales.goldEarned,
@@ -407,6 +413,14 @@ function applyBetweenExpeditionPolicy(
   const bandagePlan = strategyName
     ? chooseBandagePlan(strategyName, preparationRandom)
     : { target: 0, minimum: 0, combatUseThreshold: 0, policy: "disabled" };
+  const bandagesBeforeCrafting = player.ownedItems.bandages ?? 0;
+  const craftingActions = [];
+  while ((player.ownedItems.bandages ?? 0) < bandagePlan.target) {
+    const crafted = CraftingRules.craft(player, "bandages", "apothecary");
+    if (!crafted.applied) break;
+    craftingActions.push(crafted);
+  }
+  const bandagesCrafted = (player.ownedItems.bandages ?? 0) - bandagesBeforeCrafting;
   const bandagesBeforePurchase = player.ownedItems.bandages ?? 0;
   const bandagePackAvailable = player.packedItems.includes("bandages")
     || player.packedItems.length < EXPEDITION_TUNING.packSlots;
@@ -570,6 +584,9 @@ function applyBetweenExpeditionPolicy(
     preferredProvisionTargetMet: actualProvisionStockAfterPurchase >= desiredProvisionStockForNominalDistance,
     provisionPurchase,
     bandagePurchase,
+    craftingActions,
+    bandagesBeforeCrafting,
+    bandagesCrafted,
     bandagesBeforePurchase,
     bandagesAfterPurchase,
     bandagesPurchased: bandagePurchase.quantity,
@@ -703,6 +720,8 @@ function createCampaignPlayer(overrides) {
   merged.ownedItems = { ...defaults.ownedItems, ...(overrides.ownedItems ?? {}) };
   merged.equippedItems = { ...defaults.equippedItems, ...(overrides.equippedItems ?? {}) };
   merged.packedItems = [...(overrides.packedItems ?? defaults.packedItems)];
+  merged.materials = { ...defaults.materials, ...(overrides.materials ?? {}) };
+  merged.learnedRecipes = [...(overrides.learnedRecipes ?? defaults.learnedRecipes)];
   merged.learnedKnowledge = [...(overrides.learnedKnowledge ?? defaults.learnedKnowledge)];
   merged.unlockedCompanions = [...(overrides.unlockedCompanions ?? defaults.unlockedCompanions)];
   merged.companionStates = deepCampaignClone(overrides.companionStates ?? defaults.companionStates);
@@ -723,6 +742,8 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
     equippedItems: player.equippedItems,
     packedItems: player.packedItems,
     learnedKnowledge: player.learnedKnowledge,
+    materials: player.materials,
+    learnedRecipes: player.learnedRecipes,
     campaignFlags: player.campaignFlags ?? {},
     arthurHealth: HealingRules.arthurHealth(player),
     arthurMaxHealth: HealingRules.arthurMaxHealth(player),

@@ -874,3 +874,38 @@ The human developer supplied the reported integration failures, desired state tr
 ### Resulting prototype state
 
 Combat submenu navigation now visibly follows the paused state machine, target selection remembers its originating context, and future ally-target actions can provide their own concise prompt without changing the UI renderer.
+
+## 2026-08-12 — Data-Driven Crafting, Materials, and Loot Tables
+
+### Goal
+
+Establish an extensible first-pass campaign crafting framework with separate materials, permanent recipe knowledge, provider-specific town crafting, reusable nested loot tables, and distance-scaled successful-return rewards without replacing existing item, shop, encounter, settlement, save, or simulation systems.
+
+### Human prompt and direction
+
+The human developer supplied a detailed implementation guide requiring a functional Blacksmith extension, a new Apothecary, data-driven recipes/materials/rarity, weighted and nested loot tables with recipe eligibility and cycle protection, successful-return tiers based on maximum distance, safe save migration, automation compatibility, observability, regression verification, and commit/push authorization after completion.
+
+### AI-assisted implementation
+
+- Added ten stable-ID materials in a dedicated persistent collection: Medicinal Herbs, Cloth, Leather, Iron, Wood, Silver, Rare Herbs, Alchemical Reagents, Sacred Oil, and Relic Fragment. Materials never enter ordinary item inventory or expedition loadout selection.
+- Added five stable-ID recipes: Bandages, Healing Poultice, Antidote, Strong Tonic, and Repair Kit. Recipes carry provider, ingredient, output, optional gold, and rarity data; learned IDs live only in campaign state. Strong Tonic and Repair Kit validate mixed material/gold costs.
+- Added one generic crafting rule set used by both providers. It quotes known/provider/material/gold/unique-item requirements, performs an atomic no-failure mutation, creates existing item definitions, saves through the normal UI path, and records concise debug telemetry.
+- Extended the Blacksmith with a Craft tab and added an Apothecary destination/NPC/shop with Buy, Sell, Talk, and Craft actions. Craft views hide unknown recipes, show owned/required materials and gold, and use one repeatable Craft button.
+- Added reusable weighted loot tables for common/uncommon/rare/forest materials, Apothecary recipe pools, encounter forage, and five return tiers. Table entries can award gold, materials, items, recipes, or nested tables; rarity remains display metadata and never controls probability.
+- Added generic eligibility filtering without mutating definitions. Learned or already-staged recipes are skipped, exhausted child tables safely disappear from the weighted pool, unique owned items are ineligible, and ancestor/depth guards prevent recursive table loops.
+- Routed Abandoned Camp through the generic encounter loot resolver as a second reward source. Expedition loot stages materials and recipe knowledge alongside existing unsecured items/gold, then shared settlement either secures all four reward types or loses unsecured discoveries on failure.
+- Added Minor, Low, Medium, High, and Deep successful-return reward tiers at 0, 20, 40, 60, and 90 maximum leagues reached. Shared settlement rolls the configured tables exactly once, including voluntary returns, and reports tier/results/debug traces.
+- Migrated saves to version 7 with safe stable-ID sanitization for material quantities and learned recipes. Fresh campaigns know Bandages and Repair Kit and hold a small test material supply so both provider loops can be exercised immediately.
+- Propagated material, recipe, return-reward, and loot-trace state through deterministic expedition and persistent campaign simulation. Between-expedition automation now crafts useful known Bandages before buying only the remaining strategy target.
+- Updated player-facing architecture and simulation documentation and expanded browser coverage for provider UI, atomic crafting, separate inventory state, save migration, nested resolution, cycle protection, learned-recipe filtering, return tiers, idempotent settlement, telemetry, and cross-expedition persistence.
+- Verified 235 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`.
+
+### Manual changes
+
+The human developer provided the complete design guide, content scale, architectural constraints, validation checklist, and authorization to commit and push after successful completion. No manual code edits were reported.
+
+### Resulting prototype state
+
+Materials found in authored encounters or successful-return tables now feed a persistent provider-specific crafting loop: players can buy expensive finished remedies immediately, or discover permanent recipes and turn secured resources into the same ordinary item/ability system. The framework supports future providers, rare equipment outputs, unique authored loot pools, and additional reward sources without provider switches or parallel inventory/effect systems.
+
+Intentional first-pass limits remain: Antidote and Repair Kit have no poison/durability action yet; no such subsystem was invented for this pass. The current expedition has no authored story-completion boundary, so 90+ leagues uses the best generic Deep return tier rather than claiming chapter completion. Loot traces are available to debug/simulation output and the browser console, while the normal UI shows only concise rewards.

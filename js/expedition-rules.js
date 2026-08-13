@@ -66,6 +66,10 @@ const ExpeditionRules = Object.freeze({
       consumedItems: {},
       consumablesSettled: false,
       unsecuredLoot: [],
+      unsecuredMaterials: {},
+      unsecuredRecipes: [],
+      lootDebugLog: [],
+      returnRewardsRolled: false,
       sceneOffset: 0,
       status: "active",
       random: typeof options.random === "function" ? options.random : GameRandom.random,
@@ -164,8 +168,15 @@ const ExpeditionRules = Object.freeze({
     this.settleConsumedItems(player, expedition);
     this.settleProvisions(player, expedition, returnedSafely);
     if (returnedSafely && !expedition.rewardsSettled) {
+      LootRules.awardExpeditionReturn(player, expedition);
       expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
         player.ownedItems[itemId] = (player.ownedItems[itemId] ?? 0) + quantity;
+      });
+      Object.entries(expedition.unsecuredMaterials).forEach(([materialId, quantity]) => {
+        player.materials[materialId] = (player.materials[materialId] ?? 0) + quantity;
+      });
+      expedition.unsecuredRecipes.forEach((recipeId) => {
+        if (!player.learnedRecipes.includes(recipeId)) player.learnedRecipes.push(recipeId);
       });
       player.currentGold += expedition.goldCarried;
     }

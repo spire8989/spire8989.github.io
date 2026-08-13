@@ -93,7 +93,7 @@ A turnaround policy needs `name`, optional serializable `configuration`, and `sh
 
 ## Telemetry and replay foundation
 
-Each run contains identity/configuration fields, outcome/failure, distances, party health, provision accounting, gold, discovered/recovered loot and estimated merchant value, encounter/combat counts, step count, and duration. It also includes:
+Each run contains identity/configuration fields, outcome/failure, distances, party health, provision accounting, gold, discovered/recovered item loot and estimated merchant value, recovered materials, learned recipes, expedition-return reward tier/results, the compact loot-resolution debug trace, encounter/combat counts, step count, and duration. It also includes:
 
 - `encounters`: availability at every stage, selected choices, path/direction/distance, actual before/after resource and health deltas, unsecured loot changes, packed-item consumption, combat trigger, and result text.
 - `combats`: enemies, before/after party HP, result/flee, damage totals, rounds/actions, and production combat events.

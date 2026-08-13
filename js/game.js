@@ -47,7 +47,7 @@ function handleAction(event) {
     return;
   }
 
-  const { action, itemId, companionId, choiceId, destinationId } = control.dataset;
+  const { action, itemId, recipeId, companionId, choiceId, destinationId } = control.dataset;
 
   switch (action) {
     case "show-campaign":
@@ -74,7 +74,8 @@ function handleAction(event) {
       restAtInn();
       break;
     case "shop-tab":
-      game.shopTab = control.dataset.tab === "sell" ? "sell" : "buy";
+      game.shopTab = ["buy", "sell", "craft"].includes(control.dataset.tab)
+        ? control.dataset.tab : "buy";
       game.interactionMessage = "";
       renderDestination();
       break;
@@ -86,6 +87,9 @@ function handleAction(event) {
       break;
     case "sell-item":
       sellShopItem(itemId);
+      break;
+    case "craft-item":
+      craftItem(recipeId);
       break;
     case "view-inventory":
       game.preparationMode = "inventory";
@@ -287,7 +291,7 @@ function renderLocation() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen location-screen" aria-labelledby="location-title">
-      <div class="location-scene" aria-label="Village scene with four destinations">
+      <div class="location-scene" aria-label="Village scene with five destinations">
         <div class="village-sky" aria-hidden="true"></div>
         <div class="village-tree-line" aria-hidden="true"></div>
         <div class="village-road" aria-hidden="true"></div>
@@ -410,12 +414,18 @@ function restAtInn() {
 function renderShopInteraction(destination, npc) {
   const shop = SHOP_DEFINITIONS[destination.shopId];
   const buySelected = game.shopTab === "buy";
-  const rows = buySelected
-    ? Object.entries(shop.itemsForSale).map(([itemId, offer]) => shopBuyRow(itemId, offer)).join("")
-    : Object.entries(game.player.ownedItems).map(([itemId, quantity]) => shopSellRow(shop, itemId, quantity)).join("");
+  const sellSelected = game.shopTab === "sell";
+  const craftSelected = game.shopTab === "craft" && Boolean(destination.craftingProviderId);
+  const rows = craftSelected
+    ? CraftingRules.knownRecipesForProvider(game.player, destination.craftingProviderId)
+      .map((recipe) => craftingRow(recipe, destination.craftingProviderId)).join("")
+    : buySelected
+      ? Object.entries(shop.itemsForSale).map(([itemId, offer]) => shopBuyRow(shop, itemId, offer)).join("")
+      : Object.entries(game.player.ownedItems).map(([itemId, quantity]) => shopSellRow(shop, itemId, quantity)).join("");
   const provisionOffer = buySelected && shop.provisionsForSale
     ? renderProvisionOffer(shop, shop.provisionsForSale)
     : "";
+  const materials = craftSelected ? renderMaterialInventory() : "";
 
   return `
     <div class="shopkeeper-row">
@@ -424,11 +434,39 @@ function renderShopInteraction(destination, npc) {
     </div>
     <div class="shop-tabs" role="tablist" aria-label="Shop actions">
       <button class="${buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${buySelected}" data-action="shop-tab" data-tab="buy">Buy</button>
-      <button class="${!buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${!buySelected}" data-action="shop-tab" data-tab="sell">Sell</button>
+      <button class="${sellSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${sellSelected}" data-action="shop-tab" data-tab="sell">Sell</button>
+      ${destination.craftingProviderId ? `<button class="${craftSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${craftSelected}" data-action="shop-tab" data-tab="craft">Craft</button>` : ""}
       <button type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
     </div>
     ${provisionOffer}
+    ${materials}
     <div class="shop-list">${rows || '<p class="empty-loot">Nothing available.</p>'}</div>`;
+}
+
+function renderMaterialInventory() {
+  const entries = Object.entries(game.player.materials)
+    .filter(([, quantity]) => quantity > 0)
+    .sort(([left], [right]) => (RARITY_DEFINITIONS[MATERIAL_DEFINITIONS[left].rarity]?.rank ?? 0)
+      - (RARITY_DEFINITIONS[MATERIAL_DEFINITIONS[right].rarity]?.rank ?? 0)
+      || MATERIAL_DEFINITIONS[left].name.localeCompare(MATERIAL_DEFINITIONS[right].name));
+  const chips = entries.map(([materialId, quantity]) => (
+    `<span class="material-chip rarity-${MATERIAL_DEFINITIONS[materialId].rarity}">${MATERIAL_DEFINITIONS[materialId].name} <strong>${quantity}</strong></span>`
+  )).join("");
+  return `<div class="material-inventory"><span>Materials</span><div>${chips || '<em>None owned</em>'}</div></div>`;
+}
+
+function craftingRow(recipe, providerId) {
+  const quote = CraftingRules.quote(game.player, recipe.id, providerId);
+  const ingredients = quote.ingredientStatus.map(({ materialId, required, owned, sufficient }) => (
+    `<span class="${sufficient ? "" : "is-missing"}">${MATERIAL_DEFINITIONS[materialId].name} ${owned}/${required}</span>`
+  )).join(" · ");
+  const cost = recipe.goldCost > 0 ? ` · ${recipe.goldCost} gold` : "";
+  return `
+    <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
+      <div class="item-icon" aria-hidden="true">${itemIcon(quote.item.category)}</div>
+      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost">${ingredients}${cost}</span><span>Creates ${quote.item.name}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}</span></div>
+      <button class="small-button" type="button" data-action="craft-item" data-recipe-id="${recipe.id}" ${quote.available ? "" : "disabled"}>Craft</button>
+    </article>`;
 }
 
 function renderForestGateInteraction() {
@@ -452,11 +490,11 @@ function renderProvisionOffer(shop, offer) {
     </article>`;
 }
 
-function shopBuyRow(itemId, offer) {
+function shopBuyRow(shop, itemId, offer) {
   const item = ITEM_DEFINITIONS[itemId];
   const ownedUnique = item.unique && Boolean(game.player.ownedItems[itemId]);
   const affordable = game.player.currentGold >= offer.price;
-  const stock = game.itemShopStock[`${SHOP_DEFINITIONS.village_general_goods.id}:${itemId}`]
+  const stock = game.itemShopStock[`${shop.id}:${itemId}`]
     ?? offer.stock ?? Infinity;
   const unavailable = stock <= 0;
   return `
@@ -520,6 +558,16 @@ function sellShopItem(itemId) {
   const result = EconomyRules.sellItem(game.player, shop, itemId);
   if (!result.applied) return;
   game.interactionMessage = `Sold ${item.name} for ${result.goldEarned} gold.`;
+  savePlayer();
+  renderDestination();
+}
+
+function craftItem(recipeId) {
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  const result = CraftingRules.craft(game.player, recipeId, destination?.craftingProviderId);
+  if (!result.applied) return;
+  const item = ITEM_DEFINITIONS[result.itemId];
+  game.interactionMessage = `Crafted ${item.name}${result.quantity > 1 ? ` ×${result.quantity}` : ""}.`;
   savePlayer();
   renderDestination();
 }
@@ -1041,7 +1089,7 @@ function renderExpeditionResources(expedition) {
       <div class="resource-card"><span>Max reached</span><strong id="max-distance-value">${formatDistance(expedition.maxDistanceReached)}</strong></div>
       <div class="resource-card"><span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong></div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
-      <div class="resource-card unsecured-card"><span>Unsecured</span><strong id="loot-count">${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g</strong></div>
+      <div class="resource-card unsecured-card"><span>Unsecured</span><strong id="loot-count">${expedition.unsecuredLoot.length} items · ${Object.keys(expedition.unsecuredMaterials).length} materials · ${expedition.goldCarried}g</strong></div>
     </div>`;
 }
 
@@ -1354,10 +1402,13 @@ function completeReturn() {
   game.summary = {
     outcome: "returned",
     title: "Returned to Safety",
-    message: "Every discovery from this expedition is now part of Arthur's permanent inventory.",
+    message: "Every secured discovery from this expedition has been added to Arthur's campaign resources.",
     distance: expedition.maxDistanceReached,
     loot: [...expedition.unsecuredLoot],
     gold: expedition.goldCarried,
+    materials: { ...expedition.unsecuredMaterials },
+    recipes: [...expedition.unsecuredRecipes],
+    returnRewardTier: expedition.returnRewardTier,
     provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
@@ -1382,6 +1433,9 @@ function failExpedition(reason) {
     distance: expedition.maxDistanceReached,
     loot: [...expedition.unsecuredLoot],
     gold: expedition.goldCarried,
+    materials: { ...expedition.unsecuredMaterials },
+    recipes: [...expedition.unsecuredRecipes],
+    returnRewardTier: null,
     provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
@@ -1393,6 +1447,12 @@ function renderSummary() {
   const loot = summary.loot.length > 0
     ? summary.loot.map(({ itemId, quantity }) => `<li>${ITEM_DEFINITIONS[itemId].name}${quantity > 1 ? ` ×${quantity}` : ""}</li>`).join("")
     : "<li>No items discovered</li>";
+  const materials = Object.entries(summary.materials ?? {}).length > 0
+    ? Object.entries(summary.materials).map(([materialId, quantity]) => `<li>${MATERIAL_DEFINITIONS[materialId].name}${quantity > 1 ? ` ×${quantity}` : ""}</li>`).join("")
+    : "<li>No materials discovered</li>";
+  const recipes = (summary.recipes ?? []).length > 0
+    ? summary.recipes.map((recipeId) => `<li>${RECIPE_DEFINITIONS[recipeId].name}</li>`).join("")
+    : "<li>No recipes discovered</li>";
 
   ui.screenRoot.innerHTML = `
     <section class="screen summary-screen ${returned ? "is-success" : "is-failure"}" aria-labelledby="summary-title">
@@ -1407,9 +1467,18 @@ function renderSummary() {
         <p><span>Farthest distance</span><strong>${formatDistance(summary.distance)}</strong></p>
         <p><span>${returned ? "Gold banked" : "Gold lost"}</span><strong>${summary.gold}</strong></p>
         <p><span>Provisions returned</span><strong>${summary.provisionsReturned}</strong></p>
+        ${returned ? `<p><span>Return reward tier</span><strong>${capitalize(summary.returnRewardTier ?? "minor")}</strong></p>` : ""}
         <div class="summary-loot">
           <span>${returned ? "Items secured" : "Unsecured items lost"}</span>
           <ul>${loot}</ul>
+        </div>
+        <div class="summary-loot">
+          <span>${returned ? "Materials secured" : "Unsecured materials lost"}</span>
+          <ul>${materials}</ul>
+        </div>
+        <div class="summary-loot">
+          <span>${returned ? "Recipes learned" : "Unsecured recipes lost"}</span>
+          <ul>${recipes}</ul>
         </div>
         <p class="protected-note">Your original equipment and companion remain available.</p>
       </div>
@@ -1430,7 +1499,7 @@ function updateTravelHud() {
   setText("#max-distance-value", formatDistance(expedition.maxDistanceReached));
   setText("#provisions-value", formatResource(expedition.provisions));
   setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
-  setText("#loot-count", `${expedition.unsecuredLoot.length} items · ${expedition.goldCarried}g`);
+  setText("#loot-count", `${expedition.unsecuredLoot.length} items · ${Object.keys(expedition.unsecuredMaterials).length} materials · ${expedition.goldCarried}g`);
 
   const returning = expedition.direction === "returning";
   const activeEncounter = expedition.activeEncounter

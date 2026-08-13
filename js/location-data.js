@@ -33,6 +33,15 @@ const NPC_DEFINITIONS = Object.freeze({
     rumors: [],
     locationIds: ["broceliande_village"],
   },
+  village_apothecary: {
+    id: "village_apothecary",
+    name: "Apothecary",
+    role: "Herbalist and remedy maker",
+    description: "Bundles of herbs and stoppered bottles line the apothecary's small workroom.",
+    dialogue: ["A finished draught costs coin. Learn its preparation, and the forest may provide the rest."],
+    rumors: [],
+    locationIds: ["broceliande_village"],
+  },
 });
 
 const SHOP_DEFINITIONS = Object.freeze({
@@ -88,6 +97,24 @@ const SHOP_DEFINITIONS = Object.freeze({
       fine_hunting_knife: 5,
     },
   },
+  village_apothecary_shop: {
+    id: "village_apothecary_shop",
+    displayName: "Apothecary Remedies",
+    itemsForSale: {
+      bandages: { price: 6, stock: 8 },
+      antidote: { price: 9, stock: 5 },
+      healing_poultice: { price: 12, stock: 4 },
+      strong_tonic: { price: 22, stock: 2 },
+    },
+    acceptedCategories: ["consumable"],
+    acceptedTags: ["medical", "herbal", "alchemical"],
+    sellValues: {
+      bandages: 2,
+      antidote: 4,
+      healing_poultice: 5,
+      strong_tonic: 9,
+    },
+  },
 });
 
 const DESTINATION_DEFINITIONS = Object.freeze({
@@ -122,6 +149,19 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     scenePosition: "southwest",
     npcIds: ["village_blacksmith"],
     shopId: "village_smithy",
+    craftingProviderId: "blacksmith",
+    actions: ["talk", "shop"],
+  },
+  apothecary: {
+    id: "apothecary",
+    name: "Apothecary",
+    type: "shop",
+    description: "Drying herbs hang above a workbench crowded with jars and small brass scales.",
+    visualKey: "apothecary_interior",
+    scenePosition: "south",
+    npcIds: ["village_apothecary"],
+    shopId: "village_apothecary_shop",
+    craftingProviderId: "apothecary",
     actions: ["talk", "shop"],
   },
   forest_gate: {
@@ -146,9 +186,9 @@ const LOCATION_DEFINITIONS = Object.freeze({
     chapterId: "chapter_03",
     regionId: "broceliande",
     visualKey: "broceliande_village",
-    destinations: ["inn", "merchant", "blacksmith", "forest_gate"],
-    npcs: ["village_innkeeper", "village_merchant", "village_blacksmith"],
-    shops: ["village_general_goods", "village_smithy"],
+    destinations: ["inn", "merchant", "blacksmith", "apothecary", "forest_gate"],
+    npcs: ["village_innkeeper", "village_merchant", "village_blacksmith", "village_apothecary"],
+    shops: ["village_general_goods", "village_smithy", "village_apothecary_shop"],
     availableExpeditions: ["broceliande_expedition"],
     availableQuests: [],
     requirements: [],

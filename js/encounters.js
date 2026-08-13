@@ -160,6 +160,20 @@ const EncounterOutcomes = Object.freeze({
         addUnsecuredItem(expedition, effect.itemId, effect.quantity ?? 1);
         messages = [unsecuredLootMessage(effect.itemId)];
         break;
+      case "rollLootTable": {
+        const rewards = LootRules.resolveSources([{
+          tableId: effect.tableId,
+          rolls: effect.rolls ?? 1,
+          chance: effect.chance ?? 1,
+        }], {
+          player,
+          expedition,
+          random: expedition.random,
+          debugLog: expedition.lootDebugLog,
+        });
+        messages = rewards.map(lootRewardMessage);
+        break;
+      }
       case "consumeExpeditionItem": {
         const quantity = effect.quantity ?? 1;
         if (expeditionItemQuantity(expedition, effect.itemId) < quantity) {
@@ -539,6 +553,18 @@ function addUnsecuredItem(expedition, itemId, quantity) {
 function unsecuredLootMessage(itemId) {
   const item = ITEM_DEFINITIONS[itemId];
   return `ITEM FOUND\n${item.name}\n${item.description}\nUNSECURED`;
+}
+
+function lootRewardMessage(reward) {
+  if (reward.type === "material") {
+    return `MATERIAL FOUND\n${MATERIAL_DEFINITIONS[reward.materialId].name} x${reward.quantity}\nUNSECURED`;
+  }
+  if (reward.type === "recipe") {
+    return `RECIPE FOUND\n${RECIPE_DEFINITIONS[reward.recipeId].name}\nUNSECURED`;
+  }
+  if (reward.type === "item") return unsecuredLootMessage(reward.itemId);
+  if (reward.type === "gold") return `+${reward.quantity} gold`;
+  return "";
 }
 
 function expeditionItemQuantity(expedition, itemId) {

@@ -1,0 +1,183 @@
+"use strict";
+
+const LOOT_TABLE_MAX_DEPTH = 12;
+
+const LootRules = Object.freeze({
+  resolveSources(sources, context) {
+    const results = [];
+    (sources ?? []).forEach((source) => {
+      const rolls = Math.max(0, Math.floor(Number(source.rolls) || 0));
+      const chance = Number.isFinite(source.chance) ? Math.max(0, Math.min(1, source.chance)) : 1;
+      recordLootEvent(context, { type: "loot-source", tableId: source.tableId, rolls, chance });
+      for (let roll = 0; roll < rolls; roll += 1) {
+        if (lootRandom(context.random) >= chance) {
+          recordLootEvent(context, { type: "loot-chance-missed", tableId: source.tableId, roll: roll + 1 });
+          continue;
+        }
+        const result = this.resolveTable(source.tableId, context);
+        if (result) results.push(result);
+      }
+    });
+    return results;
+  },
+
+  resolveTable(tableId, context, state = {}) {
+    const table = LOOT_TABLE_DEFINITIONS[tableId];
+    const depth = state.depth ?? 0;
+    const ancestors = state.ancestors ?? [];
+    if (!table || depth >= LOOT_TABLE_MAX_DEPTH || ancestors.includes(tableId)) {
+      recordLootEvent(context, {
+        type: "loot-table-blocked", tableId,
+        reason: !table ? "missing-table" : depth >= LOOT_TABLE_MAX_DEPTH ? "maximum-depth" : "cycle",
+      });
+      return null;
+    }
+    const nextAncestors = [...ancestors, tableId];
+    const eligible = table.entries.filter((entry) => this.entryEligible(entry, context, {
+      depth: depth + 1,
+      ancestors: nextAncestors,
+    }));
+    const skipped = table.entries.length - eligible.length;
+    if (skipped > 0) {
+      recordLootEvent(context, { type: "loot-ineligible-skipped", tableId, count: skipped });
+    }
+    const selected = weightedLootChoice(eligible, context.random);
+    if (!selected) {
+      recordLootEvent(context, { type: "loot-table-empty", tableId });
+      return null;
+    }
+    recordLootEvent(context, { type: "loot-selected", tableId, entry: lootEntryLabel(selected) });
+    if (selected.type === "table") {
+      return this.resolveTable(selected.tableId, context, {
+        depth: depth + 1,
+        ancestors: nextAncestors,
+      });
+    }
+    return grantLootEntry(selected, context, tableId);
+  },
+
+  entryEligible(entry, context, state = {}) {
+    if (!entry || !(Number(entry.weight) > 0)) return false;
+    if (entry.type === "gold") return true;
+    if (entry.type === "material") return Boolean(MATERIAL_DEFINITIONS[entry.materialId]);
+    if (entry.type === "item") {
+      const item = ITEM_DEFINITIONS[entry.itemId];
+      const alreadyStaged = context.expedition?.unsecuredLoot
+        ?.some((reward) => reward.itemId === entry.itemId);
+      return Boolean(item && (!item.unique
+        || (!context.player?.ownedItems?.[entry.itemId] && !alreadyStaged)));
+    }
+    if (entry.type === "recipe") {
+      return Boolean(RECIPE_DEFINITIONS[entry.recipeId]
+        && !context.player?.learnedRecipes?.includes(entry.recipeId)
+        && !context.expedition?.unsecuredRecipes?.includes(entry.recipeId));
+    }
+    if (entry.type === "table") {
+      const table = LOOT_TABLE_DEFINITIONS[entry.tableId];
+      if (!table || (state.depth ?? 0) >= LOOT_TABLE_MAX_DEPTH
+        || (state.ancestors ?? []).includes(entry.tableId)) return false;
+      return table.entries.some((child) => this.entryEligible(child, context, {
+        depth: (state.depth ?? 0) + 1,
+        ancestors: [...(state.ancestors ?? []), entry.tableId],
+      }));
+    }
+    return false;
+  },
+
+  returnRewardTier(distance) {
+    const reached = Math.max(0, Number(distance) || 0);
+    return [...EXPEDITION_RETURN_REWARD_TIERS]
+      .reverse()
+      .find((tier) => reached >= tier.minimumDistance) ?? EXPEDITION_RETURN_REWARD_TIERS[0];
+  },
+
+  awardExpeditionReturn(player, expedition) {
+    if (!expedition || expedition.returnRewardsRolled) return expedition?.returnRewardResults ?? [];
+    const tier = this.returnRewardTier(expedition.maxDistanceReached);
+    expedition.returnRewardTier = tier.id;
+    expedition.returnRewardLog ??= [];
+    const results = this.resolveSources(tier.sources, {
+      player,
+      expedition,
+      random: expedition.random,
+      debugLog: expedition.returnRewardLog,
+    });
+    expedition.returnRewardResults = results;
+    expedition.returnRewardsRolled = true;
+    console.debug("[Loot] expedition-return", {
+      tier: tier.id,
+      maximumDistance: expedition.maxDistanceReached,
+      results,
+      trace: expedition.returnRewardLog,
+    });
+    return results;
+  },
+});
+
+function grantLootEntry(entry, context, sourceTableId) {
+  const quantity = lootQuantity(entry, context.random);
+  const reward = { type: entry.type, quantity, sourceTableId };
+  if (entry.type === "gold") {
+    if (context.expedition) context.expedition.goldCarried += quantity;
+    else if (context.player) context.player.currentGold += quantity;
+  } else if (entry.type === "material") {
+    reward.materialId = entry.materialId;
+    if (context.expedition) addQuantity(context.expedition.unsecuredMaterials, entry.materialId, quantity);
+    else addQuantity(context.player.materials, entry.materialId, quantity);
+  } else if (entry.type === "item") {
+    reward.itemId = entry.itemId;
+    if (context.expedition) addEntryQuantity(context.expedition.unsecuredLoot, "itemId", entry.itemId, quantity);
+    else addQuantity(context.player.ownedItems, entry.itemId, quantity);
+  } else if (entry.type === "recipe") {
+    reward.recipeId = entry.recipeId;
+    reward.quantity = 1;
+    if (context.expedition) context.expedition.unsecuredRecipes.push(entry.recipeId);
+    else if (!context.player.learnedRecipes.includes(entry.recipeId)) context.player.learnedRecipes.push(entry.recipeId);
+  }
+  recordLootEvent(context, { type: "loot-granted", ...reward });
+  return reward;
+}
+
+function weightedLootChoice(entries, random) {
+  const total = entries.reduce((sum, entry) => sum + Number(entry.weight), 0);
+  if (!(total > 0)) return null;
+  let roll = lootRandom(random) * total;
+  for (const entry of entries) {
+    roll -= Number(entry.weight);
+    if (roll < 0) return entry;
+  }
+  return entries.at(-1) ?? null;
+}
+
+function lootQuantity(entry, random) {
+  if (Number.isFinite(entry.quantity)) return Math.max(1, Math.floor(entry.quantity));
+  const minimum = Math.max(1, Math.floor(Number(entry.minimum) || 1));
+  const maximum = Math.max(minimum, Math.floor(Number(entry.maximum) || minimum));
+  return minimum + Math.floor(lootRandom(random) * (maximum - minimum + 1));
+}
+
+function lootRandom(random) {
+  const value = Number((typeof random === "function" ? random : GameRandom.random)());
+  return Math.min(1 - Number.EPSILON, Math.max(0, Number.isFinite(value) ? value : 0));
+}
+
+function addQuantity(collection, id, quantity) {
+  collection[id] = (collection[id] ?? 0) + quantity;
+}
+
+function addEntryQuantity(collection, idField, id, quantity) {
+  const existing = collection.find((entry) => entry[idField] === id);
+  if (existing) existing.quantity += quantity;
+  else collection.push({ [idField]: id, quantity });
+}
+
+function lootEntryLabel(entry) {
+  return entry.type === "table" ? `${entry.type}:${entry.tableId}`
+    : entry.type === "material" ? `${entry.type}:${entry.materialId}`
+      : entry.type === "item" ? `${entry.type}:${entry.itemId}`
+        : entry.type === "recipe" ? `${entry.type}:${entry.recipeId}` : entry.type;
+}
+
+function recordLootEvent(context, event) {
+  context.debugLog?.push(event);
+}

@@ -113,8 +113,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 quantity: 1,
                 resultText: "Among the abandoned camp's scattered belongings, Arthur finds {itemName}.",
               },
+              { type: "rollLootTable", tableId: "forest_encounter_forage", rolls: 1 },
             ],
-            resultText: "The search turns up one mundane item worth carrying home. It remains unsecured until a safe return.",
+            resultText: "The search turns up a small cache worth carrying home. Everything remains unsecured until a safe return.",
             pendingAction: {
               text: "Arthur searches the abandoned bedrolls, packs, and cold fire ring...",
               delayProfile: "search",

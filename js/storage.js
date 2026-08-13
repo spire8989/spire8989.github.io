@@ -5,7 +5,7 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 6,
+      saveVersion: 7,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -20,6 +20,14 @@ const SaveSystem = Object.freeze({
         relic: "silver_stag_medallion",
       },
       packedItems: ["wayfarers_cloak", "rope", "torch"],
+      materials: {
+        medicinal_herbs: 2,
+        cloth: 3,
+        leather: 1,
+        iron: 2,
+        wood: 1,
+      },
+      learnedRecipes: ["bandages", "repair_kit"],
       unlockedCompanions: ["sir_kay"],
       selectedCompanion: "sir_kay",
       learnedKnowledge: ["woodcraft"],
@@ -126,10 +134,12 @@ function sanitizePlayerState(savedState, defaults) {
       : defaults.selectedCompanion;
 
   return {
-    saveVersion: 6,
+    saveVersion: 7,
     ownedItems,
     equippedItems,
     packedItems,
+    materials: sanitizeMaterials(savedState.materials),
+    learnedRecipes: sanitizeRecipeIds(savedState.learnedRecipes, defaults.learnedRecipes),
     unlockedCompanions,
     selectedCompanion,
     learnedKnowledge: sanitizeKnowledge(savedState.learnedKnowledge, defaults.learnedKnowledge),
@@ -149,6 +159,20 @@ function sanitizePlayerState(savedState, defaults) {
       ? savedState.currentLocationId
       : defaults.currentLocationId,
   };
+}
+
+function sanitizeMaterials(value) {
+  const materials = {};
+  Object.keys(MATERIAL_DEFINITIONS).forEach((materialId) => {
+    const quantity = Number(value?.[materialId]);
+    if (Number.isInteger(quantity) && quantity > 0) materials[materialId] = quantity;
+  });
+  return materials;
+}
+
+function sanitizeRecipeIds(value, fallback) {
+  const source = Array.isArray(value) ? value : fallback;
+  return [...new Set(source.filter((recipeId) => RECIPE_DEFINITIONS[recipeId]))];
 }
 
 function sanitizePackedItems(savedState, ownedItems, equippedItems, fallback) {
