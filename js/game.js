@@ -983,10 +983,10 @@ function renderCombatControls(combat, activeActor) {
     return '<p class="combat-waiting">Watch enemy intent and prepare your response.</p>';
   }
   if (combat.interactionMode === "enemyTarget") {
-    return `<div class="combat-target-prompt"><p>Choose an enemy target</p><button type="button" data-action="combat-cancel-target">Cancel</button></div>`;
+    return `<div class="combat-target-prompt"><p>${combat.pendingTargetPrompt ?? "Choose an enemy target"}</p><button type="button" data-action="combat-cancel-target">Cancel</button></div>`;
   }
   if (combat.interactionMode === "allyTarget") {
-    return `<div class="combat-target-prompt"><p>Choose an ally to heal</p><button type="button" data-action="combat-cancel-target">Cancel</button></div>`;
+    return `<div class="combat-target-prompt"><p>${combat.pendingTargetPrompt ?? "Choose an ally target"}</p><button type="button" data-action="combat-cancel-target">Cancel</button></div>`;
   }
   if (combat.interactionMode === "abilities") {
     const abilities = CombatSystem.availableAbilities(combat, game.expedition);
@@ -1201,13 +1201,7 @@ function chooseCombatAction(actionId) {
     return;
   }
   const result = CombatSystem.chooseAction(combat, expedition, actionId);
-  if (result.needsTarget) {
-    renderCombat(expedition, combat);
-    return;
-  }
-  if (result.resolved) {
-    finishCombatResolution(expedition);
-  }
+  handleCombatInteractionResult(expedition, combat, result);
 }
 
 function chooseCombatTarget(targetId) {
@@ -1217,9 +1211,7 @@ function chooseCombatTarget(targetId) {
     return;
   }
   const result = CombatSystem.choosePendingTarget(combat, expedition, targetId);
-  if (result.resolved) {
-    finishCombatResolution(expedition);
-  }
+  handleCombatInteractionResult(expedition, combat, result);
 }
 
 function chooseCombatAbility(abilityId) {
@@ -1227,8 +1219,7 @@ function chooseCombatAbility(abilityId) {
   const combat = expedition?.combat;
   if (!combat) return;
   const result = CombatSystem.chooseAbility(combat, expedition, abilityId);
-  if (result.needsTarget) renderCombat(expedition, combat);
-  else if (result.resolved) finishCombatResolution(expedition);
+  handleCombatInteractionResult(expedition, combat, result);
 }
 
 function chooseCombatItem(itemId) {
@@ -1236,8 +1227,17 @@ function chooseCombatItem(itemId) {
   const combat = expedition?.combat;
   if (!combat) return;
   const result = CombatSystem.chooseItem(combat, expedition, itemId);
-  if (result.needsTarget) renderCombat(expedition, combat);
-  else if (result.resolved) finishCombatResolution(expedition);
+  handleCombatInteractionResult(expedition, combat, result);
+}
+
+function handleCombatInteractionResult(expedition, combat, result) {
+  if (result?.menu || result?.needsTarget || result?.unavailable) {
+    renderCombat(expedition, combat);
+    return;
+  }
+  if (result?.resolved) {
+    finishCombatResolution(expedition);
+  }
 }
 
 function backCombatMenu() {

@@ -819,3 +819,28 @@ The human developer supplied the reserve ordering, emergency-turnaround boundari
 ### Resulting prototype state
 
 Campaign preparation now budgets for ordinary encounter pressure rather than only passive travel, and expeditions can abandon an overextended outbound target using current food state before exhaustion becomes inevitable. Random is broadly sustainable in the measured batch, while Aggressive remains longer-ranging and primarily constrained by combat death. Inn recovery remains one production action that can be repeated by either a player or an automated policy, with every rest independently charged and persisted.
+
+## 2026-08-12 — Combat Menu Integration Fix Pass
+
+### Goal
+
+Repair the focused combat submenu and target-selection integration bugs without changing the broader combat design or balance.
+
+### Human prompt and direction
+
+The human developer reported that Abilities and Items changed combat state without redrawing, target Cancel lost its originating submenu, and ally prompts were too specifically worded. The requested scope was limited to state transitions, generic prompting, browser coverage, and regression verification.
+
+### AI-assisted implementation
+
+- Centralized combat interaction-result handling in `game.js` so menu transitions, target selection, unavailable states, and resolutions all update the rendered combat panel immediately.
+- Added generic target-selection return state and cleanup. Attack Cancel returns to Main, Pommel Strike Cancel returns to Abilities, and Bandage Cancel returns to Items without consuming gauges, damage, or inventory.
+- Added data-defined selection prompts for attack, Pommel Strike, and Bandages, with generic ally/enemy fallbacks for future actions.
+- Added browser integration assertions that click the rendered Abilities and Items controls, verify submenu redraws, exercise both target Cancel paths, and confirm basic Attack still returns to Main.
+
+### Manual changes
+
+The human developer supplied the reported integration failures, desired state transitions, prompt generalization, and commit/push authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+Combat submenu navigation now visibly follows the paused state machine, target selection remembers its originating context, and future ally-target actions can provide their own concise prompt without changing the UI renderer.

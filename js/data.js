@@ -329,6 +329,7 @@ const ITEM_DEFINITIONS = Object.freeze({
         effectType: "heal",
         amount: 8,
         target: "ally",
+        selectionPrompt: "Choose an ally to heal",
         description: "Restore 8 HP to one injured ally.",
       }),
     },

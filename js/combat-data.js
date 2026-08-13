@@ -2,7 +2,13 @@
 
 // Combat content stays separate from the frame-rate-independent simulation.
 const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
-  attack: Object.freeze({ id: "attack", name: "Attack", target: "enemy", category: "action" }),
+  attack: Object.freeze({
+    id: "attack",
+    name: "Attack",
+    target: "enemy",
+    selectionPrompt: "Choose an enemy target",
+    category: "action",
+  }),
   defend: Object.freeze({ id: "defend", name: "Defend", target: "self", category: "action" }),
   abilities: Object.freeze({
     id: "abilities",
@@ -23,6 +29,7 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     name: "Pommel Strike",
     description: "Deal reduced weapon damage and push an enemy's action gauge back.",
     target: "enemy",
+    selectionPrompt: "Choose an enemy target",
     effectType: "damageAndGauge",
     damageMultiplier: 0.6,
     gaugeReduction: 25,

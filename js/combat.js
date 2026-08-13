@@ -38,6 +38,8 @@ const CombatSystem = Object.freeze({
       pendingActionId: null,
       pendingActionKind: null,
       interactionMode: "main",
+      targetSelectionReturnMode: null,
+      pendingTargetPrompt: null,
       log: [],
       events: [],
       result: null,
@@ -108,16 +110,22 @@ const CombatSystem = Object.freeze({
       state.interactionMode = "main";
       state.pendingActionId = null;
       state.pendingActionKind = null;
+      state.targetSelectionReturnMode = null;
+      state.pendingTargetPrompt = null;
       return { resolved: false, menu: "main" };
     }
     if (actionId === "abilities") {
       if (availableAbilityIds(state, expedition).length === 0) return { resolved: false, unavailable: true };
       state.interactionMode = "abilities";
+      state.targetSelectionReturnMode = null;
+      state.pendingTargetPrompt = null;
       return { resolved: false, menu: "abilities" };
     }
     if (actionId === "items") {
       if (availableItemEntries(state, expedition).length === 0) return { resolved: false, unavailable: true };
       state.interactionMode = "items";
+      state.targetSelectionReturnMode = null;
+      state.pendingTargetPrompt = null;
       return { resolved: false, menu: "items" };
     }
     if (availableAbilityIds(state, expedition).includes(actionId)) {
@@ -129,7 +137,11 @@ const CombatSystem = Object.freeze({
 
     if (actionId === "attack") {
       const targets = state.enemies.filter(isLivingCombatant);
-      if (!targetId && targets.length > 1) return enterTargetSelection(state, actionId, "enemy");
+      if (!targetId && targets.length > 1) {
+        return enterTargetSelection(
+          state, actionId, "enemy", "action", COMBAT_ABILITY_DEFINITIONS[actionId].selectionPrompt,
+        );
+      }
       const target = targetId
         ? targets.find((candidate) => candidate.id === targetId)
         : targets[0];
@@ -157,6 +169,8 @@ const CombatSystem = Object.freeze({
     state.pendingActionId = null;
     state.pendingActionKind = null;
     state.interactionMode = "main";
+    state.targetSelectionReturnMode = null;
+    state.pendingTargetPrompt = null;
     if (state.status === "awaitingAction") {
       state.status = "running";
       activateNextAlly(state);
@@ -176,7 +190,9 @@ const CombatSystem = Object.freeze({
       ? state.enemies.filter(isLivingCombatant)
       : ability.target === "ally" ? state.allies.filter(isLivingCombatant) : [];
     if (["enemy", "ally"].includes(ability.target) && !targetId && targets.length > 1) {
-      return enterTargetSelection(state, abilityId, ability.target, "ability");
+      return enterTargetSelection(
+        state, abilityId, ability.target, "ability", ability.selectionPrompt,
+      );
     }
     const target = ability.target === "self" ? actor : targetId ? targets.find((entry) => entry.id === targetId) : targets[0];
     if (["enemy", "ally"].includes(ability.target) && !target) {
@@ -203,7 +219,11 @@ const CombatSystem = Object.freeze({
     const targets = itemEffect.target === "ally"
       ? state.allies.filter((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp)
       : [];
-    if (!targetId && targets.length > 1) return enterTargetSelection(state, itemId, "ally", "item");
+    if (!targetId && targets.length > 1) {
+      return enterTargetSelection(
+        state, itemId, "ally", "item", itemEffect.selectionPrompt,
+      );
+    }
     const target = targetId ? targets.find((ally) => ally.id === targetId) : targets[0];
     if (!target) return { resolved: false, needsTarget: targets.length > 1, targetType: "ally" };
     const amount = Math.min(Number(itemEffect.amount) || 0, target.maxHp - target.hp);
@@ -243,7 +263,9 @@ const CombatSystem = Object.freeze({
     }
     state.pendingActionId = null;
     state.pendingActionKind = null;
-    state.interactionMode = "main";
+    state.interactionMode = state.targetSelectionReturnMode ?? "main";
+    state.targetSelectionReturnMode = null;
+    state.pendingTargetPrompt = null;
     return true;
   },
 });
@@ -505,11 +527,15 @@ function availableItemEntries(state, expedition = state?.expedition) {
     );
 }
 
-function enterTargetSelection(state, actionId, targetType, kind = "action") {
+function enterTargetSelection(state, actionId, targetType, kind = "action", prompt = null) {
   state.pendingActionId = actionId;
   state.pendingActionKind = kind;
+  state.targetSelectionReturnMode = state.interactionMode === "enemyTarget"
+    || state.interactionMode === "allyTarget" ? "main" : state.interactionMode;
+  state.pendingTargetPrompt = prompt ?? (targetType === "ally"
+    ? "Choose an ally target" : "Choose an enemy target");
   state.interactionMode = targetType === "ally" ? "allyTarget" : "enemyTarget";
-  return { resolved: false, needsTarget: true, targetType };
+  return { resolved: false, needsTarget: true, targetType, targetPrompt: state.pendingTargetPrompt };
 }
 
 function finishActorAction(state, expedition, actor, event = {}) {
@@ -518,6 +544,8 @@ function finishActorAction(state, expedition, actor, event = {}) {
   state.pendingActionId = null;
   state.pendingActionKind = null;
   state.interactionMode = "main";
+  state.targetSelectionReturnMode = null;
+  state.pendingTargetPrompt = null;
   if (state.status === "awaitingAction") {
     state.status = "running";
     activateNextAlly(state);
@@ -546,6 +574,8 @@ function finishCombat(state, result) {
   state.pendingActionId = null;
   state.pendingActionKind = null;
   state.interactionMode = "main";
+  state.targetSelectionReturnMode = null;
+  state.pendingTargetPrompt = null;
   state.readyQueue.length = 0;
 }
 
