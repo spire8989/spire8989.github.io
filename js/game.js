@@ -1120,6 +1120,7 @@ function renderCombat(expedition, combat) {
 function renderCombatant(combatant, combat) {
   const defeated = combatant.hp <= 0;
   const ready = combatant.id === combat.activeActorId;
+  const wasHit = Boolean(combatant.lastHitEvent);
   const selectable = !defeated && (
     (combat.interactionMode === "enemyTarget" && combatant.side === "enemy")
     || (combat.interactionMode === "allyTarget" && combatant.side === "ally" && combatant.hp < combatant.maxHp)
@@ -1133,8 +1134,8 @@ function renderCombatant(combatant, combat) {
   const targetAttributes = selectable
     ? `type="button" data-action="combat-target" data-target-id="${combatant.id}" aria-label="Target ${combatant.name}"`
     : "";
-  return `
-    <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${combatant.lastHitEvent ? "was-hit" : ""}"
+  const markup = `
+    <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${wasHit ? "was-hit" : ""}"
       data-combatant-id="${combatant.id}" ${targetAttributes}>
       <div class="combatant-token" aria-hidden="true">${combatant.side === "ally" ? "♞" : "◆"}</div>
       <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
@@ -1143,6 +1144,8 @@ function renderCombatant(combatant, combat) {
       <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       ${effects ? `<small>${effects}</small>` : ""}
     </${tag}>`;
+  combatant.lastHitEvent = null;
+  return markup;
 }
 
 function renderCombatControls(combat, activeActor) {

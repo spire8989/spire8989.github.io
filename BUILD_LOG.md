@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-13 — Combat Hit Flash Lifecycle Fix
+
+### Goal
+
+Stop combat nameplates from replaying the red hit animation whenever the combat panel rerenders for a ready turn, submenu, or target-selection action.
+
+### Human prompt and direction
+
+The human developer reported that a nameplate correctly flashed when attacked but continued flashing after unrelated combat actions. The requested scope was to identify and fix the UI state lifecycle, preserve the intentional hit feedback, add regression coverage, and commit/push the fix.
+
+### AI-assisted implementation
+
+- Traced the behavior to `lastHitEvent` remaining truthy after the initial hit, while `renderCombatant` reapplied the `.was-hit` CSS animation on every full combat-panel render.
+- Changed nameplate rendering to consume the hit marker after emitting one `.was-hit` class, so the 220ms flash remains visible for the hit render but cannot restart on later menu, target, or ready-state updates.
+- Added a browser regression assertion that verifies the attacked nameplate flashes once and is clear on the next render.
+
+### Manual changes
+
+The human developer supplied the observed UI regression and commit/push authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+Combat hit feedback remains immediate and readable, while Abilities, Items, target selection, and turn-ready rerenders no longer replay stale damage flashes.
+
+### Verification
+
+Verified 264 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, and `git diff --check`.
+
 ## 2026-08-13 — Upper-Viewport Toast Placement
 
 ### Goal
