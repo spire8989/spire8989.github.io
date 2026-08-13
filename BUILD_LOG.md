@@ -1,5 +1,35 @@
 # Build Log
 
+## 2026-08-13 - Brocéliande Mobile Preparation Flow Polish
+
+### Goal
+
+Make the existing Brocéliande dialogue and expedition preparation screens easier to use on portrait phones without changing story content, saved campaign state, simulation behavior, or toast behavior.
+
+### Human prompt and direction
+
+The human developer supplied a focused mobile UX guide requesting a substantially darker translucent dialogue backdrop and a compact four-step preparation flow: Route, Gear & Pack, Company & Supplies, and Review & Depart. The guide also required persistent preparation state, top Village escape, bottom Back/Continue controls, scroll reset on step transitions, mobile overflow checks, regression coverage, and a local commit without pushing.
+
+### AI-assisted implementation
+
+- Added transient `game.preparationStep` navigation for the four preparation stages while keeping equipment, pack, route, companion, and provision mutations on their existing handlers and save model.
+- Split the unified preparation renderer into isolated Route, Gear & Pack, Company & Supplies, and Review & Depart views with a compact stepper, Arthur/companion summary, route danger, loadout, pack, provision, and travel-speed review details.
+- Added step-aware Back/Continue controls, reset preparation scroll when changing stages, retained top Village escape on every stage, and preserved scroll while editing equipment, pack, company, or provisions.
+- Strengthened the dialogue backdrop to a 70–78% dark translucent gradient while preserving the centered responsive card, click prevention, and existing dialogue content.
+- Extended the location browser regression flow for step isolation, state persistence, mobile footer visibility, review navigation, and the stronger backdrop assertion.
+
+### Manual changes
+
+The human developer supplied the mobile UX polish guide and requested another local Git commit. No manual code edits were reported.
+
+### Resulting prototype state
+
+Brocéliande preparation is now a compact guided flow that remains compatible with the existing expedition state and mobile scrolling behavior. Dialogue scenes read more clearly against the artwork while remaining visibly translucent and responsive.
+
+### Verification
+
+Verified 357 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production startup through the browser regression server, and `git diff --check`. Changes were committed locally; no push was performed.
+
 ## 2026-08-13 - Brocéliande Dialogue and Notification Polish
 
 ### Goal

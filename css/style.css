@@ -475,6 +475,65 @@ button:active:not(:disabled) {
   padding: 0.35rem 0.55rem;
 }
 
+.preparation-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin: -0.25rem 0 0.8rem;
+  padding: 0;
+  list-style: none;
+}
+
+.preparation-step {
+  display: grid;
+  justify-items: center;
+  gap: 0.22rem;
+  min-width: 0;
+  padding: 0.35rem 0.12rem;
+  border-top: 2px solid rgb(217 189 114 / 22%);
+  color: #7f8a80;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.48rem, 2.1cqw, 0.64rem);
+  text-align: center;
+}
+
+.preparation-step.is-complete {
+  border-top-color: #86a98d;
+  color: #a9d3ad;
+}
+
+.preparation-step.is-current {
+  border-top-color: var(--gold);
+  color: #f2e5c2;
+}
+
+.preparation-step-number {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.preparation-step-heading {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgb(217 189 114 / 18%);
+}
+
+.preparation-step-heading .eyebrow {
+  margin-bottom: 0.15rem;
+}
+
+.preparation-step-heading h2 {
+  margin: 0;
+  color: #f2e5c2;
+  font-size: clamp(1rem, 4.8cqw, 1.35rem);
+}
+
 .preparation-section {
   margin-bottom: 1rem;
 }
@@ -567,6 +626,30 @@ button:active:not(:disabled) {
 .party-slot-list {
   display: grid;
   gap: 0.6rem;
+}
+
+.party-lead-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  padding: 0.6rem;
+  border: 1px solid rgb(217 189 114 / 32%);
+  border-left: 3px solid var(--gold);
+  border-radius: 0.4rem;
+  background: rgb(56 59 37 / 35%);
+}
+
+.party-lead-card strong {
+  color: #f2e5c2;
+  font-size: clamp(0.7rem, 3.1cqw, 0.9rem);
+}
+
+.party-lead-card span {
+  color: var(--gold);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.2cqw, 0.68rem);
 }
 
 .party-slot {
@@ -858,7 +941,7 @@ button:active:not(:disabled) {
 
 .stepper {
   display: grid;
-  grid-template-columns: 1.9rem 2.2rem 1.9rem;
+  grid-template-columns: repeat(5, minmax(1.75rem, 2rem));
   align-items: center;
   text-align: center;
 }
@@ -881,6 +964,94 @@ button:active:not(:disabled) {
 
 .footer-actions .game-button {
   flex: 1;
+}
+
+.preparation-footer {
+  margin-top: 0.35rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgb(217 189 114 / 18%);
+}
+
+.preparation-footer .text-button {
+  min-width: 5.2rem;
+}
+
+.preparation-review {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.25rem;
+}
+
+.review-card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem;
+  border: 1px solid rgb(217 189 114 / 25%);
+  border-radius: 0.4rem;
+  background: rgb(8 14 9 / 35%);
+}
+
+.review-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.review-card h2 {
+  margin: 0;
+  color: var(--gold);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.56rem, 2.4cqw, 0.72rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.review-card-heading > span:not(.danger-rating) {
+  color: #a9d3ad;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.2cqw, 0.68rem);
+}
+
+.review-card > strong {
+  color: #f2e5c2;
+  font-size: clamp(0.82rem, 3.6cqw, 1rem);
+}
+
+.review-card p {
+  margin: 0;
+  color: #b6beb0;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.55rem, 2.3cqw, 0.7rem);
+  line-height: 1.35;
+}
+
+@media (max-width: 360px) {
+  .preparation-stepper {
+    gap: 0.12rem;
+  }
+
+  .preparation-step {
+    font-size: 0.47rem;
+  }
+
+  .preparation-footer {
+    gap: 0.45rem;
+  }
+
+  .preparation-footer .text-button {
+    min-width: 4.3rem;
+  }
+
+  .supplies-section {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .stepper {
+    justify-content: space-between;
+  }
 }
 
 /* Active interaction screens reserve a reusable, artwork-ready 16:9 frame. */
@@ -2605,7 +2776,7 @@ button.combatant {
   display: flex;
   align-items: center;
   padding: clamp(0.8rem, 7cqw, 1.6rem) clamp(0.65rem, 4cqw, 1rem);
-  background: linear-gradient(transparent 12%, rgb(4 8 5 / 18%) 42%, rgb(4 8 5 / 38%) 100%);
+  background: linear-gradient(rgb(4 8 5 / 70%) 0%, rgb(4 8 5 / 78%) 100%);
   pointer-events: auto;
 }
 

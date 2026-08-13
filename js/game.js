@@ -11,6 +11,7 @@ const game = {
   // Retained as a compatibility field for older runtime callers; preparation
   // is now always the unified expedition setup screen.
   preparationMode: "expedition",
+  preparationStep: "route",
   activeDestinationId: null,
   shopTab: "buy",
   provisionShopStock: createProvisionShopStock(),
@@ -100,6 +101,7 @@ function handleAction(event) {
     case "view-inventory":
     case "prepare-expedition":
       game.preparationMode = "expedition";
+      game.preparationStep = "route";
       game.preparationSupplies = Math.min(
         Math.max(game.preparationSupplies, EXPEDITION_TUNING.minimumStartingProvisions),
         game.player.provisions,
@@ -121,6 +123,12 @@ function handleAction(event) {
       break;
     case "select-expedition":
       selectExpedition(expeditionId);
+      break;
+    case "preparation-continue":
+      advancePreparationStep();
+      break;
+    case "preparation-back":
+      retreatPreparationStep();
       break;
     case "change-supplies":
       changeSupplies(Number(control.dataset.amount));
@@ -784,21 +792,63 @@ function dangerRatingMarkup(rating) {
   return Array.from({ length: Math.max(0, Number(rating) || 0) }, () => categoryIcon("skull")).join("");
 }
 
-function renderPreparation() {
+const PREPARATION_STEPS = Object.freeze([
+  { id: "route", label: "Route", title: "Choose Expedition" },
+  { id: "gear", label: "Gear & Pack", title: "Gear & Pack" },
+  { id: "company", label: "Company", title: "Company & Supplies" },
+  { id: "review", label: "Review", title: "Review & Depart" },
+]);
+
+function preparationStepIndex() {
+  const index = PREPARATION_STEPS.findIndex((step) => step.id === game.preparationStep);
+  if (index >= 0) return index;
+  game.preparationStep = PREPARATION_STEPS[0].id;
+  return 0;
+}
+
+function preparationStepper() {
+  const currentIndex = preparationStepIndex();
+  return `
+    <ol class="preparation-stepper" aria-label="Expedition preparation steps">
+      ${PREPARATION_STEPS.map((step, index) => `
+        <li class="preparation-step ${index === currentIndex ? "is-current" : ""} ${index < currentIndex ? "is-complete" : ""}" ${index === currentIndex ? 'aria-current="step"' : ""}>
+          <span class="preparation-step-number">${index + 1}</span>
+          <span>${step.label}</span>
+        </li>`).join("")}
+    </ol>`;
+}
+
+function preparationCanStart() {
   const selectedCompanions = selectedCompanionIds(game.player);
   const provisionCapacity = partyProvisionCapacity(selectedCompanions);
-  const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(selectedCompanions);
-  const inventory = Object.entries(game.player.ownedItems)
-    .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
-    .join("");
-  const companionSlots = [0, 1].map((slot) => renderCompanionSlot(slot, selectedCompanions[slot] ?? null)).join("");
-  const equipment = ["weapon", "armor", "relic"]
-    .map((slot) => equipmentSlotCard(slot, game.player.equippedItems[slot]))
-    .join("");
-  const packedItems = game.player.packedItems
-    .map((itemId) => packItemCard(ITEM_DEFINITIONS[itemId], game.player.ownedItems[itemId]))
-    .join("");
-  const emptyPackSlots = EXPEDITION_TUNING.packSlots - game.player.packedItems.length;
+  return game.preparationSupplies > 0
+    && HealingRules.arthurHealth(game.player) > 0
+    && ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId)
+    && game.preparationSupplies <= game.player.provisions
+    && game.preparationSupplies <= provisionCapacity;
+}
+
+function preparationFooter() {
+  const currentIndex = preparationStepIndex();
+  const isLastStep = currentIndex === PREPARATION_STEPS.length - 1;
+  const continueDisabled = currentIndex === 0
+    && !ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId);
+  const backButton = currentIndex > 0
+    ? '<button class="text-button" type="button" data-action="preparation-back">Back</button>'
+    : "";
+  const primaryButton = isLastStep
+    ? `<button class="game-button" type="button" data-action="start-expedition" ${preparationCanStart() ? "" : "disabled"}>Begin Expedition</button>`
+    : `<button class="game-button preparation-next" type="button" data-action="preparation-continue" ${continueDisabled ? "disabled" : ""}>Continue to ${PREPARATION_STEPS[currentIndex + 1].label}</button>`;
+
+  return `
+    <div class="footer-actions preparation-footer" aria-label="Preparation navigation">
+      ${backButton}
+      ${primaryButton}
+    </div>`;
+}
+
+function renderPreparation() {
+  const currentStep = PREPARATION_STEPS[preparationStepIndex()];
 
   ui.screenRoot.innerHTML = `
     <section class="screen preparation-screen" aria-labelledby="preparation-title">
@@ -807,70 +857,180 @@ function renderPreparation() {
         <p class="eyebrow">Chapter III — Brocéliande</p>
         <h1 id="preparation-title">Prepare for Expedition</h1>
       </div>
+      ${preparationStepper()}
+      <div class="preparation-step-heading">
+        <p class="eyebrow">Step ${preparationStepIndex() + 1} of ${PREPARATION_STEPS.length}</p>
+        <h2>${currentStep.title}</h2>
+      </div>
+      ${renderPreparationStep(currentStep.id)}
+      ${preparationFooter()}
+    </section>`;
+}
 
-      <section class="preparation-section expedition-selection-section" aria-labelledby="expedition-selection-title">
-        <div class="section-title-row">
-          <h2 id="expedition-selection-title">Expedition</h2>
-          <span>${ExpeditionCatalog.get(game.player.selectedExpeditionId).kind === "campaign" ? "Campaign route" : "Choose a route"}</span>
-        </div>
-        <div class="expedition-option-list">${EXPEDITION_ORDER.map(renderExpeditionOption).join("")}</div>
-      </section>
+function renderPreparationStep(stepId) {
+  switch (stepId) {
+    case "gear":
+      return renderPreparationGear();
+    case "company":
+      return renderPreparationCompany();
+    case "review":
+      return renderPreparationReview();
+    case "route":
+    default:
+      return renderPreparationRoute();
+  }
+}
 
-      <section class="preparation-section" aria-labelledby="equipment-title">
-        <div class="section-title-row">
-          <h2 id="equipment-title">Equipped Gear</h2>
-          <span>Weapon · Armor · Relic</span>
-        </div>
-        <div class="equipment-slots">${equipment}</div>
-      </section>
+function renderPreparationRoute() {
+  const expedition = ExpeditionCatalog.get(game.player.selectedExpeditionId);
+  return `
+    <section class="preparation-section expedition-selection-section" aria-labelledby="expedition-selection-title">
+      <div class="section-title-row">
+        <h2 id="expedition-selection-title">Choose Expedition</h2>
+        <span>${expedition.kind === "campaign" ? "Campaign route" : "Choose a route"}</span>
+      </div>
+      <p class="section-help">Select a destination. Your gear and company will be ready on the next step.</p>
+      <div class="expedition-option-list">${EXPEDITION_ORDER.map(renderExpeditionOption).join("")}</div>
+    </section>`;
+}
 
-      <section class="preparation-section" aria-labelledby="pack-title">
-        <div class="section-title-row">
-          <h2 id="pack-title">Expedition Pack</h2>
-          <span>${game.player.packedItems.length}/${EXPEDITION_TUNING.packSlots} slots</span>
-        </div>
-        <p class="section-help">Packed tools and consumables are available during encounters.</p>
-        <div class="pack-list">
-          ${packedItems || '<p class="empty-loot">The pack is empty.</p>'}
-          ${Array.from({ length: emptyPackSlots }, () => '<div class="empty-pack-slot">Empty slot</div>').join("")}
-        </div>
-      </section>
+function renderPreparationGear() {
+  const inventory = Object.entries(game.player.ownedItems)
+    .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
+    .join("");
+  const equipment = ["weapon", "armor", "relic"]
+    .map((slot) => equipmentSlotCard(slot, game.player.equippedItems[slot]))
+    .join("");
+  const packedItems = game.player.packedItems
+    .map((itemId) => packItemCard(ITEM_DEFINITIONS[itemId], game.player.ownedItems[itemId]))
+    .join("");
+  const emptyPackSlots = EXPEDITION_TUNING.packSlots - game.player.packedItems.length;
 
-      <section class="preparation-section" aria-labelledby="inventory-title">
-        <div class="section-title-row">
-          <h2 id="inventory-title">Permanent Inventory</h2>
-          <span>${Object.keys(game.player.ownedItems).length} items</span>
-        </div>
-        <div class="inventory-list">${inventory}</div>
-      </section>
+  return `
+    <section class="preparation-section" aria-labelledby="equipment-title">
+      <div class="section-title-row">
+        <h2 id="equipment-title">Equipped Gear</h2>
+        <span>Weapon · Armor · Relic</span>
+      </div>
+      <div class="equipment-slots">${equipment}</div>
+    </section>
 
-      <section class="preparation-section" aria-labelledby="companion-title">
-        <div class="section-title-row">
-          <h2 id="companion-title">Party</h2>
-          <span>${PLAYER_CHARACTER_DEFINITION.name}${selectedCompanions.length > 0 ? ` · ${selectedCompanions.map((id) => COMPANION_DEFINITIONS[id]?.name).join(" · ")}` : " · Traveling Alone"}</span>
-        </div>
-        <div class="party-slot-list">${companionSlots}</div>
-      </section>
+    <section class="preparation-section" aria-labelledby="pack-title">
+      <div class="section-title-row">
+        <h2 id="pack-title">Expedition Pack</h2>
+        <span>${game.player.packedItems.length}/${EXPEDITION_TUNING.packSlots} slots</span>
+      </div>
+      <p class="section-help">Packed tools and consumables are available during encounters.</p>
+      <div class="pack-list">
+        ${packedItems || '<p class="empty-loot">The pack is empty.</p>'}
+        ${Array.from({ length: emptyPackSlots }, () => '<div class="empty-pack-slot">Empty slot</div>').join("")}
+      </div>
+    </section>
 
-      <section class="preparation-section supplies-section" aria-labelledby="supplies-title">
-        <div>
-          <h2 id="supplies-title">Provisions</h2>
-          <p>Owned: <strong>${game.player.provisions}</strong></p>
-          <p>To carry: <strong>${game.preparationSupplies} / ${provisionCapacity}</strong> · Consumption: <strong>${provisionConsumptionMultiplier.toFixed(2)}×</strong></p>
-        </div>
-        <div class="stepper" aria-label="Choose provisions">
-          <button type="button" data-action="change-supplies" data-amount="-5" aria-label="Remove five provisions">−5</button>
-          <button type="button" data-action="change-supplies" data-amount="-1" aria-label="Remove one provision">−</button>
-          <strong>${game.preparationSupplies}</strong>
-          <button type="button" data-action="change-supplies" data-amount="1" aria-label="Add one provision">+</button>
-          <button type="button" data-action="change-supplies" data-amount="5" aria-label="Add five provisions">+5</button>
-        </div>
-      </section>
+    <section class="preparation-section" aria-labelledby="inventory-title">
+      <div class="section-title-row">
+        <h2 id="inventory-title">Permanent Inventory</h2>
+        <span>${Object.keys(game.player.ownedItems).length} items</span>
+      </div>
+      <div class="inventory-list">${inventory}</div>
+    </section>`;
+}
 
-      <div class="footer-actions">
-        <button class="game-button" type="button" data-action="start-expedition" ${game.preparationSupplies > 0 && HealingRules.arthurHealth(game.player) > 0 && ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId) ? "" : "disabled"}>Begin Expedition</button>
+function renderPreparationCompany() {
+  const selectedCompanions = selectedCompanionIds(game.player);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
+  const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(selectedCompanions);
+  const companionSlots = [0, 1]
+    .map((slot) => renderCompanionSlot(slot, selectedCompanions[slot] ?? null))
+    .join("");
+
+  return `
+    <section class="preparation-section" aria-labelledby="companion-title">
+      <div class="section-title-row">
+        <h2 id="companion-title">Company</h2>
+        <span>${PLAYER_CHARACTER_DEFINITION.name}${selectedCompanions.length > 0 ? ` · ${selectedCompanions.map((id) => COMPANION_DEFINITIONS[id]?.name).join(" · ")}` : " · Traveling Alone"}</span>
+      </div>
+      <div class="party-lead-card"><strong>${PLAYER_CHARACTER_DEFINITION.name}</strong><span>Party leader</span></div>
+      <div class="party-slot-list">${companionSlots}</div>
+    </section>
+
+    <section class="preparation-section supplies-section" aria-labelledby="supplies-title">
+      <div>
+        <h2 id="supplies-title">Provisions</h2>
+        <p>Owned: <strong>${game.player.provisions}</strong></p>
+        <p>To carry: <strong>${game.preparationSupplies} / ${provisionCapacity}</strong> · Consumption: <strong>${provisionConsumptionMultiplier.toFixed(2)}×</strong></p>
+      </div>
+      <div class="stepper" aria-label="Choose provisions">
+        <button type="button" data-action="change-supplies" data-amount="-5" aria-label="Remove five provisions">−5</button>
+        <button type="button" data-action="change-supplies" data-amount="-1" aria-label="Remove one provision">−</button>
+        <strong>${game.preparationSupplies}</strong>
+        <button type="button" data-action="change-supplies" data-amount="1" aria-label="Add one provision">+</button>
+        <button type="button" data-action="change-supplies" data-amount="5" aria-label="Add five provisions">+5</button>
       </div>
     </section>`;
+}
+
+function renderPreparationReview() {
+  const expedition = ExpeditionCatalog.get(game.player.selectedExpeditionId);
+  const selectedCompanions = selectedCompanionIds(game.player);
+  const companionNames = selectedCompanions.length > 0
+    ? selectedCompanions.map((id) => COMPANION_DEFINITIONS[id]?.name).filter(Boolean)
+    : ["Traveling Alone"];
+  const equippedNames = ["weapon", "armor", "relic"]
+    .map((slot) => ITEM_DEFINITIONS[game.player.equippedItems[slot]]?.name ?? "Empty")
+    .join(" · ");
+  const packedNames = game.player.packedItems.length > 0
+    ? game.player.packedItems.map((itemId) => {
+      const item = ITEM_DEFINITIONS[itemId];
+      const quantity = Math.min(game.player.ownedItems[itemId], item.maxStack ?? 1);
+      return `${item.name}${quantity > 1 ? ` ×${quantity}` : ""}`;
+    }).join(" · ")
+    : "Pack is empty";
+  const travelSpeed = partyTravelSpeedMultiplier(selectedCompanions);
+  const travelSpeedLabel = travelSpeed === 1 ? "Standard" : `+${Math.round((travelSpeed - 1) * 100)}% faster`;
+  const danger = dangerRatingMarkup(expedition.danger);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
+  const consumption = partyProvisionConsumptionMultiplier(selectedCompanions);
+
+  return `
+    <section class="preparation-review" aria-label="Expedition review">
+      <article class="review-card review-route-card">
+        <div class="review-card-heading"><h2>Route</h2><span class="danger-rating" aria-label="${expedition.danger} skull danger">${danger}</span></div>
+        <strong>${expedition.name}</strong>
+        <p>${expedition.description}</p>
+      </article>
+      <article class="review-card">
+        <div class="review-card-heading"><h2>Company</h2><span>${travelSpeedLabel}</span></div>
+        <p><strong>Arthur</strong> · ${companionNames.join(" · ")}</p>
+        <p>${equippedNames}</p>
+      </article>
+      <article class="review-card">
+        <div class="review-card-heading"><h2>Pack & Provisions</h2><span>${game.preparationSupplies}/${provisionCapacity}</span></div>
+        <p>${packedNames}</p>
+        <p>${game.preparationSupplies} provisions · ${consumption.toFixed(2)}× consumption</p>
+      </article>
+    </section>`;
+}
+
+function advancePreparationStep() {
+  const currentIndex = preparationStepIndex();
+  if (currentIndex >= PREPARATION_STEPS.length - 1) return;
+  if (currentIndex === 0 && !ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId)) return;
+  setPreparationStep(PREPARATION_STEPS[currentIndex + 1].id);
+}
+
+function retreatPreparationStep() {
+  const currentIndex = preparationStepIndex();
+  if (currentIndex <= 0) return;
+  setPreparationStep(PREPARATION_STEPS[currentIndex - 1].id);
+}
+
+function setPreparationStep(stepId) {
+  if (!PREPARATION_STEPS.some((step) => step.id === stepId)) return;
+  game.preparationStep = stepId;
+  renderPreparation();
+  const preparationScreen = document.querySelector(".preparation-screen");
+  if (preparationScreen) preparationScreen.scrollTop = 0;
 }
 
 function inventoryCard(item, quantity) {
@@ -2061,6 +2221,7 @@ function resetSave() {
   game.summary = null;
   game.activeDestinationId = null;
   game.preparationMode = "expedition";
+  game.preparationStep = "route";
   game.shopTab = "buy";
   game.provisionShopStock = createProvisionShopStock();
   game.itemShopStock = createItemShopStock();
