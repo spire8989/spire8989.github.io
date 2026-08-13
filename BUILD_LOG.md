@@ -1,5 +1,35 @@
 # Build Log
 
+## 2026-08-13 - Focused Expedition UI Pass
+
+### Goal
+
+Improve expedition readability and interaction without expanding the game systems: present discoveries as persistent reward cards, clarify unsecured loot, make multi-enemy targeting direct, and separate return-tier rewards from the expedition haul.
+
+### Human prompt and direction
+
+The human developer supplied a focused UI/UX guide requesting reusable item/material/gold/recipe reward presentation, an actual unsecured-loot HUD summary, persistent enemy selection during paused combat, a clearer returned-expedition report, no combat balance or reward changes, regression coverage, and commit/push when complete.
+
+### AI-assisted implementation
+
+- Added a reusable reward-card renderer with category labels, item metadata, rarity treatment, quantities, descriptions, unsecured/secured status, entrance animation, and reduced-motion behavior. Encounter discoveries remain persistent until Continue Journey and are no longer duplicated as plain reward messages.
+- Reworked the expedition resource HUD to show a prominent Unsecured Loot count plus item, material, and gold quantities from the actual staged state.
+- Added persistent selected-enemy state, gold selection highlighting, selectable enemy cards while combat is paused, direct basic attacks against the selected living enemy, and automatic reselection after a target is defeated. Existing ability/item target semantics remain intact.
+- Moved return-tier loot into a separate transient reward bucket, settled it through the same authoritative lifecycle, preserved simulation/campaign totals, and rendered the report as distinct Expedition Haul and distance-tier Return Reward sections.
+- Updated the browser regression coverage for reward cards, unsecured quantities, separated return rewards, persistent combat selection, dead-target fallback, direct Attack behavior, and short portrait report containment.
+
+### Manual changes
+
+The human developer supplied the focused UI guide and requested commit/push authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+Expedition discoveries now read as durable, contextual rewards; unsecured progress is easy to understand at a glance; combat target selection is faster and remains visible between turns; and return reports distinguish what was found on the road from the distance-based bonus.
+
+### Verification
+
+Verified 269 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production startup over local HTTP, and `git diff --check`.
+
 ## 2026-08-13 — Combat Hit Flash Lifecycle Fix
 
 ### Goal

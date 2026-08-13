@@ -84,8 +84,9 @@ const EncounterOutcomes = Object.freeze({
       if (resolved.combat) {
         combined.combat = resolved.combat;
       }
+      combined.rewards.push(...(resolved.rewards ?? []));
       return combined;
-    }, { messages: [], resultText: "", combat: null });
+    }, { messages: [], rewards: [], resultText: "", combat: null });
   },
 
   applyAll(effects = [], context) {
@@ -99,6 +100,7 @@ const EncounterOutcomes = Object.freeze({
   resolve(effect, context) {
     const { expedition, player } = context;
     let messages = [];
+    let rewards = [];
     let resultText = effect.resultText ?? "";
     let combat = null;
 
@@ -135,7 +137,9 @@ const EncounterOutcomes = Object.freeze({
           break;
         }
         const itemId = validItemIds[randomInteger(0, validItemIds.length - 1, expedition.random)];
-        addUnsecuredItem(expedition, itemId, effect.quantity ?? 1);
+        const quantity = effect.quantity ?? 1;
+        addUnsecuredItem(expedition, itemId, quantity);
+        rewards = [{ type: "item", itemId, quantity, unsecured: true }];
         messages = [unsecuredLootMessage(itemId)];
         break;
       }
@@ -148,7 +152,9 @@ const EncounterOutcomes = Object.freeze({
           break;
         }
         const item = ITEM_DEFINITIONS[selected.itemId];
-        addUnsecuredItem(expedition, selected.itemId, effect.quantity ?? 1);
+        const quantity = effect.quantity ?? 1;
+        addUnsecuredItem(expedition, selected.itemId, quantity);
+        rewards = [{ type: "item", itemId: selected.itemId, quantity, unsecured: true }];
         messages = [unsecuredLootMessage(selected.itemId)];
         resultText = effect.resultText?.replaceAll("{itemName}", item.name) ?? resultText;
         break;
@@ -157,11 +163,13 @@ const EncounterOutcomes = Object.freeze({
         if (!ITEM_DEFINITIONS[effect.itemId]) {
           break;
         }
-        addUnsecuredItem(expedition, effect.itemId, effect.quantity ?? 1);
+        const quantity = effect.quantity ?? 1;
+        addUnsecuredItem(expedition, effect.itemId, quantity);
+        rewards = [{ type: "item", itemId: effect.itemId, quantity, unsecured: true }];
         messages = [unsecuredLootMessage(effect.itemId)];
         break;
       case "rollLootTable": {
-        const rewards = LootRules.resolveSources([{
+        const lootRewards = LootRules.resolveSources([{
           tableId: effect.tableId,
           rolls: effect.rolls ?? 1,
           chance: effect.chance ?? 1,
@@ -171,7 +179,8 @@ const EncounterOutcomes = Object.freeze({
           random: expedition.random,
           debugLog: expedition.lootDebugLog,
         });
-        messages = rewards.map(lootRewardMessage);
+        messages = lootRewards.map(lootRewardMessage);
+        rewards = lootRewards.map((reward) => ({ ...reward, unsecured: true }));
         break;
       }
       case "consumeExpeditionItem": {
@@ -203,6 +212,7 @@ const EncounterOutcomes = Object.freeze({
         const branch = EncounterRequirements.meetsAll(effect.requirements, context);
         const resolved = this.resolveAll(branch ? effect.effects : effect.elseEffects, context);
         messages = resolved.messages;
+        rewards = resolved.rewards;
         combat = resolved.combat;
         resultText = resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "";
         break;
@@ -211,6 +221,7 @@ const EncounterOutcomes = Object.freeze({
         const succeeded = gameplayRandom(expedition.random) < effect.chance;
         const resolved = this.resolveAll(succeeded ? effect.effects : effect.elseEffects, context);
         messages = resolved.messages;
+        rewards = resolved.rewards;
         combat = resolved.combat;
         resultText = resolved.resultText
           || (succeeded ? effect.resultText : effect.elseResultText)
@@ -230,6 +241,7 @@ const EncounterOutcomes = Object.freeze({
         const selectedEffects = Array.isArray(selected) ? selected : selected.effects;
         const resolved = this.resolveAll(selectedEffects, context);
         messages = resolved.messages;
+        rewards = resolved.rewards;
         combat = resolved.combat;
         resultText = resolved.resultText || selected.resultText || "";
         break;
@@ -245,7 +257,7 @@ const EncounterOutcomes = Object.freeze({
         break;
     }
 
-    return { messages, resultText, combat };
+    return { messages, rewards, resultText, combat };
   },
 });
 
@@ -331,6 +343,7 @@ const EncounterManager = Object.freeze({
       phase: "choice",
       resultText: "",
       outcomeMessages: [],
+      rewards: [],
       pendingToken: 0,
     };
     if (!expedition.seenEncounterIds.includes(encounterId)) {
@@ -429,6 +442,7 @@ const EncounterManager = Object.freeze({
     const resolvedOutcomes = EncounterOutcomes.resolveAll(choiceOutcomes, context);
     outcomeMessages.push(...resolvedOutcomes.messages);
     active.outcomeMessages.push(...outcomeMessages);
+    active.rewards.push(...resolvedOutcomes.rewards);
     if (resolvedOutcomes.combat) {
       active.phase = "combat";
       active.combatResolution = resolvedOutcomes.combat;
@@ -455,6 +469,7 @@ const EncounterManager = Object.freeze({
       if (nextStage.resultStage) {
         const resolvedStage = EncounterOutcomes.resolveAll(nextStage.outcomes, context);
         active.outcomeMessages.push(...resolvedStage.messages);
+        active.rewards.push(...resolvedStage.rewards);
         active.phase = "result";
         active.resultText = resolvedStage.resultText || nextStage.text;
         return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
@@ -510,6 +525,8 @@ const EncounterManager = Object.freeze({
     const context = { expedition, player, ...callbacks };
     const resolved = EncounterOutcomes.resolveAll(resolution.outcomes, context);
     active.outcomeMessages.push(...resolved.messages);
+    active.rewards ??= [];
+    active.rewards.push(...resolved.rewards);
     active.phase = "result";
     active.resultText = resolved.resultText
       || resolution.resultText

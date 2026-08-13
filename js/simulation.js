@@ -833,7 +833,15 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
   const lootDiscovered = combineItemEntries(
     telemetry.encounters.flatMap((encounter) => encounter.lootGained ?? []),
   );
-  const lootRecovered = returned ? deepClone(expedition.unsecuredLoot) : [];
+  const returnRewardContents = returned
+    ? deepClone(expedition.returnRewardContents ?? createRewardBucket())
+    : createRewardBucket();
+  const lootRecovered = returned
+    ? combineItemEntries([...expedition.unsecuredLoot, ...returnRewardContents.items])
+    : [];
+  const materialsRecovered = returned
+    ? mergeQuantityCollections(expedition.unsecuredMaterials, returnRewardContents.materials)
+    : {};
   const attacksReceivedByPartyMember = aggregateRunPartyCombatField(
     telemetry, "attacksReceivedByPartyMember",
   );
@@ -869,11 +877,14 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     endingProvisionStock: player.provisions,
     endingPlayerState: deepClone(player),
     startingProvisionStock: startingStock,
-    goldGained: returned ? expedition.goldCarried : 0,
-    materialsRecovered: returned ? deepClone(expedition.unsecuredMaterials) : {},
-    recipesLearned: returned ? deepClone(expedition.unsecuredRecipes) : [],
+    goldGained: returned ? expedition.goldCarried + returnRewardContents.gold : 0,
+    materialsRecovered,
+    recipesLearned: returned
+      ? [...new Set([...expedition.unsecuredRecipes, ...returnRewardContents.recipes])]
+      : [],
     returnRewardTier: returned ? expedition.returnRewardTier : null,
     returnRewardResults: returned ? deepClone(expedition.returnRewardResults ?? []) : [],
+    returnRewardContents,
     lootDebugLog: deepClone([
       ...(expedition.lootDebugLog ?? []),
       ...(expedition.returnRewardLog ?? []),
@@ -984,6 +995,15 @@ function combineItemEntries(entries) {
   return Object.entries(totals)
     .filter(([, quantity]) => quantity > 0)
     .map(([itemId, quantity]) => ({ itemId, quantity }));
+}
+
+function mergeQuantityCollections(...collections) {
+  return Object.fromEntries(Object.entries(collections.reduce((totals, collection) => {
+    Object.entries(collection ?? {}).forEach(([id, quantity]) => {
+      totals[id] = (totals[id] ?? 0) + (Number(quantity) || 0);
+    });
+    return totals;
+  }, {})).filter(([, quantity]) => quantity > 0));
 }
 
 function subtractItemEntries(discovered, recovered) {

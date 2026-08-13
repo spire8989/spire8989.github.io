@@ -1027,8 +1027,8 @@ function renderEncounterPanel(expedition, encounter) {
 
   const stage = encounter.stages[active.stageId];
   const choices = stage.choices.map((choice) => renderEncounterChoice(choice, expedition)).join("");
-  const outcomes = active.outcomeMessages.length > 0
-    ? `<div class="outcome-strip">${active.outcomeMessages.map((message) => `<span>${message}</span>`).join("")}</div>`
+  const outcomes = nonRewardOutcomeMessages(active.outcomeMessages).length > 0
+    ? `<div class="outcome-strip">${nonRewardOutcomeMessages(active.outcomeMessages).map((message) => `<span>${message}</span>`).join("")}</div>`
     : "";
 
   return `
@@ -1047,6 +1047,10 @@ function renderEncounterPanel(expedition, encounter) {
     </div>`;
 }
 
+function nonRewardOutcomeMessages(messages = []) {
+  return messages.filter((message) => !/^(ITEM FOUND|MATERIAL FOUND|RECIPE FOUND|\+\d+ gold)/.test(message));
+}
+
 function renderEncounterPendingPanel(expedition, encounter, active) {
   return `
     <div class="travel-panel encounter-panel encounter-pending-panel" aria-live="polite" aria-busy="true">
@@ -1063,9 +1067,12 @@ function renderEncounterPendingPanel(expedition, encounter, active) {
 }
 
 function renderEncounterResultPanel(expedition, encounter, active) {
-  const outcomes = active.outcomeMessages.length > 0
-    ? `<div class="result-consequences">${active.outcomeMessages.map((message) => `<span>${message}</span>`).join("")}</div>`
+  const outcomes = nonRewardOutcomeMessages(active.outcomeMessages).length > 0
+    ? `<div class="result-consequences">${nonRewardOutcomeMessages(active.outcomeMessages).map((message) => `<span>${message}</span>`).join("")}</div>`
     : "";
+  const rewards = renderRewardCards(active.rewards ?? [], {
+    emptyMessage: "No physical rewards from this encounter.",
+  });
 
   return `
     <div class="travel-panel encounter-panel encounter-result-panel" aria-live="polite">
@@ -1076,6 +1083,10 @@ function renderEncounterResultPanel(expedition, encounter, active) {
       </div>
       <div class="encounter-stage result-stage">
         <p>${active.resultText}</p>
+        <section class="encounter-rewards" aria-labelledby="encounter-rewards-title">
+          <div class="reward-section-heading"><strong id="encounter-rewards-title">Discoveries</strong><span>Secure on return</span></div>
+          ${rewards}
+        </section>
         ${outcomes}
       </div>
       <div class="encounter-choices">
@@ -1122,9 +1133,11 @@ function renderCombatant(combatant, combat) {
   const ready = combatant.id === combat.activeActorId;
   const wasHit = Boolean(combatant.lastHitEvent);
   const selectable = !defeated && (
-    (combat.interactionMode === "enemyTarget" && combatant.side === "enemy")
+    (combat.status === "awaitingAction" && combat.interactionMode === "main" && combatant.side === "enemy")
+    || (combat.interactionMode === "enemyTarget" && combatant.side === "enemy")
     || (combat.interactionMode === "allyTarget" && combatant.side === "ally" && combatant.hp < combatant.maxHp)
   );
+  const selected = combatant.side === "enemy" && combatant.id === combat.selectedEnemyId;
   const intent = combatant.side === "enemy" && !defeated
     ? `<div class="combat-intent">${COMBAT_ENEMY_ACTION_DEFINITIONS[combatant.intentId]?.name ?? "Attack"}</div>`
     : "";
@@ -1132,10 +1145,10 @@ function renderCombatant(combatant, combat) {
     .filter(Boolean).join(" · ");
   const tag = selectable ? "button" : "article";
   const targetAttributes = selectable
-    ? `type="button" data-action="combat-target" data-target-id="${combatant.id}" aria-label="Target ${combatant.name}"`
+    ? `type="button" data-action="combat-target" data-target-id="${combatant.id}" aria-label="Target ${combatant.name}"${combatant.side === "enemy" ? ` aria-pressed="${selected}"` : ""}`
     : "";
   const markup = `
-    <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${wasHit ? "was-hit" : ""}"
+    <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${selected ? "is-selected" : ""} ${wasHit ? "was-hit" : ""}"
       data-combatant-id="${combatant.id}" ${targetAttributes}>
       <div class="combatant-token" aria-hidden="true">${combatant.side === "ally" ? "♞" : "◆"}</div>
       <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
@@ -1198,14 +1211,28 @@ function updateCombatHud() {
   });
 }
 
+function unsecuredItemQuantity(expedition) {
+  return (expedition?.unsecuredLoot ?? []).reduce((sum, entry) => sum + (Number(entry.quantity) || 0), 0);
+}
+
+function unsecuredMaterialQuantity(expedition) {
+  return Object.values(expedition?.unsecuredMaterials ?? {})
+    .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
+}
+
 function renderExpeditionResources(expedition) {
+  const itemQuantity = unsecuredItemQuantity(expedition);
+  const materialQuantity = unsecuredMaterialQuantity(expedition);
   return `
     <div class="resource-grid compact-resources">
       <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
       <div class="resource-card"><span>Max reached</span><strong id="max-distance-value">${formatDistance(expedition.maxDistanceReached)}</strong></div>
       <div class="resource-card"><span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong></div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
-      <div class="resource-card unsecured-card"><span>Unsecured</span><strong id="loot-count">${expedition.unsecuredLoot.length} items · ${Object.keys(expedition.unsecuredMaterials).length} materials · ${expedition.goldCarried}g</strong></div>
+      <div class="resource-card unsecured-card">
+        <div class="resource-card-heading"><span>Unsecured Loot</span><strong id="loot-count">${itemQuantity}</strong></div>
+        <small id="loot-breakdown">${itemQuantity} items · ${materialQuantity} materials · ${expedition.goldCarried}g</small>
+      </div>
     </div>`;
 }
 
@@ -1377,11 +1404,17 @@ function chooseCombatAction(actionId) {
 function chooseCombatTarget(targetId) {
   const expedition = game.expedition;
   const combat = expedition?.combat;
-  if (!combat?.pendingActionId) {
+  if (!combat) {
     return;
   }
-  const result = CombatSystem.choosePendingTarget(combat, expedition, targetId);
-  handleCombatInteractionResult(expedition, combat, result);
+  if (combat.pendingActionId) {
+    const result = CombatSystem.choosePendingTarget(combat, expedition, targetId);
+    handleCombatInteractionResult(expedition, combat, result);
+    return;
+  }
+  if (CombatSystem.selectEnemyTarget(combat, targetId).selected) {
+    refreshCombat(expedition, combat);
+  }
 }
 
 function chooseCombatAbility(abilityId) {
@@ -1535,10 +1568,12 @@ function completeReturn() {
     message: "Every secured discovery from this expedition has been added to Arthur's campaign resources.",
     distance: expedition.maxDistanceReached,
     loot: [...expedition.unsecuredLoot],
-    gold: expedition.goldCarried,
+    gold: expedition.goldCarried + (expedition.returnRewardContents?.gold ?? 0),
+    expeditionGold: expedition.goldCarried,
     materials: { ...expedition.unsecuredMaterials },
     recipes: [...expedition.unsecuredRecipes],
     returnRewardTier: expedition.returnRewardTier,
+    returnRewards: cloneRewardBucket(expedition.returnRewardContents),
     provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
@@ -1563,26 +1598,93 @@ function failExpedition(reason) {
     distance: expedition.maxDistanceReached,
     loot: [...expedition.unsecuredLoot],
     gold: expedition.goldCarried,
+    expeditionGold: expedition.goldCarried,
     materials: { ...expedition.unsecuredMaterials },
     recipes: [...expedition.unsecuredRecipes],
     returnRewardTier: null,
+    returnRewards: createRewardBucket(),
     provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
 }
 
+function cloneRewardBucket(bucket = {}) {
+  return {
+    items: (bucket.items ?? []).map(({ itemId, quantity }) => ({ itemId, quantity })),
+    materials: { ...(bucket.materials ?? {}) },
+    recipes: [...(bucket.recipes ?? [])],
+    gold: Number(bucket.gold) || 0,
+  };
+}
+
+function rewardBucketEntries(bucket = {}, statusLabel = "") {
+  return [
+    ...(bucket.items ?? []).map((entry) => ({ ...entry, type: "item", statusLabel })),
+    ...Object.entries(bucket.materials ?? {}).map(([materialId, quantity]) => ({
+      type: "material", materialId, quantity, statusLabel,
+    })),
+    ...(bucket.gold > 0 ? [{ type: "gold", quantity: bucket.gold, statusLabel }] : []),
+    ...(bucket.recipes ?? []).map((recipeId) => ({ type: "recipe", recipeId, quantity: 1, statusLabel })),
+  ];
+}
+
+function rewardIconLabel(reward) {
+  if (reward.type === "gold") return "GOLD";
+  if (reward.type === "material") return "MAT";
+  if (reward.type === "recipe") return "REC";
+  return ({
+    weapon: "WPN", armor: "ARM", gear: "GEAR", relic: "REL",
+    valuable: "VAL", supply: "SUP", quest: "QUEST", treasure: "TREAS",
+  })[ITEM_DEFINITIONS[reward.itemId]?.category] ?? "ITEM";
+}
+
+function renderRewardCards(rewards = [], options = {}) {
+  if (rewards.length === 0) {
+    return `<p class="empty-rewards">${options.emptyMessage ?? "No rewards this time."}</p>`;
+  }
+
+  return `<div class="reward-card-list">${rewards.map((reward) => {
+    const definition = reward.type === "item" ? ITEM_DEFINITIONS[reward.itemId]
+      : reward.type === "material" ? MATERIAL_DEFINITIONS[reward.materialId]
+        : reward.type === "recipe" ? RECIPE_DEFINITIONS[reward.recipeId] : null;
+    const rarity = definition?.rarity ?? "common";
+    const rarityName = RARITY_DEFINITIONS[rarity]?.name ?? capitalize(rarity);
+    const category = reward.type === "gold" ? "Currency"
+      : reward.type === "material" ? "Crafting Material"
+        : reward.type === "recipe" ? "Recipe" : capitalize(definition?.category ?? "Item");
+    const name = reward.type === "gold" ? "Gold" : definition?.name ?? "Unknown reward";
+    const description = reward.type === "gold" ? "Coins recovered from the journey."
+      : definition?.description ?? "A useful discovery from the road.";
+    const quantity = reward.type === "gold" ? `+${reward.quantity}`
+      : reward.quantity > 1 ? `×${reward.quantity}` : "";
+    const statusLabel = reward.statusLabel || (reward.unsecured ? "UNSECURED" : "");
+    return `
+      <article class="reward-card rarity-${rarity}">
+        <div class="reward-icon" aria-hidden="true">${rewardIconLabel(reward)}</div>
+        <div class="reward-copy">
+          <div class="reward-heading"><strong>${name}</strong>${quantity ? `<span class="reward-quantity">${quantity}</span>` : ""}</div>
+          <div class="reward-meta"><span>${rarityName}</span><span>${category}</span></div>
+          <p>${description}</p>
+          ${statusLabel ? `<span class="reward-status">${statusLabel}</span>` : ""}
+        </div>
+      </article>`;
+  }).join("")}</div>`;
+}
+
 function renderSummary() {
   const summary = game.summary;
   const returned = summary.outcome === "returned";
-  const loot = summary.loot.length > 0
-    ? summary.loot.map(({ itemId, quantity }) => `<li>${ITEM_DEFINITIONS[itemId].name}${quantity > 1 ? ` ×${quantity}` : ""}</li>`).join("")
-    : "<li>No items discovered</li>";
-  const materials = Object.entries(summary.materials ?? {}).length > 0
-    ? Object.entries(summary.materials).map(([materialId, quantity]) => `<li>${MATERIAL_DEFINITIONS[materialId].name}${quantity > 1 ? ` ×${quantity}` : ""}</li>`).join("")
-    : "<li>No materials discovered</li>";
-  const recipes = (summary.recipes ?? []).length > 0
-    ? summary.recipes.map((recipeId) => `<li>${RECIPE_DEFINITIONS[recipeId].name}</li>`).join("")
-    : "<li>No recipes discovered</li>";
+  const expeditionRewards = [
+    ...summary.loot.map((entry) => ({ ...entry, type: "item", statusLabel: returned ? "SECURED" : "LOST" })),
+    ...Object.entries(summary.materials ?? {}).map(([materialId, quantity]) => ({
+      type: "material", materialId, quantity, statusLabel: returned ? "SECURED" : "LOST",
+    })),
+    ...(summary.expeditionGold > 0 ? [{ type: "gold", quantity: summary.expeditionGold, statusLabel: returned ? "SECURED" : "LOST" }] : []),
+    ...(summary.recipes ?? []).map((recipeId) => ({
+      type: "recipe", recipeId, quantity: 1, statusLabel: returned ? "LEARNED" : "LOST",
+    })),
+  ];
+  const returnRewards = rewardBucketEntries(summary.returnRewards, "RETURN REWARD");
 
   ui.screenRoot.innerHTML = `
     <section class="screen summary-screen ${returned ? "is-success" : "is-failure"}" aria-labelledby="summary-title">
@@ -1598,18 +1700,18 @@ function renderSummary() {
         <p><span>${returned ? "Gold banked" : "Gold lost"}</span><strong>${summary.gold}</strong></p>
         <p><span>Provisions returned</span><strong>${summary.provisionsReturned}</strong></p>
         ${returned ? `<p><span>Return reward tier</span><strong>${capitalize(summary.returnRewardTier ?? "minor")}</strong></p>` : ""}
-        <div class="summary-loot">
-          <span>${returned ? "Items secured" : "Unsecured items lost"}</span>
-          <ul>${loot}</ul>
-        </div>
-        <div class="summary-loot">
-          <span>${returned ? "Materials secured" : "Unsecured materials lost"}</span>
-          <ul>${materials}</ul>
-        </div>
-        <div class="summary-loot">
-          <span>${returned ? "Recipes learned" : "Unsecured recipes lost"}</span>
-          <ul>${recipes}</ul>
-        </div>
+
+        <section class="summary-reward-section" aria-labelledby="expedition-haul-title">
+          <div class="summary-reward-heading"><strong id="expedition-haul-title">Expedition Haul</strong><span>${returned ? "Secured on return" : "Lost with the expedition"}</span></div>
+          ${renderRewardCards(expeditionRewards, { emptyMessage: returned ? "No discoveries from the expedition." : "No unsecured discoveries were lost." })}
+        </section>
+
+        ${returned ? `
+          <section class="summary-reward-section return-reward-section" aria-labelledby="return-reward-title">
+            <div class="summary-reward-heading"><strong id="return-reward-title">${capitalize(summary.returnRewardTier ?? "minor")} Return Reward</strong><span>Distance-tier bonus</span></div>
+            ${renderRewardCards(returnRewards, { emptyMessage: "No additional return reward this time." })}
+          </section>` : ""}
+
         <p class="protected-note">Your original equipment and companion remain available.</p>
       </div>
 
@@ -1629,7 +1731,10 @@ function updateTravelHud() {
   setText("#max-distance-value", formatDistance(expedition.maxDistanceReached));
   setText("#provisions-value", formatResource(expedition.provisions));
   setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
-  setText("#loot-count", `${expedition.unsecuredLoot.length} items · ${Object.keys(expedition.unsecuredMaterials).length} materials · ${expedition.goldCarried}g`);
+  const itemQuantity = unsecuredItemQuantity(expedition);
+  const materialQuantity = unsecuredMaterialQuantity(expedition);
+  setText("#loot-count", itemQuantity);
+  setText("#loot-breakdown", `${itemQuantity} items · ${materialQuantity} materials · ${expedition.goldCarried}g`);
 
   const returning = expedition.direction === "returning";
   const activeEncounter = expedition.activeEncounter

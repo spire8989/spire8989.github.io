@@ -70,6 +70,7 @@ const ExpeditionRules = Object.freeze({
       unsecuredRecipes: [],
       lootDebugLog: [],
       returnRewardsRolled: false,
+      returnRewardContents: createRewardBucket(),
       sceneOffset: 0,
       status: "active",
       random: typeof options.random === "function" ? options.random : GameRandom.random,
@@ -179,6 +180,17 @@ const ExpeditionRules = Object.freeze({
         if (!player.learnedRecipes.includes(recipeId)) player.learnedRecipes.push(recipeId);
       });
       player.currentGold += expedition.goldCarried;
+      const returnRewards = expedition.returnRewardContents ?? createRewardBucket();
+      returnRewards.items.forEach(({ itemId, quantity }) => {
+        player.ownedItems[itemId] = (player.ownedItems[itemId] ?? 0) + quantity;
+      });
+      Object.entries(returnRewards.materials).forEach(([materialId, quantity]) => {
+        player.materials[materialId] = (player.materials[materialId] ?? 0) + quantity;
+      });
+      returnRewards.recipes.forEach((recipeId) => {
+        if (!player.learnedRecipes.includes(recipeId)) player.learnedRecipes.push(recipeId);
+      });
+      player.currentGold += returnRewards.gold;
     }
     expedition.rewardsSettled = true;
     player.arthurHealth = Math.min(

@@ -33,6 +33,7 @@ const CombatSystem = Object.freeze({
       status: "running",
       allies,
       enemies,
+      selectedEnemyId: enemies.find(isLivingCombatant)?.id ?? null,
       readyQueue: [],
       activeActorId: null,
       pendingActionId: null,
@@ -137,14 +138,16 @@ const CombatSystem = Object.freeze({
 
     if (actionId === "attack") {
       const targets = state.enemies.filter(isLivingCombatant);
-      if (!targetId && targets.length > 1) {
+      refreshSelectedEnemy(state);
+      const selectedTarget = targets.find((target) => target.id === state.selectedEnemyId);
+      if (!targetId && !selectedTarget && targets.length > 1) {
         return enterTargetSelection(
           state, actionId, "enemy", "action", COMBAT_ABILITY_DEFINITIONS[actionId].selectionPrompt,
         );
       }
       const target = targetId
         ? targets.find((candidate) => candidate.id === targetId)
-        : targets[0];
+        : selectedTarget ?? targets[0];
       if (!target) {
         return { resolved: false, needsTarget: targets.length > 1 };
       }
@@ -255,6 +258,18 @@ const CombatSystem = Object.freeze({
     if (state.pendingActionKind === "ability") return this.chooseAbility(state, expedition, state.pendingActionId, targetId);
     if (state.pendingActionKind === "item") return this.chooseItem(state, expedition, state.pendingActionId, targetId);
     return this.chooseAction(state, expedition, state.pendingActionId, targetId);
+  },
+
+  selectEnemyTarget(state, targetId) {
+    if (!state || state.status !== "awaitingAction" || state.interactionMode !== "main") {
+      return { selected: false };
+    }
+    const target = state.enemies.find((enemy) => enemy.id === targetId && isLivingCombatant(enemy));
+    if (!target) {
+      return { selected: false };
+    }
+    state.selectedEnemyId = target.id;
+    return { selected: true, targetId: target.id };
   },
 
   cancelTargetSelection(state) {
@@ -370,6 +385,7 @@ function resolveAttack(state, actor, target) {
   if (!isLivingCombatant(target)) {
     addCombatLog(state, `${target.name} is defeated.`);
   }
+  refreshSelectedEnemy(state);
   if (!state.enemies.some(isLivingCombatant)) {
     finishCombat(state, "victory");
   }
@@ -394,6 +410,7 @@ function resolvePommelStrike(state, actor, target, ability) {
   addCombatLog(state, `${actor.name} uses ${ability.name} on ${target.name} for ${damage} damage.`);
   if (previousGauge > target.gauge) addCombatLog(state, `${target.name}'s action gauge is pushed back.`);
   if (!isLivingCombatant(target)) addCombatLog(state, `${target.name} is defeated.`);
+  refreshSelectedEnemy(state);
   if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
 }
 
@@ -577,6 +594,7 @@ function finishCombat(state, result) {
   state.targetSelectionReturnMode = null;
   state.pendingTargetPrompt = null;
   state.readyQueue.length = 0;
+  state.selectedEnemyId = null;
 }
 
 function addCombatLog(state, message) {
@@ -596,6 +614,13 @@ function findCombatant(state, combatantId) {
 
 function isLivingCombatant(combatant) {
   return Boolean(combatant && combatant.hp > 0);
+}
+
+function refreshSelectedEnemy(state) {
+  const selected = state.enemies.find((enemy) => enemy.id === state.selectedEnemyId);
+  if (!isLivingCombatant(selected)) {
+    state.selectedEnemyId = state.enemies.find(isLivingCombatant)?.id ?? null;
+  }
 }
 
 function clampCombatNumber(value, minimum, maximum) {

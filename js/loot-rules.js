@@ -2,6 +2,15 @@
 
 const LOOT_TABLE_MAX_DEPTH = 12;
 
+function createRewardBucket() {
+  return {
+    items: [],
+    materials: {},
+    recipes: [],
+    gold: 0,
+  };
+}
+
 const LootRules = Object.freeze({
   resolveSources(sources, context) {
     const results = [];
@@ -63,14 +72,16 @@ const LootRules = Object.freeze({
     if (entry.type === "item") {
       const item = ITEM_DEFINITIONS[entry.itemId];
       const alreadyStaged = context.expedition?.unsecuredLoot
-        ?.some((reward) => reward.itemId === entry.itemId);
+        ?.some((reward) => reward.itemId === entry.itemId)
+        || context.rewardBucket?.items?.some((reward) => reward.itemId === entry.itemId);
       return Boolean(item && (!item.unique
         || (!context.player?.ownedItems?.[entry.itemId] && !alreadyStaged)));
     }
     if (entry.type === "recipe") {
       return Boolean(RECIPE_DEFINITIONS[entry.recipeId]
         && !context.player?.learnedRecipes?.includes(entry.recipeId)
-        && !context.expedition?.unsecuredRecipes?.includes(entry.recipeId));
+        && !context.expedition?.unsecuredRecipes?.includes(entry.recipeId)
+        && !context.rewardBucket?.recipes?.includes(entry.recipeId));
     }
     if (entry.type === "table") {
       const table = LOOT_TABLE_DEFINITIONS[entry.tableId];
@@ -92,17 +103,24 @@ const LootRules = Object.freeze({
   },
 
   awardExpeditionReturn(player, expedition) {
-    if (!expedition || expedition.returnRewardsRolled) return expedition?.returnRewardResults ?? [];
+    if (!expedition) return [];
+    if (expedition.returnRewardsRolled) {
+      expedition.returnRewardContents ??= createRewardBucket();
+      return expedition.returnRewardResults ?? [];
+    }
     const tier = this.returnRewardTier(expedition.maxDistanceReached);
     expedition.returnRewardTier = tier.id;
     expedition.returnRewardLog ??= [];
+    const rewardBucket = createRewardBucket();
     const results = this.resolveSources(tier.sources, {
       player,
       expedition,
+      rewardBucket,
       random: expedition.random,
       debugLog: expedition.returnRewardLog,
     });
     expedition.returnRewardResults = results;
+    expedition.returnRewardContents = rewardBucket;
     expedition.returnRewardsRolled = true;
     console.debug("[Loot] expedition-return", {
       tier: tier.id,
@@ -118,20 +136,24 @@ function grantLootEntry(entry, context, sourceTableId) {
   const quantity = lootQuantity(entry, context.random);
   const reward = { type: entry.type, quantity, sourceTableId };
   if (entry.type === "gold") {
-    if (context.expedition) context.expedition.goldCarried += quantity;
+    if (context.rewardBucket) context.rewardBucket.gold += quantity;
+    else if (context.expedition) context.expedition.goldCarried += quantity;
     else if (context.player) context.player.currentGold += quantity;
   } else if (entry.type === "material") {
     reward.materialId = entry.materialId;
-    if (context.expedition) addQuantity(context.expedition.unsecuredMaterials, entry.materialId, quantity);
+    if (context.rewardBucket) addQuantity(context.rewardBucket.materials, entry.materialId, quantity);
+    else if (context.expedition) addQuantity(context.expedition.unsecuredMaterials, entry.materialId, quantity);
     else addQuantity(context.player.materials, entry.materialId, quantity);
   } else if (entry.type === "item") {
     reward.itemId = entry.itemId;
-    if (context.expedition) addEntryQuantity(context.expedition.unsecuredLoot, "itemId", entry.itemId, quantity);
+    if (context.rewardBucket) addEntryQuantity(context.rewardBucket.items, "itemId", entry.itemId, quantity);
+    else if (context.expedition) addEntryQuantity(context.expedition.unsecuredLoot, "itemId", entry.itemId, quantity);
     else addQuantity(context.player.ownedItems, entry.itemId, quantity);
   } else if (entry.type === "recipe") {
     reward.recipeId = entry.recipeId;
     reward.quantity = 1;
-    if (context.expedition) context.expedition.unsecuredRecipes.push(entry.recipeId);
+    if (context.rewardBucket) context.rewardBucket.recipes.push(entry.recipeId);
+    else if (context.expedition) context.expedition.unsecuredRecipes.push(entry.recipeId);
     else if (!context.player.learnedRecipes.includes(entry.recipeId)) context.player.learnedRecipes.push(entry.recipeId);
   }
   recordLootEvent(context, { type: "loot-granted", ...reward });
