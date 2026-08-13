@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-13 - Brocéliande Destination Text Deduplication
+
+### Goal
+
+Remove repeated destination identity text from the current village interior screens while preserving useful service content, navigation, and gameplay behavior.
+
+### Human prompt and direction
+
+The human developer requested a small cleanup pass for duplicated atmospheric descriptions on The Hall, The Inn, Merchant, Blacksmith, and Apothecary. The description should remain in the hero, the compact navigation name should remain, and NPC/service cards, objectives, tabs, dialogue, crafting, shopping, and resting should remain intact.
+
+### AI-assisted implementation
+
+- Removed the shared lower `.destination-heading` category/description block from `renderDestination()`; destination data definitions remain unchanged and hero rendering still owns the atmospheric description.
+- Kept the destination navigation bar and all NPC/service interaction renderers, then removed the old first-card top margin so useful destination content begins directly within the existing interaction padding.
+- Added browser coverage confirming hero-only descriptions, navigation names, Hall objective, NPC/service cards, and first-content spacing across the destination screens while preserving existing interaction tests.
+
+### Manual changes
+
+The human developer supplied the focused destination text cleanup guide and requested another local Git commit. No manual code edits were reported.
+
+### Resulting prototype state
+
+Destination screens now introduce the location once in the hero, retain a compact breadcrumb in the navigation bar, and move directly into the relevant NPC/service card and interaction content without redundant category or description text.
+
+### Verification
+
+Verified 369 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production startup through the browser regression server, and `git diff --check`. Changes were committed locally; no push was performed.
+
 ## 2026-08-13 - Brocéliande Destination Hero Ratio Adjustment
 
 ### Goal

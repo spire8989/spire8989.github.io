@@ -2634,6 +2634,11 @@ button.combatant {
   overflow-y: auto;
 }
 
+.interaction-scroll > .npc-card:first-child,
+.interaction-scroll > .shopkeeper-row:first-child {
+  margin-top: 0;
+}
+
 .visual-merchant_stall {
   background: linear-gradient(145deg, #1f3024, #6b5738 48%, #252018);
 }
@@ -2669,20 +2674,6 @@ button.combatant {
   font-family: system-ui, sans-serif;
   font-size: clamp(0.52rem, 2.3cqw, 0.68rem);
   line-height: 1.35;
-}
-
-.destination-heading h1 {
-  margin: 0.05rem 0 0.25rem;
-  color: #fff3c9;
-  font-size: clamp(1.25rem, 6cqw, 1.9rem);
-}
-
-.destination-heading > p:last-child {
-  margin: 0;
-  color: #b8c1b5;
-  font-family: system-ui, sans-serif;
-  font-size: clamp(0.58rem, 2.6cqw, 0.76rem);
-  line-height: 1.4;
 }
 
 .npc-card,

@@ -374,10 +374,6 @@ function renderDestination() {
           <span>${Math.floor(game.player.currentGold)}g · ${game.player.provisions} food</span>
         </header>
         <div class="interaction-scroll">
-          <div class="destination-heading">
-            <p class="eyebrow">${capitalize(destination.type.replace("_", " "))}</p>
-            <p>${destination.description}</p>
-          </div>
           ${interaction}
         </div>
       </div>
