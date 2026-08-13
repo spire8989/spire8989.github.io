@@ -762,3 +762,33 @@ The human developer supplied the stop classification, safe-reward boundaries, ta
 ### Resulting prototype state
 
 Campaign agents now continue through affordable compromises instead of treating preferences as survival requirements, while genuine death, provision exhaustion, and inability to depart remain explicit terminal failures. Cautious play receives occasional low-value support from routes it already prefers, but longer and riskier play retains higher reward potential.
+
+## 2026-08-12 — Provision-Safe Simulation Planning and Repeatable Inn Rest
+
+### Goal
+
+Reduce avoidable simulation provision exhaustion through deterministic departure and return planning, while allowing both players and campaign policies to repeat the existing shared Inn action when more healing is appropriate and affordable.
+
+### Human prompt and direction
+
+The human developer requested fixed first-pass encounter reserves ordered Cautious above Random above Aggressive, a known-state emergency food turnaround, replay and aggregate telemetry, repeatable 10 HP/3 gold Inn rests, no changes to protected provision, reward, combat, health, healing, or strategy-choice balance, and a finished commit and push.
+
+### AI-assisted implementation
+
+- Added deterministic expected encounter-cost reserves of 4 provisions for Cautious, 3 for Random, 2 for Aggressive, and 3 for Greedy. Campaign requirements now report passive round-trip food, policy margin, configured/used encounter reserve, and total estimated provisions.
+- Planning retains the existing preference fallback hierarchy: it can drop the policy margin and, only as a last resort, the encounter reserve before declaring a true inability to launch a minimal expedition.
+- Added an outbound emergency turnaround that compares only current distance, current provisions, the snapshotted party consumption multiplier, passive return cost, and the strategy reserve. It never reads future encounter identity, spacing, outcomes, costs, or loot.
+- Added run, replay, expedition, campaign, CSV, and batch telemetry for original/departure targets, passive estimates, reserves, total requirements, emergency trigger/distance, actual turnaround, and provision-exhaustion failures.
+- Confirmed the player-facing Inn already supports repeated production rests through its existing click/save/rerender loop, and added explicit coverage for three consecutive rests, separate 3 gold charges, party caps, full-health blocking, and insufficient-gold blocking.
+- Expanded campaign policy healing to repeat `HealingRules.restAtInn` while party health remains below the policy target and gold remains available. Every applied or failed attempt stays in `restActions`; no alternate healing formula was added.
+- Added focused assertions for reserve ordering and planning impact, emergency known-state behavior and replay, multiple player/campaign rests, shared-rule equivalence, telemetry/CSV fields, and preserved deterministic behavior.
+- Verified 52 campaign/health/Inn assertions, 209 UI/provision/location browser assertions, 9 deterministic simulation assertions, and `git diff --check`.
+- Ran 100 ten-expedition campaigns per strategy at desired distance 75 with 20 starting gold and 15 provisions. Random with the conservative policy completed 95%, died 0%, exhausted provisions 5%, and averaged 35.77 actual distance. Aggressive with aggressive-reinvestor completed 64%, died 26%, exhausted provisions 10%, and averaged 60.51 distance. Emergency turnaround averaged 0.05 activations per Random campaign and 0.11 per Aggressive campaign. No follow-on tuning was made.
+
+### Manual changes
+
+The human developer supplied the reserve ordering, emergency-turnaround boundaries, repeatable-rest requirements, prohibited balance changes, batch request, and Git authorization. No manual code edits were reported.
+
+### Resulting prototype state
+
+Campaign preparation now budgets for ordinary encounter pressure rather than only passive travel, and expeditions can abandon an overextended outbound target using current food state before exhaustion becomes inevitable. Random is broadly sustainable in the measured batch, while Aggressive remains longer-ranging and primarily constrained by combat death. Inn recovery remains one production action that can be repeated by either a player or an automated policy, with every rest independently charged and persisted.

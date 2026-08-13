@@ -7,6 +7,43 @@ const SimulationStrategies = Object.freeze({
   greedy: createStrategy("greedy", (choices) => highestScored(choices, greedyChoiceScore)),
 });
 
+const SimulationProvisionPlanning = Object.freeze({
+  encounterReserves: Object.freeze({ cautious: 4, random: 3, aggressive: 2, greedy: 3 }),
+
+  encounterReserve(strategyName) {
+    return this.encounterReserves[strategyName] ?? this.encounterReserves.random;
+  },
+
+  passiveTravelCost(distance, consumptionMultiplier) {
+    return Math.max(0, Number(distance) || 0)
+      * EXPEDITION_TUNING.baseProvisionsPerDistance
+      * Math.max(0, Number(consumptionMultiplier) || 0);
+  },
+
+  passiveRoundTripCost(distance, consumptionMultiplier) {
+    return this.passiveTravelCost(distance, consumptionMultiplier) * 2;
+  },
+
+  emergencyTurnaround(expedition, strategyName) {
+    const encounterReserve = this.encounterReserve(strategyName);
+    const passiveReturnEstimate = this.passiveTravelCost(
+      expedition.distance, expedition.provisionConsumptionMultiplier,
+    );
+    const totalReturnRequirement = passiveReturnEstimate + encounterReserve;
+    return {
+      shouldTurn: expedition.direction === "outbound"
+        && expedition.distance > 0
+        && expedition.provisions <= totalReturnRequirement,
+      strategy: strategyName,
+      distance: rounded(expedition.distance),
+      provisionsRemaining: rounded(expedition.provisions),
+      passiveReturnEstimate: rounded(passiveReturnEstimate),
+      encounterReserve,
+      totalReturnRequirement: rounded(totalReturnRequirement),
+    };
+  },
+});
+
 const TurnaroundPolicies = Object.freeze({
   fixedDistance(distance = 50) {
     const targetDistance = Math.max(0, Number(distance) || 0);
@@ -88,6 +125,26 @@ const SimulationRunner = Object.freeze({
           policy: turnaroundPolicy.name,
         });
         telemetry.events.push({ type: "turnaround", distance: rounded(expedition.distance) });
+        continue;
+      }
+      const provisionSafety = SimulationProvisionPlanning.emergencyTurnaround(
+        expedition, strategy.name,
+      );
+      if (provisionSafety.shouldTurn) {
+        ExpeditionRules.beginReturn(expedition);
+        telemetry.turnaroundDistance = rounded(expedition.distance);
+        telemetry.emergencyProvisionTurnaround = true;
+        telemetry.emergencyProvisionTurnaroundDistance = rounded(expedition.distance);
+        telemetry.emergencyReturnPassiveEstimate = provisionSafety.passiveReturnEstimate;
+        telemetry.emergencyReturnTotalRequirement = provisionSafety.totalReturnRequirement;
+        const decision = {
+          type: "emergency-provision-turnaround",
+          distance: rounded(expedition.distance),
+          originalTargetDistance: telemetry.originalTargetDistance,
+          ...provisionSafety,
+        };
+        telemetry.decisions.push(decision);
+        telemetry.events.push({ ...decision });
         continue;
       }
 
@@ -215,10 +272,19 @@ const SimulationTelemetry = Object.freeze({
       turnaroundConfiguration: run.turnaroundConfiguration,
       companion: run.companion,
       startingProvisions: run.startingProvisions,
+      originalTargetDistance: run.originalTargetDistance,
+      departurePassiveFoodEstimate: run.departurePassiveFoodEstimate,
+      encounterProvisionReserve: run.encounterProvisionReserve,
+      departureTotalEstimatedRequirement: run.departureTotalEstimatedRequirement,
+      emergencyProvisionTurnaround: run.emergencyProvisionTurnaround,
+      emergencyProvisionTurnaroundDistance: run.emergencyProvisionTurnaroundDistance,
+      emergencyReturnPassiveEstimate: run.emergencyReturnPassiveEstimate,
+      emergencyReturnTotalRequirement: run.emergencyReturnTotalRequirement,
       loadout: run.loadout,
       packedItems: run.packedItems,
       outcome: run.outcome,
       failureReason: run.failureReason,
+      provisionExhaustionFailure: run.provisionExhaustionFailure,
       completionReason: run.completionReason,
       maximumDistance: run.maximumDistance,
       finalDistance: run.finalDistance,
@@ -262,7 +328,10 @@ const SimulationTelemetry = Object.freeze({
     const results = Array.isArray(batchOrResults) ? batchOrResults : batchOrResults.results;
     const fields = [
       "runId", "scenarioId", "seed", "strategy", "turnaroundPolicy", "companion",
-      "outcome", "failureReason", "maximumDistance", "finalDistance", "finalArthurHealth",
+      "outcome", "failureReason", "provisionExhaustionFailure", "originalTargetDistance",
+      "departurePassiveFoodEstimate", "encounterProvisionReserve", "departureTotalEstimatedRequirement",
+      "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance", "turnaroundDistance",
+      "maximumDistance", "finalDistance", "finalArthurHealth",
       "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
       "estimatedLootValue", "encounterCount", "combatCount", "aggressiveEmergencyActions",
       "combatsStartedBelow50Percent", "combatsStartedBelow25Percent", "stepCount", "durationMs",
@@ -615,6 +684,16 @@ function checkEncounterSurvival(expedition, fail) {
 }
 
 function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, replayStartingState) {
+  const originalTargetDistance = turnaroundPolicy.name === "fixed-distance"
+    ? turnaroundPolicy.configuration.distance : null;
+  const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(strategy.name);
+  const departurePassiveFoodEstimate = originalTargetDistance === null ? null : rounded(
+    SimulationProvisionPlanning.passiveRoundTripCost(
+      originalTargetDistance, expedition.provisionConsumptionMultiplier,
+    ),
+  );
+  const departureTotalEstimatedRequirement = departurePassiveFoodEstimate === null
+    ? null : Math.ceil(departurePassiveFoodEstimate + encounterProvisionReserve);
   return {
     runId: `${scenario.scenarioId}:${scenario.seed}`,
     scenarioId: scenario.scenarioId,
@@ -624,6 +703,14 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     turnaroundConfiguration: turnaroundPolicy.configuration ?? {},
     companion: expedition.selectedCompanion,
     startingProvisions: expedition.committedProvisions,
+    originalTargetDistance,
+    departurePassiveFoodEstimate,
+    encounterProvisionReserve,
+    departureTotalEstimatedRequirement,
+    emergencyProvisionTurnaround: false,
+    emergencyProvisionTurnaroundDistance: null,
+    emergencyReturnPassiveEstimate: null,
+    emergencyReturnTotalRequirement: null,
     loadout: deepClone(expedition.selectedEquipment),
     packedItems: deepClone(expedition.carriedItems),
     scenario: deepClone({
@@ -646,6 +733,10 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
       configuration: scenario.scenarioId,
       regionId: expedition.regionId,
       pathId: expedition.currentPathId,
+      originalTargetDistance,
+      departurePassiveFoodEstimate,
+      encounterProvisionReserve,
+      departureTotalEstimatedRequirement,
     }],
     encounters: [],
     combats: [],
@@ -675,6 +766,8 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     success: returned,
     returnedSafely: returned,
     failureReason: returned ? null : failureReason,
+    provisionExhaustionFailure: !returned && typeof failureReason === "string"
+      && failureReason.toLowerCase().includes("exhausted its provisions"),
     completionReason: returned ? "Returned safely to the expedition origin." : failureReason,
     maximumDistance: rounded(expedition.maxDistanceReached),
     finalDistance: rounded(expedition.distance),
@@ -918,6 +1011,14 @@ function summarizeRuns(results) {
     averageCombatsStartedBelow25Percent: average(values("combatsStartedBelow25Percent")),
     averageArthurCombatDamageReceived: average(values("arthurCombatDamageReceived")),
     averageCompanionCombatDamageReceived: average(values("companionCombatDamageReceived")),
+    emergencyProvisionTurnaroundRate: ratio(
+      results.filter((run) => run.emergencyProvisionTurnaround).length, total,
+    ),
+    provisionExhaustionFailureRate: ratio(
+      results.filter((run) => run.provisionExhaustionFailure).length, total,
+    ),
+    averageEncounterProvisionReserve: average(values("encounterProvisionReserve")),
+    averageDepartureTotalEstimatedRequirement: average(values("departureTotalEstimatedRequirement")),
   };
 }
 

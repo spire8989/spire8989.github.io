@@ -42,7 +42,7 @@ const CampaignSimulationRunner = Object.freeze({
         break;
       }
       const decision = applyBetweenExpeditionPolicy(
-        player, shopStocks, policy, desiredTargetDistance, config.healingEnabled,
+        player, shopStocks, policy, desiredTargetDistance, config.healingEnabled, config.strategy,
       );
       decision.expeditionNumber = expeditionNumber;
       decision.townProvisionGrant = townEntry.provisionsGranted;
@@ -95,6 +95,15 @@ const CampaignSimulationRunner = Object.freeze({
         targetDistanceReduced: decision.targetDistanceReduced,
         targetDistanceReduction: decision.targetDistanceReduction,
         targetDistanceReductionReason: decision.targetDistanceReductionReason,
+        departurePassiveFoodEstimate: decision.departurePassiveFoodEstimate,
+        encounterProvisionReserve: decision.encounterProvisionReserve,
+        totalEstimatedProvisionRequirement: decision.totalEstimatedProvisionRequirement,
+        emergencyProvisionTurnaround: run.emergencyProvisionTurnaround,
+        emergencyProvisionTurnaroundDistance: run.emergencyProvisionTurnaroundDistance,
+        originalTargetDistance: desiredTargetDistance,
+        departureTargetDistance: actualTargetDistance,
+        actualTurnaroundDistance: run.turnaroundDistance,
+        provisionExhaustionFailure: run.provisionExhaustionFailure,
         strategyConstraints: decision.strategyConstraints,
         hardFailure: Boolean(expeditionHardFailureReason),
         hardFailureReason: expeditionHardFailureReason,
@@ -230,6 +239,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "expeditionsReturned", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
       "strategyConstraintCount", "strategyConstraintTypes", "startingGold", "endingGold", "endingArthurHealth",
       "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
+      "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
@@ -257,6 +267,10 @@ const CampaignSimulationTelemetry = Object.freeze({
     const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "success",
       "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
+      "departurePassiveFoodEstimate", "encounterProvisionReserve", "totalEstimatedProvisionRequirement",
+      "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance",
+      "originalTargetDistance", "departureTargetDistance", "actualTurnaroundDistance",
+      "provisionExhaustionFailure",
       "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
       "arthurHealing", "companionId", "companionHealing", "healingCost",
       "healingTriggeredByLowHp", "healingTriggerReason",
@@ -278,7 +292,16 @@ function resolveBetweenPolicy(value) {
   return BetweenExpeditionPolicies[value] ?? BetweenExpeditionPolicies["conservative-sustainer"];
 }
 
-function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance, healingEnabled) {
+function defaultStrategyForBetweenPolicy(policy) {
+  if (policy.name === "aggressive-reinvestor") return "aggressive";
+  if (policy.name === "conservative-sustainer") return "cautious";
+  return "random";
+}
+
+function applyBetweenExpeditionPolicy(
+  player, shopStocks, policy, targetDistance, healingEnabled, strategyName = null,
+) {
+  const planningStrategy = strategyName ?? defaultStrategyForBetweenPolicy(policy);
   const goldBeforePreparation = player.currentGold;
   const restQuote = HealingRules.quoteInnRest(player);
   let healing = {
@@ -313,11 +336,15 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
       ? "arthur-low-below-50-percent"
       : partyMembersBelowThreshold.length > 0 ? "active-companion-below-threshold" : null;
   if (healingEnabled && partyNeedsRest) {
-    const restActions = [HealingRules.restAtInn(player)];
-    if (arthurCritical && restActions[0].applied
-      && HealingRules.arthurHealth(player) / HealingRules.arthurMaxHealth(player) < policy.healingThreshold) {
-      restActions.push(HealingRules.restAtInn(player));
-    }
+    const restActions = [];
+    do {
+      const action = HealingRules.restAtInn(player);
+      restActions.push(action);
+      if (!action.applied) break;
+    } while (HealingRules.activeParty(player).some(
+      (member) => member.maxHealth > 0
+        && member.health / member.maxHealth < policy.healingThreshold,
+    ));
     const result = summarizePolicyHealing(player, restQuote, restActions);
     healing = {
       attempted: true,
@@ -336,8 +363,9 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
 
   const goldAfterHealing = player.currentGold;
   const capacity = ExpeditionRules.partyProvisionCapacity(player.selectedCompanion);
+  const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
   const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
-    targetDistance, player.selectedCompanion, policy.provisionMargin,
+    targetDistance, player.selectedCompanion, policy.provisionMargin, encounterProvisionReserve,
   );
   const desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
   const provisionStockBeforePurchase = player.provisions;
@@ -355,28 +383,45 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
   const actualProvisionStockAfterPurchase = player.provisions;
   const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
   const preferredSafeDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, player.selectedCompanion, policy.provisionMargin,
+    provisionStockAvailableToPack, player.selectedCompanion,
+    policy.provisionMargin, encounterProvisionReserve,
+  );
+  const encounterReserveSupportedDistance = maximumCampaignDistanceForProvisions(
+    provisionStockAvailableToPack, player.selectedCompanion, 0, encounterProvisionReserve,
   );
   const minimumSupportedDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, player.selectedCompanion, 0,
+    provisionStockAvailableToPack, player.selectedCompanion, 0, 0,
   );
   const safeAffordableDistance = preferredSafeDistance >= 1
-    ? preferredSafeDistance : minimumSupportedDistance;
+    ? preferredSafeDistance
+    : encounterReserveSupportedDistance >= 1
+      ? encounterReserveSupportedDistance : minimumSupportedDistance;
   const safetyMarginUsed = preferredSafeDistance >= 1 ? policy.provisionMargin : 0;
+  const encounterProvisionReserveUsed = preferredSafeDistance >= 1
+    || encounterReserveSupportedDistance >= 1 ? encounterProvisionReserve : 0;
   const actualTargetDistance = Math.min(targetDistance, safeAffordableDistance);
   const targetDistanceReduced = actualTargetDistance < targetDistance;
   const targetDistanceReduction = targetDistance - actualTargetDistance;
   const estimatedProvisionRequirementForChosenDistance = actualTargetDistance >= 1
     ? estimateCampaignProvisionRequirement(
-      actualTargetDistance, player.selectedCompanion, safetyMarginUsed,
+      actualTargetDistance, player.selectedCompanion,
+      safetyMarginUsed, encounterProvisionReserveUsed,
     ) : 0;
+  const departurePassiveFoodEstimate = roundCampaignNumber(
+    estimateCampaignPassiveProvisionCost(actualTargetDistance, player.selectedCompanion),
+  );
+  const desiredTargetPassiveFoodEstimate = roundCampaignNumber(
+    estimateCampaignPassiveProvisionCost(targetDistance, player.selectedCompanion),
+  );
   const targetDistanceReductionReason = !targetDistanceReduced
     ? null
     : desiredProvisionStockForNominalDistance > capacity
       && actualProvisionStockAfterPurchase >= capacity
       ? "party-provision-capacity"
-      : preferredSafeDistance < 1 && minimumSupportedDistance >= 1
+      : preferredSafeDistance < 1 && encounterReserveSupportedDistance >= 1
         ? "preferred-safety-margin-unavailable"
+        : encounterReserveSupportedDistance < 1 && minimumSupportedDistance >= 1
+          ? "expected-encounter-reserve-unavailable"
         : affordableProvisionStock < desiredProvisionStock
           ? "cannot-afford-target-provisions"
           : "insufficient-provisions-for-target";
@@ -415,6 +460,7 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
   const hardFailureReason = canSupportAnyExpedition ? null : "cannot-support-any-expedition";
   return {
     policy: policy.name,
+    planningStrategy,
     healingThreshold: policy.healingThreshold,
     healingThresholdComparison: policy.healingThresholdInclusive ? "at-or-below" : "below",
     criticalHealingThreshold: policy.criticalHealingThreshold ?? null,
@@ -447,8 +493,14 @@ function applyBetweenExpeditionPolicy(player, shopStocks, policy, targetDistance
     actualProvisionStockAfterPurchase,
     provisionStockAvailableToPack,
     preferredSafeDistance,
+    encounterReserveSupportedDistance,
     minimumSupportedDistance,
     estimatedProvisionRequirementForChosenDistance,
+    departurePassiveFoodEstimate,
+    desiredTargetPassiveFoodEstimate,
+    encounterProvisionReserve,
+    encounterProvisionReserveUsed,
+    totalEstimatedProvisionRequirement: estimatedProvisionRequirementForChosenDistance,
     preferredProvisionTargetMet: actualProvisionStockAfterPurchase >= desiredProvisionStockForNominalDistance,
     provisionPurchase,
     provisionsToPack: Math.min(player.provisions, capacity),
@@ -487,20 +539,32 @@ function summarizePolicyHealing(player, initialQuote, restActions) {
   };
 }
 
-function estimateCampaignProvisionRequirement(distance, companionId, safetyMargin) {
+function estimateCampaignPassiveProvisionCost(distance, companionId) {
   const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
+  return SimulationProvisionPlanning.passiveRoundTripCost(distance, multiplier);
+}
+
+function estimateCampaignProvisionRequirement(
+  distance, companionId, safetyMargin, encounterProvisionReserve = 0,
+) {
   return Math.ceil(
-    Math.max(0, distance) * 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier
-      + safetyMargin,
+    estimateCampaignPassiveProvisionCost(distance, companionId)
+      + safetyMargin + encounterProvisionReserve,
   );
 }
 
-function maximumCampaignDistanceForProvisions(provisions, companionId, safetyMargin) {
+function maximumCampaignDistanceForProvisions(
+  provisions, companionId, safetyMargin, encounterProvisionReserve = 0,
+) {
   const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
   const roundTripRate = 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier;
-  let distance = Math.max(0, Math.floor((provisions - safetyMargin) / roundTripRate + 1e-9));
+  let distance = Math.max(0, Math.floor(
+    (provisions - safetyMargin - encounterProvisionReserve) / roundTripRate + 1e-9,
+  ));
   while (distance > 0
-    && estimateCampaignProvisionRequirement(distance, companionId, safetyMargin) > provisions) {
+    && estimateCampaignProvisionRequirement(
+      distance, companionId, safetyMargin, encounterProvisionReserve,
+    ) > provisions) {
     distance -= 1;
   }
   return distance;
@@ -654,6 +718,14 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
       ? expeditions.filter((entry) => entry.targetDistanceReduced).length / expeditions.length : 0,
     averageDistanceReduced: campaignAverage(expeditions.map((entry) => entry.targetDistanceReduction)),
     expeditionsWithReducedTarget: expeditions.filter((entry) => entry.targetDistanceReduced).length,
+    emergencyProvisionTurnaroundRate: expeditions.length
+      ? expeditions.filter((entry) => entry.emergencyProvisionTurnaround).length / expeditions.length : 0,
+    totalEmergencyProvisionTurnarounds: expeditions.filter(
+      (entry) => entry.emergencyProvisionTurnaround,
+    ).length,
+    averageEncounterProvisionReserve: campaignAverage(
+      expeditions.map((entry) => entry.encounterProvisionReserve),
+    ),
     damagePerSuccessfulExpedition: successful.length ? totals((entry) => entry.success ? entry.damageTaken : 0) / successful.length : 0,
     damagePerFailedExpedition: failed.length ? totals((entry) => !entry.success ? entry.damageTaken : 0) / failed.length : 0,
     healingCostPerSuccessfulExpedition: successful.length ? totalHealingCost / successful.length : 0,
@@ -712,6 +784,12 @@ function summarizeCampaigns(results) {
     targetDistanceReductionFrequency: expeditions.length
       ? expeditions.filter((entry) => entry.targetDistanceReduced).length / expeditions.length : 0,
     averageDistanceReduced: campaignAverage(expeditions.map((entry) => entry.targetDistanceReduction)),
+    emergencyProvisionTurnaroundRate: expeditions.length
+      ? expeditions.filter((entry) => entry.emergencyProvisionTurnaround).length / expeditions.length : 0,
+    averageEmergencyProvisionTurnarounds: averageField("totalEmergencyProvisionTurnarounds"),
+    averageEncounterProvisionReserve: campaignAverage(
+      expeditions.map((entry) => entry.encounterProvisionReserve),
+    ),
     averageEndingGold: averageField("endingGold"),
     averageEndingHealth: averageField("endingArthurHealth"),
     averageTotalProfit: averageField("netCampaignWealth"),
