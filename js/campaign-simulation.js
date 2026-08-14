@@ -76,6 +76,8 @@ const CampaignSimulationRunner = Object.freeze({
         packContents: decision.packContents,
         strategy: config.strategy,
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
+        paceId: decision.paceId,
+        rationId: decision.rationId,
         startingState: deepCampaignClone(player),
       });
 
@@ -99,6 +101,21 @@ const CampaignSimulationRunner = Object.freeze({
         targetDistanceReduction: decision.targetDistanceReduction,
         targetDistanceReductionReason: decision.targetDistanceReductionReason,
         departurePassiveFoodEstimate: decision.departurePassiveFoodEstimate,
+        paceSelectedAtDeparture: run.paceSelectedAtDeparture,
+        rationSelectedAtDeparture: run.rationSelectedAtDeparture,
+        paceChanges: run.paceChanges,
+        rationChanges: run.rationChanges,
+        briefRests: run.briefRests,
+        campsEntered: run.campsEntered,
+        campRests: run.campRests,
+        campEvents: run.campEvents,
+        recipesCooked: run.recipesCooked,
+        ingredientsConsumedById: run.ingredientsConsumedById,
+        briefRestCount: run.briefRestCount,
+        campRestCount: run.campRestCount,
+        campEventCount: run.campEventCount,
+        cookingActionCount: run.cookingActionCount,
+        cookingProvisionsGained: run.cookingProvisionsGained,
         encounterProvisionReserve: decision.encounterProvisionReserve,
         totalEstimatedProvisionRequirement: decision.totalEstimatedProvisionRequirement,
         emergencyProvisionTurnaround: run.emergencyProvisionTurnaround,
@@ -265,6 +282,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
       "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
+      "totalBriefRests", "totalCampRests", "totalCampEvents", "totalCookingActions", "totalCookingProvisionsGained",
+      "ingredientsConsumedById",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
@@ -298,6 +317,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance",
       "originalTargetDistance", "departureTargetDistance", "actualTurnaroundDistance",
       "provisionExhaustionFailure",
+      "paceSelectedAtDeparture", "rationSelectedAtDeparture", "paceChanges", "rationChanges", "briefRestCount", "campRestCount", "campEventCount",
+      "cookingActionCount", "cookingProvisionsGained", "campEvents", "recipesCooked", "ingredientsConsumedById",
       "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
       "arthurHealing", "companionId", "companionHealing", "healingCost",
       "healingTriggeredByLowHp", "healingTriggerReason",
@@ -380,357 +401,7 @@ function applyBetweenExpeditionPolicy(
     healing = {
       attempted: true,
       intentionallySkipped: false,
-      skippedInsufficientResources: restActions.some((action) => !action.applied && !action.fullHealth),
-      ...result,
-    };
-  }
-
-  const unavailableCompanionIds = selectedCompanionIds(player).filter((companionId) => (
-    (player.companionStates?.[companionId]?.health ?? 0) <= 0
-  ));
-  const unavailableCompanionId = unavailableCompanionIds[0] ?? null;
-  if (unavailableCompanionIds.length > 0) {
-    player.selectedCompanions = selectedCompanionIds(player)
-      .filter((companionId) => !unavailableCompanionIds.includes(companionId));
-    player.selectedCompanion = player.selectedCompanions[0] ?? null;
-  }
-
-  const goldAfterHealing = player.currentGold;
-  const activeCompanions = selectedCompanionIds(player);
-  const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions);
-  const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
-  const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
-    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve,
-  );
-  const desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
-  const provisionStockBeforePurchase = player.provisions;
-  const shop = SHOP_DEFINITIONS.village_general_goods;
-  const shopStockBeforePurchase = shopStocks[shop.id] ?? 0;
-  const affordablePurchaseQuantity = Math.min(
-    Math.floor(player.currentGold / shop.provisionsForSale.price),
-    shopStockBeforePurchase,
-    Math.max(0, capacity - provisionStockBeforePurchase),
-  );
-  const affordableProvisionStock = Math.min(
-    capacity, provisionStockBeforePurchase + affordablePurchaseQuantity,
-  );
-  const provisionPurchase = CampaignRules.buyProvisionsTo(player, shopStocks, desiredProvisionStock);
-  const bandagePlan = strategyName
-    ? chooseBandagePlan(strategyName, preparationRandom)
-    : { target: 0, minimum: 0, combatUseThreshold: 0, policy: "disabled" };
-  const bandagesBeforeCrafting = player.ownedItems.bandages ?? 0;
-  const craftingActions = [];
-  while ((player.ownedItems.bandages ?? 0) < bandagePlan.target) {
-    const crafted = CraftingRules.craft(player, "bandages", "apothecary");
-    if (!crafted.applied) break;
-    craftingActions.push(crafted);
-  }
-  const bandagesCrafted = (player.ownedItems.bandages ?? 0) - bandagesBeforeCrafting;
-  const bandagesBeforePurchase = player.ownedItems.bandages ?? 0;
-  const bandagePackAvailable = player.packedItems.includes("bandages")
-    || player.packedItems.length < EXPEDITION_TUNING.packSlots;
-  const bandagePurchaseTarget = provisionPurchase.shortfall > 0 || !bandagePackAvailable
-    ? bandagesBeforePurchase : bandagePlan.target;
-  const bandagePurchase = CampaignRules.buyItemsTo(
-    player, shopStocks, "bandages", bandagePurchaseTarget,
-    healing.attempted ? HEALING_TUNING.innRestGoldCost : 0,
-  );
-  const bandagesAfterPurchase = player.ownedItems.bandages ?? 0;
-  const bandagesPacked = packCampaignItems(player, {
-    bandages: Math.min(bandagePlan.target, bandagesAfterPurchase),
-  });
-  const itemPurchaseGoldSpent = bandagePurchase.goldCost;
-  const itemsPurchasedById = bandagePurchase.quantity > 0 ? { bandages: bandagePurchase.quantity } : {};
-  const itemPurchaseGoldSpentById = bandagePurchase.quantity > 0 ? { bandages: itemPurchaseGoldSpent } : {};
-  const actualProvisionStockAfterPurchase = player.provisions;
-  const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
-  const preferredSafeDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, activeCompanions,
-    policy.provisionMargin, encounterProvisionReserve,
-  );
-  const encounterReserveSupportedDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, activeCompanions, 0, encounterProvisionReserve,
-  );
-  const minimumSupportedDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, activeCompanions, 0, 0,
-  );
-  const safeAffordableDistance = preferredSafeDistance >= 1
-    ? preferredSafeDistance
-    : encounterReserveSupportedDistance >= 1
-      ? encounterReserveSupportedDistance : minimumSupportedDistance;
-  const safetyMarginUsed = preferredSafeDistance >= 1 ? policy.provisionMargin : 0;
-  const encounterProvisionReserveUsed = preferredSafeDistance >= 1
-    || encounterReserveSupportedDistance >= 1 ? encounterProvisionReserve : 0;
-  const actualTargetDistance = Math.min(targetDistance, safeAffordableDistance);
-  const targetDistanceReduced = actualTargetDistance < targetDistance;
-  const targetDistanceReduction = targetDistance - actualTargetDistance;
-  const estimatedProvisionRequirementForChosenDistance = actualTargetDistance >= 1
-    ? estimateCampaignProvisionRequirement(
-      actualTargetDistance, activeCompanions,
-      safetyMarginUsed, encounterProvisionReserveUsed,
-    ) : 0;
-  const departurePassiveFoodEstimate = roundCampaignNumber(
-    estimateCampaignPassiveProvisionCost(actualTargetDistance, activeCompanions),
-  );
-  const desiredTargetPassiveFoodEstimate = roundCampaignNumber(
-    estimateCampaignPassiveProvisionCost(targetDistance, activeCompanions),
-  );
-  const targetDistanceReductionReason = !targetDistanceReduced
-    ? null
-    : desiredProvisionStockForNominalDistance > capacity
-      && actualProvisionStockAfterPurchase >= capacity
-      ? "party-provision-capacity"
-      : preferredSafeDistance < 1 && encounterReserveSupportedDistance >= 1
-        ? "preferred-safety-margin-unavailable"
-        : encounterReserveSupportedDistance < 1 && minimumSupportedDistance >= 1
-          ? "expected-encounter-reserve-unavailable"
-        : affordableProvisionStock < desiredProvisionStock
-          ? "cannot-afford-target-provisions"
-          : "insufficient-provisions-for-target";
-  const canSupportAnyExpedition = actualTargetDistance >= 1
-    && provisionStockAvailableToPack >= EXPEDITION_TUNING.minimumStartingProvisions;
-  const strategyConstraints = [];
-  if (healing.attempted && healing.skippedInsufficientResources) {
-    strategyConstraints.push({
-      type: "preferred-healing-unaffordable",
-      quotedGoldCost: healing.quotedGoldCost,
-      availableGold: goldBeforePreparation,
-    });
-  }
-  if (unavailableCompanionId) {
-    strategyConstraints.push({
-      type: "active-companion-unavailable",
-      companionId: unavailableCompanionId,
-      resolution: "continue-without-companion",
-    });
-  }
-  if (actualProvisionStockAfterPurchase < desiredProvisionStock) {
-    strategyConstraints.push({
-      type: "preferred-provision-buffer-unavailable",
-      desiredProvisionStock,
-      actualProvisionStock: actualProvisionStockAfterPurchase,
-    });
-  }
-  if (bandagePlan.target > bandagesBeforePurchase && bandagePurchase.quantity === 0) {
-    const reason = !bandagePackAvailable
-      ? "preferred-bandages-cannot-fit-pack"
-      : provisionPurchase.shortfall > 0
-      ? "bandage-purchase-skipped-for-provisions"
-      : bandagePurchase.stock <= 0
-        ? "preferred-bandage-stock-unavailable" : "preferred-bandages-unaffordable";
-    strategyConstraints.push({
-      type: reason,
-      desiredBandages: bandagePlan.target,
-      ownedBandages: bandagesBeforePurchase,
-      availableBandages: bandagePurchase.stock,
-      availableGold: player.currentGold,
-    });
-  }
-  if (bandagePlan.target > 0 && bandagesPacked < Math.min(bandagePlan.target, bandagesAfterPurchase)) {
-    strategyConstraints.push({
-      type: "preferred-bandages-cannot-fit-pack",
-      desiredBandages: bandagePlan.target,
-      bandagesPacked,
-      packSlots: EXPEDITION_TUNING.packSlots,
-    });
-  }
-  if (targetDistanceReduced) {
-    strategyConstraints.push({
-      type: "target-distance-reduced",
-      desiredTargetDistance: targetDistance,
-      actualTargetDistance,
-      reason: targetDistanceReductionReason,
-    });
-  }
-  const hardFailureReason = canSupportAnyExpedition ? null : "cannot-support-any-expedition";
-  return {
-    policy: policy.name,
-    planningStrategy,
-    healingThreshold: policy.healingThreshold,
-    healingThresholdComparison: policy.healingThresholdInclusive ? "at-or-below" : "below",
-    criticalHealingThreshold: policy.criticalHealingThreshold ?? null,
-    healingTriggeredByLowHp: partyNeedsRest,
-    healingTriggerReason,
-    desiredTargetDistance: targetDistance,
-    actualTargetDistance,
-    safeAffordableDistance,
-    targetDistanceReduced,
-    targetDistanceReduction,
-    targetDistanceReductionReason,
-    strategyConstraints,
-    hardFailure: Boolean(hardFailureReason),
-    hardFailureReason,
-    healing,
-    healthBeforeHealing: Object.fromEntries(restQuote.partyMembers.map(
-      (member) => [member.id, member.healthBefore],
-    )),
-    healthAfterHealing: Object.fromEntries(restQuote.partyMembers.map(
-      (member) => [member.id, member.id === "arthur"
-        ? HealingRules.arthurHealth(player)
-        : player.companionStates?.[member.id]?.health ?? 0],
-    )),
-    preferredSafetyMargin: policy.provisionMargin,
-    safetyMargin: safetyMarginUsed,
-    provisionStockBeforePurchase,
-    desiredProvisionStock,
-    desiredProvisionStockForNominalDistance,
-    affordableProvisionStock,
-    actualProvisionStockAfterPurchase,
-    provisionStockAvailableToPack,
-    preferredSafeDistance,
-    encounterReserveSupportedDistance,
-    minimumSupportedDistance,
-    estimatedProvisionRequirementForChosenDistance,
-    departurePassiveFoodEstimate,
-    desiredTargetPassiveFoodEstimate,
-    encounterProvisionReserve,
-    encounterProvisionReserveUsed,
-    totalEstimatedProvisionRequirement: estimatedProvisionRequirementForChosenDistance,
-    preferredProvisionTargetMet: actualProvisionStockAfterPurchase >= desiredProvisionStockForNominalDistance,
-    provisionPurchase,
-    bandagePurchase,
-    craftingActions,
-    bandagesBeforeCrafting,
-    bandagesCrafted,
-    bandagesBeforePurchase,
-    bandagesAfterPurchase,
-    bandagesPurchased: bandagePurchase.quantity,
-    bandagesPacked,
-    itemsPurchasedById,
-    itemPurchaseGoldSpentById,
-    itemPurchaseGoldSpent,
-    packContents: Object.fromEntries(player.packedItems.map((itemId) => [
-      itemId,
-      itemId === "bandages" ? bandagesPacked : player.ownedItems[itemId],
-    ])),
-    desiredBandages: bandagePlan.target,
-    minimumBandages: bandagePlan.minimum,
-    bandagePurchasePolicy: bandagePlan.policy,
-    provisionsToPack: Math.min(player.provisions, capacity),
-    goldBeforePreparation,
-    goldAfterHealing,
-    goldAfterPreparation: player.currentGold,
-    stopReason: hardFailureReason,
-  };
-}
-
-function summarizePolicyHealing(player, initialQuote, restActions) {
-  const finalParty = HealingRules.activeParty(player);
-  const partyMembers = initialQuote.partyMembers.map((quotedMember) => {
-    const finalMember = finalParty.find((member) => member.id === quotedMember.id) ?? quotedMember;
-    return {
-      ...quotedMember,
-      healthAfter: finalMember.health,
-      healingAmount: finalMember.health - quotedMember.healthBefore,
-    };
-  });
-  const arthur = partyMembers.find((member) => member.id === "arthur");
-  return {
-    ...restActions[0],
-    applied: restActions.some((action) => action.applied),
-    healthAfter: arthur.healthAfter,
-    healingAmount: arthur.healingAmount,
-    totalHealingAmount: partyMembers.reduce((sum, member) => sum + member.healingAmount, 0),
-    goldCost: restActions.reduce((sum, action) => sum + action.goldCost, 0),
-    quotedGoldCost: restActions.reduce((sum, action) => sum + action.quotedGoldCost, 0),
-    partyMembers,
-    healingByPartyMember: Object.fromEntries(partyMembers.map(
-      (member) => [member.id, member.healingAmount],
-    )),
-    restActionCount: restActions.filter((action) => action.applied).length,
-    restActions,
-  };
-}
-
-function chooseBandagePlan(strategyName, random = GameRandom.random) {
-  const tuning = CAMPAIGN_TUNING.consumablePurchasing.bandages;
-  if (strategyName === "aggressive") return { ...tuning.aggressive, policy: "aggressive" };
-  if (strategyName === "cautious") return { ...tuning.cautious, policy: "cautious" };
-  const randomTuning = tuning.random;
-  const roll = () => Math.min(1 - Number.EPSILON, Math.max(0, Number(random()) || 0));
-  const shouldBuy = roll() < randomTuning.purchaseChance;
-  const target = shouldBuy
-    ? randomTuning.minimum + Math.floor(
-      roll() * (randomTuning.maximum - randomTuning.minimum + 1),
-    ) : 0;
-  return { ...randomTuning, target, policy: "random" };
-}
-
-function packCampaignItems(player, desiredQuantities) {
-  const packed = [...new Set(player.packedItems ?? [])];
-  Object.entries(desiredQuantities).forEach(([itemId, desiredQuantity]) => {
-    if (desiredQuantity <= 0 || (player.ownedItems[itemId] ?? 0) <= 0
-      || packed.includes(itemId) || packed.length >= EXPEDITION_TUNING.packSlots) return;
-    packed.push(itemId);
-  });
-  player.packedItems = packed.slice(0, EXPEDITION_TUNING.packSlots);
-  return Math.min(
-    Math.max(0, Math.floor(Number(desiredQuantities.bandages) || 0)),
-    player.ownedItems.bandages ?? 0,
-  ) * (player.packedItems.includes("bandages") ? 1 : 0);
-}
-
-function estimateCampaignPassiveProvisionCost(distance, companionId) {
-  const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
-  return SimulationProvisionPlanning.passiveRoundTripCost(distance, multiplier);
-}
-
-function estimateCampaignProvisionRequirement(
-  distance, companionId, safetyMargin, encounterProvisionReserve = 0,
-) {
-  return Math.ceil(
-    estimateCampaignPassiveProvisionCost(distance, companionId)
-      + safetyMargin + encounterProvisionReserve,
-  );
-}
-
-function maximumCampaignDistanceForProvisions(
-  provisions, companionId, safetyMargin, encounterProvisionReserve = 0,
-) {
-  const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
-  const roundTripRate = 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier;
-  let distance = Math.max(0, Math.floor(
-    (provisions - safetyMargin - encounterProvisionReserve) / roundTripRate + 1e-9,
-  ));
-  while (distance > 0
-    && estimateCampaignProvisionRequirement(
-      distance, companionId, safetyMargin, encounterProvisionReserve,
-    ) > provisions) {
-    distance -= 1;
-  }
-  return distance;
-}
-
-function normalizeCampaignConfiguration(configuration) {
-  const count = Math.max(1, Math.floor(Number(configuration.expeditions ?? configuration.maxExpeditions) || 10));
-  const plan = Array.isArray(configuration.expeditionPlan)
-    ? configuration.expeditionPlan
-    : [Number(configuration.turnaroundDistance) || 50];
-  return {
-    id: configuration.id ?? "campaign",
-    seed: String(configuration.seed ?? "campaign-simulation"),
-    strategy: configuration.strategy ?? "cautious",
-    betweenExpeditionPolicy: configuration.betweenExpeditionPolicy ?? "conservative-sustainer",
-    expeditionPlan: plan.map((distance) => Math.max(1, Number(distance) || 50)),
-    maxExpeditions: count,
-    startingState: configuration.startingState ?? {},
-    healingEnabled: configuration.healingEnabled !== false,
-    autoSellRecoveredLoot: configuration.autoSellRecoveredLoot !== false,
-  };
-}
-
-function createCampaignPlayer(overrides) {
-  const defaults = SaveSystem.createDefaultPlayerState();
-  const merged = { ...defaults, ...deepCampaignClone(overrides) };
-  merged.ownedItems = { ...defaults.ownedItems, ...(overrides.ownedItems ?? {}) };
-  merged.equippedItems = { ...defaults.equippedItems, ...(overrides.equippedItems ?? {}) };
-  merged.packedItems = [...(overrides.packedItems ?? defaults.packedItems)];
-  merged.materials = { ...defaults.materials, ...(overrides.materials ?? {}) };
-  merged.learnedRecipes = [...(overrides.learnedRecipes ?? defaults.learnedRecipes)];
-  merged.learnedKnowledge = [...(overrides.learnedKnowledge ?? defaults.learnedKnowledge)];
-  merged.unlockedCompanions = [...(overrides.unlockedCompanions ?? defaults.unlockedCompanions)];
-  merged.selectedCompanions = [...(overrides.selectedCompanions ?? selectedCompanionIds(merged))];
-  merged.selectedCompanion = merged.selectedCompanions[0] ?? null;
+      skippedInsufficientResources: r…4294 tokens truncated…s[0] ?? null;
   merged.unlockedCompanions = [...new Set([
     ...merged.unlockedCompanions,
     ...merged.selectedCompanions,
@@ -777,6 +448,7 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
   const itemsPackedById = campaignCombatTotals(expeditions, "itemsPackedById");
   const itemsConsumedById = campaignCombatTotals(expeditions, "itemsConsumedById");
   const itemsReturnedById = campaignCombatTotals(expeditions, "itemsReturnedById");
+  const ingredientsConsumedById = campaignCombatTotals(expeditions, "ingredientsConsumedById");
   const totalItemPurchaseGoldSpent = totals((entry) => entry.itemPurchaseGoldSpent);
   const totalGoldEarned = totals((entry) => entry.goldEarnedFromSales + entry.goldEarnedDirect);
   const totalGoldSpent = totalHealingCost + totalProvisionCost + totalItemPurchaseGoldSpent;
@@ -844,6 +516,12 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalBandagesUsed: totals((entry) => entry.bandagesUsed),
     totalBandagesReturned: totals((entry) => entry.bandagesReturned),
     totalBandageHealingPerformed: totals((entry) => entry.bandageHealingPerformed),
+    totalBriefRests: totals((entry) => entry.briefRestCount),
+    totalCampRests: totals((entry) => entry.campRestCount),
+    totalCampEvents: totals((entry) => entry.campEventCount),
+    totalCookingActions: totals((entry) => entry.cookingActionCount),
+    totalCookingProvisionsGained: totals((entry) => entry.cookingProvisionsGained),
+    ingredientsConsumedById,
     totalLootValueRecovered: totals((entry) => entry.lootValueRecovered),
     totalLootValueLost: totals((entry) => estimateCampaignItems(entry.lootLost)),
     totalProvisionsConsumed: totals((entry) => entry.provisionsConsumed),
@@ -972,6 +650,11 @@ function summarizeCampaigns(results) {
     averageBandagesUsed: averageField("totalBandagesUsed"),
     averageBandagesReturned: averageField("totalBandagesReturned"),
     averageBandageHealingPerformed: averageField("totalBandageHealingPerformed"),
+    averageBriefRests: averageField("totalBriefRests"),
+    averageCampRests: averageField("totalCampRests"),
+    averageCampEvents: averageField("totalCampEvents"),
+    averageCookingActions: averageField("totalCookingActions"),
+    averageCookingProvisionsGained: averageField("totalCookingProvisionsGained"),
     averageTotalLootRecovered: averageField("totalLootValueRecovered"),
     averageTotalDamage: averageField("totalDamageTaken"),
     averageCombats: averageField("totalCombats"),
@@ -1076,3 +759,4 @@ function roundCampaignNumber(value, precision = 4) {
 function deepCampaignClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
+

@@ -75,11 +75,13 @@ const batch = await SimulationRunner.runBatchAsync({
 - `strategy`: built-in strategy name or an object implementing the strategy interface.
 - `turnaroundPolicy`: fixed-distance/resource-reserve configuration or a policy object.
 - `startingState`: optional player-state overrides such as owned items, knowledge, flags, health, or provision stock.
-- `regionId` and `pathId`: starting expedition region/path; defaults to Brocéliande's old forest road.
+- `regionId` and `pathId`: starting expedition region/path; defaults to BrocÃ©liande's old forest road.
 - `maxSimulationSteps`, `maxCombatSteps`: infinite-loop safeguards.
 - `travelStepDistance`: rule-step size in leagues; defaults to one.
 
-Built-in strategies are `random`, `cautious`, `aggressive`, and `greedy`. They score only choices that pass the production requirement and affordability checks. Aggressive still attacks normally, but on Arthur's turn it deterministically estimates the maximum damage from living enemies due before his next action. If that damage is lethal, it Defends when mitigation makes the window survivable, otherwise it attempts to Flee. Built-in policies are created by `TurnaroundPolicies.fixedDistance(distance)` and `TurnaroundPolicies.provisionReserve({ reserve, minimumDistance })`.
+Built-in strategies are `random`, `normal`, `cautious`, `aggressive`, and `greedy`. They score only choices that pass the production requirement and affordability checks. At departure, Cautious selects Cautious pace and uses Generous rations when supplies are healthy; Normal/Random stays on Normal/Normal; Aggressive selects Hard Push and can use Sparse rations when constrained. The same strategy policy can change rations during travel as the known return margin changes.
+
+The runner also makes deterministic in-expedition management decisions from current health, provisions, direction/distance, strategy, and recent action distances. It uses `ExpeditionRules.pause` followed by `briefRest`, or `enterCamp` followed by `restAtCamp`, resolves the resulting camp event through `CampRules` and `EncounterManager`, and leaves camp through the production lifecycle. While camped it evaluates available campfire recipes through `CraftingRules` and cooks only when the authored provision output is useful for the current run. Cooldowns prevent repeated rest or camp actions at the same location. Aggressive still attacks normally, but on Arthur's turn it deterministically estimates the maximum damage from living enemies due before his next action. If that damage is lethal, it Defends when mitigation makes the window survivable, otherwise it attempts to Flee. Built-in policies are created by `TurnaroundPolicies.fixedDistance(distance)` and `TurnaroundPolicies.provisionReserve({ reserve, minimumDistance })`.
 
 ## Adding behavior
 
@@ -93,13 +95,13 @@ A turnaround policy needs `name`, optional serializable `configuration`, and `sh
 
 ## Telemetry and replay foundation
 
-Each run contains identity/configuration fields, outcome/failure, distances, party health, provision accounting, gold, discovered/recovered item loot and estimated merchant value, recovered materials, learned recipes, expedition-return reward tier/results, the compact loot-resolution debug trace, encounter/combat counts, step count, and duration. It also includes:
+Each run contains identity/configuration fields, outcome/failure, distances, party health, provision accounting, gold, discovered/recovered item loot and estimated merchant value, recovered materials, learned recipes, expedition-return reward tier/results, the compact loot-resolution debug trace, encounter/combat counts, step count, and duration. It also includes pace/ration departure selections and changes, brief-rest attempts and applied recovery, camp entries and rests, camp event IDs/choices/results, cooked recipe records with ingredient consumption and outputs, and current health/provision deltas. It also includes:
 
 - `encounters`: availability at every stage, selected choices, path/direction/distance, actual before/after resource and health deltas, unsecured loot changes, packed-item consumption, combat trigger, and result text.
 - `combats`: enemies, before/after party HP, result/flee, damage totals, rounds/actions, and production combat events.
-- `decisions`: the compact encounter and combat policy decisions.
-- `events`: chronological human-readable expedition, encounter, combat, turnaround, and result events.
-- `replay`: seed, region/path, the actual pre-departure player/loadout/resource snapshot, and a copy of every encounter, combat, and turnaround decision.
+- `decisions`: the compact pace/ration, rest/camp/cooking, encounter, combat, and turnaround policy decisions.
+- `events`: chronological human-readable expedition, encounter, combat, rest, camp, cooking, turnaround, and result events.
+- `replay`: seed, region/path, departure pace/rations, the actual pre-departure player/loadout/resource snapshot, and a copy of every simulation decision.
 - `scenario` + `seed`: normalized configuration needed to rerun the deterministic rule stream.
 
 The future replay system can rerun `scenario` with `seed` while consuming/asserting `decisions`, or present the recorded `events` directly. The event schema is intentionally plain JSON and uses stable content IDs.
@@ -140,8 +142,9 @@ python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-The focused suite verifies normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, replay metadata, production-state telemetry, and direct encounter selection. It also temporarily makes native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
+The focused suite verifies normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, strategy pace/ration selection and adaptation, production provision effects, real brief-rest/camp/cooking flows, camp-event determinism, replay metadata, production-state telemetry, and direct encounter selection. It also temporarily makes native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
 
 ## Current Phase 1 boundaries
 
-All currently authored expedition encounters and both current combats use the simulator. Normal play and simulation share expedition creation, capacity/consumption, travel, turnaround, and complete success/failure settlement. Presentation delays are intentionally collapsed. The simulator does not yet drive a visual replay, enforce a recorded decision stream during replay, serialize custom strategy/policy function bodies, use a Web Worker, generate exhaustive loadout permutations, or model settlement shopping between multiple expeditions. `durationMs` and batch `generatedAt` are diagnostic metadata and are not deterministic replay fields.
+All currently authored expedition encounters, camp events, campfire recipes, and current combats use the simulator. Normal play and simulation share expedition creation, capacity/consumption, pace/rations, travel, rest, camping, cooking, turnaround, and complete success/failure settlement. Presentation delays are intentionally collapsed. The simulator does not yet drive a visual replay, enforce a recorded decision stream during replay, serialize custom strategy/policy function bodies, use a Web Worker, or generate exhaustive loadout permutations. `durationMs` and batch `generatedAt` are diagnostic metadata and are not deterministic replay fields.
+

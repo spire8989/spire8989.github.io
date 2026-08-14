@@ -2,13 +2,102 @@
 
 const SimulationStrategies = Object.freeze({
   random: createStrategy("random", (choices, context) => context.random.pick(choices)),
+  normal: createStrategy("normal", (choices, context) => context.random.pick(choices)),
   cautious: createStrategy("cautious", (choices) => highestScored(choices, cautiousChoiceScore)),
   aggressive: createStrategy("aggressive", (choices) => highestScored(choices, aggressiveChoiceScore)),
   greedy: createStrategy("greedy", (choices) => highestScored(choices, greedyChoiceScore)),
 });
 
+const SimulationTravelPolicy = Object.freeze({
+  departureSettings(strategyName, context = {}) {
+    const capacity = Math.max(1, Number(context.capacity) || 1);
+    const provisions = Math.max(0, Number(context.provisions) || 0);
+    if (strategyName === "cautious") {
+      return {
+        paceId: "cautious",
+        rationId: provisions >= capacity * 0.75 ? "generous" : "normal",
+      };
+    }
+    if (strategyName === "aggressive") {
+      return {
+        paceId: "hard_push",
+        rationId: provisions <= capacity * 0.5 ? "sparse" : "normal",
+      };
+    }
+    return { paceId: "normal", rationId: "normal" };
+  },
+
+  travelSettings(expedition, strategyName) {
+    const settings = this.departureSettings(strategyName, {
+      provisions: expedition?.provisions,
+      capacity: expedition?.provisionCapacity,
+    });
+    if (strategyName === "cautious") {
+      const returnStatus = ExpeditionRules.returnProvisionStatus(expedition);
+      settings.rationId = returnStatus.state === "safe" && expedition.provisions >= expedition.provisionCapacity * 0.65
+        ? "generous" : "normal";
+    }
+    if (strategyName === "aggressive") {
+      const returnStatus = ExpeditionRules.returnProvisionStatus(expedition);
+      settings.rationId = returnStatus.state === "danger" || expedition.provisions <= expedition.provisionCapacity * 0.5
+        ? "sparse" : "normal";
+    }
+    return settings;
+  },
+
+  chooseAction(expedition, strategyName, history) {
+    if (!expedition || expedition.travelState !== "traveling" || expedition.activeEncounter || expedition.combat) {
+      return "continue";
+    }
+    const thresholds = {
+      cautious: { brief: 0.78, camp: 0.58 },
+      aggressive: { brief: 0.35, camp: 0.18 },
+      normal: { brief: 0.55, camp: 0.35 },
+      random: { brief: 0.55, camp: 0.35 },
+      greedy: { brief: 0.45, camp: 0.25 },
+    }[strategyName] ?? { brief: 0.55, camp: 0.35 };
+    const healthRatio = expeditionHealthRatio(expedition);
+    const enoughForCamp = expedition.provisions >= EXPEDITION_TUNING.campRest.provisionCost;
+    const enoughForBriefRest = expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost;
+    const movedSinceRest = history.lastRestDistance === null
+      || Math.abs(expedition.distance - history.lastRestDistance) >= 5;
+    const movedSinceCamp = history.lastCampDistance === null
+      || Math.abs(expedition.distance - history.lastCampDistance) >= 8;
+    if (healthRatio <= thresholds.camp && enoughForCamp && movedSinceCamp && expedition.distance > 0) {
+      return "camp";
+    }
+    if (healthRatio <= thresholds.brief && enoughForBriefRest && movedSinceRest) {
+      return "brief-rest";
+    }
+    return "continue";
+  },
+
+  chooseCookingRecipe(candidates, expedition, strategyName) {
+    if (!candidates.length) return null;
+    const returnRequirement = ExpeditionRules.estimateReturnProvisionCost(expedition);
+    const healthRatio = expeditionHealthRatio(expedition);
+    const threshold = ({ cautious: 0.8, aggressive: 0.35 }[strategyName] ?? 0.55);
+    const needsFood = expedition.provisions <= returnRequirement + ({ cautious: 5, aggressive: 2 }[strategyName] ?? 3);
+    if (!needsFood && healthRatio > threshold) return null;
+    return candidates
+      .map((candidate) => {
+        const output = Number(candidate.recipe.output?.provisions) || 0;
+        const ingredients = Object.values(candidate.recipe.ingredients ?? {})
+          .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
+        const efficiency = output / Math.max(1, ingredients);
+        const score = strategyName === "cautious"
+          ? output * 2 + efficiency
+          : strategyName === "aggressive"
+            ? output * 1.5 + efficiency * 2
+            : output + efficiency;
+        return { ...candidate, score };
+      })
+      .sort((left, right) => right.score - left.score || left.recipe.id.localeCompare(right.recipe.id))[0];
+  },
+});
+
 const SimulationProvisionPlanning = Object.freeze({
-  encounterReserves: Object.freeze({ cautious: 4, random: 3, aggressive: 2, greedy: 3 }),
+  encounterReserves: Object.freeze({ cautious: 4, random: 3, normal: 3, aggressive: 2, greedy: 3 }),
 
   encounterReserve(strategyName) {
     return this.encounterReserves[strategyName] ?? this.encounterReserves.random;
@@ -25,7 +114,7 @@ const SimulationProvisionPlanning = Object.freeze({
   emergencyTurnaround(expedition, strategyName) {
     const encounterReserve = this.encounterReserve(strategyName);
     const passiveReturnEstimate = this.passiveTravelCost(
-      expedition.distance, expedition.provisionConsumptionMultiplier,
+      expedition.distance, ExpeditionRules.provisionConsumptionMultiplier(expedition),
     );
     const totalReturnRequirement = passiveReturnEstimate + encounterReserve;
     return {
@@ -96,6 +185,7 @@ const SimulationRunner = Object.freeze({
     const telemetry = createTelemetry(
       normalized, expedition, strategy, turnaroundPolicy, replayStartingState,
     );
+    const decisionHistory = createExpeditionDecisionHistory();
     let stepCount = 0;
     let failureReason = null;
 
@@ -116,6 +206,13 @@ const SimulationRunner = Object.freeze({
         resolveEncounterInstantly(expedition, player, strategy, random, telemetry, fail);
         continue;
       }
+      if (expedition.travelState === "camped") {
+        processCampedExpedition(
+          expedition, player, strategy, telemetry, decisionHistory, random, fail,
+        );
+        continue;
+      }
+      applySimulationTravelSettings(expedition, strategy.name, telemetry);
       if (turnaroundPolicy.shouldTurn(expedition, telemetry)) {
         ExpeditionRules.beginReturn(expedition);
         telemetry.turnaroundDistance = rounded(expedition.distance);
@@ -148,8 +245,20 @@ const SimulationRunner = Object.freeze({
         continue;
       }
 
+      const expeditionAction = SimulationTravelPolicy.chooseAction(
+        expedition, strategy.name, decisionHistory,
+      );
+      if (expeditionAction !== "continue") {
+        applySimulationExpeditionAction(
+          expedition, player, expeditionAction, telemetry, decisionHistory,
+        );
+        continue;
+      }
+
       let travelDistance = normalized.travelStepDistance
-        * ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier;
+        * (expedition.direction === "returning" ? EXPEDITION_TUNING.returnSpeedMultiplier : 1)
+        * ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier
+        * (expedition.travelSpeedMultiplier ?? 1);
       const distanceToEncounter = expedition.nextEncounterAt - expedition.encounterTravelDistance;
       if (distanceToEncounter > 0) travelDistance = Math.min(travelDistance, distanceToEncounter);
       if (expedition.direction === "outbound" && turnaroundPolicy.name === "fixed-distance") {
@@ -273,6 +382,21 @@ const SimulationTelemetry = Object.freeze({
       turnaroundConfiguration: run.turnaroundConfiguration,
       companion: run.companion,
       companions: run.companions,
+      paceSelectedAtDeparture: run.paceSelectedAtDeparture,
+      rationSelectedAtDeparture: run.rationSelectedAtDeparture,
+      paceChanges: run.paceChanges,
+      rationChanges: run.rationChanges,
+      briefRests: run.briefRests,
+      campsEntered: run.campsEntered,
+      campRests: run.campRests,
+      campEvents: run.campEvents,
+      recipesCooked: run.recipesCooked,
+      ingredientsConsumedById: run.ingredientsConsumedById,
+      briefRestCount: run.briefRestCount,
+      campRestCount: run.campRestCount,
+      campEventCount: run.campEventCount,
+      cookingActionCount: run.cookingActionCount,
+      cookingProvisionsGained: run.cookingProvisionsGained,
       startingProvisions: run.startingProvisions,
       originalTargetDistance: run.originalTargetDistance,
       departurePassiveFoodEstimate: run.departurePassiveFoodEstimate,
@@ -340,496 +464,7 @@ const SimulationTelemetry = Object.freeze({
   toCsv(batchOrResults) {
     const results = Array.isArray(batchOrResults) ? batchOrResults : batchOrResults.results;
     const fields = [
-      "runId", "scenarioId", "seed", "strategy", "turnaroundPolicy", "companion",
-      "outcome", "failureReason", "provisionExhaustionFailure", "originalTargetDistance",
-      "departurePassiveFoodEstimate", "encounterProvisionReserve", "departureTotalEstimatedRequirement",
-      "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance", "turnaroundDistance",
-      "maximumDistance", "finalDistance", "finalArthurHealth",
-      "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
-      "estimatedLootValue", "encounterCount", "combatCount", "aggressiveEmergencyActions",
-      "combatsStartedBelow50Percent", "combatsStartedBelow25Percent", "stepCount", "durationMs",
-      "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
-      "arthurCombatDamageReceived", "companionCombatDamageReceived",
-      "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
-      "itemsPackedById", "itemsConsumedById", "itemsReturnedById", "bandagesPacked", "bandagesUsed",
-      "bandagesReturned", "bandageHealingPerformed",
-    ];
-    return [fields.join(","), ...results.map((run) => fields.map((field) => csvCell(run[field])).join(","))].join("\n");
-  },
-});
-
-function createStrategy(name, chooseEncounter) {
-  return Object.freeze({
-    name,
-    chooseEncounter,
-    chooseCombatAction(combat, expedition, context) {
-      const actions = CombatSystem.availableActions(combat, expedition);
-      const maxHealth = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
-      if (name === "cautious" && expedition.health < maxHealth * 0.3 && actions.includes("flee")) return "flee";
-      if (name === "random") return context.random.pick(actions);
-      if (name === "aggressive") {
-        const emergency = aggressiveEmergencyCombatDecision(combat, expedition, actions);
-        if (emergency) {
-          context.recordEmergency?.(emergency);
-          return emergency.actionId;
-        }
-      }
-      const abilities = CombatSystem.availableAbilities(combat, expedition);
-      if (name === "aggressive" && actions.includes("abilities")
-        && abilities.some((ability) => ability.id === "pommel_strike")
-        && expedition.health < maxHealth
-        && combat.enemies.some((enemy) => enemy.hp > 0 && enemy.gauge >= 75)) {
-        return "abilities";
-      }
-      if (name === "cautious" && actions.includes("abilities")
-        && abilities.some((ability) => ability.id === "intercede")
-        && expedition.health < maxHealth * 0.55) {
-        return "abilities";
-      }
-      if (name !== "random" && actions.includes("items")
-        && expedition.health < maxHealth * 0.55
-        && CombatSystem.availableItems(combat, expedition).length > 0) {
-        return "items";
-      }
-      return actions.includes("attack") ? "attack" : actions[0];
-    },
-    chooseCombatAbility(combat, _expedition, context) {
-      const abilities = CombatSystem.availableAbilities(combat, _expedition);
-      if (name === "random") return context.random.pick(abilities)?.id;
-      return abilities.find((ability) => ability.id === "pommel_strike")?.id
-        ?? abilities.find((ability) => ability.id === "intercede")?.id
-        ?? abilities[0]?.id;
-    },
-    chooseCombatItem(combat, _expedition, context) {
-      const items = CombatSystem.availableItems(combat, _expedition);
-      if (name === "random") return context.random.pick(items)?.itemId;
-      return items.find((entry) => entry.itemId === "bandages")?.itemId ?? items[0]?.itemId;
-    },
-    chooseCombatTarget(combat, _expedition, context, targetType = "enemy") {
-      const targets = targetType === "ally"
-        ? combat.allies.filter((ally) => ally.hp > 0 && ally.hp < ally.maxHp)
-        : combat.enemies.filter((enemy) => enemy.hp > 0);
-      if (name === "random") return context.random.pick(targets)?.id;
-      return targets.sort((left, right) => (left.hp / left.maxHp) - (right.hp / right.maxHp))[0]?.id;
-    },
-  });
-}
-
-function aggressiveEmergencyCombatDecision(combat, expedition, actions) {
-  if (combat.activeActorId !== "arthur" || expedition.health <= 0) return null;
-  const arthur = combat.allies.find((ally) => ally.id === "arthur");
-  if (!arthur) return null;
-  const secondsUntilArthurActs = COMBAT_TUNING.actionGaugeMaximum
-    / (arthur.speed * COMBAT_TUNING.actionGaugeRate);
-  const threats = combat.enemies.filter((enemy) => {
-    if (enemy.hp <= 0) return false;
-    const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
-    if (!action || action.target !== "arthur") return false;
-    const secondsUntilEnemyActs = (COMBAT_TUNING.actionGaugeMaximum - enemy.gauge)
-      / (enemy.speed * COMBAT_TUNING.actionGaugeRate);
-    return secondsUntilEnemyActs <= secondsUntilArthurActs;
-  }).map((enemy) => {
-    const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
-    const unguardedDamage = Math.max(1, action.damage.maximum - arthur.defense);
-    return {
-      enemyId: enemy.id,
-      intentId: enemy.intentId,
-      unguardedDamage,
-      defendedDamage: Math.max(1, Math.floor(unguardedDamage * COMBAT_TUNING.defendDamageMultiplier)),
-    };
-  });
-  const estimatedIncomingDamage = threats.reduce((sum, threat) => sum + threat.unguardedDamage, 0);
-  if (estimatedIncomingDamage < expedition.health) return null;
-  const estimatedDefendedDamage = threats.reduce((sum, threat) => sum + threat.defendedDamage, 0);
-  const actionId = actions.includes("defend") && estimatedDefendedDamage < expedition.health
-    ? "defend" : actions.includes("flee") ? "flee" : actions.includes("defend") ? "defend" : null;
-  return actionId ? {
-    triggered: true,
-    reason: "lethal-damage-before-next-action",
-    actionId,
-    arthurHealth: expedition.health,
-    estimatedIncomingDamage,
-    estimatedDefendedDamage,
-    threats,
-  } : null;
-}
-
-function choiceText(choice) {
-  return `${choice.id} ${choice.label} ${JSON.stringify(choice.outcomes ?? [])} ${JSON.stringify(choice.branches ?? [])}`.toLowerCase();
-}
-
-function costAmount(choice, resource) {
-  return (choice.costs ?? []).filter((cost) => cost.type === "modifyResource" && cost.resource === resource)
-    .reduce((sum, cost) => sum + (Number(cost.amount) || 0), 0);
-}
-
-function cautiousChoiceScore(choice) {
-  const text = choiceText(choice);
-  return (choice.requirements?.length ?? 0) * 8
-    + (/safe|careful|rope|cloak|knowledge|avoid|leave|road|wait|shelter|rest/.test(text) ? 12 : 0)
-    - (/fight|combat|attack|risk|climb|search|pursue|follow/.test(text) ? 10 : 0)
-    + costAmount(choice, "health") * 3 + costAmount(choice, "provisions");
-}
-
-function aggressiveChoiceScore(choice) {
-  const text = choiceText(choice);
-  return (/fight|combat|attack|stand_ground|confront|force|cross|push/.test(text) ? 20 : 0)
-    - (/flee|avoid|leave|wait|return/.test(text) ? 10 : 0);
-}
-
-function greedyChoiceScore(choice) {
-  const text = choiceText(choice);
-  return (/loot|gain.*item|gold|search|investigate|explore|take|follow|open|dig|track/.test(text) ? 22 : 0)
-    - (/leave|ignore|return|avoid|wait/.test(text) ? 8 : 0);
-}
-
-function highestScored(entries, score) {
-  return entries.reduce((best, entry) => score(entry) > score(best) ? entry : best, entries[0]);
-}
-
-function normalizeScenario(scenario) {
-  const defaultPlayer = SaveSystem.createDefaultPlayerState();
-  const startingState = scenario.startingState ?? {};
-  const requestedCompanions = scenario.companions !== undefined
-    ? scenario.companions
-    : scenario.companion !== undefined
-      ? scenario.companion
-      : startingState.selectedCompanions !== undefined
-        ? startingState.selectedCompanions
-        : startingState.selectedCompanion !== undefined
-          ? startingState.selectedCompanion
-          : selectedCompanionIds(defaultPlayer);
-  const companions = [...new Set((Array.isArray(requestedCompanions)
-    ? requestedCompanions : [requestedCompanions]).filter((companionId) => COMPANION_DEFINITIONS[companionId]))].slice(0, 2);
-  const companion = scenario.companion !== undefined ? scenario.companion : companions[0] ?? null;
-  const capacity = ExpeditionRules.partyProvisionCapacity(companions);
-  const turnaroundPolicy = scenario.turnaroundPolicy ?? { type: "fixedDistance", distance: 50 };
-  return {
-    id: scenario.id ?? scenario.scenarioId ?? "default",
-    scenarioId: scenario.scenarioId ?? scenario.id ?? "default",
-    seed: scenario.seed ?? "grail-simulation",
-    companion,
-    companions,
-    provisions: Math.max(1, Math.min(Number(scenario.provisions) || Math.min(24, capacity), capacity)),
-    loadout: { ...defaultPlayer.equippedItems, ...(scenario.loadout?.equipment ?? scenario.loadout ?? {}) },
-    packContents: scenario.packContents ?? defaultPlayer.packedItems,
-    strategy: scenario.strategy ?? "cautious",
-    turnaroundPolicy,
-    startingState: scenario.startingState ?? {},
-    regionId: scenario.regionId ?? "broceliande",
-    pathId: scenario.pathId ?? "old_forest_road",
-    paceId: EXPEDITION_TUNING.travelPaces[scenario.paceId] ? scenario.paceId : "normal",
-    rationId: EXPEDITION_TUNING.rationLevels[scenario.rationId] ? scenario.rationId : "normal",
-    startingHealth: Number.isFinite(scenario.startingState?.health)
-      ? scenario.startingState.health
-      : Number.isFinite(scenario.startingState?.arthurHealth)
-        ? scenario.startingState.arthurHealth
-        : PLAYER_CHARACTER_DEFINITION.combat.maxHp,
-    maxSimulationSteps: Math.max(100, Math.floor(Number(scenario.maxSimulationSteps) || 10000)),
-    maxCombatSteps: Math.max(50, Math.floor(Number(scenario.maxCombatSteps) || 2000)),
-    travelStepDistance: Math.max(0.1, Number(scenario.travelStepDistance) || 1),
-  };
-}
-
-function createSimulationPlayer(scenario) {
-  const defaults = SaveSystem.createDefaultPlayerState();
-  const player = deepClone({ ...defaults, ...scenario.startingState });
-  player.ownedItems = { ...defaults.ownedItems, ...(scenario.startingState.ownedItems ?? {}) };
-  player.equippedItems = { ...scenario.loadout };
-  const packedEntries = Array.isArray(scenario.packContents)
-    ? scenario.packContents.map((itemId) => [itemId, player.ownedItems[itemId] ?? 1])
-    : Object.entries(scenario.packContents ?? {});
-  packedEntries.forEach(([itemId, quantity]) => { player.ownedItems[itemId] = Math.max(1, Number(quantity) || 1); });
-  Object.values(player.equippedItems).filter(Boolean).forEach((itemId) => { player.ownedItems[itemId] ??= 1; });
-  player.packedItems = packedEntries.map(([itemId]) => itemId).slice(0, EXPEDITION_TUNING.packSlots);
-  player.selectedCompanions = [...scenario.companions];
-  player.selectedCompanion = scenario.companions[0] ?? null;
-  player.unlockedCompanions = [...new Set([
-    ...player.unlockedCompanions,
-    ...scenario.companions,
-  ])];
-  player.provisions = Math.max(Number(player.provisions) || 0, scenario.provisions);
-  return player;
-}
-
-function resolveStrategy(strategy) {
-  if (typeof strategy === "object" && typeof strategy.chooseEncounter === "function") return strategy;
-  return SimulationStrategies[strategy] ?? SimulationStrategies.cautious;
-}
-
-function resolveTurnaroundPolicy(policy) {
-  if (policy && typeof policy.shouldTurn === "function") return policy;
-  if (typeof policy === "number") return TurnaroundPolicies.fixedDistance(policy);
-  if (policy?.type === "provisionReserve" || policy?.type === "provision-reserve") {
-    return TurnaroundPolicies.provisionReserve(policy);
-  }
-  return TurnaroundPolicies.fixedDistance(policy?.distance ?? 50);
-}
-
-function resolveEncounterInstantly(expedition, player, strategy, random, telemetry, fail) {
-  const active = expedition.activeEncounter;
-  const definition = ENCOUNTER_DEFINITIONS[active.encounterId];
-  let history = telemetry.encounters.at(-1);
-  if (!history || history.completed || history.encounterId !== active.encounterId) {
-    history = {
-      encounterId: definition.id,
-      name: definition.title,
-      distance: rounded(expedition.distance),
-      direction: expedition.direction,
-      pathId: expedition.currentPathId,
-      availableChoices: [],
-      decisions: [],
-      resourceChanges: {},
-      healthChanges: {},
-      itemsGained: [],
-      itemsLost: [],
-      combatTriggered: false,
-      outcome: null,
-      completed: false,
-      before: resourceSnapshot(expedition),
-    };
-    telemetry.encounters.push(history);
-  }
-  if (active.phase === "pending") {
-    const result = EncounterManager.completePendingAction(expedition, player, active.pendingToken, {
-      failExpedition: fail,
-      startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
-    });
-    checkEncounterSurvival(expedition, fail);
-    if (!result.resolved) fail("A pending encounter action could not resolve.");
-    return;
-  }
-  if (active.phase === "choice") {
-    const stage = definition.stages[active.stageId];
-    const choices = stage.choices.filter((choice) => EncounterRequirements.choiceAvailability(
-      choice, { expedition, player },
-    ).available);
-    if (choices.length === 0) {
-      fail(`Encounter ${definition.id} had no available choices.`);
-      return;
-    }
-    const choice = strategy.chooseEncounter(choices, { expedition, player, encounter: definition, stage, random })
-      ?? choices[0];
-    history.availableChoices.push({ stageId: active.stageId, choiceIds: choices.map((entry) => entry.id) });
-    history.decisions.push({ stageId: active.stageId, choiceId: choice.id, label: choice.label });
-    telemetry.decisions.push({ type: "encounter-choice", encounterId: definition.id, stageId: active.stageId, choiceId: choice.id });
-    telemetry.events.push({
-      type: "encounter-choice", encounterId: definition.id, stageId: active.stageId,
-      choiceId: choice.id, distance: rounded(expedition.distance),
-    });
-    const result = EncounterManager.resolveChoice(expedition, player, choice.id, {
-      failExpedition: fail,
-      startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
-      skipPresentationDelay: true,
-    });
-    checkEncounterSurvival(expedition, fail);
-    if (!result.resolved) fail(`Encounter choice ${definition.id}/${choice.id} could not resolve.`);
-    return;
-  }
-  if (active.phase === "result") {
-    history.outcome = active.resultText;
-    history.outcomeMessages = [...active.outcomeMessages];
-    completeEncounterHistory(history, expedition);
-    telemetry.events.push({
-      type: "encounter-result", encounterId: definition.id, outcome: active.resultText,
-      resources: resourceSnapshot(expedition),
-    });
-    EncounterManager.continueJourney(expedition);
-  }
-}
-
-function startSimulationCombat(expedition, combatId, encounterHistory, telemetry) {
-  const combat = CombatSystem.create(expedition, combatId, { random: expedition.random });
-  if (!combat) return false;
-  expedition.combat = combat;
-  encounterHistory.combatTriggered = true;
-  const healthRatio = expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp;
-  telemetry.events.push({
-    type: "combat-start",
-    combatId,
-    enemies: combat.enemies.map((enemy) => enemy.definitionId),
-    arthurHealth: expedition.health,
-    arthurEnteredBelow50Percent: healthRatio < 0.5,
-    arthurEnteredBelow25Percent: healthRatio < 0.25,
-  });
-  return true;
-}
-
-function resolveCombatInstantly(expedition, player, strategy, random, telemetry, fail, scenario) {
-  const combat = expedition.combat;
-  const history = {
-    combatId: combat.id,
-    enemies: combat.enemies.map((enemy) => ({ id: enemy.definitionId, name: enemy.name })),
-    partyHealthBefore: combatHealth(combat),
-    partyHealthAfter: null,
-    result: null,
-    fled: false,
-    damageDealt: 0,
-    damageReceived: 0,
-    actions: 0,
-    rounds: 0,
-    actionEvents: [],
-    abilityUsesById: {},
-    itemUsesById: {},
-    healingPerformed: 0,
-    gaugeControl: 0,
-    arthurHealthAtStart: combat.allies.find((ally) => ally.id === "arthur")?.hp ?? expedition.health,
-    arthurEnteredBelow50Percent: expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp < 0.5,
-    arthurEnteredBelow25Percent: expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp < 0.25,
-    aggressiveEmergencyActions: [],
-  };
-  telemetry.combats.push(history);
-  let combatSteps = 0;
-  let recordedCombatEvents = 0;
-  while (!combat.result && combatSteps < scenario.maxCombatSteps) {
-    combatSteps += 1;
-    if (combat.status === "awaitingAction") {
-      const actor = [...combat.allies, ...combat.enemies].find((entry) => entry.id === combat.activeActorId);
-      const before = combatTotals(combat);
-      let emergency = null;
-      let actionId = strategy.chooseCombatAction(combat, expedition, {
-        random,
-        recordEmergency(details) {
-          emergency = deepClone(details);
-        },
-      }) ?? "attack";
-      let result = CombatSystem.chooseAction(combat, expedition, actionId);
-      if (result.unavailable) {
-        actionId = "attack";
-        result = CombatSystem.chooseAction(combat, expedition, actionId);
-      }
-      let targetId = null;
-      let abilityId = COMBAT_ABILITY_DEFINITIONS[actionId]?.category ? null : actionId;
-      let itemId = null;
-      if (result.menu === "abilities") {
-        abilityId = strategy.chooseCombatAbility?.(combat, expedition, { random })
-          ?? CombatSystem.availableAbilities(combat, expedition)[0]?.id;
-        if (abilityId) {
-          result = CombatSystem.chooseAbility(combat, expedition, abilityId);
-        } else {
-          CombatSystem.chooseAction(combat, expedition, "back");
-          actionId = "attack";
-          result = CombatSystem.chooseAction(combat, expedition, actionId);
-        }
-      } else if (result.menu === "items") {
-        itemId = strategy.chooseCombatItem?.(combat, expedition, { random })
-          ?? CombatSystem.availableItems(combat, expedition)[0]?.itemId;
-        if (itemId) {
-          result = CombatSystem.chooseItem(combat, expedition, itemId);
-        } else {
-          CombatSystem.chooseAction(combat, expedition, "back");
-          actionId = "attack";
-          result = CombatSystem.chooseAction(combat, expedition, actionId);
-        }
-      }
-      if (result.needsTarget) {
-        targetId = strategy.chooseCombatTarget(
-          combat, expedition, { random }, result.targetType ?? "enemy",
-        );
-        result = CombatSystem.choosePendingTarget(combat, expedition, targetId);
-      }
-      const after = combatTotals(combat);
-      history.damageDealt += Math.max(0, before.enemyHp - after.enemyHp);
-      history.damageReceived += Math.max(0, before.allyHp - after.allyHp);
-      history.actions += 1;
-      if (emergency) history.aggressiveEmergencyActions.push(emergency);
-      telemetry.decisions.push({
-        type: "combat-action", combatId: combat.id, actorId: actor?.id, actionId, abilityId, itemId, targetId,
-        aggressiveEmergencyTriggered: Boolean(emergency), emergency,
-      });
-      telemetry.events.push({
-        type: "combat-action", combatId: combat.id, actor: actor?.id, action: actionId,
-        abilityId, itemId, target: targetId,
-        aggressiveEmergencyTriggered: Boolean(emergency), emergency,
-      });
-      recordedCombatEvents = flushCombatEvents(combat, recordedCombatEvents, history, telemetry);
-      continue;
-    }
-    const living = [...combat.allies, ...combat.enemies].filter((entry) => entry.hp > 0);
-    const secondsToReady = Math.min(...living.map((entry) => (
-      (COMBAT_TUNING.actionGaugeMaximum - entry.gauge) / (entry.speed * COMBAT_TUNING.actionGaugeRate)
-    )).filter((value) => value >= 0));
-    const before = combatTotals(combat);
-    CombatSystem.update(combat, expedition, Math.max(0.0001, secondsToReady));
-    const after = combatTotals(combat);
-    history.damageDealt += Math.max(0, before.enemyHp - after.enemyHp);
-    history.damageReceived += Math.max(0, before.allyHp - after.allyHp);
-    history.rounds += 1;
-    recordedCombatEvents = flushCombatEvents(combat, recordedCombatEvents, history, telemetry);
-  }
-  if (!combat.result) {
-    fail(`Combat ${combat.id} exceeded ${scenario.maxCombatSteps} steps.`);
-    history.result = "incomplete";
-    history.partyHealthAfter = combatHealth(combat);
-    Object.assign(history, combatActionTelemetry(history));
-    Object.assign(history, combatPartyDamageTelemetry(history, combat));
-    expedition.combat = null;
-    return;
-  }
-  history.result = combat.result;
-  history.fled = combat.result === "fled";
-  history.partyHealthAfter = combatHealth(combat);
-  Object.assign(history, combatActionTelemetry(history));
-  Object.assign(history, combatPartyDamageTelemetry(history, combat));
-  telemetry.events.push({
-    type: "combat-result", combatId: combat.id, result: combat.result,
-    damageDealt: history.damageDealt, damageReceived: history.damageReceived,
-    attacksReceivedByPartyMember: history.attacksReceivedByPartyMember,
-    damageReceivedByPartyMember: history.damageReceivedByPartyMember,
-  });
-  expedition.combat = null;
-  EncounterManager.completeCombat(expedition, player, combat.result, { failExpedition: fail });
-}
-
-function checkEncounterSurvival(expedition, fail) {
-  if (expedition.status !== "active") return;
-  if (expedition.health <= 0) fail("Arthur was too badly injured to continue the expedition.");
-  else if (expedition.provisions <= 0) fail("The company exhausted its provisions during the encounter.");
-}
-
-function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, replayStartingState) {
-  const originalTargetDistance = turnaroundPolicy.name === "fixed-distance"
-    ? turnaroundPolicy.configuration.distance : null;
-  const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(strategy.name);
-  const departurePassiveFoodEstimate = originalTargetDistance === null ? null : rounded(
-    SimulationProvisionPlanning.passiveRoundTripCost(
-      originalTargetDistance, expedition.provisionConsumptionMultiplier,
-    ),
-  );
-  const departureTotalEstimatedRequirement = departurePassiveFoodEstimate === null
-    ? null : Math.ceil(departurePassiveFoodEstimate + encounterProvisionReserve);
-  return {
-    runId: `${scenario.scenarioId}:${scenario.seed}`,
-    scenarioId: scenario.scenarioId,
-    seed: String(scenario.seed),
-    strategy: strategy.name,
-    turnaroundPolicy: turnaroundPolicy.name,
-    turnaroundConfiguration: turnaroundPolicy.configuration ?? {},
-    companion: expedition.selectedCompanion,
-    companions: expedition.selectedCompanions,
-    startingProvisions: expedition.committedProvisions,
-    originalTargetDistance,
-    departurePassiveFoodEstimate,
-    encounterProvisionReserve,
-    departureTotalEstimatedRequirement,
-    emergencyProvisionTurnaround: false,
-    emergencyProvisionTurnaroundDistance: null,
-    emergencyReturnPassiveEstimate: null,
-    emergencyReturnTotalRequirement: null,
-    loadout: deepClone(expedition.selectedEquipment),
-    packedItems: deepClone(expedition.carriedItems),
-    itemsPackedById: deepClone(expedition.carriedItems),
-    scenario: deepClone({
-      ...scenario,
-      strategy: strategy.name,
-      turnaroundPolicy: { name: turnaroundPolicy.name, ...(turnaroundPolicy.configuration ?? {}) },
-    }),
-    replay: {
-      version: 1,
-      seed: String(scenario.seed),
-      startingPlayerState: deepClone(replayStartingState),
-      regionId: expedition.regionId,
-      pathId: expedition.currentPathId,
+      "runId", "scenarioId",…8231 tokens truncated…: expedition.rationId,
       decisions: [],
     },
     decisions: [],
@@ -839,6 +474,8 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
       configuration: scenario.scenarioId,
       regionId: expedition.regionId,
       pathId: expedition.currentPathId,
+      paceId: expedition.paceId,
+      rationId: expedition.rationId,
       originalTargetDistance,
       departurePassiveFoodEstimate,
       encounterProvisionReserve,
@@ -949,6 +586,13 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     combatsStartedBelow25Percent: telemetry.combats.filter(
       (combat) => combat.arthurEnteredBelow25Percent,
     ).length,
+    briefRestCount: telemetry.briefRests.filter((rest) => rest.applied).length,
+    campRestCount: telemetry.campRests.filter((rest) => rest.applied).length,
+    campEventCount: telemetry.campEvents.length,
+    cookingActionCount: telemetry.recipesCooked.length,
+    cookingProvisionsGained: rounded(telemetry.recipesCooked.reduce(
+      (sum, recipe) => sum + (Number(recipe.provisionsGained) || 0), 0,
+    )),
     encounterCount: telemetry.encounters.length,
     combatCount: telemetry.combats.length,
     stepCount: steps,
@@ -1200,6 +844,11 @@ function summarizeRuns(results) {
     averageCompanionCombatDamageReceived: average(values("companionCombatDamageReceived")),
     averageHealingPerformed: average(values("totalHealingPerformed")),
     averageGaugeControl: average(values("totalGaugeControl")),
+    averageBriefRests: average(values("briefRestCount")),
+    averageCampRests: average(values("campRestCount")),
+    averageCampEvents: average(values("campEventCount")),
+    averageCookingActions: average(values("cookingActionCount")),
+    averageCookingProvisionsGained: average(values("cookingProvisionsGained")),
     emergencyProvisionTurnaroundRate: ratio(
       results.filter((run) => run.emergencyProvisionTurnaround).length, total,
     ),
@@ -1277,3 +926,4 @@ function csvCell(value) {
   const text = value === null || value === undefined ? "" : String(value);
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
+
