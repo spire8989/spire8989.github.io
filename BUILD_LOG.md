@@ -1,5 +1,28 @@
 # Build Log
 
+## 2026-08-14 - Expedition Status Grid Cleanup
+
+### Goal
+
+Reduce expedition HUD density by making Unsecured Loot a normal sixth status cell and moving its detailed breakdown into Expedition Details.
+
+### Human prompt and direction
+
+The human developer supplied an attached expedition-HUD cleanup guide and requested a narrowly scoped local add/commit without changing the recently polished route, Journey, Camp, dialogue, combat, or reward UI.
+
+### AI-assisted implementation
+
+- Updated the shared expedition resource renderer to use six consistent two-column status cells: Distance, Max reached, Provisions, Health, Material Bag, and Unsecured Loot.
+- Replaced the old full-width unsecured breakdown with compact physical-plus-gold values such as `3`, `12g`, and `3 + 8g`.
+- Preserved detailed item/material/gold chips inside Expedition Details under an explicit `Unsecured: ...` summary, and removed obsolete unsecured-row presentation CSS.
+- Added browser coverage for zero, mixed, gold-only, physical-plus-gold, encounter-result, Camp, and expanded-details states.
+
+### Verification and resulting prototype state
+
+Expedition Status now remains a compact 2 × 3 grid across active travel, encounter results, and Camp. The Journey section moves directly below it, while detailed at-risk discoveries remain available on demand.
+
+Verified 415 UI/provision/location browser assertions, 26 deterministic simulation assertions, 66 campaign/health/Inn assertions, and `git diff --check`.
+
 ## 2026-08-14 - Intrinsic Dialogue Continue Action
 
 ### Goal

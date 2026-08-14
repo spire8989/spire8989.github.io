@@ -1595,7 +1595,7 @@ function renderTravelPanel(expedition, companions, loadout) {
         <div class="run-detail-collection"><span>Loadout</span><div class="run-item-list">${renderItemChips(loadout, "No equipment selected")}</div></div>
         <div class="run-detail-collection"><span>Carried</span><div class="run-item-list">${formatCarriedItems(expedition.carriedItems)}</div></div>
         <div class="run-detail-collection"><span>Material Bag</span><div class="run-item-list">${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
-        <div class="run-detail-collection"><span>Discoveries</span><div id="loot-list" class="loot-list">${renderDiscoveryList(expedition)}</div></div>
+        <div class="run-detail-collection"><span>Unsecured</span><div class="unsecured-detail"><p class="unsecured-detail-summary">${unsecuredLootSummary(expedition)}</p><div id="loot-list" class="loot-list">${renderDiscoveryList(expedition)}</div></div></div>
         </div>
         <div class="run-details-actions">
           <button class="text-button danger-button abandon-button" type="button" data-action="abandon-expedition">Abandon Expedition</button>
@@ -1852,10 +1852,26 @@ function unsecuredMaterialQuantity(expedition) {
     .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
 }
 
-function renderExpeditionResources(expedition) {
+function unsecuredLootDisplayValue(expedition) {
+  const physicalQuantity = unsecuredItemQuantity(expedition) + unsecuredMaterialQuantity(expedition);
+  const goldQuantity = Math.max(0, Math.floor(Number(expedition?.goldCarried) || 0));
+  if (physicalQuantity > 0 && goldQuantity > 0) return `${physicalQuantity} + ${goldQuantity}g`;
+  if (goldQuantity > 0) return `${goldQuantity}g`;
+  return `${physicalQuantity}`;
+}
+
+function unsecuredLootSummary(expedition) {
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);
-  const totalDiscoveries = itemQuantity + materialQuantity;
+  const goldQuantity = Math.max(0, Math.floor(Number(expedition?.goldCarried) || 0));
+  const parts = [];
+  if (itemQuantity > 0) parts.push(`${itemQuantity} item${itemQuantity === 1 ? "" : "s"}`);
+  if (materialQuantity > 0) parts.push(`${materialQuantity} material${materialQuantity === 1 ? "" : "s"}`);
+  if (goldQuantity > 0) parts.push(`${goldQuantity} gold`);
+  return parts.length > 0 ? `Unsecured: ${parts.join(" · ")}` : "Unsecured: None";
+}
+
+function renderExpeditionResources(expedition) {
   const materialBagUsed = MaterialRules.expeditionTotal(expedition);
   const provisionStatus = ExpeditionRules.returnProvisionStatus(expedition);
   return `
@@ -1868,14 +1884,7 @@ function renderExpeditionResources(expedition) {
       </div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
       <div class="resource-card material-bag-card"><span>Material Bag</span><strong id="material-bag-count">${materialBagUsed} / ${MaterialRules.capacity()}</strong></div>
-      <div class="resource-card unsecured-card">
-        <div class="resource-card-heading"><span>Unsecured Loot</span><strong id="loot-count">${totalDiscoveries}</strong></div>
-        <div id="loot-breakdown" class="unsecured-breakdown">
-          <span>${itemIcon("treasure")}<strong id="loot-item-count">${itemQuantity}</strong> items</span>
-          <span>${itemIcon("material")}<strong id="loot-material-count">${materialQuantity}</strong> materials</span>
-          <span>${itemIcon("currency")}<strong id="loot-gold-count">${expedition.goldCarried}</strong> gold</span>
-        </div>
-      </div>
+      <div class="resource-card"><span>Unsecured Loot</span><strong id="loot-count">${unsecuredLootDisplayValue(expedition)}</strong></div>
     </div>`;
 }
 
@@ -2559,13 +2568,8 @@ function updateTravelHud() {
   }
   setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
   setText("#material-bag-count", `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity()}`);
-  const itemQuantity = unsecuredItemQuantity(expedition);
-  const materialQuantity = unsecuredMaterialQuantity(expedition);
-  const totalDiscoveries = itemQuantity + materialQuantity;
-  setText("#loot-count", totalDiscoveries);
-  setText("#loot-item-count", itemQuantity);
-  setText("#loot-material-count", materialQuantity);
-  setText("#loot-gold-count", expedition.goldCarried);
+  setText("#loot-count", unsecuredLootDisplayValue(expedition));
+  setText(".unsecured-detail-summary", unsecuredLootSummary(expedition));
 
   const returning = expedition.direction === "returning";
   const activeEncounter = expedition.activeEncounter

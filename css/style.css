@@ -1460,11 +1460,6 @@ button:active:not(:disabled) {
   font-size: clamp(0.62rem, 2.7cqw, 0.78rem);
 }
 
-.material-bag-card {
-  border-color: rgb(145 177 130 / 34%);
-  background: rgb(31 51 35 / 46%);
-}
-
 .provisions-card.provision-state-warning {
   border-color: rgb(217 189 114 / 68%);
   background: linear-gradient(145deg, rgb(67 57 29 / 58%), rgb(30 28 15 / 62%));
@@ -1501,51 +1496,6 @@ button:active:not(:disabled) {
   50% {
     box-shadow: 0 0 0.7rem rgb(157 80 65 / 24%);
   }
-}
-
-.unsecured-card strong {
-  color: var(--gold-bright);
-}
-
-.unsecured-card {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 0.16rem;
-  align-content: center;
-}
-
-.resource-card-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.35rem;
-}
-
-.unsecured-breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.28rem 0.65rem;
-  color: #aab4aa;
-  font-family: system-ui, sans-serif;
-  font-size: clamp(0.43rem, 1.85cqw, 0.56rem);
-  line-height: 1.2;
-}
-
-.unsecured-breakdown > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.18rem;
-}
-
-.unsecured-breakdown .category-icon {
-  width: 0.8rem;
-  height: 0.8rem;
-  color: var(--gold);
-}
-
-.unsecured-breakdown strong {
-  color: #f5eac8;
-  font-size: inherit;
 }
 
 .progress-track {
@@ -1589,6 +1539,17 @@ button:active:not(:disabled) {
   flex-wrap: wrap;
   gap: 0.24rem;
   min-width: 0;
+}
+
+.unsecured-detail {
+  min-width: 0;
+}
+
+.unsecured-detail-summary {
+  margin: 0 0 0.24rem;
+  color: #c4c8b7;
+  font-family: system-ui, sans-serif;
+  font-size: 0.92em;
 }
 
 .run-item-chip {
@@ -1766,29 +1727,6 @@ button:active:not(:disabled) {
 
 .compact-resources .resource-card {
   padding: 0.38rem 0.48rem;
-}
-
-.compact-resources .unsecured-card {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.38rem 0.15rem 0.12rem;
-  border: 0;
-  border-top: 1px solid rgb(217 189 114 / 17%);
-  border-radius: 0;
-  background: transparent;
-}
-
-.compact-resources .unsecured-card .resource-card-heading {
-  flex: 0 0 auto;
-  gap: 0.3rem;
-}
-
-.compact-resources .unsecured-breakdown {
-  justify-content: flex-end;
-  gap: 0.25rem 0.55rem;
 }
 
 .journey-controls {
@@ -3692,7 +3630,6 @@ button.combatant {
 }
 
 .journey-state,
-.unsecured-breakdown,
 .combat-target-summary,
 .combatant .combat-hp-label,
 .combatant small,
