@@ -75,7 +75,7 @@ const batch = await SimulationRunner.runBatchAsync({
 - `strategy`: built-in strategy name or an object implementing the strategy interface.
 - `turnaroundPolicy`: fixed-distance/resource-reserve configuration or a policy object.
 - `startingState`: optional player-state overrides such as owned items, knowledge, flags, health, or provision stock.
-- `regionId` and `pathId`: starting expedition region/path; defaults to BrocÃ©liande's old forest road.
+- `regionId` and `pathId`: starting expedition region/path; defaults to Brocéliande's old forest road.
 - `maxSimulationSteps`, `maxCombatSteps`: infinite-loop safeguards.
 - `travelStepDistance`: rule-step size in leagues; defaults to one.
 
@@ -147,4 +147,3 @@ The focused suite verifies normalized same-seed runs, repeatable known-seed batc
 ## Current Phase 1 boundaries
 
 All currently authored expedition encounters, camp events, campfire recipes, and current combats use the simulator. Normal play and simulation share expedition creation, capacity/consumption, pace/rations, travel, rest, camping, cooking, turnaround, and complete success/failure settlement. Presentation delays are intentionally collapsed. The simulator does not yet drive a visual replay, enforce a recorded decision stream during replay, serialize custom strategy/policy function bodies, use a Web Worker, or generate exhaustive loadout permutations. `durationMs` and batch `generatedAt` are diagnostic metadata and are not deterministic replay fields.
-

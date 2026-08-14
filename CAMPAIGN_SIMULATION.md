@@ -37,7 +37,7 @@ Save schema 6 adds:
 
 ## Inn healing
 
-The currently implemented playable settlement is the Village at the Edge of BrocÃ©liande; there is no separate Camelot location in this prototype. Its existing Inn is therefore the player-facing recovery location rather than inventing a new settlement.
+The currently implemented playable settlement is the Village at the Edge of Brocéliande; there is no separate Camelot location in this prototype. Its existing Inn is therefore the player-facing recovery location rather than inventing a new settlement.
 
 Current centralized rest tuning:
 
@@ -103,13 +103,13 @@ Town provision safety grants, persistent merchant stock, provision prices, item 
 
 Between-expedition preparation first uses the same known Bandage recipe and generic crafting mutation as player-facing Apothecary crafting. If materials cannot meet the strategy target, it uses the authored General Goods offer and stock rules for the shortfall. Healing and provisions are resolved first; remaining gold can fund purchases without changing the existing combat item behavior. Each campaign owns persistent material/recipe state and a deterministic Bandage stock pool (currently eight at five gold each), and purchases reduce both gold and stock before the next expedition.
 
-Bandage targets are strategy-driven: Aggressive targets 3 with a minimum preference of 1, Cautious targets 2, and Random makes a seeded purchase decision for 0â€“2. A small rest-cost reserve prevents a discretionary purchase from consuming the gold needed for an immediately available Inn rest. Existing packed utility items remain in place, and Bandages are added only when a free slot remains within the six-slot pack. Exact pack quantities are passed into `ExpeditionRules`, so only purchased/carried quantities can be consumed in combat.
+Bandage targets are strategy-driven: Aggressive targets 3 with a minimum preference of 1, Cautious targets 2, and Random makes a seeded purchase decision for 0–2. A small rest-cost reserve prevents a discretionary purchase from consuming the gold needed for an immediately available Inn rest. Existing packed utility items remain in place, and Bandages are added only when a free slot remains within the six-slot pack. Exact pack quantities are passed into `ExpeditionRules`, so only purchased/carried quantities can be consumed in combat.
 
 Campaign and expedition telemetry reports crafting actions, Bandages crafted, `itemsPurchasedById`, `itemPurchaseGoldSpentById`, `itemsPackedById`, `itemsConsumedById`, `itemsReturnedById`, recovered materials, learned recipes, return-reward tiers/results, Bandage purchase/pack/use/return counts, Bandage healing performed, and total item-purchase spending. Decisions also record preferred targets and constraints when materials, stock, gold, or pack capacity prevent the preference from being met. Item stock is persistent for one simulated campaign and remains session-scoped in the normal browser shop, matching the existing provision-stock behavior.
 
 ## In-expedition management
 
-Each campaign expedition delegates its live travel decisions to `SimulationRunner`. The strategy uses known party HP, provisions, direction/distance, and recent rest/camp locations to choose between continuing, a production `briefRest`, or the production pause â†’ camp â†’ `restAtCamp` lifecycle. Camp events use the existing contextual tables and seeded expedition RNG, then resolve through the same strategy encounter-choice function used by normal travel. Available campfire recipes are quoted and applied through `CraftingRules`; ingredients are consumed from the expedition and authored provision outputs are added through `ExpeditionRules`.
+Each campaign expedition delegates its live travel decisions to `SimulationRunner`. The strategy uses known party HP, provisions, direction/distance, and recent rest/camp locations to choose between continuing, a production `briefRest`, or the production pause → camp → `restAtCamp` lifecycle. Camp events use the existing contextual tables and seeded expedition RNG, then resolve through the same strategy encounter-choice function used by normal travel. Available campfire recipes are quoted and applied through `CraftingRules`; ingredients are consumed from the expedition and authored provision outputs are added through `ExpeditionRules`.
 
 Per-expedition campaign telemetry preserves departure pace/rations, any changes during travel, brief-rest and camp-rest records, camp event IDs and choices, cooked recipes, consumed ingredients, output gains, and health/provision deltas. Campaign totals and CSV exports aggregate these records, while each expedition replay retains the decisions needed for a later visual replay. Settlement then carries the resulting persistent health, provisions, owned consumables, materials, learned recipes, gold, and other player state into the next expedition.
 
@@ -180,9 +180,8 @@ The focused campaign suite covers save migration and clamping, player-facing act
 
 ## Current limitations
 
-- The only production settlement is BrocÃ©liande village; Camelot has not been authored.
+- The only production settlement is Brocéliande village; Camelot has not been authored.
 - Companion health persists and the selected companion shares the player-facing Inn rest. An unselected companion is not healed; a selected incapacitated companion stops a campaign only if still at zero after normal preparation.
 - Policies do not buy equipment because no meaningful upgrade path is currently available from the default loadout; Bandages are the current automated consumable purchase.
 - Merchant stock persists within a simulated campaign exactly like the current browser session but is not saved in localStorage by the normal game.
 - There is no injury, disease, fatigue, durability, chapter progression, optimal shopping, or balance recommendation system.
-
