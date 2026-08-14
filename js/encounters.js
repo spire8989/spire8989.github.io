@@ -144,9 +144,9 @@ const EncounterOutcomes = Object.freeze({
         }
         const itemId = validItemIds[randomInteger(0, validItemIds.length - 1, expedition.random)];
         const quantity = effect.quantity ?? 1;
-        addUnsecuredItem(expedition, itemId, quantity);
-        rewards = [{ type: "item", itemId, quantity, unsecured: true }];
-        messages = [unsecuredLootMessage(itemId)];
+        const staged = addUnsecuredItem(expedition, itemId, quantity);
+        rewards = [{ ...staged.reward, unsecured: true }];
+        messages = [staged.message];
         break;
       }
       case "gainWeightedRandomUnsecuredItem": {
@@ -159,9 +159,9 @@ const EncounterOutcomes = Object.freeze({
         }
         const item = ITEM_DEFINITIONS[selected.itemId];
         const quantity = effect.quantity ?? 1;
-        addUnsecuredItem(expedition, selected.itemId, quantity);
-        rewards = [{ type: "item", itemId: selected.itemId, quantity, unsecured: true }];
-        messages = [unsecuredLootMessage(selected.itemId)];
+        const staged = addUnsecuredItem(expedition, selected.itemId, quantity);
+        rewards = [{ ...staged.reward, unsecured: true }];
+        messages = [staged.message];
         resultText = effect.resultText?.replaceAll("{itemName}", item.name) ?? resultText;
         break;
       }
@@ -170,9 +170,9 @@ const EncounterOutcomes = Object.freeze({
           break;
         }
         const quantity = effect.quantity ?? 1;
-        addUnsecuredItem(expedition, effect.itemId, quantity);
-        rewards = [{ type: "item", itemId: effect.itemId, quantity, unsecured: true }];
-        messages = [unsecuredLootMessage(effect.itemId)];
+        const staged = addUnsecuredItem(expedition, effect.itemId, quantity);
+        rewards = [{ ...staged.reward, unsecured: true }];
+        messages = [staged.message];
         break;
       case "rollLootTable": {
         const lootRewards = LootRules.resolveSources([{
@@ -194,7 +194,7 @@ const EncounterOutcomes = Object.freeze({
         if (expeditionItemQuantity(expedition, effect.itemId) < quantity) {
           break;
         }
-        consumeExpeditionItem(expedition, effect.itemId, quantity);
+        consumeExpeditionItem(expedition, effect.itemId, quantity, player);
         messages = [`Used ${quantity} ${ITEM_DEFINITIONS[effect.itemId]?.name ?? effect.itemId}`];
         break;
       }
@@ -624,22 +624,52 @@ function pendingActionDelay(pendingAction, random) {
 }
 
 function addUnsecuredItem(expedition, itemId, quantity) {
+  if (MaterialRules.isMaterialId(itemId)) {
+    const staged = MaterialRules.addUnsecured(expedition, itemId, quantity);
+    const definition = MaterialRules.definition(itemId);
+    return {
+      accepted: staged.accepted,
+      rejected: staged.rejected,
+      reward: {
+        type: "material",
+        materialId: itemId,
+        quantity: staged.accepted,
+        rejectedQuantity: staged.rejected,
+      },
+      message: staged.rejected > 0
+        ? `MATERIAL FOUND\n${definition.name} x${staged.accepted}\nUNSECURED\nMaterial Bag full: ${staged.rejected} could not be carried.`
+        : `MATERIAL FOUND\n${definition.name} x${staged.accepted}\nUNSECURED`,
+    };
+  }
   const existingLoot = expedition.unsecuredLoot.find((entry) => entry.itemId === itemId);
   if (existingLoot) {
     existingLoot.quantity += quantity;
   } else {
     expedition.unsecuredLoot.push({ itemId, quantity });
   }
+  return {
+    accepted: quantity,
+    rejected: 0,
+    reward: { type: "item", itemId, quantity },
+    message: unsecuredLootMessage(itemId),
+  };
 }
 
 function unsecuredLootMessage(itemId) {
+  if (MaterialRules.isMaterialId(itemId)) {
+    const material = MaterialRules.definition(itemId);
+    return `MATERIAL FOUND\n${material.name}\n${material.description}\nUNSECURED`;
+  }
   const item = ITEM_DEFINITIONS[itemId];
   return `ITEM FOUND\n${item.name}\n${item.description}\nUNSECURED`;
 }
 
 function lootRewardMessage(reward) {
   if (reward.type === "material") {
-    return `MATERIAL FOUND\n${MATERIAL_DEFINITIONS[reward.materialId].name} x${reward.quantity}\nUNSECURED`;
+    const material = MaterialRules.definition(reward.materialId);
+    const overflow = reward.rejectedQuantity > 0
+      ? `\nMaterial Bag full: ${reward.rejectedQuantity} could not be carried.` : "";
+    return `MATERIAL FOUND\n${material.name} x${reward.quantity}\nUNSECURED${overflow}`;
   }
   if (reward.type === "recipe") {
     return `RECIPE FOUND\n${RECIPE_DEFINITIONS[reward.recipeId].name}\nUNSECURED`;
@@ -650,6 +680,7 @@ function lootRewardMessage(reward) {
 }
 
 function expeditionItemQuantity(expedition, itemId) {
+  if (MaterialRules.isMaterialId(itemId)) return MaterialRules.expeditionQuantity(expedition, itemId);
   const equippedQuantity = Object.values(expedition.selectedEquipment).includes(itemId) ? 1 : 0;
   const carriedQuantity = expedition.carriedItems?.[itemId] ?? 0;
   const unsecuredQuantity = expedition.unsecuredLoot
@@ -658,7 +689,10 @@ function expeditionItemQuantity(expedition, itemId) {
   return equippedQuantity + carriedQuantity + unsecuredQuantity;
 }
 
-function consumeExpeditionItem(expedition, itemId, quantity) {
+function consumeExpeditionItem(expedition, itemId, quantity, player) {
+  if (MaterialRules.isMaterialId(itemId)) {
+    return MaterialRules.consumeFromExpedition(player, expedition, itemId, quantity).applied;
+  }
   let remaining = quantity;
   const carriedQuantity = expedition.carriedItems[itemId] ?? 0;
   const carriedUsed = Math.min(carriedQuantity, remaining);

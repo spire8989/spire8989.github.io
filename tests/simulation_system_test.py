@@ -123,7 +123,7 @@ def run():
             "Simulation brief rest did not use ExpeditionRules or expose its resource changes",
         )
         check(
-            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); return run.campsEntered>0&&run.campRestCount>0&&run.campRests[0]?.applied&&run.campRests[0].cost===2&&run.campEvents.length>0&&run.campEvents.every(event=>event.completed&&event.choices.length>0)&&run.recipesCooked.length>0&&run.recipesCooked[0].recipeId==='roasted_meat'&&run.recipesCooked[0].ingredientsConsumed.raw_meat===1&&run.recipesCooked[0].provisionsGained===3; }})()",
+            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); const cooked=run.recipesCooked[0]; return run.campsEntered>0&&run.campRestCount>0&&run.campRests[0]?.applied&&run.campRests[0].cost===2&&run.campEvents.length>0&&run.campEvents.every(event=>event.completed&&event.choices.length>0)&&run.startingMaterialBag.capacity===10&&run.startingMaterialBag.contents.raw_meat===1&&run.materialBagCapacity===10&&run.recipesCooked.length>0&&cooked.recipeId==='roasted_meat'&&cooked.ingredientsConsumed.raw_meat===1&&cooked.materialBagBefore.contents.raw_meat===1&&!cooked.materialBagAfter.contents.raw_meat&&cooked.provisionsGained===3; }})()",
             "Simulation camp flow did not rest, resolve a camp event, and cook through production rules",
         )
         check(
@@ -131,8 +131,20 @@ def run():
             "Same-seed camp, event, and cooking simulation was not deterministic",
         )
         check(
-            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); const csv=SimulationTelemetry.toCsv({{results:[run]}}); return csv.includes('paceSelectedAtDeparture')&&csv.includes('campEvents')&&csv.includes('recipesCooked')&&run.events.some(event=>event.type==='camp-entered')&&run.events.some(event=>event.type==='recipe-cooked'); }})()",
+            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); const csv=SimulationTelemetry.toCsv({{results:[run]}}); return csv.includes('paceSelectedAtDeparture')&&csv.includes('campEvents')&&csv.includes('recipesCooked')&&csv.includes('startingMaterialBag')&&csv.includes('materialsReturnedSafely')&&run.replay.startingPlayerState.packedMaterials.raw_meat===1&&run.events.some(event=>event.type==='camp-entered')&&run.events.some(event=>event.type==='recipe-cooked'); }})()",
             "Simulation telemetry exports did not preserve travel-management decisions and events",
+        )
+        check(
+            "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.startingMaterialBag.capacity===10&&run.startingMaterialBag.contents.raw_meat===10&&run.materialBagCapacity===10; })()",
+            "Simulation Material Bag capacity or starting contents were not preserved",
+        )
+        check(
+            "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.replay.startingPlayerState.packedMaterials.raw_meat===10&&run.materialBagAtEnd.capacity===10; })()",
+            "Simulation Material Bag replay or ending capacity was not preserved",
+        )
+        check(
+            "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.materialsFoundDuringExpedition&&run.materialsRejectedDueToCapacity&&Object.values(run.materialsRejectedDueToCapacity).every(quantity=>quantity>=0); })()",
+            "Simulation Material Bag loot-capacity telemetry was not preserved",
         )
         check(
             f"(() => {{ const run=SimulationRunner.run({scenario}); return Number.isFinite(run.provisionsConsumed) && Number.isFinite(run.provisionsGained) && run.encounters.every(entry=>entry.completed && Array.isArray(entry.lootGained) && Array.isArray(entry.lootLost) && Array.isArray(entry.packedItemsConsumed)) && run.combats.every(combat=>Number.isFinite(combat.damageDealt)&&Number.isFinite(combat.damageReceived)); }})()",

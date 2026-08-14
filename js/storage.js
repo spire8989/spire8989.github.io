@@ -5,7 +5,7 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 8,
+      saveVersion: 9,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -13,11 +13,6 @@ const SaveSystem = Object.freeze({
         rope: 1,
         silver_stag_medallion: 1,
         torch: 2,
-        raw_meat: 2,
-        wild_berries: 1,
-        mushrooms: 1,
-        fresh_herbs: 1,
-        honey: 1,
       },
       equippedItems: {
         weapon: "arthur_sword",
@@ -31,6 +26,20 @@ const SaveSystem = Object.freeze({
         leather: 1,
         iron: 2,
         wood: 1,
+        raw_meat: 2,
+        wild_berries: 1,
+        mushrooms: 1,
+        fresh_herbs: 1,
+        honey: 1,
+      },
+      packedMaterials: {
+        raw_meat: 2,
+        wild_berries: 1,
+        mushrooms: 1,
+        fresh_herbs: 1,
+        honey: 1,
+        medicinal_herbs: 2,
+        cloth: 2,
       },
       learnedRecipes: ["bandages", "repair_kit", "roasted_meat", "foraged_meal", "hunters_stew", "honeyed_berries"],
       unlockedCompanions: ["sir_kay"],
@@ -97,6 +106,7 @@ function sanitizePlayerState(savedState, defaults) {
   const ownedItems = {};
   const savedItems = savedState.ownedItems ?? {};
   Object.keys(ITEM_DEFINITIONS).forEach((itemId) => {
+    if (MaterialRules.isMaterialId(itemId)) return;
     const quantity = Number(savedItems[itemId]);
     if (Number.isInteger(quantity) && quantity > 0) {
       ownedItems[itemId] = quantity;
@@ -128,7 +138,9 @@ function sanitizePlayerState(savedState, defaults) {
     }
   });
 
+  const materials = sanitizeMaterials(savedState.materials, savedItems);
   const packedItems = sanitizePackedItems(savedState, ownedItems, equippedItems, defaults.packedItems);
+  const packedMaterials = sanitizePackedMaterials(savedState, materials, defaults.packedMaterials, savedItems);
 
   const unlockedCompanions = validIdArray(
     savedState.unlockedCompanions,
@@ -143,11 +155,12 @@ function sanitizePlayerState(savedState, defaults) {
     : defaults.selectedExpeditionId;
 
   return {
-    saveVersion: 8,
+    saveVersion: 9,
     ownedItems,
     equippedItems,
     packedItems,
-    materials: sanitizeMaterials(savedState.materials),
+    materials,
+    packedMaterials,
     learnedRecipes: sanitizeRecipeIds(savedState.learnedRecipes, defaults.learnedRecipes),
     unlockedCompanions,
     selectedCompanions,
@@ -173,10 +186,17 @@ function sanitizePlayerState(savedState, defaults) {
   };
 }
 
-function sanitizeMaterials(value) {
+function sanitizeMaterials(value, legacyItems = {}) {
   const materials = {};
-  Object.keys(MATERIAL_DEFINITIONS).forEach((materialId) => {
-    const quantity = Number(value?.[materialId]);
+  const source = { ...(value ?? {}) };
+  Object.entries(legacyItems).forEach(([itemId, quantity]) => {
+    if (MaterialRules.isMaterialId(itemId)) {
+      source[itemId] = (Number(source[itemId]) || 0) + (Number(quantity) || 0);
+    }
+  });
+  Object.keys(source).forEach((materialId) => {
+    if (!MaterialRules.isMaterialId(materialId)) return;
+    const quantity = Number(source[materialId]);
     if (Number.isInteger(quantity) && quantity > 0) materials[materialId] = quantity;
   });
   return materials;
@@ -229,8 +249,34 @@ function sanitizePackedItems(savedState, ownedItems, equippedItems, fallback) {
     .filter((itemId) => itemId
       && ownedItems[itemId]
       && ITEM_DEFINITIONS[itemId]?.carriable
+      && !MaterialRules.isMaterialId(itemId)
       && !Object.values(equippedItems).includes(itemId))
     .slice(0, EXPEDITION_TUNING.packSlots);
+}
+
+function sanitizePackedMaterials(savedState, materials, fallback, legacyItems = {}) {
+  let requested = savedState.packedMaterials;
+  if (requested === undefined) {
+    requested = Object.fromEntries((savedState.packedItems ?? [])
+      .filter((materialId) => MaterialRules.isMaterialId(materialId))
+      .map((materialId) => [materialId, legacyItems[materialId] ?? materials[materialId] ?? 1]));
+  }
+  if (requested === undefined || Object.keys(requested).length === 0) requested = fallback;
+  const result = {};
+  let remaining = EXPEDITION_TUNING.materialBagCapacity;
+  Object.entries(requested ?? {}).forEach(([materialId, quantity]) => {
+    if (!MaterialRules.isMaterialId(materialId) || remaining <= 0) return;
+    const accepted = Math.min(
+      Math.max(0, Math.floor(Number(quantity) || 0)),
+      Math.max(0, Math.floor(Number(materials[materialId]) || 0)),
+      remaining,
+    );
+    if (accepted > 0) {
+      result[materialId] = accepted;
+      remaining -= accepted;
+    }
+  });
+  return result;
 }
 
 function validIdArray(value, definitions, fallback) {

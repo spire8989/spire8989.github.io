@@ -67,6 +67,7 @@ const EXPEDITION_TUNING = Object.freeze({
   }),
   postEncounterSafeDistance: 8,
   packSlots: 6,
+  materialBagCapacity: 10,
   minimumStartingProvisions: 1,
   minimumTownProvisions: 10,
   companionBonuses: Object.freeze({

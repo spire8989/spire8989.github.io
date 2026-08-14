@@ -71,6 +71,7 @@ const LootRules = Object.freeze({
     if (entry.type === "material") return Boolean(MATERIAL_DEFINITIONS[entry.materialId]);
     if (entry.type === "item") {
       const item = ITEM_DEFINITIONS[entry.itemId];
+      if (MaterialRules.isMaterialId(entry.itemId)) return Boolean(item);
       const alreadyStaged = context.expedition?.unsecuredLoot
         ?.some((reward) => reward.itemId === entry.itemId)
         || context.rewardBucket?.items?.some((reward) => reward.itemId === entry.itemId);
@@ -134,16 +135,32 @@ const LootRules = Object.freeze({
 
 function grantLootEntry(entry, context, sourceTableId) {
   const quantity = lootQuantity(entry, context.random);
-  const reward = { type: entry.type, quantity, sourceTableId };
+  const materialId = entry.type === "material" ? entry.materialId : entry.itemId;
+  const isMaterial = entry.type === "material"
+    || (entry.type === "item" && MaterialRules.isMaterialId(entry.itemId));
+  const reward = { type: isMaterial ? "material" : entry.type, quantity, sourceTableId };
   if (entry.type === "gold") {
     if (context.rewardBucket) context.rewardBucket.gold += quantity;
     else if (context.expedition) context.expedition.goldCarried += quantity;
     else if (context.player) context.player.currentGold += quantity;
-  } else if (entry.type === "material") {
-    reward.materialId = entry.materialId;
-    if (context.rewardBucket) addQuantity(context.rewardBucket.materials, entry.materialId, quantity);
-    else if (context.expedition) addQuantity(context.expedition.unsecuredMaterials, entry.materialId, quantity);
-    else addQuantity(context.player.materials, entry.materialId, quantity);
+  } else if (isMaterial) {
+    reward.materialId = materialId;
+    if (context.rewardBucket) {
+      addQuantity(context.rewardBucket.materials, materialId, quantity);
+    } else if (context.expedition) {
+      const staged = MaterialRules.addUnsecured(context.expedition, materialId, quantity);
+      reward.quantity = staged.accepted;
+      reward.rejectedQuantity = staged.rejected;
+      if (staged.rejected > 0) {
+        recordLootEvent(context, {
+          type: "material-capacity-rejected",
+          materialId,
+          quantity: staged.rejected,
+          capacity: staged.capacity,
+          used: staged.used,
+        });
+      }
+    } else addQuantity(context.player.materials, materialId, quantity);
   } else if (entry.type === "item") {
     reward.itemId = entry.itemId;
     if (context.rewardBucket) addEntryQuantity(context.rewardBucket.items, "itemId", entry.itemId, quantity);
@@ -195,7 +212,7 @@ function addEntryQuantity(collection, idField, id, quantity) {
 
 function lootEntryLabel(entry) {
   return entry.type === "table" ? `${entry.type}:${entry.tableId}`
-    : entry.type === "material" ? `${entry.type}:${entry.materialId}`
+    : entry.type === "material" || (entry.type === "item" && MaterialRules.isMaterialId(entry.itemId)) ? `material:${entry.materialId ?? entry.itemId}`
       : entry.type === "item" ? `${entry.type}:${entry.itemId}`
         : entry.type === "recipe" ? `${entry.type}:${entry.recipeId}` : entry.type;
 }

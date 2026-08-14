@@ -27,8 +27,9 @@ const CraftingRules = Object.freeze({
     const ingredientType = recipe?.ingredientType ?? "material";
     const ingredientStatus = Object.entries(recipe?.ingredients ?? {}).map(([ingredientId, required]) => ({
       ingredientId,
-      materialId: ingredientType === "material" ? ingredientId : null,
-      itemId: ingredientType === "item" ? ingredientId : null,
+      materialId: MaterialRules.isMaterialId(ingredientId) ? ingredientId : null,
+      itemId: ingredientType === "item" && !MaterialRules.isMaterialId(ingredientId) ? ingredientId : null,
+      materialBag: MaterialRules.isMaterialId(ingredientId),
       required,
       owned: ingredientQuantity(player, expedition, ingredientType, ingredientId),
       sufficient: ingredientQuantity(player, expedition, ingredientType, ingredientId) >= required,
@@ -59,17 +60,17 @@ const CraftingRules = Object.freeze({
     if (!quote.available) {
       return { applied: false, recipeId, reason: craftingBlockReason(quote), quote };
     }
-    quote.ingredientStatus.forEach(({ materialId, required }) => {
-      if (quote.ingredientType === "material") {
-        player.materials[materialId] -= required;
-        if (player.materials[materialId] <= 0) delete player.materials[materialId];
+    const materialBagConsumed = {};
+    const itemsConsumed = {};
+    quote.ingredientStatus.forEach(({ ingredientId, materialBag, required }) => {
+      if (materialBag) {
+        const consumed = consumeMaterialIngredient(player, quote.expedition, ingredientId, required);
+        materialBagConsumed[ingredientId] = consumed.consumed;
+      } else {
+        consumeIngredient(player, quote.expedition, ingredientId, required);
+        itemsConsumed[ingredientId] = required;
       }
     });
-    if (quote.ingredientType === "item") {
-      quote.ingredientStatus.forEach(({ itemId, required }) => {
-        consumeIngredient(player, quote.expedition, itemId, required);
-      });
-    }
     player.currentGold -= quote.recipe.goldCost;
     const { itemId, quantity, provisions = 0 } = quote.recipe.output;
     if (quote.expedition && provisions > 0) {
@@ -89,16 +90,9 @@ const CraftingRules = Object.freeze({
       quantity: quantity ?? 0,
       provisions,
       goldCost: quote.recipe.goldCost,
-      materialsConsumed: Object.fromEntries(
-        quote.ingredientStatus
-          .filter(({ materialId }) => materialId)
-          .map(({ materialId, required }) => [materialId, required]),
-      ),
-      itemsConsumed: Object.fromEntries(
-        quote.ingredientStatus
-          .filter(({ itemId }) => itemId)
-          .map(({ itemId, required }) => [itemId, required]),
-      ),
+      materialsConsumed: materialBagConsumed,
+      materialBagConsumed,
+      itemsConsumed,
       reason: null,
     };
     console.debug("[Crafting] craft-performed", result);
@@ -117,6 +111,11 @@ function craftingBlockReason(quote) {
 }
 
 function ingredientQuantity(player, expedition, ingredientType, ingredientId) {
+  if (MaterialRules.isMaterialId(ingredientId)) {
+    return expedition
+      ? MaterialRules.expeditionQuantity(expedition, ingredientId)
+      : player.materials?.[ingredientId] ?? 0;
+  }
   if (ingredientType === "item") {
     if (expedition) {
       return (expedition.carriedItems?.[ingredientId] ?? 0)
@@ -127,6 +126,17 @@ function ingredientQuantity(player, expedition, ingredientType, ingredientId) {
     return player.ownedItems?.[ingredientId] ?? 0;
   }
   return player.materials?.[ingredientId] ?? 0;
+}
+
+function consumeMaterialIngredient(player, expedition, materialId, quantity) {
+  if (expedition) return MaterialRules.consumeFromExpedition(player, expedition, materialId, quantity);
+  const available = player.materials?.[materialId] ?? 0;
+  const consumed = Math.min(available, quantity);
+  if (consumed > 0) {
+    player.materials[materialId] -= consumed;
+    if (player.materials[materialId] <= 0) delete player.materials[materialId];
+  }
+  return { applied: consumed >= quantity, consumed, secured: consumed, unsecured: 0 };
 }
 
 function consumeIngredient(player, expedition, itemId, quantity) {

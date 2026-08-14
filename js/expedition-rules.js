@@ -154,7 +154,9 @@ const ExpeditionRules = Object.freeze({
     const isList = Array.isArray(packedItems);
     const itemIds = isList ? packedItems : Object.keys(packedItems ?? {});
     return Object.fromEntries(itemIds
-      .filter((itemId) => player.ownedItems[itemId] && ITEM_DEFINITIONS[itemId]?.carriable)
+      .filter((itemId) => player.ownedItems[itemId]
+        && ITEM_DEFINITIONS[itemId]?.carriable
+        && !MaterialRules.isMaterialId(itemId))
       .map((itemId) => {
         const requested = isList ? player.ownedItems[itemId] : Number(packedItems[itemId]);
         const quantity = Math.max(0, Math.floor(Number(requested) || 0));
@@ -166,6 +168,7 @@ const ExpeditionRules = Object.freeze({
   },
 
   createExpedition(player, options = {}) {
+    MaterialRules.migratePlayerMaterials(player);
     const selectedCompanions = options.companions !== undefined
       ? companionIdsFromSelection(options.companions)
       : options.companion !== undefined
@@ -178,6 +181,12 @@ const ExpeditionRules = Object.freeze({
     const capacity = this.partyProvisionCapacity(selectedCompanions);
     const provisions = Math.max(0, Math.min(Number(options.provisions) || 0, capacity));
     const selectedEquipment = { ...player.equippedItems, ...(options.equipment ?? {}) };
+    const materialBagRequest = options.materialBagContents
+      ?? options.packedMaterials
+      ?? (Array.isArray(options.packedItems)
+        ? options.packedItems.filter((itemId) => MaterialRules.isMaterialId(itemId))
+        : undefined);
+    const materialBag = MaterialRules.createExpeditionBag(player, materialBagRequest);
     const expedition = {
       expeditionId: expeditionDefinition.id,
       regionId: options.regionId ?? expeditionDefinition.regionId,
@@ -218,10 +227,16 @@ const ExpeditionRules = Object.freeze({
       selectedCompanions,
       selectedCompanion,
       carriedItems: this.createCarriedItems(player, options.packedItems),
+      materialBag,
       consumedItems: {},
       consumablesSettled: false,
       unsecuredLoot: [],
-      unsecuredMaterials: {},
+      unsecuredMaterials: materialBag.unsecured,
+      materialBagRejected: { ...materialBag.rejected },
+      materialsFound: {},
+      materialsReturned: {},
+      materialsLost: {},
+      materialsSettled: false,
       unsecuredRecipes: [],
       lootDebugLog: [],
       returnRewardsRolled: false,
@@ -326,13 +341,11 @@ const ExpeditionRules = Object.freeze({
   settle(player, expedition, returnedSafely) {
     this.settleConsumedItems(player, expedition);
     this.settleProvisions(player, expedition, returnedSafely);
+    MaterialRules.settle(player, expedition, returnedSafely);
     if (returnedSafely && !expedition.rewardsSettled) {
       LootRules.awardExpeditionReturn(player, expedition);
       expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
         player.ownedItems[itemId] = (player.ownedItems[itemId] ?? 0) + quantity;
-      });
-      Object.entries(expedition.unsecuredMaterials).forEach(([materialId, quantity]) => {
-        player.materials[materialId] = (player.materials[materialId] ?? 0) + quantity;
       });
       expedition.unsecuredRecipes.forEach((recipeId) => {
         if (!player.learnedRecipes.includes(recipeId)) player.learnedRecipes.push(recipeId);

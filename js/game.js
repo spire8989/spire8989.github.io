@@ -50,7 +50,7 @@ function handleAction(event) {
     return;
   }
 
-  const { action, itemId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId } = control.dataset;
+  const { action, itemId, materialId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId } = control.dataset;
 
   switch (action) {
     case "show-campaign":
@@ -118,6 +118,9 @@ function handleAction(event) {
       break;
     case "toggle-pack-item":
       togglePackItem(itemId);
+      break;
+    case "change-material-bag":
+      changeMaterialBag(materialId, Number(control.dataset.amount));
       break;
     case "select-companion":
       selectCompanion(companionId, Number(slotIndex) || 0);
@@ -524,19 +527,27 @@ function renderShopInteraction(destination, npc) {
 function renderMaterialInventory() {
   const entries = Object.entries(game.player.materials)
     .filter(([, quantity]) => quantity > 0)
-    .sort(([left], [right]) => (RARITY_DEFINITIONS[MATERIAL_DEFINITIONS[left].rarity]?.rank ?? 0)
-      - (RARITY_DEFINITIONS[MATERIAL_DEFINITIONS[right].rarity]?.rank ?? 0)
-      || MATERIAL_DEFINITIONS[left].name.localeCompare(MATERIAL_DEFINITIONS[right].name));
+    .sort(([left], [right]) => (RARITY_DEFINITIONS[MaterialRules.definition(left).rarity]?.rank ?? 0)
+      - (RARITY_DEFINITIONS[MaterialRules.definition(right).rarity]?.rank ?? 0)
+      || MaterialRules.definition(left).name.localeCompare(MaterialRules.definition(right).name));
   const chips = entries.map(([materialId, quantity]) => (
-    `<span class="material-chip rarity-${MATERIAL_DEFINITIONS[materialId].rarity}">${itemIcon("material", { ...MATERIAL_DEFINITIONS[materialId], id: materialId })}<span>${MATERIAL_DEFINITIONS[materialId].name}</span> <strong>${quantity}</strong></span>`
+    `<span class="material-chip rarity-${MaterialRules.definition(materialId).rarity}">${itemIcon("material", { ...MaterialRules.definition(materialId), id: materialId, category: "material" })}<span>${MaterialRules.definition(materialId).name}</span> <strong>${quantity}</strong></span>`
   )).join("");
   return `<div class="material-inventory"><span>Materials</span><div>${chips || '<em>None owned</em>'}</div></div>`;
 }
 
+function renderMaterialBagChips(expedition, emptyLabel = "None") {
+  const entries = Object.entries(MaterialRules.expeditionContents(expedition))
+    .filter(([, quantity]) => quantity > 0)
+    .map(([materialId, quantity]) => `<span class="material-chip">${itemIcon("material", { ...MaterialRules.definition(materialId), id: materialId, category: "material" })}<span>${MaterialRules.definition(materialId).name}</span> <strong>${quantity}</strong></span>`)
+    .join("");
+  return entries || `<em>${emptyLabel}</em>`;
+}
+
 function craftingRow(recipe, providerId, options = {}) {
   const quote = CraftingRules.quote(game.player, recipe.id, providerId, options);
-  const ingredients = quote.ingredientStatus.map(({ materialId, itemId, required, owned, sufficient }) => (
-    `<span class="${sufficient ? "" : "is-missing"}">${ITEM_DEFINITIONS[itemId]?.name ?? MATERIAL_DEFINITIONS[materialId]?.name ?? "Ingredient"} ${owned}/${required}</span>`
+  const ingredients = quote.ingredientStatus.map(({ ingredientId, materialId, itemId, required, owned, sufficient }) => (
+    `<span class="${sufficient ? "" : "is-missing"}">${ITEM_DEFINITIONS[itemId]?.name ?? MaterialRules.definition(materialId ?? ingredientId).name ?? "Ingredient"} ${owned}/${required}</span>`
   )).join(" · ");
   const cost = recipe.goldCost > 0 ? ` · ${recipe.goldCost} gold` : "";
   const output = recipe.output.provisions > 0
@@ -701,7 +712,7 @@ function craftingFailureMessage(result) {
   if (result.reason === "insufficient-materials") {
     return (result.quote?.ingredientStatus ?? [])
       .filter((entry) => !entry.sufficient)
-      .map((entry) => `${MATERIAL_DEFINITIONS[entry.materialId]?.name ?? entry.materialId} ${entry.owned}/${entry.required}`)
+      .map((entry) => `${MaterialRules.definition(entry.materialId ?? entry.ingredientId).name} ${entry.owned}/${entry.required}`)
       .join(" · ") || "Required materials are missing.";
   }
   if (result.reason === "insufficient-gold") {
@@ -931,12 +942,14 @@ function renderPreparationRoute() {
 
 function renderPreparationGear() {
   const inventory = Object.entries(game.player.ownedItems)
+    .filter(([itemId]) => !MaterialRules.isMaterialId(itemId))
     .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
     .join("");
   const equipment = ["weapon", "armor", "relic"]
     .map((slot) => equipmentSlotCard(slot, game.player.equippedItems[slot]))
     .join("");
   const packedItems = game.player.packedItems
+    .filter((itemId) => !MaterialRules.isMaterialId(itemId))
     .map((itemId) => packItemCard(ITEM_DEFINITIONS[itemId], game.player.ownedItems[itemId]))
     .join("");
   const emptyPackSlots = EXPEDITION_TUNING.packSlots - game.player.packedItems.length;
@@ -962,12 +975,47 @@ function renderPreparationGear() {
       </div>
     </section>
 
+    ${renderPreparationMaterialBag()}
+
     <section class="preparation-section" aria-labelledby="inventory-title">
       <div class="section-title-row">
         <h2 id="inventory-title">Permanent Inventory</h2>
         <span>${Object.keys(game.player.ownedItems).length} items</span>
       </div>
       <div class="inventory-list">${inventory}</div>
+    </section>`;
+}
+
+function renderPreparationMaterialBag() {
+  const entries = Object.entries(game.player.materials ?? {})
+    .filter(([, quantity]) => quantity > 0)
+    .sort(([left], [right]) => MaterialRules.definition(left).name.localeCompare(MaterialRules.definition(right).name));
+  const used = MaterialRules.collectionTotal(game.player.packedMaterials);
+  const rows = entries.map(([materialId, quantity]) => {
+    const definition = MaterialRules.definition(materialId);
+    const selected = game.player.packedMaterials?.[materialId] ?? 0;
+    const availableToAdd = Math.min(quantity - selected, EXPEDITION_TUNING.materialBagCapacity - used);
+    return `
+      <article class="material-bag-row">
+        <div class="material-bag-row-copy">
+          ${itemIcon("material", { ...definition, id: materialId, category: "material" })}
+          <div><strong>${definition.name}</strong><span>Owned ${quantity} · Bag ${selected}</span></div>
+        </div>
+        <div class="material-bag-stepper" aria-label="Choose ${definition.name} for the Material Bag">
+          <button type="button" data-action="change-material-bag" data-material-id="${materialId}" data-amount="-1" ${selected > 0 ? "" : "disabled"}>−</button>
+          <strong>${selected}</strong>
+          <button type="button" data-action="change-material-bag" data-material-id="${materialId}" data-amount="1" ${availableToAdd > 0 ? "" : "disabled"}>+</button>
+        </div>
+      </article>`;
+  }).join("");
+  return `
+    <section class="preparation-section material-bag-section" aria-labelledby="material-bag-title">
+      <div class="section-title-row">
+        <h2 id="material-bag-title">Material Bag</h2>
+        <span>${used}/${EXPEDITION_TUNING.materialBagCapacity} units</span>
+      </div>
+      <p class="section-help">Ingredients and crafting materials travel separately from the ${EXPEDITION_TUNING.packSlots}-slot expedition pack.</p>
+      <div class="material-bag-list">${rows || '<p class="empty-loot">No materials owned.</p>'}</div>
     </section>`;
 }
 
@@ -1021,6 +1069,10 @@ function renderPreparationReview() {
       return `${item.name}${quantity > 1 ? ` ×${quantity}` : ""}`;
     }).join(" · ")
     : "Pack is empty";
+  const materialBagNames = Object.entries(game.player.packedMaterials ?? {})
+    .filter(([, quantity]) => quantity > 0)
+    .map(([materialId, quantity]) => `${MaterialRules.definition(materialId).name}${quantity > 1 ? ` ×${quantity}` : ""}`)
+    .join(" · ") || "Material Bag is empty";
   const travelSpeed = partyTravelSpeedMultiplier(selectedCompanions);
   const travelSpeedLabel = travelSpeed === 1 ? "Standard" : `+${Math.round((travelSpeed - 1) * 100)}% faster`;
   const danger = dangerRatingMarkup(expedition.danger);
@@ -1043,6 +1095,11 @@ function renderPreparationReview() {
         <div class="review-card-heading"><h2>Pack & Provisions</h2><span>${game.preparationSupplies}/${provisionCapacity}</span></div>
         <p>${packedNames}</p>
         <p>${game.preparationSupplies} provisions · ${consumption.toFixed(2)}× consumption</p>
+      </article>
+      <article class="review-card">
+        <div class="review-card-heading"><h2>Material Bag</h2><span>${MaterialRules.collectionTotal(game.player.packedMaterials)}/${EXPEDITION_TUNING.materialBagCapacity}</span></div>
+        <p>${materialBagNames}</p>
+        <p>Ingredients and crafting materials are secured separately from the pack.</p>
       </article>
     </section>`;
 }
@@ -1182,6 +1239,7 @@ function equipItem(itemId) {
 function togglePackItem(itemId) {
   const item = ITEM_DEFINITIONS[itemId];
   if (!item?.carriable
+    || MaterialRules.isMaterialId(itemId)
     || !game.player.ownedItems[itemId]
     || Object.values(game.player.equippedItems).includes(itemId)) {
     return;
@@ -1239,6 +1297,25 @@ function selectCompanion(companionId, slotIndex = 0) {
   refreshPreparation();
 }
 
+function changeMaterialBag(materialId, amount) {
+  if (!MaterialRules.isMaterialId(materialId) || !game.player.materials?.[materialId]) return;
+  game.player.packedMaterials ??= {};
+  const current = game.player.packedMaterials[materialId] ?? 0;
+  const requested = current + (Number(amount) || 0);
+  const capacityLimit = requested > current
+    ? current + (EXPEDITION_TUNING.materialBagCapacity - MaterialRules.collectionTotal(game.player.packedMaterials))
+    : game.player.materials[materialId];
+  const next = clamp(
+    requested,
+    0,
+    Math.min(game.player.materials[materialId], capacityLimit),
+  );
+  if (next > 0) game.player.packedMaterials[materialId] = next;
+  else delete game.player.packedMaterials[materialId];
+  savePlayer();
+  refreshPreparation();
+}
+
 function selectExpedition(expeditionId) {
   if (!EXPEDITION_DEFINITIONS[expeditionId]
     || !ExpeditionCatalog.isUnlocked(game.player, expeditionId)) return;
@@ -1283,6 +1360,7 @@ function startExpedition() {
     provisions: committedProvisions,
     companions: selectedCompanions,
     expeditionId: game.player.selectedExpeditionId,
+    packedMaterials: game.player.packedMaterials,
   });
   savePlayer();
   showScreen("expedition");
@@ -1366,7 +1444,7 @@ function renderCamp(expedition) {
   const tabContent = game.campTab === "cook"
     ? renderCampCookPanel(expedition)
     : game.campTab === "craft"
-      ? renderCampCraftPanel()
+      ? renderCampCraftPanel(expedition)
       : renderCampRestPanel(expedition);
 
   ui.screenRoot.innerHTML = `
@@ -1414,29 +1492,27 @@ function renderCampRestPanel(expedition) {
 function renderCampCookPanel(expedition) {
   const recipes = CraftingRules.knownRecipesForProvider(game.player, "campfire");
   const rows = recipes.map((recipe) => craftingRow(recipe, "campfire", { expedition, action: "cook-recipe" })).join("");
-  const ingredients = Object.entries({
-    ...(expedition.carriedItems ?? {}),
-    ...(expedition.unsecuredLoot ?? []).reduce((totals, entry) => ({ ...totals, [entry.itemId]: (totals[entry.itemId] ?? 0) + entry.quantity }), {}),
-  }).filter(([itemId, quantity]) => ITEM_DEFINITIONS[itemId]?.tags?.includes("ingredient") && quantity > 0)
-    .map(([itemId, quantity]) => `<span class="material-chip">${itemIcon(ITEM_DEFINITIONS[itemId].category, ITEM_DEFINITIONS[itemId])}<span>${ITEM_DEFINITIONS[itemId].name}</span> <strong>${quantity}</strong></span>`)
+  const ingredients = Object.entries(MaterialRules.expeditionContents(expedition))
+    .filter(([materialId, quantity]) => ITEM_DEFINITIONS[materialId]?.tags?.includes("ingredient") && quantity > 0)
+    .map(([materialId, quantity]) => `<span class="material-chip">${itemIcon("material", { ...MaterialRules.definition(materialId), id: materialId, category: "material" })}<span>${MaterialRules.definition(materialId).name}</span> <strong>${quantity}</strong></span>`)
     .join("");
   return `
     <section class="camp-content" aria-labelledby="camp-cook-title">
       <div class="section-title-row"><h2 id="camp-cook-title">Cook</h2><span>Ingredients → Provisions</span></div>
-      <p class="section-help">Cooked meals use packed or newly discovered ingredients. The result becomes expedition provisions, not an inventory item.</p>
-      <div class="material-inventory camp-ingredients"><span>Available Ingredients</span><div>${ingredients || "<em>None carried</em>"}</div></div>
+      <p class="section-help">Cooked meals use secured and newly discovered ingredients from the Material Bag. The result becomes expedition provisions.</p>
+      <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${ingredients || "<em>No cooking ingredients available</em>"}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No recipes are available at this fire.</p>'}</div>
     </section>`;
 }
 
-function renderCampCraftPanel() {
+function renderCampCraftPanel(expedition) {
   const recipes = CraftingRules.knownRecipesForProvider(game.player, "blacksmith");
-  const rows = recipes.map((recipe) => craftingRow(recipe, "blacksmith", { action: "camp-craft-item" })).join("");
+  const rows = recipes.map((recipe) => craftingRow(recipe, "blacksmith", { expedition, action: "camp-craft-item" })).join("");
   return `
     <section class="camp-content" aria-labelledby="camp-craft-title">
-      <div class="section-title-row"><h2 id="camp-craft-title">Field Craft</h2><span>Use carried materials</span></div>
+      <div class="section-title-row"><h2 id="camp-craft-title">Field Craft</h2><span>Use Material Bag</span></div>
       <p class="section-help">A campfire can support simple field repairs. Apothecary work still belongs in the village.</p>
-      <div class="material-inventory camp-ingredients"><span>Materials</span><div>${renderMaterialInventory()}</div></div>
+      <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No field recipes are known.</p>'}</div>
     </section>`;
 }
@@ -1489,6 +1565,7 @@ function renderTravelPanel(expedition, companions, loadout) {
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
         <div class="run-detail-collection"><span>Loadout</span><div class="run-item-list">${renderItemChips(loadout, "No equipment selected")}</div></div>
         <div class="run-detail-collection"><span>Carried</span><div class="run-item-list">${formatCarriedItems(expedition.carriedItems)}</div></div>
+        <div class="run-detail-collection"><span>Material Bag</span><div class="run-item-list">${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
         <div class="run-detail-collection"><span>Discoveries</span><div id="loot-list" class="loot-list">${renderDiscoveryList(expedition)}</div></div>
         </div>
         <div class="run-details-actions">
@@ -1735,7 +1812,7 @@ function unsecuredItemQuantity(expedition) {
 }
 
 function unsecuredMaterialQuantity(expedition) {
-  return Object.values(expedition?.unsecuredMaterials ?? {})
+  return Object.values(expedition?.materialBag?.unsecured ?? expedition?.unsecuredMaterials ?? {})
     .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
 }
 
@@ -1743,6 +1820,7 @@ function renderExpeditionResources(expedition) {
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);
   const totalDiscoveries = itemQuantity + materialQuantity;
+  const materialBagUsed = MaterialRules.expeditionTotal(expedition);
   const provisionStatus = ExpeditionRules.returnProvisionStatus(expedition);
   return `
     <div class="resource-grid compact-resources">
@@ -1753,6 +1831,7 @@ function renderExpeditionResources(expedition) {
         <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
       </div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
+      <div class="resource-card material-bag-card"><span>Material Bag</span><strong id="material-bag-count">${materialBagUsed} / ${MaterialRules.capacity()}</strong></div>
       <div class="resource-card unsecured-card">
         <div class="resource-card-heading"><span>Unsecured Loot</span><strong id="loot-count">${totalDiscoveries}</strong></div>
         <div id="loot-breakdown" class="unsecured-breakdown">
@@ -1930,7 +2009,7 @@ function cookRecipe(recipeId) {
 function craftCampItem(recipeId) {
   const expedition = game.expedition;
   if (!expedition || expedition.travelState !== "camped" || expedition.activeEncounter) return;
-  const result = CraftingRules.craft(game.player, recipeId, "blacksmith");
+  const result = CraftingRules.craft(game.player, recipeId, "blacksmith", { expedition });
   if (!result.applied) {
     showToast({ title: "Cannot Craft", message: craftingFailureMessage(result), type: "warning" });
     return;
@@ -1944,10 +2023,10 @@ function cookingFailureMessage(result) {
   if (result.reason === "insufficient-materials") {
     return result.quote.ingredientStatus
       .filter((entry) => !entry.sufficient)
-      .map((entry) => `${ITEM_DEFINITIONS[entry.itemId]?.name ?? entry.materialId}: need ${entry.required}`)
+      .map((entry) => `${ITEM_DEFINITIONS[entry.itemId]?.name ?? MaterialRules.definition(entry.materialId ?? entry.ingredientId).name}: need ${entry.required}`)
       .join(" · ");
   }
-  return "The required ingredients are not available in the expedition pack.";
+  return "The required ingredients are not available in the Material Bag.";
 }
 
 function resolveEncounterChoice(choiceId) {
@@ -2423,6 +2502,7 @@ function updateTravelHud() {
     provisionsCard.dataset.provisionState = provisionStatus.state;
   }
   setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
+  setText("#material-bag-count", `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity()}`);
   const itemQuantity = unsecuredItemQuantity(expedition);
   const materialQuantity = unsecuredMaterialQuantity(expedition);
   const totalDiscoveries = itemQuantity + materialQuantity;
@@ -2592,6 +2672,12 @@ function debugExpeditionState(expedition) {
     ownedInventory: game.player.ownedItems,
     equippedGear: expedition.selectedEquipment,
     packedItems: expedition.carriedItems,
+    materialBag: {
+      capacity: MaterialRules.capacity(),
+      contents: MaterialRules.expeditionContents(expedition),
+      unsecured: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials,
+      rejected: expedition.materialBagRejected,
+    },
     unsecuredLoot: expedition.unsecuredLoot,
     consumedItems: expedition.consumedItems,
     path: expedition.currentPathId,

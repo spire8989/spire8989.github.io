@@ -173,6 +173,7 @@ const SimulationRunner = Object.freeze({
       companions: normalized.companions,
       equipment: normalized.loadout,
       packedItems: normalized.packContents,
+      packedMaterials: normalized.materialBagContents,
       random: random.random,
       health: normalized.startingHealth,
       regionId: normalized.regionId,
@@ -392,6 +393,13 @@ const SimulationTelemetry = Object.freeze({
       campEvents: run.campEvents,
       recipesCooked: run.recipesCooked,
       ingredientsConsumedById: run.ingredientsConsumedById,
+      startingMaterialBag: run.startingMaterialBag,
+      materialBagCapacity: run.materialBagCapacity,
+      materialBagAtEnd: run.materialBagAtEnd,
+      materialsFoundDuringExpedition: run.materialsFoundDuringExpedition,
+      materialsRejectedDueToCapacity: run.materialsRejectedDueToCapacity,
+      materialsReturnedSafely: run.materialsReturnedSafely,
+      unsecuredMaterialsLost: run.unsecuredMaterialsLost,
       briefRestCount: run.briefRestCount,
       campRestCount: run.campRestCount,
       campEventCount: run.campEventCount,
@@ -473,6 +481,9 @@ const SimulationTelemetry = Object.freeze({
       "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
       "briefRestCount", "campRestCount", "campEventCount", "cookingActionCount", "cookingProvisionsGained",
       "campEvents", "recipesCooked", "ingredientsConsumedById",
+      "startingMaterialBag", "materialBagCapacity", "materialBagAtEnd",
+      "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
+      "materialsReturnedSafely", "unsecuredMaterialsLost",
       "estimatedLootValue", "encounterCount", "combatCount", "aggressiveEmergencyActions",
       "combatsStartedBelow50Percent", "combatsStartedBelow25Percent", "stepCount", "durationMs",
       "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
@@ -646,6 +657,13 @@ function normalizeScenario(scenario) {
     provisions,
     loadout: { ...defaultPlayer.equippedItems, ...(scenario.loadout?.equipment ?? scenario.loadout ?? {}) },
     packContents: scenario.packContents ?? defaultPlayer.packedItems,
+    materialBagContents: scenario.materialBagContents
+      ?? scenario.packedMaterials
+      ?? (scenario.packContents !== undefined
+        ? (Array.isArray(scenario.packContents)
+          ? scenario.packContents
+          : Object.keys(scenario.packContents ?? {})).filter((itemId) => MaterialRules.isMaterialId(itemId))
+        : defaultPlayer.packedMaterials),
     strategy,
     turnaroundPolicy,
     startingState: scenario.startingState ?? {},
@@ -670,13 +688,34 @@ function createSimulationPlayer(scenario) {
   const defaults = SaveSystem.createDefaultPlayerState();
   const player = deepClone({ ...defaults, ...scenario.startingState });
   player.ownedItems = { ...defaults.ownedItems, ...(scenario.startingState.ownedItems ?? {}) };
+  player.materials = { ...defaults.materials, ...(scenario.startingState.materials ?? {}) };
+  player.packedMaterials = { ...defaults.packedMaterials, ...(scenario.startingState.packedMaterials ?? {}) };
+  Object.entries(scenario.startingState.ownedItems ?? {}).forEach(([itemId, quantity]) => {
+    if (MaterialRules.isMaterialId(itemId) && scenario.startingState.materials?.[itemId] === undefined) {
+      player.materials[itemId] = Math.max(0, Number(quantity) || 0);
+    }
+  });
+  MaterialRules.migratePlayerMaterials(player);
   player.equippedItems = { ...scenario.loadout };
   const packedEntries = Array.isArray(scenario.packContents)
     ? scenario.packContents.map((itemId) => [itemId, player.ownedItems[itemId] ?? 1])
     : Object.entries(scenario.packContents ?? {});
-  packedEntries.forEach(([itemId, quantity]) => { player.ownedItems[itemId] = Math.max(1, Number(quantity) || 1); });
+  packedEntries.forEach(([itemId, quantity]) => {
+    if (MaterialRules.isMaterialId(itemId)) {
+      player.materials[itemId] = Math.max(1, Number(quantity) || 1);
+    } else {
+      player.ownedItems[itemId] = Math.max(1, Number(quantity) || 1);
+    }
+  });
   Object.values(player.equippedItems).filter(Boolean).forEach((itemId) => { player.ownedItems[itemId] ??= 1; });
-  player.packedItems = packedEntries.map(([itemId]) => itemId).slice(0, EXPEDITION_TUNING.packSlots);
+  player.packedItems = packedEntries
+    .map(([itemId]) => itemId)
+    .filter((itemId) => !MaterialRules.isMaterialId(itemId))
+    .slice(0, EXPEDITION_TUNING.packSlots);
+  player.packedMaterials = MaterialRules.selectionFromRequest(
+    scenario.materialBagContents,
+    player.materials,
+  );
   player.selectedCompanions = [...scenario.companions];
   player.selectedCompanion = scenario.companions[0] ?? null;
   player.unlockedCompanions = [...new Set([
@@ -849,12 +888,18 @@ function cookAtCamp(expedition, player, strategyName, telemetry) {
   const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { expedition });
   if (!result.applied) return null;
   const after = resourceSnapshot(expedition);
+  const ingredientsConsumed = mergeQuantityCollections(
+    result.materialBagConsumed ?? result.materialsConsumed,
+    result.itemsConsumed,
+  );
   const cooked = {
     recipeId: result.recipeId,
     provisionsBefore: before.resources.provisions,
     provisionsAfter: after.resources.provisions,
     provisionsGained: rounded(after.resources.provisions - before.resources.provisions),
-    ingredientsConsumed: deepClone(result.itemsConsumed ?? {}),
+    ingredientsConsumed: deepClone(ingredientsConsumed),
+    materialBagBefore: deepClone(before.materialBag),
+    materialBagAfter: deepClone(after.materialBag),
     outputsGained: { provisions: result.provisions ?? 0 },
     goldCost: result.goldCost ?? 0,
     distance: rounded(expedition.distance),
@@ -906,6 +951,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
       healthChanges: {},
       itemsGained: [],
       itemsLost: [],
+      materialBagChanges: {},
       combatTriggered: false,
       outcome: null,
       completed: false,
@@ -1173,6 +1219,11 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     campEvents: [],
     recipesCooked: [],
     ingredientsConsumedById: {},
+    startingMaterialBag: deepClone({
+      capacity: MaterialRules.capacity(),
+      contents: MaterialRules.expeditionContents(expedition),
+    }),
+    materialBagCapacity: MaterialRules.capacity(),
     startingProvisions: expedition.committedProvisions,
     originalTargetDistance,
     departurePassiveFoodEstimate,
@@ -1237,7 +1288,7 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     ? combineItemEntries([...expedition.unsecuredLoot, ...returnRewardContents.items])
     : [];
   const materialsRecovered = returned
-    ? mergeQuantityCollections(expedition.unsecuredMaterials, returnRewardContents.materials)
+    ? mergeQuantityCollections(expedition.materialsReturned, returnRewardContents.materials)
     : {};
   const attacksReceivedByPartyMember = aggregateRunPartyCombatField(
     telemetry, "attacksReceivedByPartyMember",
@@ -1276,6 +1327,18 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     startingProvisionStock: startingStock,
     goldGained: returned ? expedition.goldCarried + returnRewardContents.gold : 0,
     materialsRecovered,
+    startingMaterialBag: telemetry.startingMaterialBag,
+    materialBagCapacity: MaterialRules.capacity(),
+    materialBagAtEnd: deepClone({
+      capacity: MaterialRules.capacity(),
+      contents: MaterialRules.expeditionContents(expedition),
+      secured: expedition.materialBag?.secured ?? {},
+      unsecured: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials ?? {},
+    }),
+    materialsFoundDuringExpedition: deepClone(expedition.materialsFound ?? {}),
+    materialsRejectedDueToCapacity: deepClone(expedition.materialBagRejected ?? {}),
+    materialsReturnedSafely: deepClone(expedition.materialsReturned ?? {}),
+    unsecuredMaterialsLost: deepClone(expedition.materialsLost ?? {}),
     recipesLearned: returned
       ? [...new Set([...expedition.unsecuredRecipes, ...returnRewardContents.recipes])]
       : [],
@@ -1346,6 +1409,10 @@ function completeEncounterHistory(history, expedition) {
   const after = resourceSnapshot(expedition);
   history.resourceChanges = diffObject(history.before.resources, after.resources);
   history.healthChanges = diffObject(history.before.health, after.health);
+  history.materialBagChanges = diffObject(
+    history.before.materialBag?.contents ?? {},
+    after.materialBag?.contents ?? {},
+  );
   history.lootGained = inventoryDelta(history.before.unsecuredLoot, after.unsecuredLoot, 1);
   history.lootLost = inventoryDelta(history.before.unsecuredLoot, after.unsecuredLoot, -1);
   history.packedItemsConsumed = inventoryDelta(history.before.carriedItems, after.carriedItems, -1);
@@ -1372,6 +1439,12 @@ function resourceSnapshot(expedition) {
     unsecuredLoot: Object.fromEntries(
       expedition.unsecuredLoot.map((entry) => [entry.itemId, entry.quantity]),
     ),
+    materialBag: deepClone({
+      capacity: MaterialRules.capacity(),
+      contents: MaterialRules.expeditionContents(expedition),
+      secured: expedition.materialBag?.secured ?? {},
+      unsecured: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials ?? {},
+    }),
   };
 }
 
@@ -1387,6 +1460,7 @@ function replayPlayerSnapshot(player) {
     companionStates: player.companionStates ?? {},
     learnedKnowledge: player.learnedKnowledge,
     materials: player.materials,
+    packedMaterials: player.packedMaterials,
     learnedRecipes: player.learnedRecipes,
     campaignFlags: player.campaignFlags ?? {},
     provisions: player.provisions,

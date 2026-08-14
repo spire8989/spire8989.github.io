@@ -95,7 +95,7 @@ A turnaround policy needs `name`, optional serializable `configuration`, and `sh
 
 ## Telemetry and replay foundation
 
-Each run contains identity/configuration fields, outcome/failure, distances, party health, provision accounting, gold, discovered/recovered item loot and estimated merchant value, recovered materials, learned recipes, expedition-return reward tier/results, the compact loot-resolution debug trace, encounter/combat counts, step count, and duration. It also includes pace/ration departure selections and changes, brief-rest attempts and applied recovery, camp entries and rests, camp event IDs/choices/results, cooked recipe records with ingredient consumption and outputs, and current health/provision deltas. It also includes:
+Each run contains identity/configuration fields, outcome/failure, distances, party health, provision accounting, gold, discovered/recovered item loot and estimated merchant value, recovered materials, learned recipes, expedition-return reward tier/results, the compact loot-resolution debug trace, encounter/combat counts, step count, and duration. It also includes pace/ration departure selections and changes, brief-rest attempts and applied recovery, camp entries and rests, camp event IDs/choices/results, cooked recipe records with ingredient consumption and outputs, and current health/provision deltas. Material ingredients and crafting materials use the production ten-unit Material Bag: the replay records its starting/end contents, capacity overflow, found materials, settlement return/loss, and bag changes used by encounter history. It also includes:
 
 - `encounters`: availability at every stage, selected choices, path/direction/distance, actual before/after resource and health deltas, unsecured loot changes, packed-item consumption, combat trigger, and result text.
 - `combats`: enemies, before/after party HP, result/flee, damage totals, rounds/actions, and production combat events.
@@ -142,7 +142,7 @@ python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-The focused suite verifies normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, strategy pace/ration selection and adaptation, production provision effects, real brief-rest/camp/cooking flows, camp-event determinism, replay metadata, production-state telemetry, and direct encounter selection. It also temporarily makes native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
+The focused suite verifies normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, strategy pace/ration selection and adaptation, production provision effects, real brief-rest/camp/cooking flows, Material Bag capacity and replay state, camp-event determinism, replay metadata, production-state telemetry, and direct encounter selection. It also temporarily makes native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
 
 ## Current Phase 1 boundaries
 

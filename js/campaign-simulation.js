@@ -78,6 +78,7 @@ const CampaignSimulationRunner = Object.freeze({
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
         paceId: decision.paceId,
         rationId: decision.rationId,
+        materialBagContents: decision.materialBagContents,
         startingState: deepCampaignClone(player),
       });
 
@@ -111,6 +112,13 @@ const CampaignSimulationRunner = Object.freeze({
         campEvents: run.campEvents,
         recipesCooked: run.recipesCooked,
         ingredientsConsumedById: run.ingredientsConsumedById,
+        startingMaterialBag: run.startingMaterialBag,
+        materialBagCapacity: run.materialBagCapacity,
+        materialBagAtEnd: run.materialBagAtEnd,
+        materialsFoundDuringExpedition: run.materialsFoundDuringExpedition,
+        materialsRejectedDueToCapacity: run.materialsRejectedDueToCapacity,
+        materialsReturnedSafely: run.materialsReturnedSafely,
+        unsecuredMaterialsLost: run.unsecuredMaterialsLost,
         briefRestCount: run.briefRestCount,
         campRestCount: run.campRestCount,
         campEventCount: run.campEventCount,
@@ -283,7 +291,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
       "totalBriefRests", "totalCampRests", "totalCampEvents", "totalCookingActions", "totalCookingProvisionsGained",
-      "ingredientsConsumedById",
+      "ingredientsConsumedById", "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
+      "materialsReturnedSafely", "unsecuredMaterialsLost",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
@@ -319,6 +328,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "provisionExhaustionFailure",
       "paceSelectedAtDeparture", "rationSelectedAtDeparture", "paceChanges", "rationChanges", "briefRestCount", "campRestCount", "campEventCount",
       "cookingActionCount", "cookingProvisionsGained", "campEvents", "recipesCooked", "ingredientsConsumedById",
+      "startingMaterialBag", "materialBagCapacity", "materialBagAtEnd", "materialsFoundDuringExpedition",
+      "materialsRejectedDueToCapacity", "materialsReturnedSafely", "unsecuredMaterialsLost",
       "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
       "arthurHealing", "companionId", "companionHealing", "healingCost",
       "healingTriggeredByLowHp", "healingTriggerReason",
@@ -630,6 +641,7 @@ function applyBetweenExpeditionPolicy(
       itemId,
       itemId === "bandages" ? bandagesPacked : player.ownedItems[itemId],
     ])),
+    materialBagContents: deepCampaignClone(player.packedMaterials),
     desiredBandages: bandagePlan.target,
     minimumBandages: bandagePlan.minimum,
     bandagePurchasePolicy: bandagePlan.policy,
@@ -759,6 +771,14 @@ function createCampaignPlayer(overrides) {
   merged.equippedItems = { ...defaults.equippedItems, ...(overrides.equippedItems ?? {}) };
   merged.packedItems = [...(overrides.packedItems ?? defaults.packedItems)];
   merged.materials = { ...defaults.materials, ...(overrides.materials ?? {}) };
+  merged.packedMaterials = { ...defaults.packedMaterials, ...(overrides.packedMaterials ?? {}) };
+  Object.entries(overrides.ownedItems ?? {}).forEach(([itemId, quantity]) => {
+    if (MaterialRules.isMaterialId(itemId) && overrides.materials?.[itemId] === undefined) {
+      merged.materials[itemId] = Math.max(0, Number(quantity) || 0);
+    }
+  });
+  MaterialRules.migratePlayerMaterials(merged);
+  merged.packedItems = merged.packedItems.filter((itemId) => !MaterialRules.isMaterialId(itemId));
   merged.learnedRecipes = [...(overrides.learnedRecipes ?? defaults.learnedRecipes)];
   merged.learnedKnowledge = [...(overrides.learnedKnowledge ?? defaults.learnedKnowledge)];
   merged.unlockedCompanions = [...(overrides.unlockedCompanions ?? defaults.unlockedCompanions)];
@@ -785,6 +805,7 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
     ownedItems: player.ownedItems,
     equippedItems: player.equippedItems,
     packedItems: player.packedItems,
+    packedMaterials: player.packedMaterials,
     learnedKnowledge: player.learnedKnowledge,
     materials: player.materials,
     learnedRecipes: player.learnedRecipes,
@@ -884,6 +905,10 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalCookingActions: totals((entry) => entry.cookingActionCount),
     totalCookingProvisionsGained: totals((entry) => entry.cookingProvisionsGained),
     ingredientsConsumedById,
+    materialsFoundDuringExpedition: campaignCombatTotals(expeditions, "materialsFoundDuringExpedition"),
+    materialsRejectedDueToCapacity: campaignCombatTotals(expeditions, "materialsRejectedDueToCapacity"),
+    materialsReturnedSafely: campaignCombatTotals(expeditions, "materialsReturnedSafely"),
+    unsecuredMaterialsLost: campaignCombatTotals(expeditions, "unsecuredMaterialsLost"),
     totalLootValueRecovered: totals((entry) => entry.lootValueRecovered),
     totalLootValueLost: totals((entry) => estimateCampaignItems(entry.lootLost)),
     totalProvisionsConsumed: totals((entry) => entry.provisionsConsumed),

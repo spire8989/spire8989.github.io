@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-13 - Expedition Material Bag and Field-Cooking Parity
+
+### Goal
+
+Separate expedition materials from the six-slot utility Pack, make found materials immediately usable at camp, and carry the authored material/cooking behavior through single and campaign simulations without changing balance.
+
+### Human prompt and direction
+
+The human developer supplied a focused inventory/crafting guide requesting a ten-unit Material Bag, secured versus unsecured material settlement, same-expedition cooking/crafting access, UI visibility, simulation/campaign persistence, telemetry/replay coverage, and deterministic tests. Recipe definitions, loot rates, combat, provisions, and economy were explicitly left unchanged. The requested commit should be local only; no push was authorized.
+
+### AI-assisted implementation
+
+- Added `MaterialRules` and a centralized ten-unit expedition Material Bag. Ingredient and crafting-material IDs are removed from the normal Pack, legacy saves migrate them from `ownedItems`, town selections become secured bag contents, and expedition-found materials enter the unsecured bag with explicit overflow telemetry.
+- Routed loot, encounter requirements, crafting/cooking consumption, expedition settlement, and return/failure handling through the shared bag rules. Remaining found materials secure only on a successful return; consumed ingredients remain consumed on either outcome.
+- Added preparation, travel, and camp Material Bag presentation with capacity usage, secured/newly found contents, and material selection controls while preserving the existing six-slot utility Pack.
+- Extended simulation and campaign replay/telemetry with bag snapshots, capacity, found/rejected/returned/lost materials, bag changes, consumed ingredients, and recipe input/output state. Campaign state continues to carry materials, recipes, health, provisions, consumables, and gold between expeditions.
+- Added focused browser coverage for save migration, bag capacity and classification, found-material cooking, success/failure settlement, production simulation parity, campaign persistence, replay fields, CSV fields, determinism, and native-random guards.
+
+### Manual changes
+
+The human developer supplied the inventory/crafting guide and requested the local add/commit. No additional manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The prototype now keeps utility gear in the six-slot Pack and ingredients/crafting materials in a ten-unit Material Bag. Newly found materials can be cooked or crafted during the same expedition, while settlement preserves the existing success/failure rules. No recipe, loot, combat, provision, or economy tuning values were changed.
+
+Verified 391 UI/provision/location browser assertions, 26 deterministic simulation assertions, 66 campaign/health/Inn assertions, clean local HTTP startup through those browser flows, no simulation-local `Math.random()` calls, and `git diff --check` before commit.
+
 ## 2026-08-13 - Expedition Simulation Production-System Parity
 
 ### Goal

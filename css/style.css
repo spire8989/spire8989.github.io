@@ -913,6 +913,83 @@ button:active:not(:disabled) {
   display: block;
 }
 
+.material-bag-section {
+  padding: 0.6rem;
+  border: 1px solid rgb(217 189 114 / 24%);
+  border-radius: 0.4rem;
+  background: rgb(8 14 9 / 28%);
+}
+
+.material-bag-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.material-bag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.4rem;
+  border: 1px solid rgb(217 189 114 / 16%);
+  border-radius: 0.3rem;
+  background: rgb(38 55 42 / 52%);
+}
+
+.material-bag-row-copy {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.material-bag-row-copy .category-icon {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--gold);
+}
+
+.material-bag-row-copy div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.material-bag-row-copy strong,
+.material-bag-row-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.material-bag-row-copy strong { font-size: clamp(0.56rem, 2.4cqw, 0.7rem); }
+.material-bag-row-copy span {
+  color: #aeb7aa;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.49rem, 2.05cqw, 0.62rem);
+}
+
+.material-bag-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.material-bag-stepper button {
+  width: 1.65rem;
+  min-height: 1.65rem;
+  border: 1px solid rgb(217 189 114 / 38%);
+  border-radius: 0.25rem;
+  background: rgb(18 29 20 / 86%);
+  color: #f2e5c2;
+  cursor: pointer;
+}
+
+.material-bag-stepper button:disabled { opacity: 0.35; cursor: default; }
+.material-bag-stepper strong { min-width: 1.1rem; color: var(--gold-bright); text-align: center; }
+
 .pack-item-card span {
   color: var(--gold);
   font-family: system-ui, sans-serif;
@@ -1381,6 +1458,11 @@ button:active:not(:disabled) {
 .resource-card strong {
   color: #f5eac8;
   font-size: clamp(0.62rem, 2.7cqw, 0.78rem);
+}
+
+.material-bag-card {
+  border-color: rgb(145 177 130 / 34%);
+  background: rgb(31 51 35 / 46%);
 }
 
 .provisions-card.provision-state-warning {
