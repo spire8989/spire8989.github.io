@@ -1,5 +1,34 @@
 # Build Log
 
+## 2026-08-14 - Corrective Dialogue and Reward Presentation Pass
+
+### Goal
+
+Repair the dialogue regression and make a focused cleanup pass over crafting cards, Camp actions, capacity-limited rewards, animal result wording, encounter spacing, and Journey Log prose without changing the expedition systems.
+
+### Human prompt and direction
+
+The human developer supplied a corrective cleanup guide after dialogue sizing was damaged by the previous UI pass and requested the local changes be added and committed. The guide required natural dialogue sizing, touch-friendly crafting actions, an external opaque Camp footer, generalized material reward lookup, clear partial/full capacity feedback, clean combined Journey Log entries, and no zero-discovery presentation.
+
+### AI-assisted implementation
+
+- Removed the dialogue card's fixed height while retaining readable typography, bounded long-copy scrolling, choice containment, portraits, and touch actions.
+- Increased crafting card spacing and made Craft/Cook actions touch-sized while keeping ingredient chips and cooking-only output labels.
+- Moved Leave Camp outside the Camp scroller into a full-width opaque divided footer, reduced encounter-result dead space, and preserved the expedition action-bar pattern.
+- Routed material rewards through `MaterialRules.definition()`, including Raw Meat, added partial/overflow capacity status, filtered zero rewards, and replaced raw discovery labels with concise acquisition prose.
+- Combined encounter narrative and reward details into one cleaned Journey Log entry, normalized resource/rope/path language, and removed misleading animal “secures” wording.
+- Expanded location browser assertions for natural dialogue sizing, external Camp structure, touch-sized crafting, ingredient reward fallback, partial/full capacity handling, and Journey Log cleanup.
+
+### Manual changes
+
+The human developer supplied the corrective cleanup guide and requested the local add/commit. No additional manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Dialogue now grows to its content without a large dead area, Camp actions remain visible as a stable bottom shelf, animal rewards explain what was collected or left behind, and Journey history reads as concise player-facing prose rather than internal reward operations. Existing expedition, combat, crafting, save, and simulation behavior remains intact.
+
+Verified 410 UI/provision/location browser assertions, 26 deterministic simulation assertions, 66 campaign/health/Inn assertions, clean local-HTTP production-page startup through the browser flow, and `git diff --check`.
+
 ## 2026-08-14 - Focused UI/Content Polish Pass
 
 ### Goal

@@ -173,7 +173,7 @@ const CAMP_EVENT_DEFINITIONS = Object.freeze({
           outcomes: [{ type: "randomOne", options: [
             { weight: 25, resultText: "The largest wolf lowers its head, and the pack quietly withdraws. The encounter was stranger than threatening.", effects: [{ type: "modifyResource", resource: "health", amount: 1 }] },
             { weight: 45, resultText: "The wolves retreat into the brush as Arthur steps forward.", effects: [] },
-            { weight: 30, resultText: "The pack answers with a sudden rush of teeth and snarls.", effects: [{ type: "startCombat", combatId: "wolves", victory: { outcomes: [{ type: "gainUnsecuredItem", itemId: "raw_meat", quantity: 2 }], resultText: "The wolves scatter, leaving 2 Raw Meat beside the quiet clearing." }, fled: { outcomes: [], resultText: "The company breaks away from the pack and returns to the fire." } }] },
+            { weight: 30, resultText: "The pack answers with a sudden rush of teeth and snarls.", effects: [{ type: "startCombat", combatId: "wolves", victory: { outcomes: [{ type: "gainUnsecuredItem", itemId: "raw_meat", quantity: 2 }], resultText: "The wolves scatter, leaving meat beside the quiet clearing." }, fled: { outcomes: [], resultText: "The company breaks away from the pack and returns to the fire." } }] },
           ] }],
           resultText: "Arthur steps beyond the firelight to meet the pack.",
           endEncounter: true,

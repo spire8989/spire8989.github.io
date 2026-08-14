@@ -1467,9 +1467,9 @@ function renderCamp(expedition) {
         ${renderJourneyLog(expedition)}
         <div class="camp-tabs" role="tablist" aria-label="Camp actions">${tabs}</div>
         ${tabContent}
-        <div class="footer-actions camp-actions">
-          <button class="text-button" type="button" data-action="leave-camp">Leave Camp</button>
-        </div>
+      </div>
+      <div class="footer-actions camp-actions">
+        <button class="text-button" type="button" data-action="leave-camp">Leave Camp</button>
       </div>
     </section>`;
   updateTravelHud();
@@ -1672,7 +1672,7 @@ function renderEncounterPanel(expedition, encounter) {
 }
 
 function nonRewardOutcomeMessages(messages = []) {
-  return messages.filter((message) => !/^(ITEM FOUND|MATERIAL FOUND|RECIPE FOUND|\+\d+ gold)/.test(message));
+  return messages.filter((message) => !/^(ITEM FOUND|MATERIAL FOUND|RECIPE FOUND|\+\d+ gold|Found |Collected |Recovered |Discovered the .+ recipe\.)/.test(message));
 }
 
 function renderEncounterPendingPanel(expedition, encounter, active) {
@@ -2370,13 +2370,16 @@ function rewardBucketEntries(bucket = {}, statusLabel = "") {
 
 function rewardDefinition(reward) {
   return reward.type === "item" ? ITEM_DEFINITIONS[reward.itemId]
-    : reward.type === "material" ? MATERIAL_DEFINITIONS[reward.materialId]
+    : reward.type === "material" ? MaterialRules.definition(reward.materialId)
       : reward.type === "recipe" ? RECIPE_DEFINITIONS[reward.recipeId] : null;
 }
 
 function rewardIconKind(reward) {
   if (reward.type === "gold") return "currency";
-  if (reward.type === "material") return itemIconKind("material", { ...MATERIAL_DEFINITIONS[reward.materialId], id: reward.materialId, category: "material" });
+  if (reward.type === "material") {
+    const definition = MaterialRules.definition(reward.materialId);
+    return itemIconKind("material", { ...definition, id: reward.materialId, category: "material" });
+  }
   if (reward.type === "recipe") return "recipe";
   const definition = rewardDefinition(reward);
   return itemIconKind(definition?.category, definition);
@@ -2401,6 +2404,7 @@ function rewardDisplayName(reward) {
 
 function rewardQuantityLabel(reward) {
   if (reward.type === "gold") return `+${reward.quantity}`;
+  if (reward.type === "material") return Number(reward.quantity) > 0 ? `×${reward.quantity}` : "";
   return reward.quantity > 1 ? `×${reward.quantity}` : "";
 }
 
@@ -2412,6 +2416,7 @@ function rewardCategoryLabel(reward) {
 }
 
 function renderRewardCard(reward, options = {}) {
+  if (!rewardHasCollectedQuantity(reward)) return "";
   const definition = rewardDefinition(reward);
   const rarity = definition?.rarity ?? "common";
   const rarityName = RARITY_DEFINITIONS[rarity]?.name ?? capitalize(rarity);
@@ -2419,7 +2424,7 @@ function renderRewardCard(reward, options = {}) {
   const description = reward.type === "gold" ? "Coins recovered from the journey."
     : definition?.description ?? "A useful discovery from the road.";
   const quantity = rewardQuantityLabel(reward);
-  const statusLabel = reward.statusLabel || (reward.unsecured ? "UNSECURED" : "");
+  const statusLabel = reward.statusLabel || rewardCapacityStatus(reward) || (reward.unsecured ? "UNSECURED" : "");
   return `
     <article class="reward-card rarity-${rarity} ${options.variant === "summary" ? "is-summary-highlight" : ""}">
       <div class="reward-icon">${categoryIcon(rewardIconKind(reward))}</div>
@@ -2432,14 +2437,28 @@ function renderRewardCard(reward, options = {}) {
     </article>`;
 }
 
+function rewardHasCollectedQuantity(reward) {
+  return Number(reward?.quantity) > 0;
+}
+
+function rewardCapacityStatus(reward) {
+  if (reward?.type !== "material" || Number(reward.rejectedQuantity) <= 0) return "";
+  const collected = Math.max(0, Number(reward.quantity) || 0);
+  return collected > 0
+    ? `${collected} collected · ${reward.rejectedQuantity} left behind`
+    : `Material Bag full · ${reward.rejectedQuantity} left behind`;
+}
+
 function renderRewardCards(rewards = [], options = {}) {
-  if (rewards.length === 0) {
+  const visibleRewards = rewards.filter(rewardHasCollectedQuantity);
+  if (visibleRewards.length === 0) {
     return `<p class="empty-rewards">${options.emptyMessage ?? "No rewards this time."}</p>`;
   }
-  return `<div class="reward-card-list">${rewards.map((reward) => renderRewardCard(reward, options)).join("")}</div>`;
+  return `<div class="reward-card-list">${visibleRewards.map((reward) => renderRewardCard(reward, options)).join("")}</div>`;
 }
 
 function renderCompactRewardRow(reward) {
+  if (!rewardHasCollectedQuantity(reward)) return "";
   const definition = rewardDefinition(reward);
   const rarity = definition?.rarity ?? "common";
   const statusLabel = reward.statusLabel || "";
@@ -2453,11 +2472,12 @@ function renderCompactRewardRow(reward) {
 }
 
 function renderSummaryRewardCollection(rewards = [], options = {}) {
-  if (rewards.length === 0) {
+  const visibleRewards = rewards.filter(rewardHasCollectedQuantity);
+  if (visibleRewards.length === 0) {
     return `<p class="empty-rewards">${options.emptyMessage ?? "No rewards this time."}</p>`;
   }
-  const routineAndNotable = rewards.filter((reward) => rewardPresentation(reward) !== "major");
-  const major = rewards.filter((reward) => rewardPresentation(reward) === "major");
+  const routineAndNotable = visibleRewards.filter((reward) => rewardPresentation(reward) !== "major");
+  const major = visibleRewards.filter((reward) => rewardPresentation(reward) === "major");
   const groups = [
     ["Items", routineAndNotable.filter((reward) => reward.type === "item")],
     ["Materials", routineAndNotable.filter((reward) => reward.type === "material")],
