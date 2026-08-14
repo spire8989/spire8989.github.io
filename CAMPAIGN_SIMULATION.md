@@ -9,6 +9,8 @@ CampaignRules ---- EconomyRules ---- HealingRules
       |                                  |
 ExpeditionRules                    Inn rest action
       |
+CampRules / CraftingRules
+      |
 normal game / single-run simulator / campaign simulator
 ```
 
@@ -91,7 +93,7 @@ Expedition seeds are stable and derived as:
 - `aggressive-reinvestor`: heals Arthur below 50%; below 25%, if one rest still leaves Arthur below 50%, it strongly prioritizes one additional affordable production Inn rest. It can still rest for a selected companion below its policy threshold, plans with a three-unit provision margin, and accepts longer expeditions than conservative from the same constrained stock.
 - `minimal-restock`: heals at or below 25%, plans with a one-unit provision margin, and avoids discretionary reserves.
 
-Configured expedition distances are nominal targets. Each policy buys toward its preferred round-trip stock, estimates the maximum supported out-and-back distance from the shared base provision rate and party consumption multiplier, adds its policy margin, then adds a fixed expected encounter-cost reserve based on expedition strategy: Cautious 4, Random 3, Aggressive 2, and Greedy 3 provisions. It uses the lesser of nominal and supported distance. Missing a preferred buffer reduces the target rather than ending the campaign. An unaffordable preferred rest is likewise recorded without stopping a viable departure. If a selected companion remains at zero after normal rest attempts, the campaign records the constraint and launches the next viable expedition without that companion. Policy decisions record desired/actual distance, passive food estimate, configured and actually used encounter reserve, total requirement, reduction and reason, safety margin, provision stock before/after purchase, affordable stock, gold before/after preparation, and party health before/after healing.
+Configured expedition distances are nominal targets. Each policy buys toward its preferred round-trip stock, selects authored pace/rations (Cautious/Generous when healthy, Normal/Normal for Random/Normal, Hard Push/Normal with Sparse allowed for constrained Aggressive), estimates the maximum supported out-and-back distance from the resulting production multiplier, adds its policy margin, then adds a fixed expected encounter-cost reserve based on expedition strategy: Cautious 4, Random/Normal 3, Aggressive 2, and Greedy 3 provisions. It uses the lesser of nominal and supported distance. Missing a preferred buffer reduces the target rather than ending the campaign. An unaffordable preferred rest is likewise recorded without stopping a viable departure. If a selected companion remains at zero after normal rest attempts, the campaign records the constraint and launches the next viable expedition without that companion. Policy decisions record desired/actual distance, selected pace/rations, passive food estimate, configured and actually used encounter reserve, total requirement, reduction and reason, safety margin, provision stock before/after purchase, affordable stock, gold before/after preparation, and party health before/after healing.
 
 The reserve is deterministic and does not inspect future encounter identities, outcomes, costs, spacing rolls, or loot. If supplies cannot cover every preference, planning first drops the policy margin, then the fixed encounter reserve only as a last resort before declaring a true inability to launch. During outbound simulation, current distance and current provisions are rechecked against the passive return estimate plus the strategy reserve after resolved events. If that known-state requirement becomes unsafe, the expedition turns back immediately. Replay, run, campaign, and CSV telemetry record the emergency decision, trigger distance, passive return estimate, reserve, original target, and actual turnaround distance.
 
@@ -104,6 +106,12 @@ Between-expedition preparation first uses the same known Bandage recipe and gene
 Bandage targets are strategy-driven: Aggressive targets 3 with a minimum preference of 1, Cautious targets 2, and Random makes a seeded purchase decision for 0–2. A small rest-cost reserve prevents a discretionary purchase from consuming the gold needed for an immediately available Inn rest. Existing packed utility items remain in place, and Bandages are added only when a free slot remains within the six-slot pack. Exact pack quantities are passed into `ExpeditionRules`, so only purchased/carried quantities can be consumed in combat.
 
 Campaign and expedition telemetry reports crafting actions, Bandages crafted, `itemsPurchasedById`, `itemPurchaseGoldSpentById`, `itemsPackedById`, `itemsConsumedById`, `itemsReturnedById`, recovered materials, learned recipes, return-reward tiers/results, Bandage purchase/pack/use/return counts, Bandage healing performed, and total item-purchase spending. Decisions also record preferred targets and constraints when materials, stock, gold, or pack capacity prevent the preference from being met. Item stock is persistent for one simulated campaign and remains session-scoped in the normal browser shop, matching the existing provision-stock behavior.
+
+## In-expedition management
+
+Each campaign expedition delegates its live travel decisions to `SimulationRunner`. The strategy uses known party HP, provisions, direction/distance, and recent rest/camp locations to choose between continuing, a production `briefRest`, or the production pause → camp → `restAtCamp` lifecycle. Camp events use the existing contextual tables and seeded expedition RNG, then resolve through the same strategy encounter-choice function used by normal travel. Available campfire recipes are quoted and applied through `CraftingRules`; ingredients are consumed from the expedition and authored provision outputs are added through `ExpeditionRules`.
+
+Per-expedition campaign telemetry preserves departure pace/rations, any changes during travel, brief-rest and camp-rest records, camp event IDs and choices, cooked recipes, consumed ingredients, output gains, and health/provision deltas. Campaign totals and CSV exports aggregate these records, while each expedition replay retains the decisions needed for a later visual replay. Settlement then carries the resulting persistent health, provisions, owned consumables, materials, learned recipes, gold, and other player state into the next expedition.
 
 ## Stops and outcomes
 
@@ -133,7 +141,7 @@ const batch = CampaignSimulationRunner.runBatch({
 });
 ```
 
-Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, low-HP and critical healing triggers, emergency aggressive actions, combats entered below 50%/25%, Arthur-versus-companion attacks and damage, ending gold/health, net campaign wealth, healing/provision/item spending, Bandages purchased/packed/used/returned, Bandage healing, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. `completedPlan` and completion rate require `max-expeditions-reached`; dying during the final expedition is never completion. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
+Aggregation reports completion, true insolvency, death, desired/actual distance, target-reduction frequency/amount, selected pace/rations, brief rests, camp rests/events, cooking actions and outputs, consumed ingredients, low-HP and critical healing triggers, emergency aggressive actions, combats entered below 50%/25%, Arthur-versus-companion attacks and damage, ending gold/health, net campaign wealth, healing/provision/item spending, Bandages purchased/packed/used/returned, Bandage healing, recovered value, damage, combats, and economic growth. Results group by expedition strategy, between-expedition policy, and plan. `completedPlan` and completion rate require `max-expeditions-reached`; dying during the final expedition is never completion. Individual campaigns also report health thresholds, cumulative damage, healing efficiency, net-gold median/average, ROI, break-even rate, and one of:
 
 - `economically-growing`
 - `roughly-sustainable`
@@ -168,7 +176,7 @@ python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-The focused campaign suite covers save migration and clamping, player-facing active-party Inn behavior, flat-cost capped party healing, normal-game health persistence, shared campaign healing parity, exact policy thresholds, failed-healing quote/application semantics, adaptive policy distances, true insolvency, deterministic campaigns, persistent economy, summaries/CSV, and replay metadata.
+The focused campaign suite covers save migration and clamping, player-facing active-party Inn behavior, flat-cost capped party healing, normal-game health persistence, shared campaign healing parity, exact policy thresholds, strategy pace/ration planning, failed-healing quote/application semantics, adaptive policy distances, production camp/cooking persistence, true insolvency, deterministic campaigns, persistent economy, summaries/CSV, and replay metadata.
 
 ## Current limitations
 

@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-13 - Expedition Simulation Production-System Parity
+
+### Goal
+
+Teach single-expedition and multi-expedition simulations to use the authored pace, ration, rest, camping, camp-event, and cooking systems without changing game balance or adding chapter selection.
+
+### Human prompt and direction
+
+The human developer supplied a focused simulation-parity guide requesting strategy-driven pace/ration choices, deterministic brief-rest and camp decisions, production camp-event resolution, real campfire cooking, persistent campaign state, replay telemetry, and focused tests. Automatic rebalance work and new quest/chapter selection were explicitly deferred. A Git commit and push were requested for this pass.
+
+### AI-assisted implementation
+
+- Added deterministic strategy travel policy defaults: Cautious uses Cautious pace and can select Generous rations when healthy, Normal/Random stays Normal/Normal, and Aggressive uses Hard Push with Sparse available under supply pressure. Ration changes during travel use the live return margin and are recorded.
+- Extended `SimulationRunner` to choose continue, brief rest, or camp from current party health, provisions, direction/distance, strategy, and recent action locations. Brief rests, camp entry, camp rest, camp-event resolution, leaving camp, and seeded choice outcomes all use the production rules.
+- Added camp cooking decisions that quote available authored campfire recipes and apply successful recipes through `CraftingRules`, consuming carried/unsecured ingredients and adding real provision outputs through `ExpeditionRules`.
+- Carried departure settings and all in-expedition decisions through `CampaignSimulationRunner`, preserving settled health, provisions, consumables, recipes, materials, gold, and replay data across expeditions. Added run/campaign JSON, CSV, aggregate, event, and replay telemetry for pace/rations, rests, camps, events, cooking, ingredients, outputs, and resource changes.
+- Added focused deterministic coverage for strategy settings, production provision effects, rest/camp/cooking flows, seeded camp events, campaign persistence, replay decisions, and native-random guards. Updated simulation documentation for the new automation phase.
+
+### Manual changes
+
+The human developer supplied the simulation-parity guide and requested the resulting changes be committed and pushed. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Automation now manages authored travel pace and rations, takes deterministic recovery actions, resolves camp events, cooks useful campfire recipes, and carries the resulting persistent state into later campaign expeditions. No tuning values or game balance definitions were changed.
+
+Verified 388 UI/provision/location browser assertions, 23 deterministic simulation assertions, 66 campaign/health/Inn assertions, clean production-page startup through local HTTP, no simulation-local `Math.random()` calls, and `git diff --check`.
+
 ## 2026-08-13 - Brocéliande Destination Text Deduplication
 
 ### Goal

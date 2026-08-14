@@ -65,6 +65,22 @@ def run():
             "pathId": "old_forest_road",
             "turnaroundPolicy": {"type": "fixedDistance", "distance": 100},
         })
+        camp_scenario = json.dumps({
+            "id": "camp-parity",
+            "seed": "camp-parity-seed",
+            "strategy": "cautious",
+            "provisions": 20,
+            "companions": [],
+            "packContents": {"raw_meat": 1},
+            "startingState": {
+                "arthurHealth": 10,
+                "selectedCompanions": [],
+                "selectedCompanion": None,
+                "ownedItems": {"raw_meat": 1},
+                "packedItems": ["raw_meat"],
+            },
+            "turnaroundPolicy": {"type": "fixedDistance", "distance": 10},
+        })
 
         check(
             f"SimulationRunner.verifyDeterminism({scenario}).matches",
@@ -89,6 +105,34 @@ def run():
         check(
             f"(() => {{ const run=SimulationRunner.run({scenario}); return run.replay.seed===run.seed && run.replay.regionId==='broceliande' && run.replay.pathId==='old_forest_road' && run.replay.startingPlayerState.provisions===24 && JSON.stringify(run.replay.decisions)===JSON.stringify(run.decisions) && run.decisions.some(entry=>entry.type==='turnaround'); }})()",
             "Replay metadata is missing starting state, path, or decision history",
+        )
+        check(
+            "(() => { const cautious=SimulationRunner.run({seed:'pace-cautious',strategy:'cautious',provisions:24,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); const normal=SimulationRunner.run({seed:'pace-normal',strategy:'normal',provisions:24,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); const aggressive=SimulationRunner.run({seed:'pace-aggressive',strategy:'aggressive',provisions:5,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); return cautious.paceSelectedAtDeparture==='cautious'&&cautious.rationSelectedAtDeparture==='generous'&&normal.paceSelectedAtDeparture==='normal'&&normal.rationSelectedAtDeparture==='normal'&&aggressive.paceSelectedAtDeparture==='hard_push'&&aggressive.rationSelectedAtDeparture==='sparse'; })()",
+            "Simulation strategies did not select their authored departure pace and ration settings",
+        )
+        check(
+            "(() => { const normal=SimulationRunner.run({seed:'pace-cost-normal',strategy:'normal',paceId:'normal',rationId:'normal',provisions:30,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:20}}); const cautious=SimulationRunner.run({seed:'pace-cost-cautious',strategy:'normal',paceId:'cautious',rationId:'normal',provisions:30,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:20}}); return cautious.provisionsConsumed<normal.provisionsConsumed&&normal.provisionsConsumed>0; })()",
+            "Simulation pace/ration settings did not affect production provision consumption",
+        )
+        check(
+            "(() => { const runs=Array.from({length:8},(_,index)=>SimulationRunner.run({seed:`ration-adaptation-${index}`,strategy:'cautious',provisions:24,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:100}})); return runs.some(run=>run.rationChanges.some(change=>change.from==='generous'&&change.to==='normal'))&&runs.every(run=>run.replay.paceId===run.paceSelectedAtDeparture&&run.replay.rationId===run.rationSelectedAtDeparture); })()",
+            "Simulation strategies did not adapt rations under return pressure or record replay settings",
+        )
+        check(
+            "(() => { const run=SimulationRunner.run({seed:'brief-rest-parity',strategy:'normal',provisions:8,companions:[],startingState:{arthurHealth:20,selectedCompanions:[],selectedCompanion:null},turnaroundPolicy:{type:'fixedDistance',distance:5}}); const rest=run.briefRests[0]; return run.briefRestCount>0&&rest?.applied&&rest.cost===1&&rest.healthChanges.arthur===4&&rest.provisionsChange===-1; })()",
+            "Simulation brief rest did not use ExpeditionRules or expose its resource changes",
+        )
+        check(
+            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); return run.campsEntered>0&&run.campRestCount>0&&run.campRests[0]?.applied&&run.campRests[0].cost===2&&run.campEvents.length>0&&run.campEvents.every(event=>event.completed&&event.choices.length>0)&&run.recipesCooked.length>0&&run.recipesCooked[0].recipeId==='roasted_meat'&&run.recipesCooked[0].ingredientsConsumed.raw_meat===1&&run.recipesCooked[0].provisionsGained===3; }})()",
+            "Simulation camp flow did not rest, resolve a camp event, and cook through production rules",
+        )
+        check(
+            f"SimulationRunner.verifyDeterminism({camp_scenario}).matches",
+            "Same-seed camp, event, and cooking simulation was not deterministic",
+        )
+        check(
+            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); const csv=SimulationTelemetry.toCsv({{results:[run]}}); return csv.includes('paceSelectedAtDeparture')&&csv.includes('campEvents')&&csv.includes('recipesCooked')&&run.events.some(event=>event.type==='camp-entered')&&run.events.some(event=>event.type==='recipe-cooked'); }})()",
+            "Simulation telemetry exports did not preserve travel-management decisions and events",
         )
         check(
             f"(() => {{ const run=SimulationRunner.run({scenario}); return Number.isFinite(run.provisionsConsumed) && Number.isFinite(run.provisionsGained) && run.encounters.every(entry=>entry.completed && Array.isArray(entry.lootGained) && Array.isArray(entry.lootLost) && Array.isArray(entry.packedItemsConsumed)) && run.combats.every(combat=>Number.isFinite(combat.damageDealt)&&Number.isFinite(combat.damageReceived)); }})()",

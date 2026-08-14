@@ -76,6 +76,8 @@ const CampaignSimulationRunner = Object.freeze({
         packContents: decision.packContents,
         strategy: config.strategy,
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
+        paceId: decision.paceId,
+        rationId: decision.rationId,
         startingState: deepCampaignClone(player),
       });
 
@@ -99,6 +101,21 @@ const CampaignSimulationRunner = Object.freeze({
         targetDistanceReduction: decision.targetDistanceReduction,
         targetDistanceReductionReason: decision.targetDistanceReductionReason,
         departurePassiveFoodEstimate: decision.departurePassiveFoodEstimate,
+        paceSelectedAtDeparture: run.paceSelectedAtDeparture,
+        rationSelectedAtDeparture: run.rationSelectedAtDeparture,
+        paceChanges: run.paceChanges,
+        rationChanges: run.rationChanges,
+        briefRests: run.briefRests,
+        campsEntered: run.campsEntered,
+        campRests: run.campRests,
+        campEvents: run.campEvents,
+        recipesCooked: run.recipesCooked,
+        ingredientsConsumedById: run.ingredientsConsumedById,
+        briefRestCount: run.briefRestCount,
+        campRestCount: run.campRestCount,
+        campEventCount: run.campEventCount,
+        cookingActionCount: run.cookingActionCount,
+        cookingProvisionsGained: run.cookingProvisionsGained,
         encounterProvisionReserve: decision.encounterProvisionReserve,
         totalEstimatedProvisionRequirement: decision.totalEstimatedProvisionRequirement,
         emergencyProvisionTurnaround: run.emergencyProvisionTurnaround,
@@ -265,6 +282,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
       "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
+      "totalBriefRests", "totalCampRests", "totalCampEvents", "totalCookingActions", "totalCookingProvisionsGained",
+      "ingredientsConsumedById",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
@@ -298,6 +317,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance",
       "originalTargetDistance", "departureTargetDistance", "actualTurnaroundDistance",
       "provisionExhaustionFailure",
+      "paceSelectedAtDeparture", "rationSelectedAtDeparture", "paceChanges", "rationChanges", "briefRestCount", "campRestCount", "campEventCount",
+      "cookingActionCount", "cookingProvisionsGained", "campEvents", "recipesCooked", "ingredientsConsumedById",
       "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
       "arthurHealing", "companionId", "companionHealing", "healingCost",
       "healingTriggeredByLowHp", "healingTriggerReason",
@@ -398,9 +419,13 @@ function applyBetweenExpeditionPolicy(
   const goldAfterHealing = player.currentGold;
   const activeCompanions = selectedCompanionIds(player);
   const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions);
+  const travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+    provisions: player.provisions,
+    capacity,
+  });
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
   const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
-    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve,
+    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve, travelSettings,
   );
   const desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
   const provisionStockBeforePurchase = player.provisions;
@@ -446,13 +471,13 @@ function applyBetweenExpeditionPolicy(
   const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
   const preferredSafeDistance = maximumCampaignDistanceForProvisions(
     provisionStockAvailableToPack, activeCompanions,
-    policy.provisionMargin, encounterProvisionReserve,
+    policy.provisionMargin, encounterProvisionReserve, travelSettings,
   );
   const encounterReserveSupportedDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, activeCompanions, 0, encounterProvisionReserve,
+    provisionStockAvailableToPack, activeCompanions, 0, encounterProvisionReserve, travelSettings,
   );
   const minimumSupportedDistance = maximumCampaignDistanceForProvisions(
-    provisionStockAvailableToPack, activeCompanions, 0, 0,
+    provisionStockAvailableToPack, activeCompanions, 0, 0, travelSettings,
   );
   const safeAffordableDistance = preferredSafeDistance >= 1
     ? preferredSafeDistance
@@ -467,13 +492,13 @@ function applyBetweenExpeditionPolicy(
   const estimatedProvisionRequirementForChosenDistance = actualTargetDistance >= 1
     ? estimateCampaignProvisionRequirement(
       actualTargetDistance, activeCompanions,
-      safetyMarginUsed, encounterProvisionReserveUsed,
+      safetyMarginUsed, encounterProvisionReserveUsed, travelSettings,
     ) : 0;
   const departurePassiveFoodEstimate = roundCampaignNumber(
-    estimateCampaignPassiveProvisionCost(actualTargetDistance, activeCompanions),
+    estimateCampaignPassiveProvisionCost(actualTargetDistance, activeCompanions, travelSettings),
   );
   const desiredTargetPassiveFoodEstimate = roundCampaignNumber(
-    estimateCampaignPassiveProvisionCost(targetDistance, activeCompanions),
+    estimateCampaignPassiveProvisionCost(targetDistance, activeCompanions, travelSettings),
   );
   const targetDistanceReductionReason = !targetDistanceReduced
     ? null
@@ -546,6 +571,8 @@ function applyBetweenExpeditionPolicy(
   return {
     policy: policy.name,
     planningStrategy,
+    paceId: travelSettings.paceId,
+    rationId: travelSettings.rationId,
     healingThreshold: policy.healingThreshold,
     healingThresholdComparison: policy.healingThresholdInclusive ? "at-or-below" : "below",
     criticalHealingThreshold: policy.criticalHealingThreshold ?? null,
@@ -670,31 +697,37 @@ function packCampaignItems(player, desiredQuantities) {
   ) * (player.packedItems.includes("bandages") ? 1 : 0);
 }
 
-function estimateCampaignPassiveProvisionCost(distance, companionId) {
-  const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
+function estimateCampaignPassiveProvisionCost(distance, companionId, travelSettings = {}) {
+  const baseMultiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
+  const pace = ExpeditionRules.paceDefinition(travelSettings.paceId);
+  const ration = ExpeditionRules.rationDefinition(travelSettings.rationId);
+  const multiplier = baseMultiplier * pace.provisionMultiplier * ration.provisionMultiplier;
   return SimulationProvisionPlanning.passiveRoundTripCost(distance, multiplier);
 }
 
 function estimateCampaignProvisionRequirement(
-  distance, companionId, safetyMargin, encounterProvisionReserve = 0,
+  distance, companionId, safetyMargin, encounterProvisionReserve = 0, travelSettings = {},
 ) {
   return Math.ceil(
-    estimateCampaignPassiveProvisionCost(distance, companionId)
+    estimateCampaignPassiveProvisionCost(distance, companionId, travelSettings)
       + safetyMargin + encounterProvisionReserve,
   );
 }
 
 function maximumCampaignDistanceForProvisions(
-  provisions, companionId, safetyMargin, encounterProvisionReserve = 0,
+  provisions, companionId, safetyMargin, encounterProvisionReserve = 0, travelSettings = {},
 ) {
-  const multiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
+  const baseMultiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
+  const pace = ExpeditionRules.paceDefinition(travelSettings.paceId);
+  const ration = ExpeditionRules.rationDefinition(travelSettings.rationId);
+  const multiplier = baseMultiplier * pace.provisionMultiplier * ration.provisionMultiplier;
   const roundTripRate = 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier;
   let distance = Math.max(0, Math.floor(
     (provisions - safetyMargin - encounterProvisionReserve) / roundTripRate + 1e-9,
   ));
   while (distance > 0
     && estimateCampaignProvisionRequirement(
-      distance, companionId, safetyMargin, encounterProvisionReserve,
+      distance, companionId, safetyMargin, encounterProvisionReserve, travelSettings,
     ) > provisions) {
     distance -= 1;
   }
@@ -777,6 +810,7 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
   const itemsPackedById = campaignCombatTotals(expeditions, "itemsPackedById");
   const itemsConsumedById = campaignCombatTotals(expeditions, "itemsConsumedById");
   const itemsReturnedById = campaignCombatTotals(expeditions, "itemsReturnedById");
+  const ingredientsConsumedById = campaignCombatTotals(expeditions, "ingredientsConsumedById");
   const totalItemPurchaseGoldSpent = totals((entry) => entry.itemPurchaseGoldSpent);
   const totalGoldEarned = totals((entry) => entry.goldEarnedFromSales + entry.goldEarnedDirect);
   const totalGoldSpent = totalHealingCost + totalProvisionCost + totalItemPurchaseGoldSpent;
@@ -844,6 +878,12 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalBandagesUsed: totals((entry) => entry.bandagesUsed),
     totalBandagesReturned: totals((entry) => entry.bandagesReturned),
     totalBandageHealingPerformed: totals((entry) => entry.bandageHealingPerformed),
+    totalBriefRests: totals((entry) => entry.briefRestCount),
+    totalCampRests: totals((entry) => entry.campRestCount),
+    totalCampEvents: totals((entry) => entry.campEventCount),
+    totalCookingActions: totals((entry) => entry.cookingActionCount),
+    totalCookingProvisionsGained: totals((entry) => entry.cookingProvisionsGained),
+    ingredientsConsumedById,
     totalLootValueRecovered: totals((entry) => entry.lootValueRecovered),
     totalLootValueLost: totals((entry) => estimateCampaignItems(entry.lootLost)),
     totalProvisionsConsumed: totals((entry) => entry.provisionsConsumed),
@@ -972,6 +1012,11 @@ function summarizeCampaigns(results) {
     averageBandagesUsed: averageField("totalBandagesUsed"),
     averageBandagesReturned: averageField("totalBandagesReturned"),
     averageBandageHealingPerformed: averageField("totalBandageHealingPerformed"),
+    averageBriefRests: averageField("totalBriefRests"),
+    averageCampRests: averageField("totalCampRests"),
+    averageCampEvents: averageField("totalCampEvents"),
+    averageCookingActions: averageField("totalCookingActions"),
+    averageCookingProvisionsGained: averageField("totalCookingProvisionsGained"),
     averageTotalLootRecovered: averageField("totalLootValueRecovered"),
     averageTotalDamage: averageField("totalDamageTaken"),
     averageCombats: averageField("totalCombats"),
