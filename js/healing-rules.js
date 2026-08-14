@@ -106,6 +106,34 @@ const HealingRules = Object.freeze({
     });
     return { ...quote, applied: true };
   },
+
+  restExpeditionParty(expedition, amount) {
+    const requested = Math.max(0, Number(amount) || 0);
+    const healingByPartyMember = {};
+    let totalHealingAmount = 0;
+    const arthurMaximum = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
+    const arthurBefore = clampHealingNumber(expedition.health, 0, arthurMaximum);
+    const arthurHealing = Math.min(requested, arthurMaximum - arthurBefore);
+    expedition.health = arthurBefore + arthurHealing;
+    healingByPartyMember.arthur = arthurHealing;
+    totalHealingAmount += arthurHealing;
+
+    Object.entries(expedition.companionCombatHp ?? {}).forEach(([companionId, health]) => {
+      const maximum = COMPANION_DEFINITIONS[companionId]?.combat?.maxHp ?? 0;
+      const before = clampHealingNumber(health, 0, maximum);
+      const healing = Math.min(requested, maximum - before);
+      expedition.companionCombatHp[companionId] = before + healing;
+      healingByPartyMember[companionId] = healing;
+      totalHealingAmount += healing;
+    });
+
+    return {
+      healingByPartyMember,
+      totalHealingAmount,
+      arthurHealthBefore: arthurBefore,
+      arthurHealthAfter: expedition.health,
+    };
+  },
 });
 
 function clampHealingNumber(value, minimum, maximum) {

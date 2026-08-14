@@ -294,6 +294,12 @@ const EncounterOutcomes = Object.freeze({
 });
 
 const EncounterManager = Object.freeze({
+  definitionFor(expedition, active = expedition?.activeEncounter) {
+    return active?.eventKind === "camp"
+      ? CAMP_EVENT_DEFINITIONS[active.encounterId]
+      : ENCOUNTER_DEFINITIONS[active?.encounterId];
+  },
+
   initializeExpedition(expedition) {
     expedition.encounterTravelDistance = 0;
     expedition.nextEncounterAt = randomEncounterSpacing(expedition.random);
@@ -389,6 +395,24 @@ const EncounterManager = Object.freeze({
     return true;
   },
 
+  beginCamp(expedition, eventId) {
+    const event = CAMP_EVENT_DEFINITIONS[eventId];
+    if (!event || expedition.activeEncounter || expedition.travelState !== "camped") {
+      return false;
+    }
+    expedition.activeEncounter = {
+      encounterId: eventId,
+      eventKind: "camp",
+      stageId: "start",
+      phase: "choice",
+      resultText: "",
+      outcomeMessages: [],
+      rewards: [],
+      pendingToken: 0,
+    };
+    return true;
+  },
+
   force(expedition, encounterId) {
     if (expedition.activeEncounter) {
       return false;
@@ -401,7 +425,7 @@ const EncounterManager = Object.freeze({
     if (active?.phase !== "choice") {
       return { resolved: false, ended: false, message: "" };
     }
-    const encounter = active ? ENCOUNTER_DEFINITIONS[active.encounterId] : null;
+    const encounter = this.definitionFor(expedition, active);
     const stage = encounter?.stages[active.stageId];
     const choice = stage?.choices.find((candidate) => candidate.id === choiceId);
     if (!choice) {
@@ -443,7 +467,7 @@ const EncounterManager = Object.freeze({
       return { resolved: false, ended: false, message: "" };
     }
 
-    const encounter = ENCOUNTER_DEFINITIONS[active.encounterId];
+    const encounter = this.definitionFor(expedition, active);
     const stage = encounter?.stages[active.stageId];
     const choice = stage?.choices.find((candidate) => candidate.id === active.pendingChoiceId);
     if (!choice) {
@@ -457,7 +481,7 @@ const EncounterManager = Object.freeze({
 
   applyChoice(expedition, player, choice, callbacks = {}) {
     const active = expedition.activeEncounter;
-    const encounter = active ? ENCOUNTER_DEFINITIONS[active.encounterId] : null;
+    const encounter = this.definitionFor(expedition, active);
     const stage = encounter?.stages[active.stageId];
     if (!active || !encounter || !stage) {
       return { resolved: false, ended: false, message: "" };
@@ -535,6 +559,12 @@ const EncounterManager = Object.freeze({
     }
 
     const message = active.resultText;
+    if (active.eventKind === "camp") {
+      expedition.lastCampEventId = active.encounterId;
+      expedition.lastCampEventResult = message;
+      expedition.activeEncounter = null;
+      return true;
+    }
     expedition.lastEncounterId = expedition.activeEncounter?.encounterId ?? null;
     expedition.lastEncounterResult = message;
     expedition.activeEncounter = null;

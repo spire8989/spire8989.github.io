@@ -1339,3 +1339,33 @@ The human developer supplied the UX consolidation guide and requested local chan
 The village now leads directly into one practical preparation screen. Players can inspect owned items, equip valid gear, manage the expedition pack, select the company, choose provisions, and begin the expedition without passing through a physical gate or a duplicate inventory screen. Crafting remains location-based, and existing save, travel, combat, reward, and simulation behavior remains intact.
 
 Verified 308 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. Changes remain unstaged and uncommitted for the human developer to commit and push.
+
+## 2026-08-13 - Exploration Management: Pace, Rations, Rest, Camping, and Cooking
+
+### Goal
+
+Add the first exploration-management layer for player-directed travel pace, ration choices, pausing, brief rest, rough camping, contextual camp events, cooking, and unusual resting-place discoveries.
+
+### Human prompt and direction
+
+The human developer supplied the exploration-management guide and requested a functional, data-driven first pass that reuses the existing expedition, encounter, loot, crafting, healing, combat, and automation architecture. Fatigue, spoilage, mandatory camping equipment, day/night, and complex automation were explicitly deferred. Local changes were requested to be committed without pushing.
+
+### AI-assisted implementation
+
+- Added data-driven Cautious, Normal, and Hard Push pace definitions plus Sparse, Normal, and Generous ration definitions. Pace changes travel speed and contributes to the shared provision-rate calculation; rations remain independent.
+- Added explicit expedition `travelState` handling for Traveling, Paused, and Camped. Pause is free and inert, Brief Rest uses shared expedition-party healing, and Camp Rest is stronger, provision-costed, and limited to one contextual event roll per camp site/cycle even across leave-and-re-enter actions.
+- Extended the existing staged encounter resolver to support camp events through separate reusable camp-event tables. Forest, wildlife, traveler, and deep-forest pools now feed a modest mix of friendly, neutral, strange, beneficial, risky, and occasionally hostile camp content, including a weighted wolf outcome that reuses combat.
+- Extended recipes to support item ingredients and direct provision outputs. Added Raw Meat, Wild Berries, Mushrooms, Fresh Herbs, and Honey, a starter campfire recipe set, a forest ingredient loot table, and camp cooking UI. Existing material-to-item crafting remains compatible.
+- Added Ancient Spring and A Welcoming Grove as normal travel encounters, including recovery choices and the deliberately suspicious resting-place branch.
+- Added simulation scenario support for pace and ration IDs while keeping existing automation on Normal pace and Normal rations by default.
+- Added focused browser assertions for pace/ration modifiers, paused travel, brief rest, camp-cycle protection, cooking settlement, and weighted camp-to-combat handoff; updated content-count/recipe validation for the new authored data.
+
+### Manual changes
+
+The human developer supplied the exploration guide and requested implementation plus a local commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The prototype now lets a player change pace and rations while traveling, pause without resource loss, take a brief rest, make camp anywhere, cook expedition ingredients into provisions, rest into a contextual camp event, resolve choices or camp combat, leave camp still paused, and resume travel. Camp events do not reroll merely because camp is reopened at the same site.
+
+Verified 375 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, a clean local-HTTP manual pause/cook/camp-event/reopen flow with zero runtime errors, and `git diff --check` before commit.

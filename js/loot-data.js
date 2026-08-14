@@ -36,6 +36,16 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "table", tableId: "common_materials", weight: 12 }),
     ]),
   }),
+  forest_ingredients: Object.freeze({
+    id: "forest_ingredients",
+    entries: Object.freeze([
+      Object.freeze({ type: "item", itemId: "raw_meat", quantity: 1, weight: 24 }),
+      Object.freeze({ type: "item", itemId: "wild_berries", quantity: 1, weight: 28 }),
+      Object.freeze({ type: "item", itemId: "mushrooms", quantity: 1, weight: 22 }),
+      Object.freeze({ type: "item", itemId: "fresh_herbs", quantity: 1, weight: 18 }),
+      Object.freeze({ type: "item", itemId: "honey", quantity: 1, weight: 8 }),
+    ]),
+  }),
   apothecary_common_recipes: Object.freeze({
     id: "apothecary_common_recipes",
     entries: Object.freeze([
@@ -52,7 +62,8 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
   forest_encounter_forage: Object.freeze({
     id: "forest_encounter_forage",
     entries: Object.freeze([
-      Object.freeze({ type: "table", tableId: "forest_materials", weight: 8 }),
+      Object.freeze({ type: "table", tableId: "forest_materials", weight: 6 }),
+      Object.freeze({ type: "table", tableId: "forest_ingredients", weight: 5 }),
       Object.freeze({ type: "table", tableId: "apothecary_common_recipes", weight: 2 }),
     ]),
   }),

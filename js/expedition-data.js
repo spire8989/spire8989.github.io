@@ -12,6 +12,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathId: "old_forest_road",
     kind: "normal",
+    campEventTableIds: ["forest_wildlife", "road_travelers"],
     prerequisites: [],
   }),
   fountain_of_barenton: Object.freeze({
@@ -22,6 +23,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathId: "fountain_of_barenton",
     kind: "normal",
+    campEventTableIds: ["deep_forest"],
     prerequisites: [],
   }),
   val_sans_retour: Object.freeze({
@@ -32,6 +34,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathId: "val_sans_retour",
     kind: "normal",
+    campEventTableIds: ["deep_forest"],
     prerequisites: [],
   }),
   search_for_merlin: Object.freeze({
@@ -42,6 +45,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathId: "search_for_merlin",
     kind: "campaign",
+    campEventTableIds: ["deep_forest"],
     prerequisites: ["water_of_barenton", "morgans_token"],
   }),
 });

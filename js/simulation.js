@@ -88,6 +88,8 @@ const SimulationRunner = Object.freeze({
       health: normalized.startingHealth,
       regionId: normalized.regionId,
       pathId: normalized.pathId,
+      paceId: normalized.paceId,
+      rationId: normalized.rationId,
     });
     const strategy = resolveStrategy(normalized.strategy);
     const turnaroundPolicy = resolveTurnaroundPolicy(normalized.turnaroundPolicy);
@@ -146,7 +148,8 @@ const SimulationRunner = Object.freeze({
         continue;
       }
 
-      let travelDistance = normalized.travelStepDistance;
+      let travelDistance = normalized.travelStepDistance
+        * ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier;
       const distanceToEncounter = expedition.nextEncounterAt - expedition.encounterTravelDistance;
       if (distanceToEncounter > 0) travelDistance = Math.min(travelDistance, distanceToEncounter);
       if (expedition.direction === "outbound" && turnaroundPolicy.name === "fixed-distance") {
@@ -515,6 +518,8 @@ function normalizeScenario(scenario) {
     startingState: scenario.startingState ?? {},
     regionId: scenario.regionId ?? "broceliande",
     pathId: scenario.pathId ?? "old_forest_road",
+    paceId: EXPEDITION_TUNING.travelPaces[scenario.paceId] ? scenario.paceId : "normal",
+    rationId: EXPEDITION_TUNING.rationLevels[scenario.rationId] ? scenario.rationId : "normal",
     startingHealth: Number.isFinite(scenario.startingState?.health)
       ? scenario.startingState.health
       : Number.isFinite(scenario.startingState?.arthurHealth)

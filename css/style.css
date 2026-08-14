@@ -283,6 +283,156 @@ button:focus-visible {
   }
 }
 
+/* Exploration-management controls intentionally stay compact and data-forward. */
+.travel-settings {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0.55rem 0;
+  padding: 0.55rem;
+  border: 1px solid rgb(217 189 114 / 22%);
+  border-radius: 0.4rem;
+  background: rgb(5 11 7 / 45%);
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.setting-row > span,
+.setting-summary {
+  color: #9da99d;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.5rem, 2.15cqw, 0.64rem);
+}
+
+.setting-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.setting-button,
+.camp-tab {
+  min-height: 2rem;
+  padding: 0.25rem 0.3rem;
+  border: 1px solid rgb(217 189 114 / 28%);
+  border-radius: 0.3rem;
+  background: #1b2a1e;
+  color: #c8d0bd;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.5rem, 2.15cqw, 0.65rem);
+}
+
+.setting-button.is-selected,
+.camp-tab.is-selected {
+  border-color: var(--gold-bright);
+  background: #4d4529;
+  color: #fff3c9;
+}
+
+.setting-summary {
+  margin: 0.05rem 0 0;
+  text-align: right;
+}
+
+.camp-scene {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: var(--interaction-visual-aspect);
+  border-bottom: 2px solid rgb(217 189 114 / 55%);
+  background: linear-gradient(180deg, #293d42 0%, #1d3324 66%, #101a12 100%);
+}
+
+.camp-moon {
+  position: absolute;
+  top: 13%;
+  right: 17%;
+  width: 13%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #e7dfb4;
+  box-shadow: 0 0 1.6rem rgb(238 232 192 / 55%);
+}
+
+.camp-silhouette {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 45%;
+  background: repeating-linear-gradient(105deg, #112116 0 5%, transparent 5% 12%);
+  opacity: 0.9;
+}
+
+.camp-fire {
+  position: absolute;
+  z-index: 2;
+  bottom: 12%;
+  left: 50%;
+  width: 16%;
+  height: 25%;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 0.75rem rgb(241 155 65 / 75%));
+}
+
+.camp-fire span {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 45%;
+  height: 90%;
+  border-radius: 70% 30% 65% 35%;
+  background: #f0b64e;
+  transform: translateX(-50%) rotate(16deg);
+}
+
+.camp-fire span:nth-child(2) { width: 32%; height: 70%; background: #fff0ad; transform: translateX(-50%) rotate(-16deg); }
+.camp-fire span:nth-child(3) { width: 24%; height: 50%; background: #fff8d1; }
+
+.camp-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: clamp(0.65rem, 3.4cqw, 1rem);
+  overflow-y: auto;
+  background: radial-gradient(circle at top, rgb(217 189 114 / 10%), transparent 28%), #111a13;
+}
+
+.camp-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3rem;
+  margin: 0.6rem 0;
+}
+
+.camp-content {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.camp-content .section-title-row { margin: 0; }
+.camp-content .section-help { margin: 0; }
+.camp-event-status {
+  margin: 0;
+  padding: 0.55rem;
+  border-left: 2px solid var(--gold);
+  background: rgb(217 189 114 / 9%);
+  color: #d8d0b8;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.54rem, 2.25cqw, 0.67rem);
+  line-height: 1.4;
+}
+
+.camp-actions { margin-top: auto; }
+.camp-recipe-list { max-height: none; }
+.camp-ingredients { margin: 0; }
+.camp-event-panel { background: radial-gradient(circle at 50% 0%, rgb(217 189 114 / 12%), transparent 32%), #111a13; }
+
 .screen {
   width: 100%;
   height: 100%;

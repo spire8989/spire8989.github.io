@@ -14,6 +14,7 @@ const game = {
   preparationStep: "route",
   activeDestinationId: null,
   shopTab: "buy",
+  campTab: "rest",
   provisionShopStock: createProvisionShopStock(),
   itemShopStock: createItemShopStock(),
   dialogueSession: null,
@@ -138,6 +139,39 @@ function handleAction(event) {
       break;
     case "return-to-safety":
       beginReturn();
+      break;
+    case "set-pace":
+      setExpeditionPace(control.dataset.paceId);
+      break;
+    case "set-rations":
+      setExpeditionRations(control.dataset.rationId);
+      break;
+    case "pause-travel":
+      pauseTravel();
+      break;
+    case "resume-travel":
+      resumeTravel();
+      break;
+    case "brief-rest":
+      briefRest();
+      break;
+    case "make-camp":
+      makeCamp();
+      break;
+    case "camp-tab":
+      setCampTab(control.dataset.tab);
+      break;
+    case "camp-rest":
+      campRest();
+      break;
+    case "cook-recipe":
+      cookRecipe(recipeId);
+      break;
+    case "camp-craft-item":
+      craftCampItem(recipeId);
+      break;
+    case "leave-camp":
+      leaveCamp();
       break;
     case "encounter-choice":
       resolveEncounterChoice(choiceId);
@@ -336,6 +370,7 @@ function openDestination(destinationId) {
   if (destination.requiresIntro !== false && !isVillageUnlocked()) return;
   game.activeDestinationId = destinationId;
   game.shopTab = "buy";
+  game.campTab = "rest";
   game.dialogueSession = null;
   const npc = NPC_DEFINITIONS[destination.npcIds[0]];
   if (destination.type === "story" && !isVillageUnlocked()) {
@@ -498,17 +533,21 @@ function renderMaterialInventory() {
   return `<div class="material-inventory"><span>Materials</span><div>${chips || '<em>None owned</em>'}</div></div>`;
 }
 
-function craftingRow(recipe, providerId) {
-  const quote = CraftingRules.quote(game.player, recipe.id, providerId);
-  const ingredients = quote.ingredientStatus.map(({ materialId, required, owned, sufficient }) => (
-    `<span class="${sufficient ? "" : "is-missing"}">${MATERIAL_DEFINITIONS[materialId].name} ${owned}/${required}</span>`
+function craftingRow(recipe, providerId, options = {}) {
+  const quote = CraftingRules.quote(game.player, recipe.id, providerId, options);
+  const ingredients = quote.ingredientStatus.map(({ materialId, itemId, required, owned, sufficient }) => (
+    `<span class="${sufficient ? "" : "is-missing"}">${ITEM_DEFINITIONS[itemId]?.name ?? MATERIAL_DEFINITIONS[materialId]?.name ?? "Ingredient"} ${owned}/${required}</span>`
   )).join(" · ");
   const cost = recipe.goldCost > 0 ? ` · ${recipe.goldCost} gold` : "";
+  const output = recipe.output.provisions > 0
+    ? `${recipe.output.provisions} Provisions`
+    : `${quote.item?.name ?? "Unknown item"}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}`;
+  const action = options.action ?? "craft-item";
   return `
     <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
-      <div class="item-icon" aria-hidden="true">${itemIcon(quote.item.category, quote.item)}</div>
-      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost">${ingredients}${cost}</span><span>Creates ${quote.item.name}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}</span></div>
-      <button class="small-button" type="button" data-action="craft-item" data-recipe-id="${recipe.id}">Craft</button>
+      <div class="item-icon" aria-hidden="true">${recipe.output.provisions > 0 ? categoryIcon("healing") : itemIcon(quote.item?.category, quote.item)}</div>
+      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost">${ingredients}${cost}</span><span>Creates ${output}</span></div>
+      <button class="small-button" type="button" data-action="${action}" data-recipe-id="${recipe.id}">${providerId === "campfire" ? "Cook" : "Craft"}</button>
     </article>`;
 }
 
@@ -1255,11 +1294,15 @@ function renderExpedition() {
     renderCombat(expedition, expedition.combat);
     return;
   }
+  if (expedition.travelState === "camped") {
+    renderCamp(expedition);
+    return;
+  }
   const companions = selectedCompanionIds(expedition)
     .map((companionId) => COMPANION_DEFINITIONS[companionId])
     .filter(Boolean);
   const activeEncounter = expedition.activeEncounter
-    ? ENCOUNTER_DEFINITIONS[expedition.activeEncounter.encounterId]
+    ? EncounterManager.definitionFor(expedition)
     : null;
   const loadoutEntries = Object.values(expedition.selectedEquipment)
     .map((itemId) => ({ itemId, quantity: 1 }))
@@ -1284,6 +1327,112 @@ function renderExpedition() {
   updateTravelHud();
 }
 
+function renderCamp(expedition) {
+  const activeEvent = expedition.activeEncounter
+    ? EncounterManager.definitionFor(expedition)
+    : null;
+  if (activeEvent) {
+    ui.screenRoot.innerHTML = `
+      <section class="screen expedition-screen camp-screen" aria-label="Camp event">
+        <div class="visual-frame camp-scene is-paused" aria-hidden="true">
+          <div class="camp-moon"></div>
+          <div class="camp-fire"><span></span><span></span><span></span></div>
+          <div class="camp-silhouette"></div>
+          <div class="direction-banner">Camp Event</div>
+        </div>
+        ${renderCampEventPanel(expedition, activeEvent)}
+      </section>`;
+    updateTravelHud();
+    return;
+  }
+  const tabs = [
+    ["rest", "Rest"],
+    ["cook", "Cook"],
+    ["craft", "Craft"],
+  ].map(([tabId, label]) => `<button class="camp-tab ${game.campTab === tabId ? "is-selected" : ""}" type="button" data-action="camp-tab" data-tab="${tabId}" aria-pressed="${game.campTab === tabId}">${label}</button>`).join("");
+  const tabContent = game.campTab === "cook"
+    ? renderCampCookPanel(expedition)
+    : game.campTab === "craft"
+      ? renderCampCraftPanel()
+      : renderCampRestPanel(expedition);
+
+  ui.screenRoot.innerHTML = `
+    <section class="screen expedition-screen camp-screen" aria-label="Camp">
+      <div class="visual-frame camp-scene" aria-hidden="true">
+        <div class="camp-moon"></div>
+        <div class="camp-fire"><span></span><span></span><span></span></div>
+        <div class="camp-silhouette"></div>
+        <div class="direction-banner">Camped · ${pathLabel(expedition.currentPathId)}</div>
+      </div>
+      <div class="camp-panel">
+        <div class="screen-heading travel-heading">
+          <p class="eyebrow">Expedition Paused · Camp</p>
+          <h1>Campfire</h1>
+          <p>Arthur can sleep rough anywhere. The company can leave camp and remain paused until it is ready to travel.</p>
+        </div>
+        ${renderExpeditionResources(expedition)}
+        <div class="camp-tabs" role="tablist" aria-label="Camp actions">${tabs}</div>
+        ${tabContent}
+        <div class="footer-actions camp-actions">
+          <button class="text-button" type="button" data-action="leave-camp">Leave Camp</button>
+        </div>
+      </div>
+    </section>`;
+  updateTravelHud();
+}
+
+function renderCampRestPanel(expedition) {
+  const cost = EXPEDITION_TUNING.campRest.provisionCost;
+  const canRest = expedition.provisions >= cost;
+  const eventStatus = expedition.campEventRolled
+    ? expedition.lastCampEventResult
+      ? `<p class="camp-event-status">This camp's event has resolved: ${expedition.lastCampEventResult}</p>`
+      : '<p class="camp-event-status">This camp has already had its one event roll.</p>'
+    : '<p class="camp-event-status">A proper rest may reveal one contextual camp event.</p>';
+  return `
+    <section class="camp-content camp-rest-content" aria-labelledby="camp-rest-title">
+      <div class="section-title-row"><h2 id="camp-rest-title">Rest at Camp</h2><span>Costs ${cost} provisions</span></div>
+      <p class="section-help">A camp rest restores more health than a brief roadside pause and can trigger one event for this camp cycle.</p>
+      ${eventStatus}
+      <button class="game-button" type="button" data-action="camp-rest" ${canRest ? "" : "disabled"}>${canRest ? `Rest · ${cost} Provisions` : `Need ${cost} Provisions`}</button>
+    </section>`;
+}
+
+function renderCampCookPanel(expedition) {
+  const recipes = CraftingRules.knownRecipesForProvider(game.player, "campfire");
+  const rows = recipes.map((recipe) => craftingRow(recipe, "campfire", { expedition, action: "cook-recipe" })).join("");
+  const ingredients = Object.entries({
+    ...(expedition.carriedItems ?? {}),
+    ...(expedition.unsecuredLoot ?? []).reduce((totals, entry) => ({ ...totals, [entry.itemId]: (totals[entry.itemId] ?? 0) + entry.quantity }), {}),
+  }).filter(([itemId, quantity]) => ITEM_DEFINITIONS[itemId]?.tags?.includes("ingredient") && quantity > 0)
+    .map(([itemId, quantity]) => `<span class="material-chip">${itemIcon(ITEM_DEFINITIONS[itemId].category, ITEM_DEFINITIONS[itemId])}<span>${ITEM_DEFINITIONS[itemId].name}</span> <strong>${quantity}</strong></span>`)
+    .join("");
+  return `
+    <section class="camp-content" aria-labelledby="camp-cook-title">
+      <div class="section-title-row"><h2 id="camp-cook-title">Cook</h2><span>Ingredients → Provisions</span></div>
+      <p class="section-help">Cooked meals use packed or newly discovered ingredients. The result becomes expedition provisions, not an inventory item.</p>
+      <div class="material-inventory camp-ingredients"><span>Available Ingredients</span><div>${ingredients || "<em>None carried</em>"}</div></div>
+      <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No recipes are available at this fire.</p>'}</div>
+    </section>`;
+}
+
+function renderCampCraftPanel() {
+  const recipes = CraftingRules.knownRecipesForProvider(game.player, "blacksmith");
+  const rows = recipes.map((recipe) => craftingRow(recipe, "blacksmith", { action: "camp-craft-item" })).join("");
+  return `
+    <section class="camp-content" aria-labelledby="camp-craft-title">
+      <div class="section-title-row"><h2 id="camp-craft-title">Field Craft</h2><span>Use carried materials</span></div>
+      <p class="section-help">A campfire can support simple field repairs. Apothecary work still belongs in the village.</p>
+      <div class="material-inventory camp-ingredients"><span>Materials</span><div>${renderMaterialInventory()}</div></div>
+      <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No field recipes are known.</p>'}</div>
+    </section>`;
+}
+
+function renderCampEventPanel(expedition, event) {
+  const panel = renderEncounterPanel(expedition, event);
+  return panel.replace("travel-panel", "travel-panel camp-event-panel");
+}
+
 function renderTravelPanel(expedition, companions, loadout) {
   const travelMessage = expedition.lastEncounterResult
     || (expedition.currentPathId === "overgrown_trail"
@@ -1298,6 +1447,7 @@ function renderTravelPanel(expedition, companions, loadout) {
         <p id="travel-message">${travelMessage}</p>
       </div>
       ${renderExpeditionResources(expedition)}
+      ${renderTravelSettings(expedition)}
       <div class="progress-track" aria-label="Current return distance">
         <div class="progress-fill" id="distance-progress"></div>
       </div>
@@ -1311,9 +1461,31 @@ function renderTravelPanel(expedition, companions, loadout) {
       ${renderEncounterDebugControls(expedition)}
       <div class="footer-actions travel-actions">
         <button class="text-button danger-button" type="button" data-action="abandon-expedition">Abandon</button>
+        ${expedition.travelState === "paused"
+          ? `<button class="small-button" type="button" data-action="brief-rest" ${expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost ? "" : "disabled"}>Brief Rest · ${EXPEDITION_TUNING.briefRest.provisionCost} Food</button>
+             <button class="small-button" type="button" data-action="make-camp">Make Camp</button>
+             <button class="game-button" type="button" data-action="resume-travel">Resume Travel</button>`
+          : `<button id="pause-button" class="small-button" type="button" data-action="pause-travel">Pause Travel</button>`}
         <button id="return-button" class="game-button" type="button" data-action="return-to-safety">Return to Safety</button>
       </div>
     </div>`;
+}
+
+function renderTravelSettings(expedition) {
+  const paceButtons = Object.values(EXPEDITION_TUNING.travelPaces).map((pace) => (
+    `<button class="setting-button ${expedition.paceId === pace.id ? "is-selected" : ""}" type="button" data-action="set-pace" data-pace-id="${pace.id}" aria-pressed="${expedition.paceId === pace.id}" title="${pace.description}">${pace.name}</button>`
+  )).join("");
+  const rationButtons = Object.values(EXPEDITION_TUNING.rationLevels).map((ration) => (
+    `<button class="setting-button ${expedition.rationId === ration.id ? "is-selected" : ""}" type="button" data-action="set-rations" data-ration-id="${ration.id}" aria-pressed="${expedition.rationId === ration.id}" title="${ration.description}">${ration.name}</button>`
+  )).join("");
+  const pace = ExpeditionRules.paceDefinition(expedition.paceId);
+  const ration = ExpeditionRules.rationDefinition(expedition.rationId);
+  return `
+    <section class="travel-settings" aria-label="Travel settings">
+      <div class="setting-row"><span>Pace</span><div class="setting-buttons">${paceButtons}</div></div>
+      <div class="setting-row"><span>Rations</span><div class="setting-buttons">${rationButtons}</div></div>
+      <p class="setting-summary">${pace.name} · ${ration.name} · ${ExpeditionRules.provisionConsumptionMultiplier(expedition).toFixed(2)}× food rate</p>
+    </section>`;
 }
 
 function renderEncounterPanel(expedition, encounter) {
@@ -1391,7 +1563,7 @@ function renderEncounterResultPanel(expedition, encounter, active) {
       </div>
       <div class="encounter-choices">
         <button class="encounter-choice continue-choice" type="button" data-action="continue-journey">
-          <strong>Continue Journey</strong>
+          <strong>${active.eventKind === "camp" ? "Continue at Camp" : "Continue Journey"}</strong>
         </button>
       </div>
     </div>`;
@@ -1605,11 +1777,13 @@ function updateExpedition(deltaSeconds) {
   const speedMultiplier = expedition.direction === "returning"
     ? EXPEDITION_TUNING.returnSpeedMultiplier
     : 1;
+  const paceMultiplier = ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier;
   const travel = ExpeditionRules.travel(
     expedition,
     game.player,
     EXPEDITION_TUNING.outboundTravelSpeed
       * speedMultiplier
+      * paceMultiplier
       * (expedition.travelSpeedMultiplier ?? partyTravelSpeedMultiplier(expedition.selectedCompanions ?? expedition.selectedCompanion))
       * deltaSeconds,
   );
@@ -1641,6 +1815,98 @@ function beginReturn() {
   ExpeditionRules.beginReturn(expedition);
   announceTravelEvent("The company turns back toward the forest edge.");
   updateTravelHud();
+}
+
+function setExpeditionPace(paceId) {
+  const expedition = game.expedition;
+  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) return;
+  if (ExpeditionRules.setPace(expedition, paceId)) renderExpedition();
+}
+
+function setExpeditionRations(rationId) {
+  const expedition = game.expedition;
+  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) return;
+  if (ExpeditionRules.setRation(expedition, rationId)) renderExpedition();
+}
+
+function pauseTravel() {
+  if (ExpeditionRules.pause(game.expedition)) renderExpedition();
+}
+
+function resumeTravel() {
+  if (ExpeditionRules.resume(game.expedition)) renderExpedition();
+}
+
+function briefRest() {
+  const result = ExpeditionRules.briefRest(game.expedition);
+  if (!result.applied) {
+    showToast({ title: "Cannot Rest", message: result.reason === "insufficient-provisions" ? "There are not enough provisions for a brief rest." : "Brief Rest is only available while paused.", type: "warning" });
+    return;
+  }
+  showToast({ title: "Brief Rest", message: `The company recovers ${result.totalHealingAmount} health for ${result.cost} provision.`, type: "success" });
+  renderExpedition();
+}
+
+function makeCamp() {
+  if (ExpeditionRules.enterCamp(game.expedition)) {
+    game.campTab = "rest";
+    renderExpedition();
+  }
+}
+
+function setCampTab(tabId) {
+  if (!["rest", "cook", "craft"].includes(tabId) || game.expedition?.travelState !== "camped") return;
+  game.campTab = tabId;
+  renderExpedition();
+}
+
+function campRest() {
+  const result = ExpeditionRules.restAtCamp(game.expedition, game.player);
+  if (!result.applied) {
+    showToast({ title: "Cannot Rest", message: result.reason === "insufficient-provisions" ? "There are not enough provisions for a camp rest." : "The company is not settled at camp.", type: "warning" });
+    return;
+  }
+  showToast({ title: "Camp Rest", message: result.eventId ? "The night's rest draws attention from the surrounding forest." : `The company recovers ${result.totalHealingAmount} health.`, type: "success" });
+  renderExpedition();
+}
+
+function leaveCamp() {
+  if (ExpeditionRules.leaveCamp(game.expedition)) renderExpedition();
+}
+
+function cookRecipe(recipeId) {
+  const expedition = game.expedition;
+  if (!expedition || expedition.travelState !== "camped" || expedition.activeEncounter) return;
+  const result = CraftingRules.craft(game.player, recipeId, "campfire", { expedition });
+  if (!result.applied) {
+    showToast({ title: "Cannot Cook", message: cookingFailureMessage(result), type: "warning" });
+    return;
+  }
+  showToast({ title: "Meal Cooked", message: `The meal adds ${result.provisions} provisions.`, type: "success" });
+  renderExpedition();
+}
+
+function craftCampItem(recipeId) {
+  const expedition = game.expedition;
+  if (!expedition || expedition.travelState !== "camped" || expedition.activeEncounter) return;
+  const result = CraftingRules.craft(game.player, recipeId, "blacksmith");
+  if (!result.applied) {
+    showToast({ title: "Cannot Craft", message: craftingFailureMessage(result), type: "warning" });
+    return;
+  }
+  savePlayer();
+  showToast({ title: "Field Craft Complete", message: `Created ${ITEM_DEFINITIONS[result.itemId]?.name ?? "an item"}.`, type: "success" });
+  renderExpedition();
+}
+
+function cookingFailureMessage(result) {
+  if (result.reason === "insufficient-materials") {
+    return result.quote.ingredientStatus
+      .filter((entry) => !entry.sufficient)
+      .map((entry) => `${ITEM_DEFINITIONS[entry.itemId]?.name ?? entry.materialId}: need ${entry.required}`)
+      .join(" · ");
+  }
+  return "The required ingredients are not available in the expedition pack.";
 }
 
 function resolveEncounterChoice(choiceId) {
@@ -2129,7 +2395,7 @@ function updateTravelHud() {
 
   const returning = expedition.direction === "returning";
   const activeEncounter = expedition.activeEncounter
-    ? ENCOUNTER_DEFINITIONS[expedition.activeEncounter.encounterId]
+    ? EncounterManager.definitionFor(expedition)
     : null;
   const directionBanner = document.querySelector("#direction-banner");
   const travelers = document.querySelector("#travelers");
@@ -2139,11 +2405,12 @@ function updateTravelHud() {
 
   if (directionBanner) {
     directionBanner.textContent = activeEncounter
-      ? `Encounter: ${activeEncounter.title}`
+      ? `${expedition.activeEncounter?.eventKind === "camp" ? "Camp Event" : "Encounter"}: ${activeEncounter.title}`
+      : expedition.travelState === "paused" ? "Travel Paused"
       : returning ? "← Returning to Safety" : "Traveling Outbound →";
   }
   travelers?.classList.toggle("is-returning", returning);
-  travelers?.classList.toggle("is-paused", Boolean(activeEncounter));
+  travelers?.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
   if (returnButton) {
     returnButton.disabled = returning;
     returnButton.textContent = returning ? "Returning…" : "Return to Safety";
@@ -2153,7 +2420,7 @@ function updateTravelHud() {
     progressFill.style.width = `${clamp((expedition.distance / denominator) * 100, 0, 100)}%`;
   }
   if (scene) {
-    scene.classList.toggle("is-paused", Boolean(activeEncounter));
+    scene.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
     scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
   }
   setText("#path-value", pathLabel(expedition.currentPathId));
@@ -2291,6 +2558,9 @@ function debugExpeditionState(expedition) {
     consumedItems: expedition.consumedItems,
     path: expedition.currentPathId,
     direction: expedition.direction,
+    travelState: expedition.travelState,
+    pace: expedition.paceId,
+    rations: expedition.rationId,
     distance: Number(expedition.distance.toFixed(2)),
     provisions: Number(expedition.provisions.toFixed(2)),
     provisionCapacity: expedition.provisionCapacity,
@@ -2303,6 +2573,7 @@ function debugExpeditionState(expedition) {
     ).toFixed(2)),
     seen: expedition.seenEncounterIds,
     flags: expedition.runFlags,
+    camp: { cycle: expedition.campCycle, eventRolled: expedition.campEventRolled, eventId: expedition.campEventId },
   }, null, 2);
 }
 

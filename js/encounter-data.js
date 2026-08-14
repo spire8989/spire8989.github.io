@@ -1781,4 +1781,61 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       },
     },
   },
+
+  ancient_spring: {
+    id: "ancient_spring",
+    title: "Ancient Spring",
+    description: "A clear spring wells from beneath an old stone and gathers in a quiet basin beside the trail.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
+    weight: 3,
+    minimumDistance: 12,
+    maximumDistance: 85,
+    tags: ["resting_place", "water", "beneficial"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "The water looks impossibly clean. The company can pause for a drink, though the forest offers no promises.",
+      choices: [
+        {
+          id: "drink_spring",
+          label: "Drink from the Spring",
+          outcomes: [{ type: "randomChance", chance: 0.85, effects: [{ type: "modifyResource", resource: "health", amount: 4 }], resultText: "The cold water restores Arthur's strength and clears the road ahead.", elseEffects: [{ type: "modifyResource", resource: "health", amount: -2 }], elseResultText: "The water leaves Arthur dizzy and weak. The company moves on carefully." }],
+          pendingAction: { text: "Arthur kneels beside the old spring and cups the clear water in his hands...", delayProfile: "rest" },
+          endEncounter: true,
+        },
+        { id: "pass_spring", label: "Leave the Spring Alone", resultText: "Arthur leaves the clear spring untouched and keeps to the trail.", endEncounter: true },
+      ],
+    } },
+  },
+
+  too_perfect_grove: {
+    id: "too_perfect_grove",
+    title: "A Welcoming Grove",
+    description: "A sheltered grove opens beside the road, dry, warm, and almost too perfectly suited for a rest.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
+    weight: 2,
+    minimumDistance: 20,
+    maximumDistance: 90,
+    tags: ["resting_place", "mystery", "risk_reward"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "The grove is so quiet that even the insects seem to be waiting for Arthur to decide.",
+      choices: [
+        {
+          id: "rest_in_grove",
+          label: "Rest in the Grove",
+          costs: [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+          outcomes: [{ type: "randomChance", chance: 0.25, effects: [{ type: "modifyResource", resource: "health", amount: -3 }], resultText: "The perfect quiet breaks in Arthur's mind, and he leaves the grove more shaken than rested.", elseEffects: [{ type: "modifyResource", resource: "health", amount: 5 }], elseResultText: "The grove gives the company a calm hour of recovery before the road calls again." }],
+          pendingAction: { text: "Arthur and the company settle beneath the unnaturally still trees...", delayProfile: "rest" },
+          endEncounter: true,
+        },
+        { id: "keep_walking", label: "Keep Walking", resultText: "Arthur decides that a place this welcoming deserves caution and keeps the company moving.", endEncounter: true },
+      ],
+    } },
+  },
 });

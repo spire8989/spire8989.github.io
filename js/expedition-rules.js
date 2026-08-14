@@ -25,9 +25,103 @@ const ExpeditionRules = Object.freeze({
 
   provisionConsumptionMultiplier(expedition) {
     const snapshot = Number(expedition?.provisionConsumptionMultiplier);
-    return Number.isFinite(snapshot)
+    const base = Number.isFinite(snapshot)
       ? Math.max(0, snapshot)
       : this.partyProvisionConsumptionMultiplier(expedition?.selectedCompanions ?? expedition?.selectedCompanion);
+    const pace = EXPEDITION_TUNING.travelPaces[expedition?.paceId ?? "normal"]
+      ?? EXPEDITION_TUNING.travelPaces.normal;
+    const ration = EXPEDITION_TUNING.rationLevels[expedition?.rationId ?? "normal"]
+      ?? EXPEDITION_TUNING.rationLevels.normal;
+    return base * pace.provisionMultiplier * ration.provisionMultiplier;
+  },
+
+  paceDefinition(paceId = "normal") {
+    return EXPEDITION_TUNING.travelPaces[paceId] ?? EXPEDITION_TUNING.travelPaces.normal;
+  },
+
+  rationDefinition(rationId = "normal") {
+    return EXPEDITION_TUNING.rationLevels[rationId] ?? EXPEDITION_TUNING.rationLevels.normal;
+  },
+
+  setPace(expedition, paceId) {
+    if (!expedition || !EXPEDITION_TUNING.travelPaces[paceId]) return false;
+    expedition.paceId = paceId;
+    return true;
+  },
+
+  setRation(expedition, rationId) {
+    if (!expedition || !EXPEDITION_TUNING.rationLevels[rationId]) return false;
+    expedition.rationId = rationId;
+    return true;
+  },
+
+  pause(expedition) {
+    if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+      || expedition.travelState === "camped") return false;
+    expedition.travelState = "paused";
+    return true;
+  },
+
+  resume(expedition) {
+    if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+      || expedition.travelState !== "paused") return false;
+    expedition.travelState = "traveling";
+    return true;
+  },
+
+  enterCamp(expedition) {
+    if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+      || expedition.travelState !== "paused") return false;
+    expedition.travelState = "camped";
+    const siteKey = `${expedition.direction}:${expedition.currentPathId}:${Math.round(expedition.distance * 100) / 100}`;
+    if (expedition.campSiteKey !== siteKey) {
+      expedition.campSiteKey = siteKey;
+      expedition.campCycle += 1;
+      expedition.campEventRolled = false;
+      expedition.campEventId = null;
+      expedition.lastCampEventId = null;
+      expedition.lastCampEventResult = "";
+    }
+    return true;
+  },
+
+  leaveCamp(expedition) {
+    if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+      || expedition.travelState !== "camped") return false;
+    expedition.travelState = "paused";
+    return true;
+  },
+
+  adjustProvisions(expedition, amount) {
+    if (!expedition) return 0;
+    const previous = expedition.provisions;
+    adjustExpeditionProvisions(expedition, Number(amount) || 0);
+    return expedition.provisions - previous;
+  },
+
+  briefRest(expedition) {
+    if (!expedition || expedition.status !== "active" || expedition.travelState !== "paused"
+      || expedition.activeEncounter || expedition.combat) {
+      return { applied: false, reason: "not-paused" };
+    }
+    const cost = EXPEDITION_TUNING.briefRest.provisionCost;
+    if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
+    this.adjustProvisions(expedition, -cost);
+    const healing = HealingRules.restExpeditionParty(expedition, EXPEDITION_TUNING.briefRest.healing);
+    return { applied: true, cost, ...healing };
+  },
+
+  restAtCamp(expedition, player) {
+    if (!expedition || expedition.status !== "active" || expedition.travelState !== "camped"
+      || expedition.activeEncounter || expedition.combat) {
+      return { applied: false, reason: "not-at-camp" };
+    }
+    const cost = EXPEDITION_TUNING.campRest.provisionCost;
+    if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
+    this.adjustProvisions(expedition, -cost);
+    const healing = HealingRules.restExpeditionParty(expedition, EXPEDITION_TUNING.campRest.healing);
+    const event = !expedition.campEventRolled ? CampRules.rollForCampEvent(expedition, player) : null;
+    return { applied: true, cost, ...healing, eventId: event?.id ?? null };
   },
 
   provisionCostForDistance(distance, consumptionMultiplier) {
@@ -97,6 +191,13 @@ const ExpeditionRules = Object.freeze({
       provisionCapacity: capacity,
       provisionConsumptionMultiplier: this.partyProvisionConsumptionMultiplier(selectedCompanions),
       travelSpeedMultiplier: this.partyTravelSpeedMultiplier(selectedCompanions),
+      paceId: EXPEDITION_TUNING.travelPaces[options.paceId] ? options.paceId : "normal",
+      rationId: EXPEDITION_TUNING.rationLevels[options.rationId] ? options.rationId : "normal",
+      travelState: "traveling",
+      campCycle: 0,
+      campSiteKey: null,
+      campEventRolled: false,
+      campEventId: null,
       committedProvisions: provisions,
       committedProvisionsRemaining: provisions,
       foundProvisions: 0,
@@ -147,7 +248,8 @@ const ExpeditionRules = Object.freeze({
   },
 
   travel(expedition, player, distanceRequested) {
-    if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) {
+    if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+      || expedition.travelState !== "traveling") {
       return { distanceTraveled: 0, encounter: null, reachedSafety: false, failureReason: null };
     }
     const requested = Math.max(0, Number(distanceRequested) || 0);

@@ -24,6 +24,7 @@ const MATERIAL_DEFINITIONS = Object.freeze({
 const CRAFTING_PROVIDER_DEFINITIONS = Object.freeze({
   apothecary: Object.freeze({ id: "apothecary", name: "Apothecary" }),
   blacksmith: Object.freeze({ id: "blacksmith", name: "Blacksmith" }),
+  campfire: Object.freeze({ id: "campfire", name: "Campfire" }),
 });
 
 const RECIPE_DEFINITIONS = Object.freeze({
@@ -51,5 +52,29 @@ const RECIPE_DEFINITIONS = Object.freeze({
     id: "repair_kit", name: "Repair Kit", description: "Fit spare iron, wood, and leather into a portable repair kit.",
     craftingProvider: "blacksmith", ingredients: Object.freeze({ iron: 2, wood: 1, leather: 1 }),
     output: Object.freeze({ itemId: "repair_kit", quantity: 1 }), goldCost: 2, rarity: "uncommon",
+  }),
+  roasted_meat: Object.freeze({
+    id: "roasted_meat", name: "Roasted Meat", description: "Cook a plain but filling meal over the fire.",
+    craftingProvider: "campfire", ingredientType: "item", starter: true,
+    ingredients: Object.freeze({ raw_meat: 1 }),
+    output: Object.freeze({ provisions: 3 }), goldCost: 0, rarity: "common",
+  }),
+  foraged_meal: Object.freeze({
+    id: "foraged_meal", name: "Foraged Meal", description: "Combine berries and mushrooms into a simple woodland meal.",
+    craftingProvider: "campfire", ingredientType: "item", starter: true,
+    ingredients: Object.freeze({ wild_berries: 1, mushrooms: 1 }),
+    output: Object.freeze({ provisions: 5 }), goldCost: 0, rarity: "common",
+  }),
+  hunters_stew: Object.freeze({
+    id: "hunters_stew", name: "Hunter's Stew", description: "A careful use of meat, mushrooms, and herbs yields the best meal.",
+    craftingProvider: "campfire", ingredientType: "item", starter: true,
+    ingredients: Object.freeze({ raw_meat: 1, mushrooms: 1, fresh_herbs: 1 }),
+    output: Object.freeze({ provisions: 8 }), goldCost: 0, rarity: "uncommon",
+  }),
+  honeyed_berries: Object.freeze({
+    id: "honeyed_berries", name: "Honeyed Berries", description: "Sweeten wild berries with a little golden honey.",
+    craftingProvider: "campfire", ingredientType: "item", starter: true,
+    ingredients: Object.freeze({ wild_berries: 1, honey: 1 }),
+    output: Object.freeze({ provisions: 6 }), goldCost: 0, rarity: "common",
   }),
 });

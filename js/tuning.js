@@ -5,6 +5,57 @@ const EXPEDITION_TUNING = Object.freeze({
   outboundTravelSpeed: 2.25,
   returnSpeedMultiplier: 4,
   baseProvisionsPerDistance: 0.068,
+  travelPaces: Object.freeze({
+    cautious: Object.freeze({
+      id: "cautious",
+      name: "Cautious",
+      description: "Advance more carefully and conserve a little food.",
+      speedMultiplier: 0.75,
+      provisionMultiplier: 0.9,
+    }),
+    normal: Object.freeze({
+      id: "normal",
+      name: "Normal",
+      description: "The standard travel pace.",
+      speedMultiplier: 1,
+      provisionMultiplier: 1,
+    }),
+    hard_push: Object.freeze({
+      id: "hard_push",
+      name: "Hard Push",
+      description: "Cover ground quickly at a higher food cost.",
+      speedMultiplier: 1.35,
+      provisionMultiplier: 1.15,
+    }),
+  }),
+  rationLevels: Object.freeze({
+    sparse: Object.freeze({
+      id: "sparse",
+      name: "Sparse",
+      description: "The company eats as little as practical.",
+      provisionMultiplier: 0.75,
+    }),
+    normal: Object.freeze({
+      id: "normal",
+      name: "Normal",
+      description: "A balanced ration.",
+      provisionMultiplier: 1,
+    }),
+    generous: Object.freeze({
+      id: "generous",
+      name: "Generous",
+      description: "Larger meals with no extra recovery system yet.",
+      provisionMultiplier: 1.25,
+    }),
+  }),
+  briefRest: Object.freeze({
+    provisionCost: 1,
+    healing: 4,
+  }),
+  campRest: Object.freeze({
+    provisionCost: 2,
+    healing: 8,
+  }),
   returnProvisionWarningMarginRatio: 0.2,
   encounterMinimumDistance: 14,
   encounterMaximumDistance: 22,
