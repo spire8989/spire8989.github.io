@@ -158,6 +158,7 @@ def run():
         check("Boolean(document.querySelector('#dialogue-speaker')?.textContent && document.querySelector('#dialogue-text')?.textContent && document.querySelector('.dialogue-portrait'))", "Dialogue presentation is missing speaker, text, or portrait placeholder")
         check("(() => { const overlay=document.querySelector('.dialogue-overlay'); const box=document.querySelector('.dialogue-box').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); const header=document.querySelector('.game-header').getBoundingClientRect(); const style=getComputedStyle(overlay); return style.alignItems==='center' && box.top>header.bottom && box.top<viewport.top+viewport.height*0.75 && box.bottom<viewport.bottom-8 && style.pointerEvents==='auto'; })()", "Dialogue card is still bottom-anchored or outside the portrait viewport")
         check("(() => { const box=document.querySelector('.dialogue-box').getBoundingClientRect(); const viewport=document.querySelector('.game-viewport').getBoundingClientRect(); return box.height < viewport.height * 0.62; })()", "Dialogue card retained the old large fixed-height dead space")
+        check("(() => { const button=document.querySelector('.dialogue-continue'); if (!button) return false; const style=getComputedStyle(button); const height=button.getBoundingClientRect().height; return height>=36 && height<=41 && style.backgroundColor==='rgb(103, 41, 35)' && style.boxShadow==='none' && style.fontWeight==='600'; })()", "Reeve short-dialogue Continue action is still styled as a major CTA")
         check("(() => { const background=getComputedStyle(document.querySelector('.dialogue-overlay')).backgroundImage; return background!=='none' && (background.includes('0.7') || background.includes('0.78')); })()", "Dialogue backdrop did not receive the stronger mobile-safe dimming")
         for _ in range(5):
             devtools.click('[data-action="dialogue-continue"]')
@@ -170,6 +171,7 @@ def run():
         check("(() => { const description=DESTINATION_DEFINITIONS.hall.description; return !document.querySelector('.destination-visual')?.textContent.includes(description) && !document.querySelector('.destination-heading') && !document.querySelector('.interaction-scroll')?.textContent.includes(description) && document.querySelector('#destination-title')?.textContent===DESTINATION_DEFINITIONS.hall.name; })()", "Hall repeated its atmospheric description in the visual or interaction panel")
         devtools.click('[data-action="npc-talk"][data-npc-id="village_reeve"]')
         check("Boolean(document.querySelector('.dialogue-overlay') && document.querySelectorAll('.dialogue-choice').length === 2)", "Post-intro Hall dialogue did not render its choices as an overlay")
+        check("(() => { const buttons=[...document.querySelectorAll('.dialogue-choice')]; return buttons.every(button=>{ const style=getComputedStyle(button); return button.getBoundingClientRect().height>=36 && style.backgroundColor==='rgb(103, 41, 35)' && style.boxShadow==='none'; }); })()", "Reeve dialogue choices retained the oversized major-action treatment")
         for width, height in ((320, 480), (360, 640), (390, 844), (430, 932)):
             devtools.call("Emulation.setDeviceMetricsOverride", {
                 "width": width,
@@ -199,6 +201,7 @@ def run():
         check("!game.dialogueSession && !document.querySelector('.dialogue-overlay')", "Three-choice dialogue did not close cleanly")
         devtools.click('[data-action="npc-talk"][data-npc-id="village_reeve"]')
         devtools.click('[data-action="dialogue-choice"][data-choice-id="ask_forest"]')
+        check("(() => { const button=document.querySelector('.dialogue-continue'); return Boolean(button) && button.getBoundingClientRect().height>=36 && button.getBoundingClientRect().height<=41; })()", "Reeve follow-up Continue action is not compact and touch-friendly")
         devtools.click('[data-action="dialogue-continue"]')
         devtools.click('[data-action="dialogue-continue"]')
         check("!game.dialogueSession && !document.querySelector('.dialogue-overlay')", "Hall dialogue did not exit cleanly after a choice")
@@ -353,6 +356,7 @@ def run():
         check("(() => { const description=DESTINATION_DEFINITIONS.blacksmith.description; return !document.querySelector('.destination-visual')?.textContent.includes(description) && !document.querySelector('.interaction-scroll')?.textContent.includes(description) && document.querySelector('.shopkeeper-row')?.textContent.includes('Blacksmith') && document.querySelector('#destination-title')?.textContent==='Blacksmith'; })()", "Blacksmith repeated its atmospheric description in the visual or interaction panel")
         devtools.click('[data-action="npc-talk"][data-npc-id="village_blacksmith"]')
         check("Boolean(game.dialogueSession && document.querySelector('.dialogue-overlay') && !document.querySelector('.interaction-message'))", "Blacksmith Talk did not use the RPG dialogue overlay")
+        check("(() => { const button=document.querySelector('.dialogue-continue'); if (!button) return false; const style=getComputedStyle(button); return button.getBoundingClientRect().height>=36 && button.getBoundingClientRect().height<=41 && style.backgroundColor==='rgb(103, 41, 35)' && style.boxShadow==='none'; })()", "Blacksmith short-dialogue Continue action is still visually dominant")
         devtools.click('[data-action="dialogue-continue"]')
         devtools.click('[data-action="shop-tab"][data-tab="buy"]')
         check("document.querySelector('[data-action=\"buy-item\"][data-item-id=\"arthur_sword\"]')?.disabled", "Duplicate unique sword can be purchased")

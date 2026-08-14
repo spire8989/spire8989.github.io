@@ -1,5 +1,27 @@
 # Build Log
 
+## 2026-08-14 - Dialogue Action Weight Tweak
+
+### Goal
+
+Reduce the visual dominance of dialogue Continue and choice buttons while preserving phone-friendly touch targets, readable dialogue text, and the existing dialogue card layout.
+
+### Human prompt and direction
+
+The human developer requested one final dialogue-only polish tweak and asked that unrelated UI remain unchanged, followed by a local add/commit.
+
+### AI-assisted implementation
+
+- Scoped quieter oxblood styling, smaller typography, reduced vertical padding, a softer border, and no hover glow to `.dialogue-continue` and `.dialogue-choices .game-button` only.
+- Kept global focus and pressed behavior intact, retained full-width actions, and allowed wrapped multi-choice labels to grow naturally.
+- Added browser checks for short Reeve dialogue, short Blacksmith dialogue, and multi-choice dialogue action sizing and visual treatment.
+
+### Verification and resulting prototype state
+
+Dialogue text remains the focal point, with Continue and choice actions reading as modest but clearly interactive controls in the 36–40px range. The dialogue card, encounter buttons, and other gameplay buttons are unchanged.
+
+Verified 414 UI/provision/location browser assertions and `git diff --check`.
+
 ## 2026-08-14 - Corrective Dialogue and Reward Presentation Pass
 
 ### Goal

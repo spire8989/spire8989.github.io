@@ -3722,14 +3722,26 @@ button.combatant {
 .dialogue-copy p {
   font-size: clamp(0.76rem, 3.4cqw, 0.98rem);
   line-height: 1.5;
-  max-height: 7.8rem;
+  max-height: 7.6rem;
 }
 
 .dialogue-continue,
 .dialogue-choices .game-button {
-  min-height: 2.2rem;
-  padding: 0.42rem 0.62rem;
-  font-size: clamp(0.64rem, 2.7cqw, 0.78rem);
+  min-height: 2.25rem;
+  padding: 0.28rem 0.62rem;
+  border-color: rgb(217 189 114 / 48%);
+  background: #672923;
+  color: #f2e8cd;
+  font-size: clamp(0.62rem, 2.65cqw, 0.76rem);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.dialogue-continue:hover,
+.dialogue-choices .game-button:hover {
+  border-color: rgb(217 189 114 / 62%);
+  background: #743027;
+  box-shadow: none;
 }
 
 .dialogue-choices {
