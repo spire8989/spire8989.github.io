@@ -1598,8 +1598,214 @@ button:active:not(:disabled) {
   font-style: italic;
 }
 
-.travel-actions {
-  margin-top: auto;
+.expedition-status {
+  margin: 0.15rem 0 0.65rem;
+}
+
+.expedition-status > .eyebrow,
+.run-details > .eyebrow {
+  margin-bottom: 0.35rem;
+}
+
+.expedition-status .compact-resources {
+  margin: 0;
+}
+
+.journey-controls {
+  margin: 0.1rem 0 0.7rem;
+  padding: 0.72rem;
+  border-color: rgb(217 189 114 / 32%);
+  border-left: 3px solid var(--gold);
+  background:
+    linear-gradient(135deg, rgb(76 67 35 / 18%), transparent 58%),
+    rgb(5 11 7 / 62%);
+  box-shadow: 0 0.25rem 0.8rem rgb(0 0 0 / 14%);
+}
+
+.journey-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.journey-heading .eyebrow {
+  margin-bottom: 0.15rem;
+}
+
+.journey-heading h2 {
+  margin: 0;
+  color: #f1e5bd;
+  font-size: clamp(0.85rem, 3.8cqw, 1.1rem);
+}
+
+.journey-state {
+  flex: 0 0 auto;
+  padding: 0.22rem 0.4rem;
+  border: 1px solid rgb(217 189 114 / 28%);
+  border-radius: 1rem;
+  color: #c7cbb9;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.46rem, 1.9cqw, 0.58rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.travel-settings > .setting-summary {
+  display: none;
+}
+
+.journey-summary {
+  margin: 0.05rem 0 0.1rem;
+  color: #c4c8b7;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.5rem, 2.15cqw, 0.64rem);
+  text-align: right;
+}
+
+.journey-state-banner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.18rem;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid rgb(217 189 114 / 26%);
+  border-radius: 0.3rem;
+  background: rgb(76 67 35 / 22%);
+}
+
+.journey-state-banner strong {
+  color: #f5e8bf;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.2cqw, 0.66rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.journey-state-banner span {
+  color: #aeb7aa;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.48rem, 2cqw, 0.6rem);
+  text-align: right;
+}
+
+.journey-button {
+  border-color: #b9c98d;
+  background: #365f40;
+  color: #fff6da;
+}
+
+.journey-button:hover {
+  background: #45764e;
+}
+
+.journey-resume-button,
+.journey-pause-button {
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.journey-pause-button {
+  min-height: 2.3rem;
+  background: #29392d;
+}
+
+.journey-pause-button:hover {
+  background: #36523c;
+}
+
+.paused-actions {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgb(217 189 114 / 17%);
+}
+
+.paused-actions .eyebrow {
+  margin-bottom: 0.3rem;
+  color: #b9ad83;
+  font-size: clamp(0.5rem, 2.1cqw, 0.62rem);
+}
+
+.paused-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.paused-action-buttons .small-button {
+  min-width: 0;
+  width: 100%;
+}
+
+.make-camp-button {
+  border-color: rgb(217 189 114 / 58%);
+  background: #4d4529;
+  color: #fff3c9;
+}
+
+.run-details > .eyebrow {
+  display: block;
+  margin: 0 0 0.35rem;
+  color: var(--gold);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.56rem, 2.4cqw, 0.72rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.strategic-exit {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgb(217 189 114 / 22%);
+}
+
+.strategic-exit .eyebrow,
+.destructive-exit .eyebrow {
+  margin-bottom: 0.2rem;
+}
+
+.strategic-exit p:last-child {
+  margin: 0;
+  color: #aeb7aa;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.15cqw, 0.66rem);
+  line-height: 1.35;
+}
+
+.strategic-exit .journey-button {
+  width: 100%;
+}
+
+.destructive-exit {
+  display: grid;
+  justify-items: center;
+  gap: 0.18rem;
+  margin-top: 1rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgb(157 80 65 / 18%);
+}
+
+.destructive-exit .eyebrow {
+  color: #9d746b;
+  font-size: clamp(0.48rem, 2cqw, 0.6rem);
+}
+
+.abandon-button {
+  min-height: 1.9rem;
+  padding: 0.35rem 0.7rem;
+  border-color: transparent;
+  color: #c99d91;
+  font-size: clamp(0.55rem, 2.35cqw, 0.7rem);
+}
+
+.abandon-button:hover {
+  border-color: rgb(157 80 65 / 35%);
+  background: rgb(157 80 65 / 9%);
 }
 
 .encounter-panel {

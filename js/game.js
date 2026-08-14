@@ -1327,6 +1327,19 @@ function renderExpedition() {
   updateTravelHud();
 }
 
+function refreshExpedition() {
+  const currentPanel = document.querySelector(".camp-panel, .travel-panel");
+  const currentMode = currentPanel?.classList.contains("camp-panel") ? "camp" : "travel";
+  const scrollTop = currentPanel?.scrollTop ?? 0;
+  renderExpedition();
+  const refreshedPanel = currentMode === "camp"
+    ? document.querySelector(".camp-panel")
+    : document.querySelector(".travel-panel");
+  if (refreshedPanel) {
+    refreshedPanel.scrollTop = scrollTop;
+  }
+}
+
 function renderCamp(expedition) {
   const activeEvent = expedition.activeEncounter
     ? EncounterManager.definitionFor(expedition)
@@ -1446,12 +1459,16 @@ function renderTravelPanel(expedition, companions, loadout) {
         <h1 id="region-title">${ExpeditionCatalog.get(expedition.expeditionId).name}</h1>
         <p id="travel-message">${travelMessage}</p>
       </div>
-      ${renderExpeditionResources(expedition)}
+      <section class="expedition-status" aria-labelledby="expedition-status-title">
+        <p class="eyebrow" id="expedition-status-title">Expedition Status</p>
+        ${renderExpeditionResources(expedition)}
+      </section>
       ${renderTravelSettings(expedition)}
       <div class="progress-track" aria-label="Current return distance">
         <div class="progress-fill" id="distance-progress"></div>
       </div>
-      <section class="run-details">
+      <section class="run-details" aria-labelledby="expedition-details-title">
+        <p class="eyebrow" id="expedition-details-title">Expedition Details</p>
         <p><span>Company</span><strong>${[PLAYER_CHARACTER_DEFINITION.name, ...companions.map((companion) => companion.name)].join(" &amp; ")}</strong></p>
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
         <div class="run-detail-collection"><span>Loadout</span><div class="run-item-list">${renderItemChips(loadout, "No equipment selected")}</div></div>
@@ -1459,15 +1476,29 @@ function renderTravelPanel(expedition, companions, loadout) {
         <div class="run-detail-collection"><span>Discoveries</span><div id="loot-list" class="loot-list">${renderDiscoveryList(expedition)}</div></div>
       </section>
       ${renderEncounterDebugControls(expedition)}
-      <div class="footer-actions travel-actions">
+      <section class="strategic-exit" aria-labelledby="strategic-exit-title">
+        <div>
+          <p class="eyebrow" id="strategic-exit-title">Strategic Exit</p>
+          <p>Turn back toward the village and keep the discoveries already secured for this expedition.</p>
+        </div>
+        <button id="return-button" class="game-button journey-button" type="button" data-action="return-to-safety">Begin Return Journey</button>
+      </section>
+      <section class="destructive-exit" aria-labelledby="destructive-exit-title">
+        <p class="eyebrow" id="destructive-exit-title">Destructive Action</p>
+        <button class="text-button danger-button abandon-button" type="button" data-action="abandon-expedition">Abandon Expedition</button>
+      </section>
+      <!-- Legacy action markup is replaced by the journey controls above. -->
+      <!--
+      <div class="footer-actions travel-actions" hidden>
         <button class="text-button danger-button" type="button" data-action="abandon-expedition">Abandon</button>
         ${expedition.travelState === "paused"
           ? `<button class="small-button" type="button" data-action="brief-rest" ${expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost ? "" : "disabled"}>Brief Rest · ${EXPEDITION_TUNING.briefRest.provisionCost} Food</button>
              <button class="small-button" type="button" data-action="make-camp">Make Camp</button>
              <button class="game-button" type="button" data-action="resume-travel">Resume Travel</button>`
           : `<button id="pause-button" class="small-button" type="button" data-action="pause-travel">Pause Travel</button>`}
-        <button id="return-button" class="game-button" type="button" data-action="return-to-safety">Return to Safety</button>
+        <button id="legacy-return-button" class="game-button" type="button" data-action="return-to-safety">Return to Safety</button>
       </div>
+      -->
     </div>`;
 }
 
@@ -1480,10 +1511,30 @@ function renderTravelSettings(expedition) {
   )).join("");
   const pace = ExpeditionRules.paceDefinition(expedition.paceId);
   const ration = ExpeditionRules.rationDefinition(expedition.rationId);
+  const paused = expedition.travelState === "paused";
   return `
-    <section class="travel-settings" aria-label="Travel settings">
+    <section class="travel-settings journey-controls" aria-labelledby="journey-controls-title">
+      <div class="journey-heading">
+        <div>
+          <p class="eyebrow">Journey</p>
+          <h2 id="journey-controls-title">Travel Dashboard</h2>
+        </div>
+        <span class="journey-state">${paused ? "Paused" : expedition.direction === "returning" ? "Returning" : "Traveling"}</span>
+      </div>
       <div class="setting-row"><span>Pace</span><div class="setting-buttons">${paceButtons}</div></div>
       <div class="setting-row"><span>Rations</span><div class="setting-buttons">${rationButtons}</div></div>
+      <p class="journey-summary">${pace.name} pace &middot; ${ration.name} rations</p>
+      ${paused
+        ? `<div class="journey-state-banner"><strong>Travel Paused</strong><span>Distance and provisions are holding steady.</span></div>
+           <button class="game-button journey-button journey-resume-button" type="button" data-action="resume-travel">Resume Travel</button>
+           <div class="paused-actions">
+             <p class="eyebrow">Paused Actions</p>
+             <div class="paused-action-buttons">
+               <button class="small-button" type="button" data-action="brief-rest" ${expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost ? "" : "disabled"}>Brief Rest &middot; ${EXPEDITION_TUNING.briefRest.provisionCost} Food</button>
+               <button class="small-button make-camp-button" type="button" data-action="make-camp">Make Camp</button>
+             </div>
+           </div>`
+        : `<button id="pause-button" class="small-button journey-pause-button" type="button" data-action="pause-travel">Pause Travel</button>`}
       <p class="setting-summary">${pace.name} · ${ration.name} · ${ExpeditionRules.provisionConsumptionMultiplier(expedition).toFixed(2)}× food rate</p>
     </section>`;
 }
@@ -1820,21 +1871,21 @@ function beginReturn() {
 function setExpeditionPace(paceId) {
   const expedition = game.expedition;
   if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) return;
-  if (ExpeditionRules.setPace(expedition, paceId)) renderExpedition();
+  if (ExpeditionRules.setPace(expedition, paceId)) refreshExpedition();
 }
 
 function setExpeditionRations(rationId) {
   const expedition = game.expedition;
   if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) return;
-  if (ExpeditionRules.setRation(expedition, rationId)) renderExpedition();
+  if (ExpeditionRules.setRation(expedition, rationId)) refreshExpedition();
 }
 
 function pauseTravel() {
-  if (ExpeditionRules.pause(game.expedition)) renderExpedition();
+  if (ExpeditionRules.pause(game.expedition)) refreshExpedition();
 }
 
 function resumeTravel() {
-  if (ExpeditionRules.resume(game.expedition)) renderExpedition();
+  if (ExpeditionRules.resume(game.expedition)) refreshExpedition();
 }
 
 function briefRest() {
@@ -1844,20 +1895,20 @@ function briefRest() {
     return;
   }
   showToast({ title: "Brief Rest", message: `The company recovers ${result.totalHealingAmount} health for ${result.cost} provision.`, type: "success" });
-  renderExpedition();
+  refreshExpedition();
 }
 
 function makeCamp() {
   if (ExpeditionRules.enterCamp(game.expedition)) {
     game.campTab = "rest";
-    renderExpedition();
+    refreshExpedition();
   }
 }
 
 function setCampTab(tabId) {
   if (!["rest", "cook", "craft"].includes(tabId) || game.expedition?.travelState !== "camped") return;
   game.campTab = tabId;
-  renderExpedition();
+  refreshExpedition();
 }
 
 function campRest() {
@@ -1867,11 +1918,11 @@ function campRest() {
     return;
   }
   showToast({ title: "Camp Rest", message: result.eventId ? "The night's rest draws attention from the surrounding forest." : `The company recovers ${result.totalHealingAmount} health.`, type: "success" });
-  renderExpedition();
+  refreshExpedition();
 }
 
 function leaveCamp() {
-  if (ExpeditionRules.leaveCamp(game.expedition)) renderExpedition();
+  if (ExpeditionRules.leaveCamp(game.expedition)) refreshExpedition();
 }
 
 function cookRecipe(recipeId) {
@@ -1883,7 +1934,7 @@ function cookRecipe(recipeId) {
     return;
   }
   showToast({ title: "Meal Cooked", message: `The meal adds ${result.provisions} provisions.`, type: "success" });
-  renderExpedition();
+  refreshExpedition();
 }
 
 function craftCampItem(recipeId) {
@@ -1896,7 +1947,7 @@ function craftCampItem(recipeId) {
   }
   savePlayer();
   showToast({ title: "Field Craft Complete", message: `Created ${ITEM_DEFINITIONS[result.itemId]?.name ?? "an item"}.`, type: "success" });
-  renderExpedition();
+  refreshExpedition();
 }
 
 function cookingFailureMessage(result) {
@@ -2413,7 +2464,7 @@ function updateTravelHud() {
   travelers?.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
   if (returnButton) {
     returnButton.disabled = returning;
-    returnButton.textContent = returning ? "Returning…" : "Return to Safety";
+    returnButton.textContent = returning ? "Return Journey Underway" : "Begin Return Journey";
   }
   if (progressFill) {
     const denominator = Math.max(expedition.maxDistanceReached, 1);
