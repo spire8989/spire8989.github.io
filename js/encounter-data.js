@@ -259,8 +259,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "startCombat",
                 combatId: "wild_boar",
                 victory: {
-                  outcomes: [{ type: "modifyResource", resource: "provisions", amount: 3 }],
-                  resultText: "The boar falls. Arthur gathers usable meat before the company continues.",
+                  outcomes: [{ type: "gainUnsecuredItem", itemId: "raw_meat", quantity: 3 }],
+                  resultText: "The boar falls. Arthur secures 3 Raw Meat before the company continues.",
                 },
                 fled: {
                   outcomes: [],
@@ -1371,8 +1371,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             type: "startCombat",
             combatId: "wolves",
             victory: {
-              outcomes: [],
-              resultText: "Arthur holds firm until the last wolf is driven down and the brush falls silent.",
+              outcomes: [{ type: "gainUnsecuredItem", itemId: "raw_meat", quantity: 2 }],
+              resultText: "Arthur holds firm until the last wolf is driven down. The company secures 2 Raw Meat.",
             },
             fled: {
               outcomes: [],

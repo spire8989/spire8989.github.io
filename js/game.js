@@ -554,11 +554,12 @@ function craftingRow(recipe, providerId, options = {}) {
   const output = recipe.output.provisions > 0
     ? `${recipe.output.provisions} Provisions`
     : `${quote.item?.name ?? "Unknown item"}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}`;
+  const outputLabel = recipe.output.provisions > 0 ? `<span>Creates ${output}</span>` : "";
   const action = options.action ?? "craft-item";
   return `
     <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
       <div class="item-icon" aria-hidden="true">${recipe.output.provisions > 0 ? categoryIcon("healing") : itemIcon(quote.item?.category, quote.item)}</div>
-      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost"><span class="crafting-requirements">${ingredients}${cost}</span></span><span>Creates ${output}</span></div>
+      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost"><span class="crafting-requirements">${ingredients}${cost}</span></span>${outputLabel}</div>
       <button class="small-button" type="button" data-action="${action}" data-recipe-id="${recipe.id}">${providerId === "campfire" ? "Cook" : "Craft"}</button>
     </article>`;
 }
@@ -1397,7 +1398,7 @@ function renderExpedition() {
           <span class="arthur">♞</span>${companions.map((companion) => `<span class="companion companion-${companion.type}">${companion.type === "mount" ? "♞" : "♜"}</span>`).join("")}
         </div>
         <div class="ground" aria-hidden="true"></div>
-        <div class="direction-banner" id="direction-banner">${activeEncounter ? `Encounter: ${activeEncounter.title}` : "Traveling Outbound →"}</div>
+        <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>
       </div>
       ${activeEncounter
         ? renderEncounterPanel(expedition, activeEncounter)
@@ -1430,7 +1431,7 @@ function renderCamp(expedition) {
           <div class="camp-moon"></div>
           <div class="camp-fire"><span></span><span></span><span></span></div>
           <div class="camp-silhouette"></div>
-          <div class="direction-banner">Camp Event</div>
+          <div class="direction-banner">Camped · ${pathLabel(expedition.currentPathId)}</div>
         </div>
         ${renderCampEventPanel(expedition, activeEvent)}
       </section>`;
@@ -1463,6 +1464,7 @@ function renderCamp(expedition) {
           <p>Arthur can sleep rough anywhere. The company can leave camp and remain paused until it is ready to travel.</p>
         </div>
         ${renderExpeditionResources(expedition)}
+        ${renderJourneyLog(expedition)}
         <div class="camp-tabs" role="tablist" aria-label="Camp actions">${tabs}</div>
         ${tabContent}
         <div class="footer-actions camp-actions">
@@ -1533,21 +1535,46 @@ function renderExpeditionActionBar(expedition) {
     </div>`;
 }
 
+function travelBannerText(expedition, activeEncounter = null) {
+  const route = pathLabel(expedition.currentPathId);
+  if (activeEncounter) {
+    return activeEncounter.eventKind === "camp"
+      ? `Camped · ${route}`
+      : `${route} · Encounter: ${activeEncounter.title}`;
+  }
+  if (expedition.travelState === "paused") return `${route} · Paused`;
+  if (expedition.direction === "returning") return `${route} · Returning ←`;
+  return `${route} · Traveling Outbound →`;
+}
+
+function journeyLogPreview(expedition) {
+  const latest = expedition?.journeyLog?.at(-1);
+  return latest?.message ?? "No meaningful events yet.";
+}
+
+function renderJourneyLog(expedition) {
+  const entries = expedition?.journeyLog ?? [];
+  const history = entries.slice().reverse().map((entry) => `
+    <li class="journey-log-entry">
+      <span class="journey-log-distance">${formatDistance(Number(entry.distance) || 0)}</span>
+      <p>${entry.message}</p>
+    </li>`).join("");
+  return `
+    <details class="run-details journey-log" aria-label="Journey Log">
+      <summary class="run-details-summary journey-log-summary">
+        <span class="run-details-heading">Journey Log</span>
+        <span class="run-details-summary-text" id="journey-log-preview">${journeyLogPreview(expedition)}</span>
+      </summary>
+      <ol class="journey-log-content">${history || '<li class="journey-log-empty">No meaningful events yet.</li>'}</ol>
+    </details>`;
+}
+
 function renderTravelPanel(expedition, companions, loadout) {
-  const travelMessage = expedition.lastEncounterResult
-    || (expedition.currentPathId === "overgrown_trail"
-      ? "The overgrown trail narrows beneath ancient trees."
-      : "The old forest road winds deeper beneath the trees.");
   const companyLabel = [PLAYER_CHARACTER_DEFINITION.name, ...companions.map((companion) => companion.name)].join(" &amp; ");
   const carriedQuantity = Object.values(expedition.carriedItems ?? {}).reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
 
   return `
     <div class="travel-panel">
-      <div class="screen-heading travel-heading">
-        <p class="eyebrow">Chapter III</p>
-        <h1 id="region-title">${ExpeditionCatalog.get(expedition.expeditionId).name}</h1>
-        <p id="travel-message">${travelMessage}</p>
-      </div>
       <section class="expedition-status" aria-labelledby="expedition-status-title">
         <p class="eyebrow" id="expedition-status-title">Expedition Status</p>
         ${renderExpeditionResources(expedition)}
@@ -1556,6 +1583,7 @@ function renderTravelPanel(expedition, companions, loadout) {
       <div class="progress-track" aria-label="Current return distance">
         <div class="progress-fill" id="distance-progress"></div>
       </div>
+      ${renderJourneyLog(expedition)}
       <details class="run-details expedition-details">
         <summary class="run-details-summary">
           <span class="run-details-heading">Expedition Details</span>
@@ -1639,6 +1667,7 @@ function renderEncounterPanel(expedition, encounter) {
         ${outcomes}
       </div>
       <div class="encounter-choices">${choices}</div>
+      ${renderJourneyLog(expedition)}
     </div>`;
 }
 
@@ -1658,6 +1687,7 @@ function renderEncounterPendingPanel(expedition, encounter, active) {
         <p>${active.actionText}</p>
         <div class="pending-indicator" aria-hidden="true"><span></span><span></span><span></span></div>
       </div>
+      ${renderJourneyLog(expedition)}
     </div>`;
 }
 
@@ -1689,6 +1719,7 @@ function renderEncounterResultPanel(expedition, encounter, active) {
           <strong>${active.eventKind === "camp" ? "Continue at Camp" : "Continue Journey"}</strong>
         </button>
       </div>
+      ${renderJourneyLog(expedition)}
     </div>`;
 }
 
@@ -1733,7 +1764,7 @@ function renderCombatant(combatant, combat) {
   const ready = combatant.id === combat.activeActorId;
   const wasHit = Boolean(combatant.lastHitEvent);
   const selectable = !defeated && (
-    (combat.status === "awaitingAction" && combat.interactionMode === "main" && combatant.side === "enemy")
+    (["running", "awaitingAction"].includes(combat.status) && combat.interactionMode === "main" && combatant.side === "enemy")
     || (combat.interactionMode === "enemyTarget" && combatant.side === "enemy")
     || (combat.interactionMode === "allyTarget" && combatant.side === "ally" && combatant.hp < combatant.maxHp)
   );
@@ -2527,10 +2558,7 @@ function updateTravelHud() {
   const scene = document.querySelector("#travel-scene");
 
   if (directionBanner) {
-    directionBanner.textContent = activeEncounter
-      ? `${expedition.activeEncounter?.eventKind === "camp" ? "Camp Event" : "Encounter"}: ${activeEncounter.title}`
-      : expedition.travelState === "paused" ? "Travel Paused"
-      : returning ? "← Returning to Safety" : "Traveling Outbound →";
+    directionBanner.textContent = travelBannerText(expedition, activeEncounter);
   }
   travelers?.classList.toggle("is-returning", returning);
   travelers?.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
@@ -2547,6 +2575,7 @@ function updateTravelHud() {
     scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
   }
   setText("#path-value", pathLabel(expedition.currentPathId));
+  setText("#journey-log-preview", journeyLogPreview(expedition));
   setText("#debug-state", debugExpeditionState(expedition));
 }
 
@@ -2585,7 +2614,7 @@ function renderLootList(loot) {
 }
 
 function announceTravelEvent(message) {
-  setText("#travel-message", message);
+  setText("#journey-log-preview", journeyLogPreview(game.expedition));
   const lootList = document.querySelector("#loot-list");
   if (lootList) {
     lootList.innerHTML = renderDiscoveryList(game.expedition);

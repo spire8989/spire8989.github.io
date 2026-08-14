@@ -278,7 +278,8 @@ const CombatSystem = Object.freeze({
   },
 
   selectEnemyTarget(state, targetId) {
-    if (!state || state.status !== "awaitingAction" || state.interactionMode !== "main") {
+    if (!state || !["running", "awaitingAction"].includes(state.status)
+      || state.interactionMode !== "main") {
       return { selected: false };
     }
     const target = state.enemies.find((enemy) => enemy.id === targetId && isLivingCombatant(enemy));

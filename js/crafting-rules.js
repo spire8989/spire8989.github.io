@@ -95,6 +95,14 @@ const CraftingRules = Object.freeze({
       itemsConsumed,
       reason: null,
     };
+    if (quote.expedition && typeof JourneyLog !== "undefined") {
+      const outputMessage = provisions > 0
+        ? `Cooked ${quote.recipe.name} and gained ${provisions} provisions.`
+        : `Crafted ${quote.item?.name ?? quote.recipe.name}.`;
+      JourneyLog.add(quote.expedition, outputMessage, {
+        category: provisions > 0 ? "cooking" : "crafting",
+      });
+    }
     console.debug("[Crafting] craft-performed", result);
     return result;
   },

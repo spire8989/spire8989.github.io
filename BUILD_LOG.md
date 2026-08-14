@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-14 - Focused UI/Content Polish Pass
+
+### Goal
+
+Make one more focused phone-first polish pass over dialogue, crafting, expedition state, camp actions, Journey history, combat targeting, and animal rewards without changing save compatibility or introducing new runtime dependencies.
+
+### Human prompt and direction
+
+The human developer supplied an attached guide requesting more readable dialogue, clearer crafting hierarchy, opaque sticky camp actions, balanced expedition actions, route/state banners, a real current-run Journey Log, live-gauge combat target selection, and Raw Meat rewards for victorious wolves and boars. Existing simulation parity, touch targets, the Material Bag/cooking loop, Combat Log separation, and local Git add/commit were preserved; no push was requested.
+
+### AI-assisted implementation
+
+- Added transient shared `JourneyLog` state with meaningful entries for encounters, rewards, provisions, path changes, return, camp, rest, and cooking/crafting, plus a compact closed preview and bounded expanded history on travel, camp, and encounter panels.
+- Removed the active travel panel's repeated Chapter III/large route title and made the visual banner identify route plus Traveling Outbound, Paused, Returning, or Camped state. Rebalanced expedition actions to a roughly two-thirds primary / one-third Return split and made the camp footer fully opaque.
+- Increased dialogue body readability while reducing action height, added spacing and hierarchy to crafting cards, and hid redundant item output labels while retaining cooking provision output labels.
+- Allowed persistent enemy target selection during live combat gauges while preserving explicit enemy/ally targeting rules. Wolves now stage 2 Raw Meat and Wild Boar stages 3 Raw Meat through existing data-driven reward handling; flee remains rewardless, including the camp wolf combat branch.
+- Extended browser assertions for the new HUD, Journey Log, sticky footer, action proportions, live target selection, crafting labels, and animal reward outcomes.
+
+### Manual changes
+
+The human developer supplied the attached next-pass guide and requested the local add/commit. No additional manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The prototype now presents route context directly in the expedition artwork, keeps action controls readable and anchored, exposes a useful current-run history without gauge spam, and turns animal victories into cookable expedition materials while preserving existing settlement rules.
+
+Verified 405 UI/provision/location browser assertions, 26 deterministic simulation assertions, 66 campaign/health/Inn assertions, clean local HTTP startup through the browser flows, and `git diff --check`.
+
 ## 2026-08-14 - Focused Mobile UI/UX Polish Pass
 
 ### Goal

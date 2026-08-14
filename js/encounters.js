@@ -308,6 +308,16 @@ const EncounterOutcomes = Object.freeze({
   },
 });
 
+function recordActiveJourney(expedition, active) {
+  if (!active || active.journeyLogged) return;
+  active.journeyLogged = true;
+  [active.resultText, ...(active.outcomeMessages ?? [])].forEach((entry) => {
+    JourneyLog.add(expedition, entry, {
+      category: active.eventKind === "camp" ? "camp" : "encounter",
+    });
+  });
+}
+
 const EncounterManager = Object.freeze({
   definitionFor(expedition, active = expedition?.activeEncounter) {
     return active?.eventKind === "camp"
@@ -324,6 +334,7 @@ const EncounterManager = Object.freeze({
     expedition.activeEncounter = null;
     expedition.lastEncounterId = null;
     expedition.lastEncounterResult = "";
+    expedition.journeyLog ??= [];
   },
 
   advance(expedition, player, distanceTraveled) {
@@ -546,6 +557,7 @@ const EncounterManager = Object.freeze({
         active.rewards.push(...resolvedStage.rewards);
         active.phase = "result";
         active.resultText = resolvedStage.resultText || nextStage.text;
+        recordActiveJourney(expedition, active);
         return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
       }
 
@@ -561,6 +573,7 @@ const EncounterManager = Object.freeze({
         || `${encounter.title} resolved.`;
       active.phase = "result";
       active.resultText = message;
+      recordActiveJourney(expedition, active);
       return { resolved: true, ended: false, awaitingContinue: true, message };
     }
 
@@ -574,6 +587,7 @@ const EncounterManager = Object.freeze({
     }
 
     const message = active.resultText;
+    recordActiveJourney(expedition, active);
     if (active.eventKind === "camp") {
       expedition.lastCampEventId = active.encounterId;
       expedition.lastCampEventResult = message;
@@ -611,6 +625,7 @@ const EncounterManager = Object.freeze({
     active.resultText = resolved.resultText
       || resolution.resultText
       || (result === "victory" ? "The enemy is defeated." : "The company escapes.");
+    recordActiveJourney(expedition, active);
     delete active.combatResolution;
     return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
   },

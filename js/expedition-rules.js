@@ -1,5 +1,24 @@
 "use strict";
 
+const JourneyLog = Object.freeze({
+  add(expedition, message, options = {}) {
+    const normalized = String(message ?? "").replace(/\s+/g, " ").trim();
+    if (!expedition || !normalized) return null;
+    expedition.journeyLog ??= [];
+    const numericDistance = Number(expedition.distance);
+    const entry = {
+      message: normalized,
+      distance: Number.isFinite(numericDistance) ? numericDistance : 0,
+      category: options.category ?? "event",
+    };
+    expedition.journeyLog.push(entry);
+    if (expedition.journeyLog.length > 50) {
+      expedition.journeyLog.splice(0, expedition.journeyLog.length - 50);
+    }
+    return entry;
+  },
+});
+
 // Production UI and instant simulations both use these expedition lifecycle rules.
 const ExpeditionRules = Object.freeze({
   partyProvisionCapacity(selectedCompanions) {
@@ -74,13 +93,17 @@ const ExpeditionRules = Object.freeze({
       || expedition.travelState !== "paused") return false;
     expedition.travelState = "camped";
     const siteKey = `${expedition.direction}:${expedition.currentPathId}:${Math.round(expedition.distance * 100) / 100}`;
-    if (expedition.campSiteKey !== siteKey) {
+    const newCampSite = expedition.campSiteKey !== siteKey;
+    if (newCampSite) {
       expedition.campSiteKey = siteKey;
       expedition.campCycle += 1;
       expedition.campEventRolled = false;
       expedition.campEventId = null;
       expedition.lastCampEventId = null;
       expedition.lastCampEventResult = "";
+    }
+    if (newCampSite) {
+      JourneyLog.add(expedition, "The company made camp.", { category: "camp" });
     }
     return true;
   },
@@ -89,6 +112,7 @@ const ExpeditionRules = Object.freeze({
     if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
       || expedition.travelState !== "camped") return false;
     expedition.travelState = "paused";
+    JourneyLog.add(expedition, "The company left camp and returned to the road.", { category: "camp" });
     return true;
   },
 
@@ -108,6 +132,7 @@ const ExpeditionRules = Object.freeze({
     if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
     this.adjustProvisions(expedition, -cost);
     const healing = HealingRules.restExpeditionParty(expedition, EXPEDITION_TUNING.briefRest.healing);
+    JourneyLog.add(expedition, "The company took a brief roadside rest.", { category: "rest" });
     return { applied: true, cost, ...healing };
   },
 
@@ -121,6 +146,7 @@ const ExpeditionRules = Object.freeze({
     this.adjustProvisions(expedition, -cost);
     const healing = HealingRules.restExpeditionParty(expedition, EXPEDITION_TUNING.campRest.healing);
     const event = !expedition.campEventRolled ? CampRules.rollForCampEvent(expedition, player) : null;
+    JourneyLog.add(expedition, "The company rested at camp.", { category: "rest" });
     return { applied: true, cost, ...healing, eventId: event?.id ?? null };
   },
 
@@ -226,6 +252,7 @@ const ExpeditionRules = Object.freeze({
       selectedEquipment,
       selectedCompanions,
       selectedCompanion,
+      journeyLog: [],
       carriedItems: this.createCarriedItems(player, options.packedItems),
       materialBag,
       consumedItems: {},
@@ -306,6 +333,7 @@ const ExpeditionRules = Object.freeze({
       return false;
     }
     expedition.direction = "returning";
+    JourneyLog.add(expedition, "The company turned back toward safety.", { category: "return" });
     return true;
   },
 

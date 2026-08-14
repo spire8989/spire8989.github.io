@@ -3291,6 +3291,7 @@ button.combatant {
   grid-template-columns: clamp(3.6rem, 18cqw, 5rem) minmax(0, 1fr);
   gap: 0.7rem;
   width: 100%;
+  height: min(78%, 30rem);
   max-height: min(78%, 30rem);
   overflow: hidden;
   padding: 0.7rem;
@@ -3702,6 +3703,132 @@ button.combatant {
 .combat-action-grid button span,
 .run-details-summary-text {
   font-size: clamp(0.6rem, 2.5cqw, 0.7rem);
+}
+
+/* Focused pass: keep dialogue readable without letting its actions dominate the card. */
+.dialogue-copy {
+  gap: 0.52rem;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.dialogue-copy > strong {
+  margin-bottom: 0.08rem;
+}
+
+.dialogue-copy p {
+  font-size: clamp(0.76rem, 3.4cqw, 0.98rem);
+  line-height: 1.5;
+  max-height: 10rem;
+}
+
+.dialogue-continue,
+.dialogue-choices .game-button {
+  min-height: 2.2rem;
+  padding: 0.42rem 0.62rem;
+  font-size: clamp(0.64rem, 2.7cqw, 0.78rem);
+}
+
+.dialogue-choices {
+  gap: 0.3rem;
+  margin-top: 0.08rem;
+}
+
+/* Crafting cards read as title, description, requirements, then output. */
+.camp-recipe-list,
+.shop-list:has(.crafting-row) {
+  gap: 0.58rem;
+}
+
+.crafting-row {
+  gap: 0.55rem;
+  padding-block: 0.15rem;
+}
+
+.crafting-row > div:nth-child(2) {
+  display: grid;
+  gap: 0.34rem;
+  align-content: start;
+}
+
+.crafting-row .crafting-cost {
+  margin-top: 0.06rem;
+}
+
+/* The camp footer is an opaque shelf, so scrolling content cannot ghost through it. */
+.camp-panel {
+  scroll-padding-bottom: 4.8rem;
+}
+
+.camp-actions {
+  isolation: isolate;
+  background: #111a13;
+  box-shadow: 0 -0.45rem 0.9rem rgb(0 0 0 / 32%);
+}
+
+.expedition-action-bar {
+  grid-template-columns: minmax(0, 2fr) minmax(4.6rem, 1fr);
+  background: #111a13;
+}
+
+.expedition-action-bar .travel-action-primary,
+.expedition-action-bar .travel-return-button {
+  min-height: 2.65rem;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.64rem, 2.7cqw, 0.78rem);
+}
+
+/* Compact closed preview, with a bounded scrollable history when opened. */
+.journey-log {
+  margin: 0.32rem 0 0.45rem;
+  border-top: 1px solid rgb(217 189 114 / 18%);
+  border-bottom: 1px solid rgb(217 189 114 / 18%);
+}
+
+.journey-log-summary {
+  min-width: 0;
+}
+
+.journey-log[open] .journey-log-summary::after {
+  transform: rotate(180deg);
+}
+
+.journey-log-content {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 9rem;
+  margin: 0;
+  padding: 0.05rem 0 0.48rem;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.journey-log-entry {
+  display: grid;
+  grid-template-columns: 4.1rem minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: start;
+  padding: 0.28rem 0.1rem;
+  border-top: 1px solid rgb(217 189 114 / 10%);
+  font-family: system-ui, sans-serif;
+}
+
+.journey-log-entry p,
+.journey-log-empty {
+  margin: 0;
+  color: #d8d9c8;
+  font-size: clamp(0.6rem, 2.5cqw, 0.7rem);
+  line-height: 1.35;
+}
+
+.journey-log-distance {
+  color: #aeb7aa;
+  font-size: clamp(0.55rem, 2.3cqw, 0.66rem);
+}
+
+.journey-log-empty {
+  padding: 0.28rem 0.1rem;
+  color: #828d83;
+  font-style: italic;
 }
 
 @media (prefers-reduced-motion: reduce) {
