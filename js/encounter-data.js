@@ -25,7 +25,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "randomChance",
                 chance: 0.3,
-                effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+                effects: [
+                  { type: "modifyResource", resource: "health", amount: -1 },
+                  { type: "applyInjury", target: "arthur", injuryId: "sprained_ankle", source: "fallen-tree-climb" },
+                ],
                 resultText: "A wet branch gives way as Arthur climbs. He lands hard on the far side and continues with a fresh injury.",
                 elseResultText: "Arthur and Kay find firm footing and scramble safely over the trunk.",
               },
@@ -392,7 +395,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             outcomes: [{
               type: "randomChance",
               chance: 0.25,
-              effects: [{ type: "modifyResource", resource: "health", amount: -1 }],
+              effects: [
+                { type: "modifyResource", resource: "health", amount: -1 },
+                { type: "applyInjury", target: "arthur", injuryId: "bruised_ribs", source: "swollen-stream" },
+              ],
               resultText: "The current knocks Arthur against a submerged stone before the company reaches the far bank.",
               elseResultText: "Arthur and Kay keep their footing and wade safely through the cold current.",
             }],

@@ -1580,3 +1580,33 @@ The human developer supplied the exploration guide and requested implementation 
 The prototype now lets a player change pace and rations while traveling, pause without resource loss, take a brief rest, make camp anywhere, cook expedition ingredients into provisions, rest into a contextual camp event, resolve choices or camp combat, leave camp still paused, and resume travel. Camp events do not reroll merely because camp is reopened at the same site.
 
 Verified 375 UI/provision/location browser assertions, 16 deterministic simulation assertions, 65 campaign/health/Inn assertions, a clean local-HTTP manual pause/cook/camp-event/reopen flow with zero runtime errors, and `git diff --check` before commit.
+
+## 2026-08-14 - Timed Crafting and Persistent Expedition Injuries
+
+### Goal
+
+Expand the exploration systems with a short player-facing crafting action and a small persistent injury layer while keeping production rules, camp cooking, Material Bag behavior, and simulations aligned.
+
+### Human prompt and direction
+
+The human developer supplied the gameplay-mechanics guide and requested a codebase rescan, implementation, focused tests, and a local commit without pushing.
+
+### AI-assisted implementation
+
+- Added data-driven Sprained Ankle, Deep Cut, Bruised Ribs, Exhaustion, and Poisoned definitions with a two-active-injury cap, duplicate protection, persistent save migration, effective health, travel, defense, incoming-damage, and combat-gauge effects.
+- Routed injury application through generic encounter outcomes, authored dangerous encounter branches, selected combat actions, seeded expedition risk checks, and settlement. Inn rest only clears Exhaustion; Healing Poultice treats Deep Cut; Antidote treats Poisoned; Strong Tonic treats Exhaustion; Bandages remain HP-only.
+- Centralized pace/ration modifiers: Cautious is slower and safer with more discovery weighting, Normal is baseline, Hard Push is faster and riskier; Sparse reduces rest recovery and raises Exhaustion risk, while Generous improves rest recovery and reduces that risk. Discovery weighting is tag-based and does not alter combat probabilities.
+- Added visible timed Apothecary, Blacksmith, and campfire crafting progress. Quotes are checked at completion and `CraftingRules` remains the only mutation path; simulations continue to craft instantly through the same rules.
+- Added compact injury displays to expedition and village healing views, Apothecary treatment controls, journey-log injury feedback, and a small toast cleanup fix exposed by delayed crafting feedback.
+- Updated single-expedition and campaign simulations to carry injuries, choose pace/rations/rest/camping with injury-aware policies, treat appropriate injuries during campaign preparation, preserve state across expeditions, and report injury, treatment, exhaustion, pace/ration distance, rest-modifier, camp-event, and crafting telemetry/replay data.
+- Added focused regression coverage for timed crafting, injury caps/effects/persistence/migration/treatment, pace/ration risk and rest behavior, deterministic camp events, real recipe mutations, simulation parity, and campaign carry-over metrics.
+
+### Manual changes
+
+The human developer supplied the gameplay guide and requested implementation plus a local commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Players can now see crafting progress before any materials or gold are consumed, return from expeditions with persistent injuries, understand and treat those injuries in the village, and make safer or riskier travel choices through shared pace/ration rules. Simulations and campaigns use the same production mutations and retain injury/material/recipe/health/provision state between runs.
+
+Verified 416 UI/provision/location browser assertions, 33 deterministic simulation assertions, 68 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. The milestone is committed locally; nothing is pushed.

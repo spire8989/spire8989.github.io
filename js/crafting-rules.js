@@ -1,6 +1,10 @@
 "use strict";
 
 const CraftingRules = Object.freeze({
+  durationMs(providerId) {
+    return CRAFTING_TUNING.providerDurations[providerId] ?? CRAFTING_TUNING.defaultDurationMs;
+  },
+
   knownRecipesForProvider(player, providerId) {
     return (player.learnedRecipes ?? [])
       .map((recipeId) => RECIPE_DEFINITIONS[recipeId])

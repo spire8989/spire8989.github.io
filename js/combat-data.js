@@ -105,12 +105,16 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     name: "Lunge",
     damage: Object.freeze({ minimum: 5, maximum: 8 }),
     target: "arthur",
+    injuryId: "sprained_ankle",
+    injuryChance: 0.2,
   }),
   guardian_sweep: Object.freeze({
     id: "guardian_sweep",
     name: "Spectral Sweep",
     damage: Object.freeze({ minimum: 7, maximum: 11 }),
     target: "arthur",
+    injuryId: "bruised_ribs",
+    injuryChance: 0.16,
   }),
 });
 

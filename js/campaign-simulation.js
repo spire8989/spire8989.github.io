@@ -110,6 +110,15 @@ const CampaignSimulationRunner = Object.freeze({
         campsEntered: run.campsEntered,
         campRests: run.campRests,
         campEvents: run.campEvents,
+        injuriesAtDeparture: run.injuriesAtDeparture,
+        injuriesGained: run.injuriesGained,
+        injuriesTreated: run.injuriesTreated,
+        activeInjuriesAtEnd: run.activeInjuriesAtEnd,
+        returnedWhileInjured: run.returnedWhileInjured,
+        exhaustionOccurrences: run.exhaustionOccurrences,
+        distanceByPace: run.distanceByPace,
+        distanceByRation: run.distanceByRation,
+        injuryTreatment: decision.injuryTreatment,
         recipesCooked: run.recipesCooked,
         ingredientsConsumedById: run.ingredientsConsumedById,
         startingMaterialBag: run.startingMaterialBag,
@@ -417,6 +426,8 @@ function applyBetweenExpeditionPolicy(
     };
   }
 
+  const injuryTreatment = treatCampaignInjuries(player, planningStrategy);
+
   const unavailableCompanionIds = selectedCompanionIds(player).filter((companionId) => (
     (player.companionStates?.[companionId]?.health ?? 0) <= 0
   ));
@@ -433,6 +444,7 @@ function applyBetweenExpeditionPolicy(
   const travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
     provisions: player.provisions,
     capacity,
+    injuries: player.injuries,
   });
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
   const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
@@ -599,6 +611,7 @@ function applyBetweenExpeditionPolicy(
     hardFailure: Boolean(hardFailureReason),
     hardFailureReason,
     healing,
+    injuryTreatment,
     healthBeforeHealing: Object.fromEntries(restQuote.partyMembers.map(
       (member) => [member.id, member.healthBefore],
     )),
@@ -717,6 +730,35 @@ function estimateCampaignPassiveProvisionCost(distance, companionId, travelSetti
   return SimulationProvisionPlanning.passiveRoundTripCost(distance, multiplier);
 }
 
+function treatCampaignInjuries(player, strategyName) {
+  const treated = [];
+  const crafted = [];
+  const allowed = strategyName === "cautious"
+    ? ["sprained_ankle", "deep_cut", "bruised_ribs", "exhaustion", "poisoned"]
+    : strategyName === "aggressive"
+      ? ["deep_cut", "poisoned"]
+      : ["deep_cut", "exhaustion", "poisoned"];
+  InjuryRules.characterIds().forEach((characterId) => {
+    InjuryRules.forCharacter(player, characterId).forEach((injuryId) => {
+      if (!allowed.includes(injuryId)) return;
+      const itemId = InjuryRules.treatmentItemFor(injuryId);
+      if (!itemId) return;
+      if ((player.ownedItems?.[itemId] ?? 0) < 1) {
+        const recipe = Object.values(RECIPE_DEFINITIONS).find((candidate) => candidate.output?.itemId === itemId);
+        if (recipe && (player.learnedRecipes ?? []).includes(recipe.id)) {
+          const result = CraftingRules.craft(player, recipe.id, recipe.craftingProvider);
+          if (result.applied) {
+            crafted.push({ recipeId: recipe.id, injuryId, characterId });
+          }
+        }
+      }
+      const result = InjuryRules.treatWithItem(player, characterId, itemId, { source: "campaign-preparation" });
+      if (result.applied) treated.push({ ...result, characterId, itemId });
+    });
+  });
+  return { treated, crafted };
+}
+
 function estimateCampaignProvisionRequirement(
   distance, companionId, safetyMargin, encounterProvisionReserve = 0, travelSettings = {},
 ) {
@@ -772,6 +814,7 @@ function createCampaignPlayer(overrides) {
   merged.packedItems = [...(overrides.packedItems ?? defaults.packedItems)];
   merged.materials = { ...defaults.materials, ...(overrides.materials ?? {}) };
   merged.packedMaterials = { ...defaults.packedMaterials, ...(overrides.packedMaterials ?? {}) };
+  merged.injuries = InjuryRules.snapshot({ injuries: overrides.injuries ?? defaults.injuries });
   Object.entries(overrides.ownedItems ?? {}).forEach(([itemId, quantity]) => {
     if (MaterialRules.isMaterialId(itemId) && overrides.materials?.[itemId] === undefined) {
       merged.materials[itemId] = Math.max(0, Number(quantity) || 0);
@@ -812,6 +855,7 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
     campaignFlags: player.campaignFlags ?? {},
     arthurHealth: HealingRules.arthurHealth(player),
     arthurMaxHealth: HealingRules.arthurMaxHealth(player),
+    injuries: player.injuries,
     companionStates: player.companionStates,
     unlockedCompanions: player.unlockedCompanions,
     selectedCompanions: selectedCompanionIds(player),
@@ -832,6 +876,12 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
   const itemsConsumedById = campaignCombatTotals(expeditions, "itemsConsumedById");
   const itemsReturnedById = campaignCombatTotals(expeditions, "itemsReturnedById");
   const ingredientsConsumedById = campaignCombatTotals(expeditions, "ingredientsConsumedById");
+  const injuriesGained = expeditions.flatMap((entry) => entry.injuriesGained ?? []);
+  const injuriesTreated = expeditions.flatMap((entry) => entry.injuriesTreated ?? []);
+  const injuriesByType = injuriesGained.reduce((counts, entry) => {
+    counts[entry.injuryId] = (counts[entry.injuryId] ?? 0) + 1;
+    return counts;
+  }, {});
   const totalItemPurchaseGoldSpent = totals((entry) => entry.itemPurchaseGoldSpent);
   const totalGoldEarned = totals((entry) => entry.goldEarnedFromSales + entry.goldEarnedDirect);
   const totalGoldSpent = totalHealingCost + totalProvisionCost + totalItemPurchaseGoldSpent;
@@ -905,6 +955,15 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalCookingActions: totals((entry) => entry.cookingActionCount),
     totalCookingProvisionsGained: totals((entry) => entry.cookingProvisionsGained),
     ingredientsConsumedById,
+    injuriesPerRun: expeditions.length ? injuriesGained.length / expeditions.length : 0,
+    runsWithAnyInjury: expeditions.filter((entry) => (entry.injuriesGained ?? []).length > 0).length,
+    runsWithTwoInjuries: expeditions.filter((entry) => Object.values(entry.activeInjuriesAtEnd ?? {}).some((injuries) => injuries.length >= 2)).length,
+    injuriesByType,
+    injuriesTreated: injuriesTreated.length,
+    returnedWhileInjured: expeditions.filter((entry) => entry.returnedWhileInjured).length,
+    exhaustionOccurrences: totals((entry) => entry.exhaustionOccurrences),
+    distanceByPace: campaignDistanceTotals(expeditions, "distanceByPace"),
+    distanceByRation: campaignDistanceTotals(expeditions, "distanceByRation"),
     materialsFoundDuringExpedition: campaignCombatTotals(expeditions, "materialsFoundDuringExpedition"),
     materialsRejectedDueToCapacity: campaignCombatTotals(expeditions, "materialsRejectedDueToCapacity"),
     materialsReturnedSafely: campaignCombatTotals(expeditions, "materialsReturnedSafely"),
@@ -1098,6 +1157,14 @@ function campaignPartyCombatTotals(expeditions, field) {
 
 function campaignCombatTotals(expeditions, field) {
   return campaignPartyCombatTotals(expeditions, field);
+}
+
+function campaignDistanceTotals(expeditions, field) {
+  const totals = {};
+  expeditions.forEach((entry) => Object.entries(entry[field] ?? {}).forEach(([id, value]) => {
+    totals[id] = (totals[id] ?? 0) + (Number(value) || 0);
+  }));
+  return totals;
 }
 
 function campaignCompletedPlan(config, expeditions, stopReason) {

@@ -22,6 +22,7 @@ const game = {
   elapsedSeconds: 0,
   lastTimestamp: null,
   hudAccumulator: 0,
+  craftingAction: null,
 };
 
 const ui = {
@@ -98,6 +99,9 @@ function handleAction(event) {
       break;
     case "craft-item":
       craftItem(recipeId);
+      break;
+    case "treat-injury":
+      treatInjury(control.dataset.targetId, itemId);
       break;
     case "view-inventory":
     case "prepare-expedition":
@@ -458,6 +462,7 @@ function renderInnInteraction(destination, npc) {
     <article class="provision-offer inn-rest-offer">
       <div class="inn-rest-heading"><strong>Rest the Company</strong><span>${rest.fullHealth ? "No payment needed" : "One rest"}</span></div>
       <div class="inn-health-list">${partyHealth}</div>
+      ${renderPersistentInjuryPanel(game.player, { title: "Persistent injuries", includeTreatment: false })}
       ${restAction}
     </article>`;
 }
@@ -469,9 +474,10 @@ function restAtInn() {
     const recovery = result.partyMembers.map(
       (member) => `${member.name} recovers ${member.healingAmount} health`,
     ).join("; ");
+    const treated = (result.injuriesTreated ?? []).map((entry) => entry.definition?.name).filter(Boolean);
     showToast({
       title: "Rested at the Inn",
-      message: `${recovery}. ${result.goldCost} gold was paid.`,
+      message: `${recovery}${treated.length ? `. Eased ${treated.join(", ")}` : ""}. ${result.goldCost} gold was paid.`,
       type: "success",
     });
     savePlayer();
@@ -506,6 +512,8 @@ function renderShopInteraction(destination, npc) {
     ? renderProvisionOffer(shop, shop.provisionsForSale)
     : "";
   const materials = craftSelected ? renderMaterialInventory() : "";
+  const treatmentPanel = destination.craftingProviderId === "apothecary"
+    ? renderPersistentInjuryPanel(game.player, { title: "Treat injuries", includeTreatment: true }) : "";
 
   return `
     <div class="shopkeeper-row">
@@ -520,6 +528,8 @@ function renderShopInteraction(destination, npc) {
     </div>
     ${provisionOffer}
     ${materials}
+    ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
+    ${treatmentPanel}
     <div class="shop-list">${rows || '<p class="empty-loot">Nothing available.</p>'}</div>`;
 }
 
@@ -556,12 +566,37 @@ function craftingRow(recipe, providerId, options = {}) {
     : `${quote.item?.name ?? "Unknown item"}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}`;
   const outputLabel = recipe.output.provisions > 0 ? `<span>Creates ${output}</span>` : "";
   const action = options.action ?? "craft-item";
+  const busy = Boolean(game.craftingAction);
   return `
     <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
       <div class="item-icon" aria-hidden="true">${recipe.output.provisions > 0 ? categoryIcon("healing") : itemIcon(quote.item?.category, quote.item)}</div>
       <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost"><span class="crafting-requirements">${ingredients}${cost}</span></span>${outputLabel}</div>
-      <button class="small-button" type="button" data-action="${action}" data-recipe-id="${recipe.id}">${providerId === "campfire" ? "Cook" : "Craft"}</button>
+      <button class="small-button" type="button" data-action="${action}" data-recipe-id="${recipe.id}" ${busy ? "disabled" : ""}>${busy ? "Busy" : providerId === "campfire" ? "Cook" : "Craft"}</button>
     </article>`;
+}
+
+function renderPersistentInjuryPanel(holder, options = {}) {
+  const entries = InjuryRules.characterIds()
+    .filter((characterId) => characterId === "arthur" || selectedCompanionIds(holder).includes(characterId))
+    .flatMap((characterId) => InjuryRules.forCharacter(holder, characterId).map((injuryId) => ({ characterId, injuryId })));
+  if (!entries.length) return `<section class="injury-panel injury-panel-empty"><span>${options.title ?? "Injuries"}</span><em>No persistent injuries.</em></section>`;
+  const rows = entries.map(({ characterId, injuryId }) => {
+    const injury = INJURY_DEFINITIONS[injuryId];
+    const itemId = InjuryRules.treatmentItemFor(injuryId);
+    const canTreat = options.includeTreatment && itemId && (holder.ownedItems?.[itemId] ?? 0) > 0;
+    return `<div class="injury-row"><div><strong>${characterNameForUi(characterId)} · ${injury.name}</strong><span>${injury.description}</span></div>${canTreat ? `<button class="small-button" type="button" data-action="treat-injury" data-target-id="${characterId}" data-item-id="${itemId}">Use ${ITEM_DEFINITIONS[itemId].name}</button>` : itemId && options.includeTreatment ? `<span class="injury-treatment-missing">Need ${ITEM_DEFINITIONS[itemId].name}</span>` : ""}</div>`;
+  }).join("");
+  return `<section class="injury-panel" aria-label="${options.title ?? "Injuries"}"><div class="section-title-row"><strong>${options.title ?? "Injuries"}</strong><span>${entries.length}/${InjuryRules.maximumActive} active</span></div>${rows}</section>`;
+}
+
+function characterNameForUi(characterId) {
+  return characterId === "arthur" ? PLAYER_CHARACTER_DEFINITION.name : COMPANION_DEFINITIONS[characterId]?.name ?? characterId;
+}
+
+function renderCraftingProgress(action) {
+  const recipe = RECIPE_DEFINITIONS[action.recipeId];
+  const percent = Math.round((action.progress ?? 0) * 100);
+  return `<section class="crafting-progress" aria-live="polite"><div class="crafting-progress-heading"><strong>${action.providerId === "campfire" ? "Cooking" : "Crafting"} ${recipe?.name ?? "item"}</strong><span>${percent}%</span></div><div class="crafting-progress-track"><div class="crafting-progress-fill" style="width:${percent}%"></div></div><p>Work is in progress. Ingredients are only consumed when complete.</p></section>`;
 }
 
 function renderProvisionOffer(shop, offer) {
@@ -682,6 +717,9 @@ function sellShopItem(itemId) {
 }
 
 function craftItem(recipeId) {
+  const craftingDestination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  beginCraftingAction(recipeId, craftingDestination?.craftingProviderId, { screen: "destination", destinationId: game.activeDestinationId });
+  return;
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   const result = CraftingRules.craft(game.player, recipeId, destination?.craftingProviderId);
   if (!result.applied) {
@@ -699,6 +737,78 @@ function craftItem(recipeId) {
     type: "success",
   });
   savePlayer();
+  refreshDestination();
+}
+
+function beginCraftingAction(recipeId, providerId, context = {}) {
+  if (game.craftingAction || !providerId) return;
+  const expedition = context.expedition ?? null;
+  const quote = CraftingRules.quote(game.player, recipeId, providerId, expedition ? { expedition } : {});
+  if (!quote.available) {
+    const reason = craftingBlockReasonForUi(quote);
+    showToast({ title: craftingFailureTitle({ reason, quote }), message: craftingFailureMessage({ reason, quote }), type: "warning" });
+    return;
+  }
+  game.craftingAction = {
+    recipeId,
+    providerId,
+    expedition,
+    screen: context.screen ?? game.screen,
+    destinationId: context.destinationId ?? game.activeDestinationId,
+    startedAt: performance.now(),
+    durationMs: CraftingRules.durationMs(providerId),
+    progress: 0,
+  };
+  if (game.screen === "destination") refreshDestination();
+  else if (game.screen === "expedition") refreshExpedition();
+}
+
+function craftingBlockReasonForUi(quote) {
+  if (!quote.recipe || !quote.validOutput) return "invalid-recipe";
+  if (!quote.known) return "recipe-unknown";
+  if (!quote.correctProvider) return "wrong-provider";
+  if (quote.uniqueAlreadyOwned) return "unique-item-owned";
+  if (!quote.affordable) return "insufficient-gold";
+  if (quote.ingredientStatus.some((entry) => !entry.sufficient)) return "insufficient-materials";
+  return "unavailable";
+}
+
+function completeCraftingAction() {
+  const action = game.craftingAction;
+  if (!action) return;
+  game.craftingAction = null;
+  const stillValid = action.screen === game.screen
+    && (action.screen !== "destination" || action.destinationId === game.activeDestinationId)
+    && (!action.expedition || action.expedition === game.expedition)
+    && (!action.expedition || action.expedition.travelState === "camped");
+  if (!stillValid) {
+    showToast({ title: "Crafting Cancelled", message: "The crafting station is no longer available.", type: "warning" });
+    return;
+  }
+  const result = CraftingRules.craft(game.player, action.recipeId, action.providerId, action.expedition ? { expedition: action.expedition } : {});
+  if (!result.applied) {
+    showToast({ title: craftingFailureTitle(result), message: craftingFailureMessage(result), type: "warning" });
+  } else if (result.provisions > 0) {
+    showToast({ title: "Meal Cooked", message: `The meal adds ${result.provisions} provisions.`, type: "success" });
+    savePlayer();
+  } else {
+    const item = ITEM_DEFINITIONS[result.itemId];
+    showToast({ title: `Crafted ${item?.name ?? "Item"}`, message: `${result.quantity} ${item?.name ?? "item"} added to your inventory`, type: "success" });
+    savePlayer();
+  }
+  if (game.screen === "destination") refreshDestination();
+  else if (game.screen === "expedition") refreshExpedition();
+}
+
+function treatInjury(targetId, itemId) {
+  if (game.activeDestinationId !== "apothecary") return;
+  const result = InjuryRules.treatWithItem(game.player, targetId, itemId);
+  if (!result.applied) {
+    showToast({ title: "Treatment Unavailable", message: result.reason === "item-missing" ? "That treatment is not in your inventory." : "That item does not treat this injury.", type: "warning" });
+    return;
+  }
+  savePlayer();
+  showToast({ title: "Injury Treated", message: `${INJURY_DEFINITIONS[result.injuryId].name} was treated with ${ITEM_DEFINITIONS[itemId].name}.`, type: "success" });
   refreshDestination();
 }
 
@@ -1488,6 +1598,7 @@ function renderCampRestPanel(expedition) {
       <div class="section-title-row"><h2 id="camp-rest-title">Rest at Camp</h2><span>Costs ${cost} provisions</span></div>
       <p class="section-help">A camp rest restores more health than a brief roadside pause and can trigger one event for this camp cycle.</p>
       ${eventStatus}
+      ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
       <button class="game-button" type="button" data-action="camp-rest" ${canRest ? "" : "disabled"}>${canRest ? `Rest · ${cost} Provisions` : `Need ${cost} Provisions`}</button>
     </section>`;
 }
@@ -1503,6 +1614,7 @@ function renderCampCookPanel(expedition) {
     <section class="camp-content" aria-labelledby="camp-cook-title">
       <div class="section-title-row"><h2 id="camp-cook-title">Cook</h2><span>Ingredients → Provisions</span></div>
       <p class="section-help">Cooked meals use secured and newly discovered ingredients from the Material Bag. The result becomes expedition provisions.</p>
+      ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
       <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${ingredients || "<em>No cooking ingredients available</em>"}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No recipes are available at this fire.</p>'}</div>
     </section>`;
@@ -1515,6 +1627,7 @@ function renderCampCraftPanel(expedition) {
     <section class="camp-content" aria-labelledby="camp-craft-title">
       <div class="section-title-row"><h2 id="camp-craft-title">Field Craft</h2><span>Use Material Bag</span></div>
       <p class="section-help">A campfire can support simple field repairs. Apothecary work still belongs in the village.</p>
+      ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
       <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No field recipes are known.</p>'}</div>
     </section>`;
@@ -1882,10 +1995,11 @@ function renderExpeditionResources(expedition) {
         <span>Provisions</span>
         <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
       </div>
-      <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}</strong></div>
+      <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}</strong></div>
       <div class="resource-card material-bag-card"><span>Material Bag</span><strong id="material-bag-count">${materialBagUsed} / ${MaterialRules.capacity()}</strong></div>
       <div class="resource-card"><span>Unsecured Loot</span><strong id="loot-count">${unsecuredLootDisplayValue(expedition)}</strong></div>
-    </div>`;
+    </div>
+    ${renderPersistentInjuryPanel(expedition, { title: "Company injuries", includeTreatment: false })}`;
 }
 
 function renderEncounterChoice(choice, expedition) {
@@ -1949,7 +2063,7 @@ function updateExpedition(deltaSeconds) {
     EXPEDITION_TUNING.outboundTravelSpeed
       * speedMultiplier
       * paceMultiplier
-      * (expedition.travelSpeedMultiplier ?? partyTravelSpeedMultiplier(expedition.selectedCompanions ?? expedition.selectedCompanion))
+      * ExpeditionRules.travelSpeedMultiplier(expedition)
       * deltaSeconds,
   );
 
@@ -2040,6 +2154,10 @@ function leaveCamp() {
 }
 
 function cookRecipe(recipeId) {
+  const actionExpedition = game.expedition;
+  if (!actionExpedition || actionExpedition.travelState !== "camped" || actionExpedition.activeEncounter) return;
+  beginCraftingAction(recipeId, "campfire", { screen: "expedition", expedition: actionExpedition });
+  return;
   const expedition = game.expedition;
   if (!expedition || expedition.travelState !== "camped" || expedition.activeEncounter) return;
   const result = CraftingRules.craft(game.player, recipeId, "campfire", { expedition });
@@ -2052,6 +2170,10 @@ function cookRecipe(recipeId) {
 }
 
 function craftCampItem(recipeId) {
+  const actionExpedition = game.expedition;
+  if (!actionExpedition || actionExpedition.travelState !== "camped" || actionExpedition.activeEncounter) return;
+  beginCraftingAction(recipeId, "blacksmith", { screen: "expedition", expedition: actionExpedition });
+  return;
   const expedition = game.expedition;
   if (!expedition || expedition.travelState !== "camped" || expedition.activeEncounter) return;
   const result = CraftingRules.craft(game.player, recipeId, "blacksmith", { expedition });
@@ -2566,7 +2688,7 @@ function updateTravelHud() {
   if (provisionsCard) {
     provisionsCard.dataset.provisionState = provisionStatus.state;
   }
-  setText("#health-value", `${Math.ceil(expedition.health)} / ${PLAYER_CHARACTER_DEFINITION.combat.maxHp}`);
+  setText("#health-value", `${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}`);
   setText("#material-bag-count", `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity()}`);
   setText("#loot-count", unsecuredLootDisplayValue(expedition));
   setText(".unsecured-detail-summary", unsecuredLootSummary(expedition));
@@ -2798,6 +2920,8 @@ function gameLoop(timestamp) {
   game.lastTimestamp = timestamp;
   game.elapsedSeconds += deltaSeconds;
 
+  updateCraftingProgress(timestamp);
+
   if (game.screen === "expedition") {
     if (game.expedition?.combat) {
       updateCombat(deltaSeconds);
@@ -2816,6 +2940,17 @@ function gameLoop(timestamp) {
   }
 
   requestAnimationFrame(gameLoop);
+}
+
+function updateCraftingProgress(timestamp) {
+  const action = game.craftingAction;
+  if (!action) return;
+  action.progress = clamp((timestamp - action.startedAt) / action.durationMs, 0, 1);
+  const progressFill = document.querySelector(".crafting-progress-fill");
+  const progressLabel = document.querySelector(".crafting-progress-heading span");
+  if (progressFill) progressFill.style.width = `${Math.round(action.progress * 100)}%`;
+  if (progressLabel) progressLabel.textContent = `${Math.round(action.progress * 100)}%`;
+  if (action.progress >= 1) completeCraftingAction();
 }
 
 initializeGame();

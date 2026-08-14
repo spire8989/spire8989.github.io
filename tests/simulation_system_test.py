@@ -186,6 +186,34 @@ def run():
             "(() => { const player=SaveSystem.createDefaultPlayerState(); const expedition=ExpeditionRules.createExpedition(player,{provisions:5,health:40}); const combat=CombatSystem.create(expedition,'wild_boar',{random:()=>0}); combat.status='awaitingAction'; combat.activeActorId='sir_kay'; const kay=combat.allies.find(ally=>ally.id==='sir_kay'); kay.gauge=100; const result=CombatSystem.chooseAction(combat,expedition,'intercede'); kay.gauge=100; CombatSystem.update(combat,expedition,0); const persisted=kay.interceding; kay.gauge=0; combat.status='running'; combat.enemies[0].gauge=100; CombatSystem.update(combat,expedition,0); const event=[...combat.events].reverse().find(entry=>entry.actor===combat.enemies[0].id); return result.resolved && persisted && !kay.interceding && event?.redirectedByIntercede===true && event.target==='sir_kay'; })()",
             "Intercede did not persist until the next applicable Arthur attack",
         )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); const first=InjuryRules.applyToExpedition(expedition,'arthur','sprained_ankle',{source:'test'}); const second=InjuryRules.applyToExpedition(expedition,'arthur','deep_cut',{source:'test'}); const duplicate=InjuryRules.applyToExpedition(expedition,'arthur','sprained_ankle',{source:'test'}); const blocked=InjuryRules.applyToExpedition(expedition,'arthur','poisoned',{source:'test'}); return first.applied&&second.applied&&duplicate.reason==='duplicate'&&blocked.reason==='maximum-active'&&InjuryRules.forCharacter(expedition,'arthur').length===2&&InjuryRules.effectiveMaxHealth(expedition,'arthur')===34&&InjuryRules.travelSpeedMultiplier(expedition,'arthur')<1; })()",
+            "Injury application did not enforce authored effects, duplicate protection, or the two-injury cap",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); InjuryRules.applyToExpedition(expedition,'arthur','deep_cut',{source:'persistence'}); ExpeditionRules.settle(player,expedition,true); const next=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); return player.injuries.arthur.includes('deep_cut')&&next.injuries.arthur.includes('deep_cut')&&next.health<=34; })()",
+            "Injuries did not persist through settlement and the next expedition",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.injuries={arthur:['deep_cut']}; player.ownedItems.healing_poultice=1; const wrong=InjuryRules.treatWithItem(player,'arthur','antidote'); const right=InjuryRules.treatWithItem(player,'arthur','healing_poultice'); return wrong.reason==='wrong-treatment'&&player.ownedItems.antidote===undefined&&right.applied&&player.ownedItems.healing_poultice===undefined&&!player.injuries.arthur.includes('deep_cut'); })()",
+            "Injury treatment did not require the correct real medical item",
+        )
+        check(
+            "(() => { const make=(pace)=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0.1}); e.paceId=pace; e.nextEncounterAt=999; InjuryRules.checkTravelRisk(e,player,12); return e.injuries.arthur.includes('sprained_ankle'); }; return !make('cautious')&&make('hard_push'); })()",
+            "Cautious and Hard Push did not use different seeded terrain-injury risk",
+        )
+        check(
+            "(() => { const make=seed=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:GameRandom.create(seed).random}); e.rationId='sparse'; InjuryRules.checkTravelRisk(e,player,18); return JSON.stringify(e.injuries); }; return make('sparse-seed')===make('sparse-seed'); })()",
+            "Sparse-ration exhaustion risk was not deterministic under a seed",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.learnedRecipes=['roasted_meat']; player.materials.raw_meat=1; player.packedMaterials={raw_meat:1}; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:5,random:()=>0}); const result=CraftingRules.craft(player,'roasted_meat','campfire',{expedition:e}); return result.applied&&result.provisions===3&&e.provisions===8&&MaterialRules.expeditionQuantity(e,'raw_meat')===0; })()",
+            "Simulation cooking did not use the real recipe and Material Bag mutations",
+        )
+        check(
+            "(() => { const make=seed=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:GameRandom.create(seed).random}); e.travelState='paused'; ExpeditionRules.enterCamp(e); const rest=ExpeditionRules.restAtCamp(e,player); return {event:rest.eventId,active:e.activeEncounter?.encounterId??null}; }; const a=make('camp-event-seed'); const b=make('camp-event-seed'); return a.event&&a.event===b.event&&JSON.stringify(a)===JSON.stringify(b); })()",
+            "Camp event selection did not remain contextual and deterministic",
+        )
 
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")

@@ -42,6 +42,17 @@ const ExpeditionRules = Object.freeze({
       : EXPEDITION_TUNING.companionBonuses.llamreiSoloTravelSpeed);
   },
 
+  travelSpeedMultiplier(expedition) {
+    return (Number(expedition?.travelSpeedMultiplier) || 1)
+      * InjuryRules.partyTravelSpeedMultiplier(expedition);
+  },
+
+  discoveryWeightMultiplier(expedition, encounter) {
+    const discoveryTags = ["discovery", "secret", "exploration", "mystery"];
+    if (!encounter?.tags?.some((tag) => discoveryTags.includes(tag))) return 1;
+    return this.paceDefinition(expedition?.paceId).discoveryWeightMultiplier ?? 1;
+  },
+
   provisionConsumptionMultiplier(expedition) {
     const snapshot = Number(expedition?.provisionConsumptionMultiplier);
     const base = Number.isFinite(snapshot)
@@ -64,13 +75,21 @@ const ExpeditionRules = Object.freeze({
 
   setPace(expedition, paceId) {
     if (!expedition || !EXPEDITION_TUNING.travelPaces[paceId]) return false;
+    if (expedition.paceId === paceId) return true;
+    const previous = expedition.paceId;
     expedition.paceId = paceId;
+    expedition.paceChanges ??= [];
+    expedition.paceChanges.push({ from: previous, to: paceId, distance: Number(expedition.distance) || 0, direction: expedition.direction });
     return true;
   },
 
   setRation(expedition, rationId) {
     if (!expedition || !EXPEDITION_TUNING.rationLevels[rationId]) return false;
+    if (expedition.rationId === rationId) return true;
+    const previous = expedition.rationId;
     expedition.rationId = rationId;
+    expedition.rationChanges ??= [];
+    expedition.rationChanges.push({ from: previous, to: rationId, distance: Number(expedition.distance) || 0, direction: expedition.direction });
     return true;
   },
 
@@ -131,9 +150,16 @@ const ExpeditionRules = Object.freeze({
     const cost = EXPEDITION_TUNING.briefRest.provisionCost;
     if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
     this.adjustProvisions(expedition, -cost);
-    const healing = HealingRules.restExpeditionParty(expedition, EXPEDITION_TUNING.briefRest.healing);
+    const healing = HealingRules.restExpeditionParty(
+      expedition,
+      Math.round(EXPEDITION_TUNING.briefRest.healing * InjuryRules.restHealingMultiplier(expedition)),
+    );
+    const injuriesTreated = expedition.rationId === "generous"
+      ? selectedPartyIds(expedition).map((id) => InjuryRules.recoverExhaustion(expedition, id, "brief-rest"))
+        .filter((result) => result.applied)
+      : [];
     JourneyLog.add(expedition, "The company took a brief roadside rest.", { category: "rest" });
-    return { applied: true, cost, ...healing };
+    return { applied: true, cost, ...healing, injuriesTreated };
   },
 
   restAtCamp(expedition, player) {
@@ -144,10 +170,17 @@ const ExpeditionRules = Object.freeze({
     const cost = EXPEDITION_TUNING.campRest.provisionCost;
     if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
     this.adjustProvisions(expedition, -cost);
-    const healing = HealingRules.restExpeditionParty(expedition, EXPEDITION_TUNING.campRest.healing);
+    const healing = HealingRules.restExpeditionParty(
+      expedition,
+      Math.round(EXPEDITION_TUNING.campRest.healing * InjuryRules.restHealingMultiplier(expedition)),
+    );
     const event = !expedition.campEventRolled ? CampRules.rollForCampEvent(expedition, player) : null;
+    const injuriesTreated = expedition.rationId !== "sparse"
+      ? selectedPartyIds(expedition).map((id) => InjuryRules.recoverExhaustion(expedition, id, "camp-rest"))
+        .filter((result) => result.applied)
+      : [];
     JourneyLog.add(expedition, "The company rested at camp.", { category: "rest" });
-    return { applied: true, cost, ...healing, eventId: event?.id ?? null };
+    return { applied: true, cost, ...healing, injuriesTreated, eventId: event?.id ?? null };
   },
 
   provisionCostForDistance(distance, consumptionMultiplier) {
@@ -228,6 +261,12 @@ const ExpeditionRules = Object.freeze({
       travelSpeedMultiplier: this.partyTravelSpeedMultiplier(selectedCompanions),
       paceId: EXPEDITION_TUNING.travelPaces[options.paceId] ? options.paceId : "normal",
       rationId: EXPEDITION_TUNING.rationLevels[options.rationId] ? options.rationId : "normal",
+      injuries: InjuryRules.snapshot(player),
+      injuryEvents: [],
+      paceChanges: [],
+      rationChanges: [],
+      travelRiskDistance: 0,
+      exhaustionCheckDistance: 0,
       travelState: "traveling",
       campCycle: 0,
       campSiteKey: null,
@@ -239,12 +278,12 @@ const ExpeditionRules = Object.freeze({
       provisionsSettled: false,
       rewardsSettled: false,
       health: Number.isFinite(options.health)
-        ? Math.min(Math.max(options.health, 0), HealingRules.arthurMaxHealth(player))
-        : HealingRules.arthurHealth(player),
+        ? Math.min(Math.max(options.health, 0), InjuryRules.effectiveMaxHealth({ injuries: InjuryRules.snapshot(player) }, "arthur"))
+        : Math.min(HealingRules.arthurHealth(player), InjuryRules.effectiveMaxHealth({ injuries: InjuryRules.snapshot(player) }, "arthur")),
       companionCombatHp: Object.fromEntries(selectedCompanions.map((companionId) => [
         companionId,
         player.companionStates?.[companionId]?.health
-          ?? COMPANION_DEFINITIONS[companionId]?.combat?.maxHp
+          ?? InjuryRules.effectiveMaxHealth({ injuries: InjuryRules.snapshot(player) }, companionId)
           ?? 0,
       ])),
       combat: null,
@@ -298,6 +337,10 @@ const ExpeditionRules = Object.freeze({
     const distanceTraveled = expedition.direction === "returning"
       ? Math.min(requested, expedition.distance)
       : requested;
+    expedition.distanceByPace ??= {};
+    expedition.distanceByRation ??= {};
+    expedition.distanceByPace[expedition.paceId] = (expedition.distanceByPace[expedition.paceId] ?? 0) + distanceTraveled;
+    expedition.distanceByRation[expedition.rationId] = (expedition.distanceByRation[expedition.rationId] ?? 0) + distanceTraveled;
     if (expedition.direction === "outbound") {
       expedition.distance += distanceTraveled;
       expedition.sceneOffset -= distanceTraveled * 9;
@@ -313,6 +356,7 @@ const ExpeditionRules = Object.freeze({
         this.provisionConsumptionMultiplier(expedition),
       ),
     );
+    InjuryRules.checkTravelRisk(expedition, player, distanceTraveled);
     if (expedition.provisions <= 0) {
       expedition.provisions = 0;
       return {
@@ -370,6 +414,7 @@ const ExpeditionRules = Object.freeze({
     this.settleConsumedItems(player, expedition);
     this.settleProvisions(player, expedition, returnedSafely);
     MaterialRules.settle(player, expedition, returnedSafely);
+    player.injuries = InjuryRules.snapshot(expedition);
     if (returnedSafely && !expedition.rewardsSettled) {
       LootRules.awardExpeditionReturn(player, expedition);
       expedition.unsecuredLoot.forEach(({ itemId, quantity }) => {
@@ -394,11 +439,11 @@ const ExpeditionRules = Object.freeze({
     expedition.rewardsSettled = true;
     player.arthurHealth = Math.min(
       Math.max(expedition.health, 0),
-      HealingRules.arthurMaxHealth(player),
+      InjuryRules.effectiveMaxHealth(player, "arthur"),
     );
     player.companionStates ??= {};
     Object.entries(expedition.companionCombatHp ?? {}).forEach(([companionId, health]) => {
-      const maximum = COMPANION_DEFINITIONS[companionId]?.combat?.maxHp ?? 0;
+      const maximum = InjuryRules.effectiveMaxHealth(player, companionId);
       const safeHealth = Math.min(Math.max(Number(health) || 0, 0), maximum);
       player.companionStates[companionId] = {
         health: COMPANION_DEFINITIONS[companionId]?.noPermanentDeath && safeHealth <= 0
@@ -408,6 +453,10 @@ const ExpeditionRules = Object.freeze({
     player.bestExpeditionDistance = Math.max(player.bestExpeditionDistance, expedition.maxDistanceReached);
   },
 });
+
+function selectedPartyIds(expedition) {
+  return ["arthur", ...selectedCompanionIds(expedition)];
+}
 
 function companionIdsFromSelection(selection) {
   if (Array.isArray(selection)) return [...new Set(selection.filter(Boolean))].slice(0, 2);

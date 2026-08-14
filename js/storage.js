@@ -5,7 +5,7 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 9,
+      saveVersion: 10,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -57,6 +57,7 @@ const SaveSystem = Object.freeze({
         companion.id,
         { health: companion.combat?.maxHp ?? 0 },
       ])),
+      injuries: InjuryRules.snapshot({}),
       currentLocationId: "broceliande_village",
     };
   },
@@ -141,6 +142,7 @@ function sanitizePlayerState(savedState, defaults) {
   const materials = sanitizeMaterials(savedState.materials, savedItems);
   const packedItems = sanitizePackedItems(savedState, ownedItems, equippedItems, defaults.packedItems);
   const packedMaterials = sanitizePackedMaterials(savedState, materials, defaults.packedMaterials, savedItems);
+  const injuries = InjuryRules.snapshot({ injuries: savedState.injuries ?? defaults.injuries });
 
   const unlockedCompanions = validIdArray(
     savedState.unlockedCompanions,
@@ -155,7 +157,7 @@ function sanitizePlayerState(savedState, defaults) {
     : defaults.selectedExpeditionId;
 
   return {
-    saveVersion: 9,
+    saveVersion: 10,
     ownedItems,
     equippedItems,
     packedItems,
@@ -180,6 +182,7 @@ function sanitizePlayerState(savedState, defaults) {
       defaults.arthurHealth,
     ),
     companionStates: sanitizeCompanionStates(savedState.companionStates, defaults.companionStates),
+    injuries,
     currentLocationId: LOCATION_DEFINITIONS[savedState.currentLocationId]
       ? savedState.currentLocationId
       : defaults.currentLocationId,

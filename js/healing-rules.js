@@ -1,9 +1,8 @@
 "use strict";
 
 const HealingRules = Object.freeze({
-  arthurMaxHealth(_player = null) {
-    // This is the extension point for later equipment, relic, injury, or progression modifiers.
-    return PLAYER_CHARACTER_DEFINITION.combat.maxHp;
+  arthurMaxHealth(player = null) {
+    return InjuryRules.effectiveMaxHealth(player ?? {}, PLAYER_CHARACTER_DEFINITION.id);
   },
 
   arthurHealth(player) {
@@ -20,7 +19,7 @@ const HealingRules = Object.freeze({
     selectedCompanionIds(player).forEach((companionId) => {
       const companion = COMPANION_DEFINITIONS[companionId];
       if (!companion) return;
-      const maxHealth = companion.combat?.maxHp ?? 0;
+      const maxHealth = InjuryRules.effectiveMaxHealth(player, companion.id);
       members.push({
         id: companion.id,
         name: companion.name,
@@ -51,9 +50,11 @@ const HealingRules = Object.freeze({
     });
     const arthur = partyMembers[0];
     const totalHealingAmount = partyMembers.reduce((sum, member) => sum + member.healingAmount, 0);
+    const exhaustionMembers = partyMembers.filter((member) => InjuryRules.has(player, member.id, "exhaustion"));
+    const needsRest = totalHealingAmount > 0 || exhaustionMembers.length > 0;
     return {
-      available: totalHealingAmount > 0 && player.currentGold >= HEALING_TUNING.innRestGoldCost,
-      fullHealth: totalHealingAmount <= 0,
+      available: needsRest && player.currentGold >= HEALING_TUNING.innRestGoldCost,
+      fullHealth: !needsRest,
       affordable: player.currentGold >= HEALING_TUNING.innRestGoldCost,
       healthBefore: arthur.healthBefore,
       healthAfter: arthur.healthAfter,
@@ -66,8 +67,9 @@ const HealingRules = Object.freeze({
       healingByPartyMember: Object.fromEntries(partyMembers.map(
         (member) => [member.id, member.healingAmount],
       )),
-      goldCost: totalHealingAmount > 0 ? HEALING_TUNING.innRestGoldCost : 0,
-      quotedGoldCost: totalHealingAmount > 0 ? HEALING_TUNING.innRestGoldCost : 0,
+      exhaustionMembers: exhaustionMembers.map((member) => member.id),
+      goldCost: needsRest ? HEALING_TUNING.innRestGoldCost : 0,
+      quotedGoldCost: needsRest ? HEALING_TUNING.innRestGoldCost : 0,
       resource: "gold",
     };
   },
@@ -90,6 +92,7 @@ const HealingRules = Object.freeze({
         healingByPartyMember: Object.fromEntries(quote.partyMembers.map(
           (member) => [member.id, 0],
         )),
+        injuriesTreated: [],
       };
     }
     player.currentGold -= quote.goldCost;
@@ -104,14 +107,17 @@ const HealingRules = Object.freeze({
         health: member.healthAfter,
       };
     });
-    return { ...quote, applied: true };
+    const injuriesTreated = quote.exhaustionMembers
+      .map((characterId) => InjuryRules.recoverExhaustion(player, characterId, "inn"))
+      .filter((result) => result.applied);
+    return { ...quote, applied: true, injuriesTreated };
   },
 
   restExpeditionParty(expedition, amount) {
     const requested = Math.max(0, Number(amount) || 0);
     const healingByPartyMember = {};
     let totalHealingAmount = 0;
-    const arthurMaximum = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
+    const arthurMaximum = InjuryRules.effectiveMaxHealth(expedition, "arthur");
     const arthurBefore = clampHealingNumber(expedition.health, 0, arthurMaximum);
     const arthurHealing = Math.min(requested, arthurMaximum - arthurBefore);
     expedition.health = arthurBefore + arthurHealing;
@@ -119,7 +125,7 @@ const HealingRules = Object.freeze({
     totalHealingAmount += arthurHealing;
 
     Object.entries(expedition.companionCombatHp ?? {}).forEach(([companionId, health]) => {
-      const maximum = COMPANION_DEFINITIONS[companionId]?.combat?.maxHp ?? 0;
+      const maximum = InjuryRules.effectiveMaxHealth(expedition, companionId);
       const before = clampHealingNumber(health, 0, maximum);
       const healing = Math.min(requested, maximum - before);
       expedition.companionCombatHp[companionId] = before + healing;

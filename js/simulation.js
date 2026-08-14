@@ -15,12 +15,12 @@ const SimulationTravelPolicy = Object.freeze({
     if (strategyName === "cautious") {
       return {
         paceId: "cautious",
-        rationId: provisions >= capacity * 0.75 ? "generous" : "normal",
+        rationId: provisions >= capacity * 0.65 || hasInjury(context.injuries, "exhaustion") ? "generous" : "normal",
       };
     }
     if (strategyName === "aggressive") {
       return {
-        paceId: "hard_push",
+        paceId: hasInjury(context.injuries, "sprained_ankle") ? "normal" : "hard_push",
         rationId: provisions <= capacity * 0.5 ? "sparse" : "normal",
       };
     }
@@ -31,6 +31,7 @@ const SimulationTravelPolicy = Object.freeze({
     const settings = this.departureSettings(strategyName, {
       provisions: expedition?.provisions,
       capacity: expedition?.provisionCapacity,
+      injuries: expedition?.injuries,
     });
     if (strategyName === "cautious") {
       const returnStatus = ExpeditionRules.returnProvisionStatus(expedition);
@@ -41,6 +42,13 @@ const SimulationTravelPolicy = Object.freeze({
       const returnStatus = ExpeditionRules.returnProvisionStatus(expedition);
       settings.rationId = returnStatus.state === "danger" || expedition.provisions <= expedition.provisionCapacity * 0.5
         ? "sparse" : "normal";
+    }
+    if (hasInjury(expedition?.injuries, "sprained_ankle") && settings.paceId === "hard_push") {
+      settings.paceId = "normal";
+    }
+    if (hasInjury(expedition?.injuries, "exhaustion")
+      && expedition?.provisions >= (expedition?.provisionCapacity ?? 0) * 0.5) {
+      settings.rationId = "generous";
     }
     return settings;
   },
@@ -57,16 +65,21 @@ const SimulationTravelPolicy = Object.freeze({
       greedy: { brief: 0.45, camp: 0.25 },
     }[strategyName] ?? { brief: 0.55, camp: 0.35 };
     const healthRatio = expeditionHealthRatio(expedition);
+    const injured = InjuryRules.forCharacter(expedition, "arthur");
     const enoughForCamp = expedition.provisions >= EXPEDITION_TUNING.campRest.provisionCost;
     const enoughForBriefRest = expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost;
     const movedSinceRest = history.lastRestDistance === null
       || Math.abs(expedition.distance - history.lastRestDistance) >= 5;
     const movedSinceCamp = history.lastCampDistance === null
       || Math.abs(expedition.distance - history.lastCampDistance) >= 8;
-    if (healthRatio <= thresholds.camp && enoughForCamp && movedSinceCamp && expedition.distance > 0) {
+    const injuryWarrantsCamp = injured.includes("deep_cut") || injured.includes("poisoned") || injured.includes("exhaustion");
+    const injuryWarrantsRest = injured.includes("bruised_ribs") || injured.includes("sprained_ankle") || injuryWarrantsCamp;
+    if ((healthRatio <= thresholds.camp || (injuryWarrantsCamp && strategyName !== "aggressive"))
+      && enoughForCamp && movedSinceCamp && expedition.distance > 0) {
       return "camp";
     }
-    if (healthRatio <= thresholds.brief && enoughForBriefRest && movedSinceRest) {
+    if ((healthRatio <= thresholds.brief || (injuryWarrantsRest && strategyName !== "aggressive"))
+      && enoughForBriefRest && movedSinceRest) {
       return "brief-rest";
     }
     return "continue";
@@ -259,7 +272,7 @@ const SimulationRunner = Object.freeze({
       let travelDistance = normalized.travelStepDistance
         * (expedition.direction === "returning" ? EXPEDITION_TUNING.returnSpeedMultiplier : 1)
         * ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier
-        * (expedition.travelSpeedMultiplier ?? 1);
+        * ExpeditionRules.travelSpeedMultiplier(expedition);
       const distanceToEncounter = expedition.nextEncounterAt - expedition.encounterTravelDistance;
       if (distanceToEncounter > 0) travelDistance = Math.min(travelDistance, distanceToEncounter);
       if (expedition.direction === "outbound" && turnaroundPolicy.name === "fixed-distance") {
@@ -387,6 +400,15 @@ const SimulationTelemetry = Object.freeze({
       rationSelectedAtDeparture: run.rationSelectedAtDeparture,
       paceChanges: run.paceChanges,
       rationChanges: run.rationChanges,
+      injuriesAtDeparture: run.injuriesAtDeparture,
+      injuriesGained: run.injuriesGained,
+      injuriesTreated: run.injuriesTreated,
+      injuryEvents: run.injuryEvents,
+      activeInjuriesAtEnd: run.activeInjuriesAtEnd,
+      returnedWhileInjured: run.returnedWhileInjured,
+      exhaustionOccurrences: run.exhaustionOccurrences,
+      distanceByPace: run.distanceByPace,
+      distanceByRation: run.distanceByRation,
       briefRests: run.briefRests,
       campsEntered: run.campsEntered,
       campRests: run.campRests,
@@ -474,6 +496,8 @@ const SimulationTelemetry = Object.freeze({
     const fields = [
       "runId", "scenarioId", "seed", "strategy", "turnaroundPolicy", "companion",
       "paceSelectedAtDeparture", "rationSelectedAtDeparture", "paceChanges", "rationChanges",
+      "injuriesAtDeparture", "injuriesGained", "injuriesTreated", "activeInjuriesAtEnd",
+      "returnedWhileInjured", "exhaustionOccurrences", "distanceByPace", "distanceByRation",
       "outcome", "failureReason", "provisionExhaustionFailure", "originalTargetDistance",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "departureTotalEstimatedRequirement",
       "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance", "turnaroundDistance",
@@ -647,6 +671,7 @@ function normalizeScenario(scenario) {
   const defaultTravelSettings = SimulationTravelPolicy.departureSettings(strategy, {
     provisions,
     capacity,
+    injuries: startingState.injuries ?? defaultPlayer.injuries,
   });
   return {
     id: scenario.id ?? scenario.scenarioId ?? "default",
@@ -688,6 +713,7 @@ function createSimulationPlayer(scenario) {
   const defaults = SaveSystem.createDefaultPlayerState();
   const player = deepClone({ ...defaults, ...scenario.startingState });
   player.ownedItems = { ...defaults.ownedItems, ...(scenario.startingState.ownedItems ?? {}) };
+  player.injuries = InjuryRules.snapshot({ injuries: scenario.startingState.injuries ?? defaults.injuries });
   player.materials = { ...defaults.materials, ...(scenario.startingState.materials ?? {}) };
   player.packedMaterials = { ...defaults.packedMaterials, ...(scenario.startingState.packedMaterials ?? {}) };
   Object.entries(scenario.startingState.ownedItems ?? {}).forEach(([itemId, quantity]) => {
@@ -750,12 +776,16 @@ function createExpeditionDecisionHistory() {
 
 function expeditionHealthRatio(expedition) {
   const partyRatios = [
-    expedition.health / PLAYER_CHARACTER_DEFINITION.combat.maxHp,
+    expedition.health / InjuryRules.effectiveMaxHealth(expedition, "arthur"),
     ...Object.entries(expedition.companionCombatHp ?? {}).map(([companionId, health]) => (
-      health / (COMPANION_DEFINITIONS[companionId]?.combat?.maxHp ?? 1)
+      health / InjuryRules.effectiveMaxHealth(expedition, companionId)
     )),
   ];
   return Math.min(...partyRatios.filter(Number.isFinite));
+}
+
+function hasInjury(injuries, injuryId) {
+  return Object.values(injuries ?? {}).some((entries) => (entries ?? []).includes(injuryId));
 }
 
 function applySimulationTravelSettings(expedition, strategyName, telemetry) {
@@ -928,6 +958,8 @@ function simulationRestTelemetry(kind, result, before, after, expedition) {
     provisionsAfter: after.resources.provisions,
     provisionsChange: rounded(after.resources.provisions - before.resources.provisions),
     healingByPartyMember: deepClone(result.healingByPartyMember ?? {}),
+    injuriesTreated: deepClone(result.injuriesTreated ?? []),
+    restHealingMultiplier: InjuryRules.restHealingMultiplier(expedition),
     distance: rounded(expedition.distance),
   };
 }
@@ -1213,6 +1245,9 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     rationSelectedAtDeparture: expedition.rationId,
     paceChanges: [],
     rationChanges: [],
+    injuriesAtDeparture: deepClone(expedition.injuries),
+    injuryEvents: [],
+    injuriesTreated: [],
     briefRests: [],
     campsEntered: 0,
     campRests: [],
@@ -1249,6 +1284,7 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
       pathId: expedition.currentPathId,
       paceId: expedition.paceId,
       rationId: expedition.rationId,
+      injuries: deepClone(expedition.injuries),
       decisions: [],
     },
     decisions: [],
@@ -1309,6 +1345,14 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     maximumDistance: rounded(expedition.maxDistanceReached),
     finalDistance: rounded(expedition.distance),
     finalArthurHealth: rounded(expedition.health),
+    injuriesGained: deepClone((expedition.injuryEvents ?? []).filter((event) => event.type === "injury-gained")),
+    injuriesTreated: deepClone((expedition.injuryEvents ?? []).filter((event) => event.type === "injury-treated")),
+    injuryEvents: deepClone(expedition.injuryEvents ?? []),
+    activeInjuriesAtEnd: deepClone(InjuryRules.snapshot(expedition)),
+    returnedWhileInjured: returned && Object.values(InjuryRules.snapshot(expedition)).some((injuries) => injuries.length > 0),
+    exhaustionOccurrences: (expedition.injuryEvents ?? []).filter((event) => event.injuryId === "exhaustion").length,
+    distanceByPace: deepClone(expedition.distanceByPace ?? {}),
+    distanceByRation: deepClone(expedition.distanceByRation ?? {}),
     finalPartyHealth: {
       arthur: rounded(expedition.health),
       ...(expedition.selectedCompanion && expedition.companionCombatHp[expedition.selectedCompanion] === undefined
@@ -1389,6 +1433,9 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     cookingProvisionsGained: rounded(telemetry.recipesCooked.reduce(
       (sum, recipe) => sum + (Number(recipe.provisionsGained) || 0), 0,
     )),
+    restHealingModified: [...telemetry.briefRests, ...telemetry.campRests]
+      .filter((rest) => rest.restHealingMultiplier !== 1)
+      .map((rest) => ({ kind: rest.kind, multiplier: rest.restHealingMultiplier, distance: rest.distance })),
     encounterCount: telemetry.encounters.length,
     combatCount: telemetry.combats.length,
     stepCount: steps,
@@ -1399,6 +1446,7 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
   );
   telemetry.encounters.forEach((encounter) => delete encounter.before);
   telemetry.replay.decisions = deepClone(telemetry.decisions);
+  telemetry.replay.injuryEvents = deepClone(telemetry.injuryEvents);
   telemetry.events.push({
     type: "expedition-end", outcome: telemetry.outcome, maximumDistance: telemetry.maximumDistance,
     health: telemetry.finalPartyHealth, provisions: telemetry.provisionsRemaining,
@@ -1630,6 +1678,11 @@ function summarizeRuns(results) {
   const total = results.length;
   const returned = results.filter((run) => run.returnedSafely).length;
   const values = (field) => results.map((run) => Number(run[field]) || 0);
+  const injuryEvents = results.flatMap((run) => run.injuriesGained ?? []);
+  const injuriesByType = injuryEvents.reduce((counts, event) => {
+    counts[event.injuryId] = (counts[event.injuryId] ?? 0) + 1;
+    return counts;
+  }, {});
   return {
     totalRuns: total,
     successRate: ratio(returned, total),
@@ -1656,6 +1709,13 @@ function summarizeRuns(results) {
     averageCampEvents: average(values("campEventCount")),
     averageCookingActions: average(values("cookingActionCount")),
     averageCookingProvisionsGained: average(values("cookingProvisionsGained")),
+    injuriesPerRun: rounded(injuryEvents.length / Math.max(1, total)),
+    runsWithAnyInjury: results.filter((run) => (run.injuriesGained ?? []).length > 0).length,
+    runsWithTwoInjuries: results.filter((run) => Object.values(run.activeInjuriesAtEnd ?? {}).some((injuries) => injuries.length >= 2)).length,
+    injuriesByType,
+    runsTreatedForInjury: results.filter((run) => (run.injuriesTreated ?? []).length > 0).length,
+    returnedWhileInjured: results.filter((run) => run.returnedWhileInjured).length,
+    averageExhaustionOccurrences: average(values("exhaustionOccurrences")),
     emergencyProvisionTurnaroundRate: ratio(
       results.filter((run) => run.emergencyProvisionTurnaround).length, total,
     ),

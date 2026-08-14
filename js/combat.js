@@ -70,7 +70,9 @@ const CombatSystem = Object.freeze({
     livingCombatants.forEach((combatant) => {
       combatant.gauge = Math.min(
         COMBAT_TUNING.actionGaugeMaximum,
-        combatant.gauge + combatant.speed * deltaSeconds * COMBAT_TUNING.actionGaugeRate,
+        combatant.gauge + combatant.speed * deltaSeconds * COMBAT_TUNING.actionGaugeRate
+          * (combatant.side === "ally"
+            ? InjuryRules.combatGaugeRateMultiplier(expedition, combatant.id) : 1),
       );
     });
 
@@ -312,10 +314,11 @@ function createArthurCombatant(expedition) {
     definitionId: "arthur",
     side: "ally",
     name: PLAYER_CHARACTER_DEFINITION.name,
-    maxHp: PLAYER_CHARACTER_DEFINITION.combat.maxHp,
-    hp: clampCombatNumber(expedition.health, 0, PLAYER_CHARACTER_DEFINITION.combat.maxHp),
+    maxHp: InjuryRules.effectiveMaxHealth(expedition, "arthur"),
+    hp: clampCombatNumber(expedition.health, 0, InjuryRules.effectiveMaxHealth(expedition, "arthur")),
     speed: PLAYER_CHARACTER_DEFINITION.combat.speed,
-    defense: Number(armor?.effects?.combatDefense) || 0,
+    defense: Math.max(0, Math.floor((Number(armor?.effects?.combatDefense) || 0)
+      * InjuryRules.combatDefenseMultiplier(expedition, "arthur"))),
     damage: weapon?.effects?.combatDamage ?? { minimum: 4, maximum: 6 },
     gauge: 0,
     defending: false,
@@ -346,10 +349,11 @@ function createCompanionCombatant(expedition, companionId) {
     definitionId: companionId,
     side: "ally",
     name: companion.name,
-    maxHp: companion.combat.maxHp,
-    hp: clampCombatNumber(hp, 0, companion.combat.maxHp),
+    maxHp: InjuryRules.effectiveMaxHealth(expedition, companionId),
+    hp: clampCombatNumber(hp, 0, InjuryRules.effectiveMaxHealth(expedition, companionId)),
     speed: companion.combat.speed,
-    defense: companion.combat.defense,
+    defense: Math.max(0, Math.floor(companion.combat.defense
+      * InjuryRules.combatDefenseMultiplier(expedition, companionId))),
     damage: companion.combat.basicDamage,
     gauge: 0,
     defending: false,
@@ -453,10 +457,24 @@ function resolveEnemyAction(state, expedition, enemy) {
   if (target) {
     const rolled = rollCombatDamage(action.damage, state.random);
     const mitigated = calculateCombatDamage(rolled, target.defense);
-    const damage = target.defending
+    const damageBeforeInjury = target.defending
       ? Math.max(1, Math.floor(mitigated * COMBAT_TUNING.defendDamageMultiplier))
       : mitigated;
+    const damage = Math.max(1, Math.floor(
+      damageBeforeInjury * InjuryRules.incomingDamageMultiplier(expedition, target.id),
+    ));
     applyCombatDamage(state, target, damage);
+    let injury = null;
+    const injuryThreshold = Number(action.injuryChance) || 0;
+    const injuryRoll = action.damage.maximum > action.damage.minimum
+      ? (rolled - action.damage.minimum) / (action.damage.maximum - action.damage.minimum)
+      : 1;
+    if (action.injuryId && injuryRoll >= 1 - injuryThreshold) {
+      injury = InjuryRules.applyToExpedition(expedition, target.id, action.injuryId, {
+        source: `combat:${action.id}`,
+      });
+      if (injury.applied) addCombatLog(state, `${target.name} suffers ${injury.definition.name}.`);
+    }
     recordCombatEvent(state, {
       actor: enemy.id,
       action: action.id,
@@ -464,6 +482,7 @@ function resolveEnemyAction(state, expedition, enemy) {
       selectedTarget: selectedTargetId,
       redirectedByIntercede: target.id !== selectedTargetId,
       damage,
+      injuryId: injury?.applied ? injury.injuryId : null,
     });
     addCombatLog(state, `${enemy.name} uses ${action.name} on ${target.name} for ${damage} damage.`);
     if (!isLivingCombatant(target)) {

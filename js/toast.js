@@ -95,6 +95,9 @@ const ToastNotifications = (() => {
 
   function dismissAll() {
     [...activeToasts].forEach((entry) => dismiss(entry, true));
+    // A toast whose lifetime timer has already removed its registry entry can
+    // still be in its short exit animation. Clear that orphaned DOM too.
+    region()?.querySelectorAll(".toast").forEach((toast) => toast.remove());
   }
 
   return Object.freeze({ show, dismiss, dismissAll });

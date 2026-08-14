@@ -508,7 +508,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     carriable: true,
     consumable: true,
     maxStack: 4,
-    effects: {},
+    effects: { treatment: Object.freeze({ injuryIds: ["poisoned"] }) },
     questItem: false,
   },
   healing_poultice: {
@@ -524,6 +524,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: true,
     maxStack: 4,
     effects: {
+      treatment: Object.freeze({ injuryIds: ["deep_cut"] }),
       combat: Object.freeze({
         usable: true,
         effectType: "heal",
@@ -548,6 +549,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: true,
     maxStack: 3,
     effects: {
+      treatment: Object.freeze({ injuryIds: ["exhaustion"] }),
       combat: Object.freeze({
         usable: true,
         effectType: "heal",

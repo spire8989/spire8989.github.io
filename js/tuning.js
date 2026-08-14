@@ -12,6 +12,8 @@ const EXPEDITION_TUNING = Object.freeze({
       description: "Advance more carefully and conserve a little food.",
       speedMultiplier: 0.75,
       provisionMultiplier: 0.9,
+      travelInjuryRiskMultiplier: 0.55,
+      discoveryWeightMultiplier: 1.35,
     }),
     normal: Object.freeze({
       id: "normal",
@@ -19,6 +21,8 @@ const EXPEDITION_TUNING = Object.freeze({
       description: "The standard travel pace.",
       speedMultiplier: 1,
       provisionMultiplier: 1,
+      travelInjuryRiskMultiplier: 1,
+      discoveryWeightMultiplier: 1,
     }),
     hard_push: Object.freeze({
       id: "hard_push",
@@ -26,6 +30,8 @@ const EXPEDITION_TUNING = Object.freeze({
       description: "Cover ground quickly at a higher food cost.",
       speedMultiplier: 1.35,
       provisionMultiplier: 1.15,
+      travelInjuryRiskMultiplier: 1.45,
+      discoveryWeightMultiplier: 0.65,
     }),
   }),
   rationLevels: Object.freeze({
@@ -34,18 +40,24 @@ const EXPEDITION_TUNING = Object.freeze({
       name: "Sparse",
       description: "The company eats as little as practical.",
       provisionMultiplier: 0.75,
+      restHealingMultiplier: 0.75,
+      exhaustionRiskMultiplier: 1.5,
     }),
     normal: Object.freeze({
       id: "normal",
       name: "Normal",
       description: "A balanced ration.",
       provisionMultiplier: 1,
+      restHealingMultiplier: 1,
+      exhaustionRiskMultiplier: 1,
     }),
     generous: Object.freeze({
       id: "generous",
       name: "Generous",
-      description: "Larger meals with no extra recovery system yet.",
+      description: "Larger meals that support recovery on the road.",
       provisionMultiplier: 1.25,
+      restHealingMultiplier: 1.25,
+      exhaustionRiskMultiplier: 0.5,
     }),
   }),
   briefRest: Object.freeze({
@@ -56,6 +68,10 @@ const EXPEDITION_TUNING = Object.freeze({
     provisionCost: 2,
     healing: 8,
   }),
+  travelInjuryCheckDistance: 12,
+  travelInjuryBaseChance: 0.12,
+  exhaustionCheckDistance: 18,
+  sparseExhaustionBaseChance: 0.16,
   returnProvisionWarningMarginRatio: 0.2,
   encounterMinimumDistance: 14,
   encounterMaximumDistance: 22,
@@ -102,4 +118,13 @@ const COMBAT_TUNING = Object.freeze({
 const HEALING_TUNING = Object.freeze({
   innRestoration: 10,
   innRestGoldCost: 3,
+});
+
+const CRAFTING_TUNING = Object.freeze({
+  defaultDurationMs: 1800,
+  providerDurations: Object.freeze({
+    apothecary: 1800,
+    blacksmith: 2200,
+    campfire: 2000,
+  }),
 });

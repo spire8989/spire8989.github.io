@@ -3735,6 +3735,57 @@ button.combatant {
   padding-inline: 0.7rem;
 }
 
+.crafting-progress,
+.injury-panel {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem;
+  border: 1px solid rgb(217 189 114 / 28%);
+  border-radius: 0.4rem;
+  background: rgb(28 39 29 / 72%);
+  font-family: system-ui, sans-serif;
+}
+.crafting-progress-heading,
+.injury-panel .section-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: #f0e3bd;
+  font-size: clamp(0.58rem, 2.5cqw, 0.72rem);
+}
+.crafting-progress p,
+.injury-panel em,
+.injury-treatment-missing {
+  margin: 0;
+  color: #b7b6a3;
+  font-size: clamp(0.52rem, 2.2cqw, 0.65rem);
+}
+.crafting-progress-track {
+  height: 0.42rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(5 12 7 / 85%);
+}
+.crafting-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b88c42, #e7c978);
+  transition: width 80ms linear;
+}
+.injury-panel { margin-top: 0.55rem; }
+.injury-panel-empty { color: #b7b6a3; }
+.injury-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid rgb(217 189 114 / 12%);
+}
+.injury-row > div { display: grid; gap: 0.15rem; min-width: 0; }
+.injury-row strong { color: #f0e3bd; font-size: clamp(0.56rem, 2.35cqw, 0.68rem); }
+.injury-row span { color: #b7b6a3; font-size: clamp(0.5rem, 2.05cqw, 0.61rem); }
+
 .expedition-action-bar {
   grid-template-columns: minmax(0, 2fr) minmax(4.6rem, 1fr);
   background: #111a13;

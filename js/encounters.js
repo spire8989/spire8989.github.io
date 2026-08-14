@@ -126,7 +126,7 @@ const EncounterOutcomes = Object.freeze({
           expedition.health = clampNumber(
             expedition.health,
             0,
-            PLAYER_CHARACTER_DEFINITION.combat.maxHp,
+            InjuryRules.effectiveMaxHealth(expedition, "arthur"),
           );
         } else {
           expedition[effect.resource] = Math.max(0, expedition[effect.resource]);
@@ -192,6 +192,20 @@ const EncounterOutcomes = Object.freeze({
         rewards = lootRewards
           .filter((reward) => reward.type === "recipe" || Number(reward.quantity) > 0)
           .map((reward) => ({ ...reward, unsecured: true }));
+        break;
+      }
+      case "applyInjury": {
+        const targets = effect.target === "selected_companion"
+          ? [selectedCompanionIds(expedition)[0]].filter(Boolean)
+          : effect.target === "all"
+            ? ["arthur", ...selectedCompanionIds(expedition)]
+            : [effect.target ?? "arthur"];
+        targets.forEach((target) => {
+          const result = InjuryRules.applyToExpedition(expedition, target, effect.injuryId, {
+            source: effect.source ?? effect.cause ?? "encounter",
+          });
+          if (result.applied) messages.push(`${INJURY_DEFINITIONS[result.injuryId].name} gained.`);
+        });
         break;
       }
       case "consumeExpeditionItem": {
@@ -425,7 +439,10 @@ const EncounterManager = Object.freeze({
         && canRepeat
         && avoidsImmediateRepeat
         && EncounterRequirements.meetsAll(encounter.requirements, context);
-    });
+    }).map((encounter) => ({
+      ...encounter,
+      weight: (Number(encounter.weight) || 1) * ExpeditionRules.discoveryWeightMultiplier(expedition, encounter),
+    }));
   },
 
   begin(expedition, encounterId) {
