@@ -1322,7 +1322,7 @@ function renderExpedition() {
       </div>
       ${activeEncounter
         ? renderEncounterPanel(expedition, activeEncounter)
-         : renderTravelPanel(expedition, companions, loadoutEntries)}
+         : `${renderTravelPanel(expedition, companions, loadoutEntries)}${renderExpeditionActionBar(expedition)}`}
     </section>`;
   updateTravelHud();
 }
@@ -1446,11 +1446,23 @@ function renderCampEventPanel(expedition, event) {
   return panel.replace("travel-panel", "travel-panel camp-event-panel");
 }
 
+function renderExpeditionActionBar(expedition) {
+  return `
+    <div class="expedition-action-bar" role="group" aria-label="Expedition travel actions">
+      ${expedition.travelState === "paused"
+        ? `<button id="resume-button" class="game-button travel-action-primary" type="button" data-action="resume-travel">Resume Travel</button>`
+        : `<button id="pause-button" class="game-button travel-action-primary" type="button" data-action="pause-travel">Pause Travel</button>`}
+      <button id="return-button" class="small-button travel-return-button" type="button" data-action="return-to-safety">Return Journey</button>
+    </div>`;
+}
+
 function renderTravelPanel(expedition, companions, loadout) {
   const travelMessage = expedition.lastEncounterResult
     || (expedition.currentPathId === "overgrown_trail"
       ? "The overgrown trail narrows beneath ancient trees."
       : "The old forest road winds deeper beneath the trees.");
+  const companyLabel = [PLAYER_CHARACTER_DEFINITION.name, ...companions.map((companion) => companion.name)].join(" &amp; ");
+  const carriedQuantity = Object.values(expedition.carriedItems ?? {}).reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
 
   return `
     <div class="travel-panel">
@@ -1467,38 +1479,23 @@ function renderTravelPanel(expedition, companions, loadout) {
       <div class="progress-track" aria-label="Current return distance">
         <div class="progress-fill" id="distance-progress"></div>
       </div>
-      <section class="run-details" aria-labelledby="expedition-details-title">
-        <p class="eyebrow" id="expedition-details-title">Expedition Details</p>
-        <p><span>Company</span><strong>${[PLAYER_CHARACTER_DEFINITION.name, ...companions.map((companion) => companion.name)].join(" &amp; ")}</strong></p>
+      <details class="run-details expedition-details">
+        <summary class="run-details-summary">
+          <span class="run-details-heading">Expedition Details</span>
+          <span class="run-details-summary-text">${companyLabel} &middot; ${pathLabel(expedition.currentPathId)} &middot; ${carriedQuantity} carried items</span>
+        </summary>
+        <div class="run-details-content">
+        <p><span>Company</span><strong>${companyLabel}</strong></p>
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
         <div class="run-detail-collection"><span>Loadout</span><div class="run-item-list">${renderItemChips(loadout, "No equipment selected")}</div></div>
         <div class="run-detail-collection"><span>Carried</span><div class="run-item-list">${formatCarriedItems(expedition.carriedItems)}</div></div>
         <div class="run-detail-collection"><span>Discoveries</span><div id="loot-list" class="loot-list">${renderDiscoveryList(expedition)}</div></div>
-      </section>
-      ${renderEncounterDebugControls(expedition)}
-      <section class="strategic-exit" aria-labelledby="strategic-exit-title">
-        <div>
-          <p class="eyebrow" id="strategic-exit-title">Strategic Exit</p>
-          <p>Turn back toward the village and keep the discoveries already secured for this expedition.</p>
         </div>
-        <button id="return-button" class="game-button journey-button" type="button" data-action="return-to-safety">Begin Return Journey</button>
-      </section>
-      <section class="destructive-exit" aria-labelledby="destructive-exit-title">
-        <p class="eyebrow" id="destructive-exit-title">Destructive Action</p>
-        <button class="text-button danger-button abandon-button" type="button" data-action="abandon-expedition">Abandon Expedition</button>
-      </section>
-      <!-- Legacy action markup is replaced by the journey controls above. -->
-      <!--
-      <div class="footer-actions travel-actions" hidden>
-        <button class="text-button danger-button" type="button" data-action="abandon-expedition">Abandon</button>
-        ${expedition.travelState === "paused"
-          ? `<button class="small-button" type="button" data-action="brief-rest" ${expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost ? "" : "disabled"}>Brief Rest · ${EXPEDITION_TUNING.briefRest.provisionCost} Food</button>
-             <button class="small-button" type="button" data-action="make-camp">Make Camp</button>
-             <button class="game-button" type="button" data-action="resume-travel">Resume Travel</button>`
-          : `<button id="pause-button" class="small-button" type="button" data-action="pause-travel">Pause Travel</button>`}
-        <button id="legacy-return-button" class="game-button" type="button" data-action="return-to-safety">Return to Safety</button>
-      </div>
-      -->
+        <div class="run-details-actions">
+          <button class="text-button danger-button abandon-button" type="button" data-action="abandon-expedition">Abandon Expedition</button>
+        </div>
+      </details>
+      ${renderEncounterDebugControls(expedition)}
     </div>`;
 }
 
@@ -1515,27 +1512,21 @@ function renderTravelSettings(expedition) {
   return `
     <section class="travel-settings journey-controls" aria-labelledby="journey-controls-title">
       <div class="journey-heading">
-        <div>
-          <p class="eyebrow">Journey</p>
-          <h2 id="journey-controls-title">Travel Dashboard</h2>
-        </div>
+        <p class="eyebrow" id="journey-controls-title">Journey</p>
         <span class="journey-state">${paused ? "Paused" : expedition.direction === "returning" ? "Returning" : "Traveling"}</span>
       </div>
       <div class="setting-row"><span>Pace</span><div class="setting-buttons">${paceButtons}</div></div>
       <div class="setting-row"><span>Rations</span><div class="setting-buttons">${rationButtons}</div></div>
       <p class="journey-summary">${pace.name} pace &middot; ${ration.name} rations</p>
       ${paused
-        ? `<div class="journey-state-banner"><strong>Travel Paused</strong><span>Distance and provisions are holding steady.</span></div>
-           <button class="game-button journey-button journey-resume-button" type="button" data-action="resume-travel">Resume Travel</button>
-           <div class="paused-actions">
+        ? `<div class="paused-actions">
              <p class="eyebrow">Paused Actions</p>
              <div class="paused-action-buttons">
                <button class="small-button" type="button" data-action="brief-rest" ${expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost ? "" : "disabled"}>Brief Rest &middot; ${EXPEDITION_TUNING.briefRest.provisionCost} Food</button>
                <button class="small-button make-camp-button" type="button" data-action="make-camp">Make Camp</button>
              </div>
            </div>`
-        : `<button id="pause-button" class="small-button journey-pause-button" type="button" data-action="pause-travel">Pause Travel</button>`}
-      <p class="setting-summary">${pace.name} · ${ration.name} · ${ExpeditionRules.provisionConsumptionMultiplier(expedition).toFixed(2)}× food rate</p>
+         : ""}
     </section>`;
 }
 
@@ -1769,7 +1760,6 @@ function renderExpeditionResources(expedition) {
           <span>${itemIcon("material")}<strong id="loot-material-count">${materialQuantity}</strong> materials</span>
           <span>${itemIcon("currency")}<strong id="loot-gold-count">${expedition.goldCarried}</strong> gold</span>
         </div>
-        <p id="loot-empty-state" class="unsecured-empty" ${totalDiscoveries > 0 || expedition.goldCarried > 0 ? "hidden" : ""}>Nothing found yet</p>
       </div>
     </div>`;
 }
@@ -2440,9 +2430,6 @@ function updateTravelHud() {
   setText("#loot-item-count", itemQuantity);
   setText("#loot-material-count", materialQuantity);
   setText("#loot-gold-count", expedition.goldCarried);
-  document.querySelector("#loot-empty-state")?.toggleAttribute(
-    "hidden", totalDiscoveries > 0 || expedition.goldCarried > 0,
-  );
 
   const returning = expedition.direction === "returning";
   const activeEncounter = expedition.activeEncounter
@@ -2464,7 +2451,7 @@ function updateTravelHud() {
   travelers?.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
   if (returnButton) {
     returnButton.disabled = returning;
-    returnButton.textContent = returning ? "Return Journey Underway" : "Begin Return Journey";
+    returnButton.textContent = "Return Journey";
   }
   if (progressFill) {
     const denominator = Math.max(expedition.maxDistanceReached, 1);
