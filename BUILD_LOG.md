@@ -1,5 +1,28 @@
 # Build Log
 
+## 2026-08-14 - Intrinsic Dialogue Continue Action
+
+### Goal
+
+Correct the remaining dialogue hierarchy issue by stopping simple Continue actions from stretching across the dialogue copy column while preserving wide, comfortable player-choice buttons.
+
+### Human prompt and direction
+
+The human developer supplied a dialogue-only correction guide identifying the overlapping shared `width: 100%` rule and requested CSS cleanup, narrow/normal portrait verification, and a local add/commit.
+
+### AI-assisted implementation
+
+- Removed the obsolete shared dialogue-action width block and consolidated the subdued action treatment into one focused section.
+- Made `.dialogue-continue` intrinsic-width, right-aligned, and minimum 7.5rem wide while retaining a 36–40px touch target.
+- Kept `.dialogue-choice` buttons full-width for readable wrapping and comfortable choice selection, without changing encounter or other gameplay buttons.
+- Added browser checks for normal-viewport Reeve and Blacksmith Continue actions, narrow-phone Continue sizing, and full-width multi-choice buttons.
+
+### Verification and resulting prototype state
+
+Simple Continue now sits as a modest right-aligned action beneath the dialogue text at both normal and narrow portrait sizes. Player-choice buttons remain wide and touch-friendly.
+
+Verified 415 UI/provision/location browser assertions and `git diff --check`.
+
 ## 2026-08-14 - Dialogue Action Weight Tweak
 
 ### Goal
