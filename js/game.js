@@ -403,7 +403,6 @@ function renderDestination() {
     <section class="screen destination-screen" aria-labelledby="destination-title">
       <div class="visual-frame destination-visual visual-${destination.visualKey}">
         <span class="destination-emblem" aria-hidden="true">${destinationIcon(destination.type)}</span>
-        <div><p>${destination.name}</p><span>${destination.description}</span></div>
       </div>
       <div class="destination-panel">
         <header class="interaction-header">
@@ -547,9 +546,11 @@ function renderMaterialBagChips(expedition, emptyLabel = "None") {
 function craftingRow(recipe, providerId, options = {}) {
   const quote = CraftingRules.quote(game.player, recipe.id, providerId, options);
   const ingredients = quote.ingredientStatus.map(({ ingredientId, materialId, itemId, required, owned, sufficient }) => (
-    `<span class="${sufficient ? "" : "is-missing"}">${ITEM_DEFINITIONS[itemId]?.name ?? MaterialRules.definition(materialId ?? ingredientId).name ?? "Ingredient"} ${owned}/${required}</span>`
-  )).join(" · ");
-  const cost = recipe.goldCost > 0 ? ` · ${recipe.goldCost} gold` : "";
+    `<span class="crafting-requirement crafting-ingredient ${sufficient ? "" : "is-missing"}">${ITEM_DEFINITIONS[itemId]?.name ?? MaterialRules.definition(materialId ?? ingredientId).name ?? "Ingredient"} ${owned}/${required}</span>`
+  )).join("");
+  const cost = recipe.goldCost > 0
+    ? `<span class="crafting-requirement crafting-gold">${recipe.goldCost} gold</span>`
+    : "";
   const output = recipe.output.provisions > 0
     ? `${recipe.output.provisions} Provisions`
     : `${quote.item?.name ?? "Unknown item"}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}`;
@@ -557,7 +558,7 @@ function craftingRow(recipe, providerId, options = {}) {
   return `
     <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
       <div class="item-icon" aria-hidden="true">${recipe.output.provisions > 0 ? categoryIcon("healing") : itemIcon(quote.item?.category, quote.item)}</div>
-      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost">${ingredients}${cost}</span><span>Creates ${output}</span></div>
+      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost"><span class="crafting-requirements">${ingredients}${cost}</span></span><span>Creates ${output}</span></div>
       <button class="small-button" type="button" data-action="${action}" data-recipe-id="${recipe.id}">${providerId === "campfire" ? "Cook" : "Craft"}</button>
     </article>`;
 }
@@ -1528,7 +1529,7 @@ function renderExpeditionActionBar(expedition) {
       ${expedition.travelState === "paused"
         ? `<button id="resume-button" class="game-button travel-action-primary" type="button" data-action="resume-travel">Resume Travel</button>`
         : `<button id="pause-button" class="game-button travel-action-primary" type="button" data-action="pause-travel">Pause Travel</button>`}
-      <button id="return-button" class="small-button travel-return-button" type="button" data-action="return-to-safety">Return Journey</button>
+      <button id="return-button" class="small-button travel-return-button" type="button" data-action="return-to-safety">Return</button>
     </div>`;
 }
 
@@ -1586,15 +1587,18 @@ function renderTravelSettings(expedition) {
   const pace = ExpeditionRules.paceDefinition(expedition.paceId);
   const ration = ExpeditionRules.rationDefinition(expedition.rationId);
   const paused = expedition.travelState === "paused";
+  const settingControls = paused
+    ? `<div class="setting-row"><span>Pace</span><div class="setting-buttons">${paceButtons}</div></div>
+       <div class="setting-row"><span>Rations</span><div class="setting-buttons">${rationButtons}</div></div>`
+    : "";
   return `
     <section class="travel-settings journey-controls" aria-labelledby="journey-controls-title">
       <div class="journey-heading">
         <p class="eyebrow" id="journey-controls-title">Journey</p>
         <span class="journey-state">${paused ? "Paused" : expedition.direction === "returning" ? "Returning" : "Traveling"}</span>
       </div>
-      <div class="setting-row"><span>Pace</span><div class="setting-buttons">${paceButtons}</div></div>
-      <div class="setting-row"><span>Rations</span><div class="setting-buttons">${rationButtons}</div></div>
-      <p class="journey-summary">${pace.name} pace &middot; ${ration.name} rations</p>
+      ${settingControls}
+      <p class="journey-summary ${paused ? "is-editable-summary" : "is-compact-summary"}">${pace.name} pace &middot; ${ration.name} rations</p>
       ${paused
         ? `<div class="paused-actions">
              <p class="eyebrow">Paused Actions</p>
@@ -1747,6 +1751,7 @@ function renderCombatant(combatant, combat) {
     <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${selected ? "is-selected" : ""} ${wasHit ? "was-hit" : ""}"
       data-combatant-id="${combatant.id}" ${targetAttributes}>
       <div class="combatant-token" aria-hidden="true">${combatant.side === "ally" ? "♞" : "◆"}</div>
+      ${selected ? '<span class="combat-target-badge" aria-hidden="true">TARGET</span>' : ""}
       <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
       <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
       ${intent}
@@ -2531,7 +2536,7 @@ function updateTravelHud() {
   travelers?.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
   if (returnButton) {
     returnButton.disabled = returning;
-    returnButton.textContent = "Return Journey";
+    returnButton.textContent = "Return";
   }
   if (progressFill) {
     const denominator = Math.max(expedition.maxDistanceReached, 1);

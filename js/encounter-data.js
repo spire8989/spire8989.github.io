@@ -63,6 +63,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               chance: 0.2,
               effects: [{ type: "modifyResource", resource: "provisions", amount: 1 }],
               resultText: "The rope makes the passage easy, and Arthur recovers a small packet of usable trail food from the branches.",
+              secondaryOutcome: {
+                chance: 0.12,
+                effects: [{ type: "consumeExpeditionItem", itemId: "rope", quantity: 1 }],
+                resultText: "The rope catches on a jagged branch and frays beyond use as the company clears the trunk.",
+                elseResultText: "The rope holds firm and can be packed again after the crossing.",
+              },
             }],
             resultText: "The rope provides an easy handline over the fallen trunk.",
             pendingAction: {
@@ -410,6 +416,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               chance: 0.15,
               effects: [{ type: "gainUnsecuredItem", itemId: "hunting_supplies", quantity: 1 }],
               resultText: "The secured rope lets Arthur retrieve a small set of hooks and twine snagged beside the bank.",
+              secondaryOutcome: {
+                chance: 0.16,
+                effects: [{ type: "consumeExpeditionItem", itemId: "rope", quantity: 1 }],
+                resultText: "The current pulls the rope from its anchor and carries it downstream after the crossing.",
+                elseResultText: "The rope comes free of the bank, ready to be used again.",
+              },
             }],
             resultText: "With a rope secured across the stream, the company crosses safely.",
             pendingAction: {
@@ -1263,6 +1275,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         {
           id: "use_rope", label: "Use Rope",
           requirements: [{ type: "carriedItem", itemId: "rope", unavailable: "locked", lockedLabel: "Requires Rope" }],
+          outcomes: [{
+            type: "randomChance",
+            chance: 0.18,
+            effects: [{ type: "consumeExpeditionItem", itemId: "rope", quantity: 1 }],
+            resultText: "The rope sacrifices itself as a handline; it snaps free once the company reaches the far side.",
+            elseResultText: "The rope holds as a handline and comes free after the crossing.",
+          }],
           resultText: "With the rope secured as a handline, the company crosses safely.",
           pendingAction: { text: "Arthur secures the rope across the broken span...", delayProfile: "physical" },
           endEncounter: true,

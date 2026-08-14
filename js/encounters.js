@@ -250,7 +250,8 @@ const EncounterOutcomes = Object.freeze({
         break;
       }
       case "randomChance": {
-        const succeeded = gameplayRandom(expedition.random) < effect.chance;
+        const roll = gameplayRandom(expedition.random);
+        const succeeded = roll < effect.chance;
         const resolved = this.resolveAll(succeeded ? effect.effects : effect.elseEffects, context);
         messages = resolved.messages;
         rewards = resolved.rewards;
@@ -258,6 +259,20 @@ const EncounterOutcomes = Object.freeze({
         resultText = resolved.resultText
           || (succeeded ? effect.resultText : effect.elseResultText)
           || "";
+        if (effect.secondaryOutcome) {
+          const secondary = effect.secondaryOutcome;
+          const secondarySucceeded = roll < secondary.chance;
+          const secondaryResolved = this.resolveAll(
+            secondarySucceeded ? secondary.effects : secondary.elseEffects,
+            context,
+          );
+          messages.push(...secondaryResolved.messages);
+          rewards.push(...secondaryResolved.rewards);
+          combat = secondaryResolved.combat ?? combat;
+          resultText = secondaryResolved.resultText
+            || (secondarySucceeded ? secondary.resultText : secondary.elseResultText)
+            || resultText;
+        }
         break;
       }
       case "randomOne": {

@@ -1,5 +1,35 @@
 # Build Log
 
+## 2026-08-14 - Focused Mobile UI/UX Polish Pass
+
+### Goal
+
+Improve readability, spacing, interaction hierarchy, and phone-first navigation across the current game without redesigning systems, changing save compatibility, or adding art/audio.
+
+### Human prompt and direction
+
+The human developer supplied a focused UI/UX guide covering dialogue and NPC spacing, contained crafting requirements, simplified active Journey controls, a shorter Return label, unmistakable combat targeting, balanced Rope obstacle outcomes, lower Combat Log placement, artwork-ready destination visuals, sticky Camp navigation, and larger tertiary typography. Existing functionality, simulation parity, dark green/blue-green with cream/gold and oxblood styling, and portrait mobile layout were explicitly preserved. A local Git add/commit was requested; no push was authorized.
+
+### AI-assisted implementation
+
+- Added shared spacing corrections for dialogue copy/actions and Hall/Inn NPC cards, then raised the affected tertiary text sizes for resources, Journey, crafting, expedition details, and combat metadata.
+- Replaced joined crafting separators with wrapping ingredient and gold requirement chips. The shared renderer covers Blacksmith, Apothecary, and camp recipes, with missing ingredients retaining oxblood emphasis.
+- Hid editable Pace/Rations controls while travel is active, restored them while paused, renamed the expedition action to `Return`, and made Camp tabs plus Leave Camp persistent inside the Camp scroller.
+- Removed destination name/description overlays from the Hall, Inn, Blacksmith, Merchant, and Apothecary visual frames while retaining the emblem and interaction header identity.
+- Added a strong selected combat target border/glow and `TARGET` badge while toning down merely selectable enemies.
+- Added data-driven Rope loss outcomes for Fallen Tree, Woodland Stream, and Broken Bridge at 12%, 16%, and 18%. Fallen Tree and Woodland Stream reuse their existing seeded obstacle roll so unrelated simulation sequences remain stable; all losses still use the existing consumed-item and encounter telemetry path.
+- Extended the browser regression coverage for the new active/paused Journey states, contained crafting chips, destination visuals, Camp sticky navigation, combat target badge, and Rope retention/loss branches.
+
+### Manual changes
+
+The human developer supplied the attached polish guide and requested the local add/commit. No additional manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The prototype now presents a calmer, more readable phone UI while preserving the current systems and palette. Active travel is concise, paused travel is configurable, camp navigation remains available while browsing recipes, and selected combat targets are immediately legible. Rope remains a favorable obstacle tool but can be sacrificed in authored crossings.
+
+Verified 394 UI/provision/location browser assertions, 26 deterministic simulation assertions, 66 campaign/health/Inn assertions, clean local HTTP startup through the browser flows, and `git diff --check`.
+
 ## 2026-08-13 - Expedition Material Bag and Field-Cooking Parity
 
 ### Goal
