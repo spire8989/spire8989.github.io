@@ -123,6 +123,36 @@
 .replay-controls .replay-checkbox { margin-left: 0.25rem; }
 .replay-progress-row { color: #c1c7b8; }
 .replay-progress-row .replay-seek { flex: 1 1 8rem; min-width: 6rem; accent-color: #d9bd72; }
+.campaign-replay-controls { max-height: min(24rem, calc(100vh - 2rem)); }
+.campaign-replay-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  color: #d8c78e;
+}
+.campaign-replay-status span { white-space: nowrap; }
+.campaign-replay-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+.campaign-replay-segment {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 7.5rem;
+  text-align: left;
+}
+.campaign-replay-segment span { color: #b8c0af; font-size: 0.8em; }
+.campaign-replay-segment.is-current { border-color: #d9bd72; background: #3d4635; }
+.campaign-replay-segment.expedition { border-left: 3px solid #d9bd72; }
+.replay-annotation {
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  border-left: 3px solid #d9bd72;
+  background: #252b23;
+  color: #f0d897;
+}
 .replay-error,
 .replay-warning {
   margin: 0;

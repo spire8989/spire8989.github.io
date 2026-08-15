@@ -58,7 +58,9 @@ function initializeSimulationTools() {
       <div><button type="button" data-sim-action="campaign-json">Download campaign JSON</button>
         <button type="button" data-sim-action="campaign-compact-json">Download Compact JSON</button>
         <button type="button" data-sim-action="campaign-csv">Campaign CSV</button>
-        <button type="button" data-sim-action="campaign-expedition-csv">Expedition CSV</button></div>
+        <button type="button" data-sim-action="campaign-expedition-csv">Expedition CSV</button>
+        <button type="button" data-sim-action="campaign-replay">Watch Campaign Replay</button>
+        <button type="button" data-sim-action="campaign-replay-json">Download Campaign Replay JSON</button></div>
     </div>`;
   document.body.append(panel);
   let lastBatch = null;
@@ -106,6 +108,22 @@ function initializeSimulationTools() {
       "grail-campaign-expeditions.csv",
       CampaignSimulationTelemetry.expeditionsToCsv(lastCampaignBatch), "text/csv",
     );
+    if (action === "campaign-replay" && lastCampaignBatch) {
+      const campaign = selectedCampaignRun(panel, lastCampaignBatch);
+      if (campaign) {
+        CampaignReplayController.start(campaign);
+        panel.querySelector("#campaign-status").textContent = `Watching campaign replay ${campaign.seed}`;
+      }
+      return;
+    }
+    if (action === "campaign-replay-json" && lastCampaignBatch) {
+      const campaign = selectedCampaignRun(panel, lastCampaignBatch);
+      if (campaign?.replay) downloadSimulationFile(
+        `grail-campaign-replay-${campaign.seed}.json`,
+        JSON.stringify(campaign.replay, null, 2), "application/json",
+      );
+      return;
+    }
     if (["campaign-current", "campaign-batch"].includes(action)) {
       const scenario = currentCampaignScenario(panel);
       const campaignCount = action === "campaign-current"
@@ -232,6 +250,11 @@ function renderSimulationBatch(panel, batch) {
 
 function selectedSimulationRun(panel, batch) {
   const index = Number(panel.querySelector("#sim-run-select")?.value) || 0;
+  return batch?.results?.[index] ?? null;
+}
+
+function selectedCampaignRun(panel, batch) {
+  const index = Number(panel.querySelector("#campaign-run-select")?.value) || 0;
   return batch?.results?.[index] ?? null;
 }
 

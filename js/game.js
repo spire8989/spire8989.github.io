@@ -58,7 +58,8 @@ function handleAction(event) {
   // Replay playback owns an isolated game state. Keep the real gameplay
   // controls visible for faithful rendering, but do not let them mutate the
   // sandbox while the recorded decisions are driving it.
-  if (typeof ReplayController !== "undefined" && ReplayController.isActive()) {
+  if ((typeof ReplayController !== "undefined" && ReplayController.isActive())
+    || (typeof CampaignReplayController !== "undefined" && CampaignReplayController.isActive())) {
     return;
   }
 
@@ -2886,7 +2887,8 @@ function announceTravelEvent(message) {
 }
 
 function savePlayer() {
-  if (typeof ReplayController !== "undefined" && ReplayController.isActive()) {
+  if ((typeof ReplayController !== "undefined" && ReplayController.isActive())
+    || (typeof CampaignReplayController !== "undefined" && CampaignReplayController.isActive())) {
     ui.saveStatus.textContent = "Replay sandbox";
     return false;
   }
@@ -3047,7 +3049,15 @@ function gameLoop(timestamp) {
   updateCraftingProgress(timestamp);
   updateInnRestProgress(timestamp);
 
-  if (game.screen === "expedition") {
+  if (typeof CampaignReplayController !== "undefined" && CampaignReplayController.isActive()) {
+    CampaignReplayController.update(deltaSeconds);
+    game.hudAccumulator += deltaSeconds;
+    if (game.hudAccumulator >= 0.05) {
+      if (game.expedition?.combat) updateCombatHud();
+      else if (game.screen === "expedition") updateTravelHud();
+      game.hudAccumulator = 0;
+    }
+  } else if (game.screen === "expedition") {
     if (typeof ReplayController !== "undefined" && ReplayController.isActive()) {
       ReplayController.update(deltaSeconds);
     } else if (game.expedition?.combat) {

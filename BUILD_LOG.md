@@ -1,5 +1,63 @@
 # Build Log
 
+## 2026-08-14 - Full Campaign Replay Viewer
+
+### Goal
+
+Upgrade the single-expedition visual replay into a deterministic full-campaign
+viewer that shows recorded town preparation between expeditions, including
+healing, economy, crafting, equipment, packing, settlement, and the next
+expedition, without changing balance or the real save.
+
+### Human prompt and direction
+
+The human developer supplied the full-campaign replay guide, asked that the
+existing expedition replay remain working, explicitly deferred human-run
+recording, and requested add/commit without pushing.
+
+### AI-assisted implementation
+
+- Extended campaign simulation telemetry with ordered `townActions` and a
+  version-2 campaign replay payload containing campaign state, town actions,
+  expedition replay entries, settlement context, timeline metadata, and the
+  expected ending state.
+- Recorded Inn rests/cooking, injury treatment, provision and item purchases,
+  sales, crafting, equipment purchase/equip replacement, companion changes,
+  pack/Material Bag preparation, town entry, and departure in authoritative
+  order. Compact JSON remains analysis-focused and is not used for replay.
+- Added `CampaignReplayData.normalize` and `CampaignReplayController` in
+  `js/replay.js`. The campaign controller owns town/return sequencing and
+  delegates every expedition to the existing `ReplayController` in a nested
+  sandbox, preserving normal village, destination, preparation, expedition,
+  combat, camp, and summary rendering.
+- Added campaign Play/Pause, Restart, Step, 0.25x-8x speed, seek, auto-skip,
+  Next Town/Expedition/Purchase/Combat/Camp/Return, campaign-end skip, a
+  clickable timeline, phase/resource/equipment status, annotations, final
+  state comparison, legacy-payload reconstruction warnings, and structured
+  town desync errors.
+- Added `tests/campaign_replay_system_test.py` and updated simulation and
+  campaign replay documentation.
+
+### Manual changes
+
+The human developer supplied the campaign replay guide and requested local
+staging/commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Campaign Simulation now exposes **Watch Campaign Replay** and optional replay
+JSON download beside campaign inspection. A selected campaign can visibly move
+through the village economy, Inn, preparation screen, expedition replay,
+return summary, and the next town while applying only recorded actions. Older
+campaign payloads are accepted through aggregate-action reconstruction and are
+marked as legacy/partially reconstructed. Invalid town actions pause with the
+campaign expedition number, town step, expected action, and current state.
+
+Verified 14 campaign replay assertions, 15 single-expedition replay
+assertions, 45 deterministic simulation assertions, 78 campaign/health/Inn
+assertions, 429 UI/provision/location browser assertions, and `git diff
+--check`. No balance changes were made.
+
 ## 2026-08-14 - Phase 1 Visual Expedition Replay Viewer
 
 ### Goal

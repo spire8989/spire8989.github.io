@@ -191,7 +191,11 @@ full JSON/replay export remains unchanged.
 CampaignSimulationRunner.verifyDeterminism(configuration, "known-campaign-seed");
 ```
 
-The replay payload retains campaign starting/ending state, campaign seed, derived expedition seeds, between-expedition decisions, purchases, healing, sales, settlement snapshots, and every expedition replay payload. Phase 1 can watch an individual full simulation expedition through the developer panel using its replay payload; full campaign/town sequencing remains future work. Compact JSON remains an analysis artifact and intentionally omits the decisions needed for playback.
+The replay payload retains campaign starting/ending state, campaign seed, derived expedition seeds, ordered between-expedition town actions, purchases, healing, sales, settlement snapshots, and every expedition replay payload. From `?sim=1`, select a campaign and choose **Watch Campaign Replay** to play the town preparation, expedition, return summary, and next-town sequence. `CampaignReplayData.normalize(campaign)` creates the stable campaign replay shape, while `CampaignReplayController` applies recorded town actions through `CampaignRules`, `EconomyRules`, `HealingRules`, `CraftingRules`, `InjuryRules`, and the existing `ReplayController` expedition viewer. Compact JSON remains an analysis artifact and intentionally omits the decisions needed for playback.
+
+Campaign replay controls include play/pause, restart, step, six playback speeds, seek, auto-skip travel, next-town/expedition/purchase/combat/camp/return skips, campaign-end skip, a clickable Town/Expedition timeline, and exit. Town playback uses the normal village, destination, preparation, and expedition summary renderers; the status strip reports campaign seed, phase, expedition position, action position, gold, Arthur HP, provisions, and equipment. Recorded actions currently cover town entry, Inn rests, Inn cooking, injury treatment, general/smithy purchases, provision purchases, sales, crafting, equipment purchase/equip, companion changes, pack/Material Bag preparation, and departure. The replay sandbox never calls `SaveSystem.save`, and Exit Replay restores the exact prior game references and UI.
+
+Campaign payloads created before ordered town actions are still accepted. The normalizer reconstructs the actions available from aggregate healing, crafting, purchase, equipment, pack, sale, and expedition fields, marks the replay as legacy/partially reconstructed, and surfaces that limitation in the viewer. Missing or unavailable actions pause with the campaign expedition number, town step, action index, expected action, and current player/expedition state rather than silently rerunning policy AI.
 
 ## Tests
 
@@ -199,6 +203,7 @@ The replay payload retains campaign starting/ending state, campaign seed, derive
 python tests/campaign_system_test.py
 python tests/simulation_system_test.py
 python tests/replay_system_test.py
+python tests/campaign_replay_system_test.py
 python tests/location_system_test.py
 ```
 
@@ -208,6 +213,6 @@ The focused campaign suite covers save migration and clamping, player-facing act
 
 - The only production settlement is Brocéliande village; Camelot has not been authored.
 - Companion health persists and the selected companion shares the player-facing Inn rest. An unselected companion is not healed; a selected incapacitated companion stops a campaign only if still at zero after normal preparation.
-- Policies do not buy equipment because no meaningful upgrade path is currently available from the default loadout; Bandages are the current automated consumable purchase.
+- The authored between-expedition policy can buy one meaningful equipment upgrade per preparation visit; campaign replay exposes the purchase, equip replacement, and following expedition loadout.
 - Merchant stock persists within a simulated campaign exactly like the current browser session but is not saved in localStorage by the normal game.
 - There is no injury, disease, fatigue, durability, chapter progression, optimal shopping, or balance recommendation system.

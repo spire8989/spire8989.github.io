@@ -29,6 +29,7 @@ const CampaignSimulationRunner = Object.freeze({
     const startingState = campaignStateSnapshot(player, shopStocks, 0);
     const expeditions = [];
     const betweenExpeditionDecisions = [];
+    const townActions = [];
     let stopReason = null;
 
     for (let index = 0; index < config.maxExpeditions; index += 1) {
@@ -37,6 +38,13 @@ const CampaignSimulationRunner = Object.freeze({
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       const townEntry = CampaignRules.enterLocation(player);
+      const preparationActions = [{
+        type: "town-entry",
+        expeditionNumber,
+        provisionsGranted: townEntry.provisionsGranted,
+        provisionStockBefore: stateBeforeDecisions.provisionStock,
+        provisionStockAfter: player.provisions,
+      }];
 
       if (HealingRules.arthurHealth(player) <= 0) {
         stopReason = "arthur-died";
@@ -45,12 +53,14 @@ const CampaignSimulationRunner = Object.freeze({
       const decision = applyBetweenExpeditionPolicy(
         player, shopStocks, policy, desiredTargetDistance, config.healingEnabled, config.strategy,
         preparationRandom.random,
+        preparationActions,
       );
       decision.expeditionNumber = expeditionNumber;
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
 
       if (decision.stopReason) {
+        townActions.push(...preparationActions);
         stopReason = decision.stopReason;
         break;
       }
@@ -59,9 +69,25 @@ const CampaignSimulationRunner = Object.freeze({
       const capacity = ExpeditionRules.partyProvisionCapacity(selectedCompanionIds(player));
       const provisionsPacked = Math.min(player.provisions, decision.provisionsToPack, capacity);
       if (provisionsPacked < EXPEDITION_TUNING.minimumStartingProvisions) {
+        townActions.push(...preparationActions);
         stopReason = "cannot-support-any-expedition";
         break;
       }
+
+      preparationActions.push({
+        type: "departure",
+        expeditionNumber,
+        expeditionId: player.selectedExpeditionId,
+        expeditionSeed,
+        companions: selectedCompanionIds(player),
+        provisions: provisionsPacked,
+        paceId: decision.paceId,
+        rationId: decision.rationId,
+        loadout: deepCampaignClone(player.equippedItems),
+        packedItems: deepCampaignClone(decision.packContents),
+        packedMaterials: deepCampaignClone(decision.materialBagContents),
+      });
+      decision.townActions = deepCampaignClone(preparationActions);
 
       const healthAtStart = HealingRules.arthurHealth(player);
       const goldAtStart = stateBeforeDecisions.gold;
@@ -87,6 +113,14 @@ const CampaignSimulationRunner = Object.freeze({
       const sales = run.returnedSafely && config.autoSellRecoveredLoot
         ? CampaignRules.sellMerchantItems(player, run.lootRecovered)
         : { sales: [], goldEarned: 0 };
+      const settlementActions = sales.sales.map((sale) => ({
+        type: "sell-item",
+        expeditionNumber,
+        itemId: sale.itemId,
+        quantity: 1,
+        goldEarned: sale.goldEarned,
+      }));
+      townActions.push(...preparationActions, ...settlementActions);
       const endingState = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       const damageTaken = run.damageTaken;
       const expeditionHardFailureReason = !run.returnedSafely && run.finalArthurHealth <= 0
@@ -224,6 +258,7 @@ const CampaignSimulationRunner = Object.freeze({
         provisionsConsumed: run.provisionsConsumed,
         provisionsFound: run.provisionsGained,
         replay: run.replay,
+        townActions: [...preparationActions, ...settlementActions],
         expeditionTelemetry: run,
         stateBefore: stateBeforeDecisions,
         stateAfter: endingState,
@@ -249,7 +284,7 @@ const CampaignSimulationRunner = Object.freeze({
       : "cannot-support-any-expedition";
     return finalizeCampaignTelemetry(
       config, policy, startingState, player, shopStocks, expeditions,
-      betweenExpeditionDecisions, stopReason,
+      betweenExpeditionDecisions, townActions, stopReason,
     );
   },
 
@@ -1394,7 +1429,7 @@ function defaultStrategyForBetweenPolicy(policy) {
 
 function applyBetweenExpeditionPolicy(
   player, shopStocks, policy, targetDistance, healingEnabled, strategyName = null,
-  preparationRandom = GameRandom.random,
+  preparationRandom = GameRandom.random, townActions = [],
 ) {
   const planningStrategy = strategyName ?? defaultStrategyForBetweenPolicy(policy);
   const goldBeforePreparation = player.currentGold;
@@ -1435,6 +1470,19 @@ function applyBetweenExpeditionPolicy(
     do {
       const action = HealingRules.restAtInn(player);
       restActions.push(action);
+      townActions.push({
+        type: "inn-rest",
+        goldBefore: player.currentGold + (action.applied ? action.goldCost : 0),
+        goldCost: action.goldCost ?? 0,
+        goldAfter: player.currentGold,
+        applied: Boolean(action.applied),
+        quotedGoldCost: action.quotedGoldCost ?? 0,
+        healthBefore: action.healthBefore,
+        healthAfter: action.healthAfter,
+        healingAmount: action.healingAmount ?? 0,
+        totalHealingAmount: action.totalHealingAmount ?? 0,
+        healingByPartyMember: action.healingByPartyMember,
+      });
       if (!action.applied) break;
     } while (HealingRules.activeParty(player).some(
       (member) => member.maxHealth > 0
@@ -1449,9 +1497,10 @@ function applyBetweenExpeditionPolicy(
     };
   }
 
-  const injuryTreatment = treatCampaignInjuries(player, planningStrategy);
+  const injuryTreatment = treatCampaignInjuries(player, planningStrategy, townActions);
 
-  const unavailableCompanionIds = selectedCompanionIds(player).filter((companionId) => (
+  const companionsBeforeAvailability = selectedCompanionIds(player);
+  const unavailableCompanionIds = companionsBeforeAvailability.filter((companionId) => (
     (player.companionStates?.[companionId]?.health ?? 0) <= 0
   ));
   const unavailableCompanionId = unavailableCompanionIds[0] ?? null;
@@ -1459,6 +1508,11 @@ function applyBetweenExpeditionPolicy(
     player.selectedCompanions = selectedCompanionIds(player)
       .filter((companionId) => !unavailableCompanionIds.includes(companionId));
     player.selectedCompanion = player.selectedCompanions[0] ?? null;
+    townActions.push({
+      type: "select-companions",
+      companionsBefore: companionsBeforeAvailability,
+      companions: selectedCompanionIds(player),
+    });
   }
 
   const goldAfterHealing = player.currentGold;
@@ -1474,7 +1528,7 @@ function applyBetweenExpeditionPolicy(
     targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve, travelSettings,
   );
   const innCooking = strategyName && player.provisions < Math.min(initialProvisionNeed, capacity)
-    ? cookAtInn(player, planningStrategy, preparationRandom)
+    ? cookAtInn(player, planningStrategy, preparationRandom, townActions)
     : { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
   travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
     provisions: player.provisions,
@@ -1497,6 +1551,14 @@ function applyBetweenExpeditionPolicy(
     capacity, provisionStockBeforePurchase + affordablePurchaseQuantity,
   );
   const provisionPurchase = CampaignRules.buyProvisionsTo(player, shopStocks, desiredProvisionStock);
+  if (provisionPurchase.quantity > 0) {
+    townActions.push({
+      type: "buy-provisions",
+      shopId: "village_general_goods",
+      quantity: provisionPurchase.quantity,
+      goldCost: provisionPurchase.goldCost,
+    });
+  }
   const bandagePlan = strategyName
     ? chooseBandagePlan(strategyName, preparationRandom)
     : { target: 0, minimum: 0, combatUseThreshold: 0, policy: "disabled" };
@@ -1506,6 +1568,15 @@ function applyBetweenExpeditionPolicy(
     const crafted = CraftingRules.craft(player, "bandages", "apothecary");
     if (!crafted.applied) break;
     craftingActions.push(crafted);
+    townActions.push({
+      type: "craft-item",
+      providerId: "apothecary",
+      recipeId: "bandages",
+      itemId: crafted.itemId ?? "bandages",
+      quantity: crafted.quantity ?? 1,
+      goldCost: crafted.goldCost ?? 0,
+      result: deepCampaignClone(crafted),
+    });
   }
   const bandagesCrafted = (player.ownedItems.bandages ?? 0) - bandagesBeforeCrafting;
   const bandagesBeforePurchase = player.ownedItems.bandages ?? 0;
@@ -1517,14 +1588,29 @@ function applyBetweenExpeditionPolicy(
     player, shopStocks, "bandages", bandagePurchaseTarget,
     healing.attempted ? HEALING_TUNING.innRestGoldCost : 0,
   );
+  if (bandagePurchase.quantity > 0) {
+    townActions.push({
+      type: "buy-item",
+      shopId: "village_general_goods",
+      itemId: "bandages",
+      quantity: bandagePurchase.quantity,
+      goldCost: bandagePurchase.goldCost,
+    });
+  }
   const equipmentPurchases = provisionPurchase.shortfall > 0
-    ? [] : buyCampaignEquipment(player, shopStocks, planningStrategy);
+    ? [] : buyCampaignEquipment(player, shopStocks, planningStrategy, townActions);
   const equipmentPurchaseGoldSpent = equipmentPurchases.reduce(
     (sum, purchase) => sum + (Number(purchase.goldCost) || 0), 0,
   );
   const bandagesAfterPurchase = player.ownedItems.bandages ?? 0;
   const bandagesPacked = packCampaignItems(player, {
     bandages: Math.min(bandagePlan.target, bandagesAfterPurchase),
+  });
+  townActions.push({
+    type: "pack-loadout",
+    packedItems: deepCampaignClone(player.packedItems),
+    packedMaterials: deepCampaignClone(player.packedMaterials),
+    bandagesPacked,
   });
   const itemPurchaseGoldSpent = bandagePurchase.goldCost + equipmentPurchaseGoldSpent;
   const itemsPurchasedById = {
@@ -1780,7 +1866,7 @@ function estimateCampaignPassiveProvisionCost(distance, companionId, travelSetti
   return SimulationProvisionPlanning.passiveRoundTripCost(distance, multiplier);
 }
 
-function buyCampaignEquipment(player, shopStocks, strategyName) {
+function buyCampaignEquipment(player, shopStocks, strategyName, townActions = []) {
   const shop = SHOP_DEFINITIONS.village_smithy;
   const slotScore = (item) => item.equipmentSlot === "weapon"
     ? Number(item.effects?.combatDamage?.maximum) || 0
@@ -1799,19 +1885,34 @@ function buyCampaignEquipment(player, shopStocks, strategyName) {
     });
   for (const candidate of candidates) {
     if (player.currentGold < candidate.offer.price + 10) continue;
+    const previousItemId = player.equippedItems?.[candidate.item.equipmentSlot] ?? null;
     const result = EconomyRules.buyItem(player, shop, shopStocks, candidate.itemId, 1);
     if (!result.applied) continue;
     player.equippedItems[candidate.item.equipmentSlot] = candidate.itemId;
+    townActions.push({
+      type: "buy-item",
+      shopId: shop.id,
+      itemId: candidate.itemId,
+      quantity: result.quantity,
+      goldCost: result.goldCost,
+    });
+    townActions.push({
+      type: "equip-item",
+      itemId: candidate.itemId,
+      equipmentSlot: candidate.item.equipmentSlot,
+      previousItemId,
+    });
     return [{
       ...result,
       equipmentSlot: candidate.item.equipmentSlot,
+      previousItemId,
       strategy: strategyName,
     }];
   }
   return [];
 }
 
-function cookAtInn(player, strategyName, random = GameRandom.random) {
+function cookAtInn(player, strategyName, random = GameRandom.random, townActions = []) {
   const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
     .map((recipe) => ({
       recipe,
@@ -1842,20 +1943,22 @@ function cookAtInn(player, strategyName, random = GameRandom.random) {
     ...(result.materialsConsumed ?? {}),
     ...(result.itemsConsumed ?? {}),
   };
-  return {
-    actions: [{
+  const action = {
       recipeId: result.recipeId,
       providerId: "campfire",
       provisionsGained: result.provisions ?? 0,
       ingredientsConsumed: deepCampaignClone(ingredientsConsumedById),
       goldCost: result.goldCost ?? 0,
-    }],
+    };
+  townActions.push({ type: "cook-recipe", ...deepCampaignClone(action) });
+  return {
+    actions: [action],
     provisionsGained: result.provisions ?? 0,
     ingredientsConsumedById,
   };
 }
 
-function treatCampaignInjuries(player, strategyName) {
+function treatCampaignInjuries(player, strategyName, townActions = []) {
   const treated = [];
   const crafted = [];
   const allowed = strategyName === "cautious"
@@ -1875,11 +1978,29 @@ function treatCampaignInjuries(player, strategyName) {
           const result = CraftingRules.craft(player, recipe.id, recipe.craftingProvider);
           if (result.applied) {
             crafted.push({ recipeId: recipe.id, injuryId, characterId });
+            townActions.push({
+              type: "craft-item",
+              providerId: recipe.craftingProvider,
+              recipeId: recipe.id,
+              itemId: result.itemId ?? recipe.output?.itemId,
+              quantity: result.quantity ?? recipe.output?.quantity ?? 1,
+              goldCost: result.goldCost ?? 0,
+              result: deepCampaignClone(result),
+            });
           }
         }
       }
       const result = InjuryRules.treatWithItem(player, characterId, itemId, { source: "campaign-preparation" });
-      if (result.applied) treated.push({ ...result, characterId, itemId });
+      if (result.applied) {
+        treated.push({ ...result, characterId, itemId });
+        townActions.push({
+          type: "treat-injury",
+          characterId,
+          injuryId,
+          itemId,
+          quantity: 1,
+        });
+      }
     });
   });
   return { treated, crafted };
@@ -1991,7 +2112,9 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
   });
 }
 
-function finalizeCampaignTelemetry(config, policy, startingState, player, shopStocks, expeditions, decisions, stopReason) {
+function finalizeCampaignTelemetry(
+  config, policy, startingState, player, shopStocks, expeditions, decisions, townActions, stopReason,
+) {
   const endingState = campaignStateSnapshot(player, shopStocks, expeditions.length);
   const totals = (selector) => expeditions.reduce((sum, entry) => sum + (Number(selector(entry)) || 0), 0);
   const totalHealingCost = totals((entry) => entry.healingBefore.goldCost);
@@ -2208,12 +2331,31 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     betweenExpeditionDecisions: decisions,
     expeditions,
     replay: {
-      version: 1,
+      version: 2,
       campaignSeed: config.seed,
       startingState,
       expeditionSeeds: expeditions.map((entry) => entry.expeditionSeed),
       betweenExpeditionDecisions: decisions,
+      townActions,
       expeditionReplays: expeditions.map((entry) => entry.replay),
+      expeditions: expeditions.map((entry) => ({
+        expeditionNumber: entry.expeditionNumber,
+        expeditionSeed: entry.expeditionSeed,
+        replay: entry.replay,
+        stateBefore: entry.stateBefore,
+        stateAfter: entry.stateAfter,
+        townActions: entry.townActions,
+        success: entry.success,
+        outcome: entry.outcome,
+        failureReason: entry.failureReason,
+        hardFailureReason: entry.hardFailureReason,
+        actualMaximumDistance: entry.actualMaximumDistance,
+      })),
+      expected: {
+        endingState,
+        expeditionsAttempted: expeditions.length,
+        stopReason,
+      },
       endingState,
     },
   };
