@@ -55,6 +55,27 @@ for minimal scalar/nested diffs, ordering, add/delete behavior, shop isolation,
 and stale-file protection. The temporary Fallen Tree road-to-path reproduction
 now produces exactly two changed content lines.
 
+### Phase 2 Items editor
+
+Extended the separate `Tools/ContentEditor` with an Items category backed by
+the live `Grail/js/data.js` `ITEM_DEFINITIONS`: identity, category, rarity,
+tags, inventory flags, equipment slots, stack limits, weapon damage, armor
+defense, granted combat abilities, combat-use fields, treatment injury IDs,
+raw JSON escape hatches, and reference-aware Used By browsing. Existing
+encounter and shop item selectors now use live in-memory items, so a newly
+created item can be used before or after saving. Added a focused drop panel for
+adding/removing an item and editing its weight in an existing loot table,
+including `bandit_leader_loot`, without introducing a general loot editor.
+
+Added surgical writes for item definitions and focused loot-table changes,
+preserving untouched definitions, ordering, comments, delimiters, and other
+source spans. Validation now covers item IDs and required fields, categories,
+equipment slots, max stacks, nested effects, damage ranges, ability and injury
+references, invalid item references, and unsafe item deletion. Verified 23
+Content Editor tests plus local API/static and headless Chrome UI smoke checks;
+the Grail worktree remained clean and no runtime dependency or authored game
+content was added by this tooling milestone.
+
 ## 2026-08-15 - Provision Preparation and Supply-Run Balance Patch
 
 ### Goal
