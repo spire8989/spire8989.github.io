@@ -47,6 +47,14 @@ zero validation errors on the current content, `git diff --check`, and an
 unchanged Grail worktree before this log-only update. No Grail gameplay or
 content definition files were modified.
 
+### Source-preservation fix pass
+
+Reworked saves to replace only changed definition-property source spans rather
+than reserializing or reordering unrelated content. Added regression coverage
+for minimal scalar/nested diffs, ordering, add/delete behavior, shop isolation,
+and stale-file protection. The temporary Fallen Tree road-to-path reproduction
+now produces exactly two changed content lines.
+
 ## 2026-08-15 - Provision Preparation and Supply-Run Balance Patch
 
 ### Goal

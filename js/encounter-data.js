@@ -5,7 +5,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
   abandoned_camp: {
     id: "abandoned_camp",
     title: "Abandoned Camp",
-    description: "A recently abandoned camp lies in a clearing beside the road.",
+    description: "A recently abandoned camp sits in a clearing beside the road.",
     regionId: "broceliande",
     pathIds: ["old_forest_road", "overgrown_trail"],
     directions: ["outbound", "returning"],
