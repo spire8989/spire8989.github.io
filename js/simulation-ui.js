@@ -35,7 +35,11 @@ function initializeSimulationTools() {
     <h3>Campaign Simulation</h3>
     <div class="simulation-controls campaign-simulation-controls">
       <label>Campaigns <input id="campaign-count" type="number" min="1" max="1000" value="100"></label>
-      <label>Expeditions <input id="campaign-expeditions" type="number" min="1" max="100" value="10"></label>
+      <label>Campaign type <select id="campaign-type">
+        <option value="repeated">Repeated route</option>
+        <option value="progression">Current campaign progression</option>
+      </select></label>
+      <label>Max attempts <input id="campaign-expeditions" type="number" min="1" max="100" value="10"></label>
       <label>Strategy <select id="campaign-strategy">
         ${Object.keys(SimulationStrategies).map((name) => `<option value="${name}">${name}</option>`).join("")}
       </select></label>
@@ -45,12 +49,12 @@ function initializeSimulationTools() {
       <label>Turn at <input id="campaign-distance" type="number" min="1" value="50"></label>
       <label>Starting gold <input id="campaign-gold" type="number" min="0" value="${Math.floor(game.player.currentGold)}"></label>
       <label>Starting food <input id="campaign-provisions" type="number" min="0" value="${game.player.provisions}"></label>
-      <label>Starting health <input id="campaign-health" type="number" min="1" max="${HealingRules.arthurMaxHealth(game.player)}" value="${HealingRules.arthurHealth(game.player)}"></label>
+      <label>Starting health <input id="campaign-health" type="number" min="1" max="${HealingRules.arthurMaxHealth(game.player)}" value="${HealingRules.arthurMaxHealth(game.player)}"></label>
       <label><input id="campaign-healing" type="checkbox" checked> Healing enabled</label>
       <button type="button" data-sim-action="campaign-current">Run current campaign</button>
       <button type="button" data-sim-action="campaign-batch">Run campaign batch</button>
     </div>
-    <p id="campaign-status" class="simulation-status">Ready for repeated expeditions.</p>
+    <p id="campaign-status" class="simulation-status">Ready for repeated routes or current-campaign progression.</p>
     <pre id="campaign-summary" class="simulation-summary"></pre>
     <div class="campaign-inspect" hidden>
       <label>Inspect campaign <select id="campaign-run-select"></select></label>
@@ -176,6 +180,7 @@ function currentCampaignScenario(panel) {
   return {
     id: "current-campaign",
     seed: "browser-campaign",
+    campaignMode: panel.querySelector("#campaign-type").value,
     expeditions: Math.max(1, Number(panel.querySelector("#campaign-expeditions").value) || 10),
     strategy: panel.querySelector("#campaign-strategy").value,
     betweenExpeditionPolicy: panel.querySelector("#campaign-policy").value,

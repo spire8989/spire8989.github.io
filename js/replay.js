@@ -1050,6 +1050,9 @@ const CampaignReplayData = Object.freeze({
         expeditionsAttempted: campaign?.expeditionsAttempted ?? replayEntries.length,
         stopReason: campaign?.stopReason ?? null,
       }),
+      campaignProgressionMode: Boolean(raw.campaignProgressionMode ?? campaign?.campaignProgressionMode),
+      progressionTransitions: deepClone(raw.progressionTransitions ?? campaign?.progressionTransitions ?? []),
+      routeSequence: deepClone(raw.routeSequence ?? campaign?.routeSequence ?? []),
       expeditions: replayEntries,
       towns,
       townActions: normalizedActions,
@@ -1504,6 +1507,17 @@ const CampaignReplayController = Object.freeze({
         }
         player.selectedCompanions = requestedCompanions;
         player.selectedCompanion = requestedCompanions[0] ?? null;
+        result = { applied: true };
+        break;
+      case "select-expedition":
+        this.showPreparationView();
+        if (!EXPEDITION_DEFINITIONS[action.expeditionId]) {
+          return this.desync("The recorded expedition selection is invalid.", action);
+        }
+        if (player.selectedExpeditionId !== (action.previousExpeditionId ?? player.selectedExpeditionId)) {
+          return this.desync("The recorded expedition selection started from a different route.", action);
+        }
+        player.selectedExpeditionId = action.expeditionId;
         result = { applied: true };
         break;
       case "equip-item":
@@ -2161,6 +2175,7 @@ function campaignReplayPlayerSnapshot(player) {
     arthurHealth: HealingRules.arthurHealth(player),
     selectedCompanions: deepClone(selectedCompanionIds(player)),
     selectedCompanion: player.selectedCompanion,
+    selectedExpeditionId: player.selectedExpeditionId,
     currentLocation: player.currentLocationId,
     companionStates: deepClone(player.companionStates),
   };
@@ -2225,6 +2240,7 @@ function campaignReplayStateDifferences(actual = {}, expected = {}) {
   compareObject("campaignFlags", "campaignFlags");
   compareObject("injuries", "injuries");
   compareScalar("selectedCompanion", ["selectedCompanion"], ["selectedCompanion"]);
+  compareScalar("selectedExpeditionId", ["selectedExpeditionId"], ["selectedExpeditionId"]);
   compareScalar("currentLocation", ["currentLocation", "currentLocationId"], ["currentLocation", "currentLocationId"]);
   Object.entries(actual.ownedItems ?? {}).forEach(([itemId, quantity]) => {
     if ((actual.packedItems ?? []).includes(itemId) && !(Number(quantity) > 0)) {

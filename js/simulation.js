@@ -611,6 +611,9 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
   if (strategyName === "random" || strategyName === "normal") return null;
   const encounterId = context.encounter?.id;
   const choiceById = (id) => choices.find((choice) => choice.id === id);
+  if (encounterId === "hidden_flask") {
+    return choiceById("recover_flask") ?? choiceById("leave_flask") ?? null;
+  }
   if (encounterId === "barenton_fountain_ritual") {
     const priorities = context.stageId === "aftermath"
       ? ["face_fountain_knight", "withdraw_from_trial"]

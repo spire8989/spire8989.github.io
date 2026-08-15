@@ -1,5 +1,68 @@
 # Build Log
 
+## 2026-08-15 - Current Campaign Progression Simulation
+
+### Goal
+
+Make campaign simulations exercise the current playable route sequence—Old
+Forest Road, Fountain of Barenton, and Val sans Retour—then stop, while
+preserving the existing repeated-route mode and deterministic replay/export
+contracts.
+
+### Human prompt and direction
+
+The human developer supplied the campaign-progression simulation guide and
+requested that the existing simulations actually perform the new content,
+follow the repository guidance, and be added and committed locally. The guide
+explicitly deferred Search for Merlin, live unlock redesign, and broad balance
+changes.
+
+### AI-assisted implementation
+
+- Added an explicit `campaignMode: "progression"` state machine with a
+  maximum-attempt cap. Old Forest completes only after a safe return at the
+  requested target distance; Barenton completes only after safely securing
+  Water of Barenton; Val completes only after safely securing Morgan's Token.
+  Safe incomplete returns retry their current route, hard failures stop the
+  campaign, and successful Val completion stops immediately.
+- Set the route before route-specific preparation, including Flask packing,
+  and recorded route selection as a replayable town action. Per-expedition
+  telemetry now reports route/stage, attempt number, completion status,
+  completion reason, and secured quest item.
+- Added campaign progression state, route attempt/completion data, quest-item
+  security, final stage, route transitions, and compact route summaries. Batch
+  telemetry now reports progression funnel rates, attempts by route, cap
+  failures, route failure counts, and per-route averages.
+- Added the simulation UI campaign-type selector while retaining repeated
+  routes. Fresh UI campaign simulations now default Arthur to the authoritative
+  full 45/45 health; the explicit starting-health control remains editable.
+  Authored non-random simulation strategies recover the existing Old Forest
+  Flask discovery when encountered.
+- Added 19 focused browser assertions covering progression, retries, hard
+  failures, funnel telemetry, compact export, UI selection, route-switch
+  replay playback, determinism, Search-for-Merlin exclusion, and starting
+  health.
+
+### Manual changes
+
+The human developer supplied the progression guide and requested local
+verification and commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+With a Flask available, deterministic cautious and aggressive 101-league
+samples completed in three attempts with the route sequence
+`old_forest_road -> fountain_of_barenton -> val_sans_retour` and stopped after
+Morgan's Token. A seeded random 101-league sample remained a truthful
+incomplete baseline after reaching Val and exhausting expedition resources;
+no completion-rate tuning was applied.
+
+Verified 19 progression assertions, 10 Barenton/Val content assertions, 45
+deterministic simulation assertions, 78 campaign/health/Inn assertions, 15
+single-expedition replay assertions, 30 campaign-replay assertions, 429
+UI/provision/location assertions, clean local-HTTP production startup, and
+`git diff --check`.
+
 ## 2026-08-15 - Barenton and Val sans Retour Expedition Content
 
 ### Goal

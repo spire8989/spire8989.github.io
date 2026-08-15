@@ -19,6 +19,12 @@ const BetweenExpeditionPolicies = Object.freeze({
   }),
 });
 
+const CAMPAIGN_PROGRESSION_ROUTES = Object.freeze([
+  "old_forest_road",
+  "fountain_of_barenton",
+  "val_sans_retour",
+]);
+
 const CampaignSimulationRunner = Object.freeze({
   run(configuration = {}) {
     const config = normalizeCampaignConfiguration(configuration);
@@ -30,21 +36,44 @@ const CampaignSimulationRunner = Object.freeze({
     const expeditions = [];
     const betweenExpeditionDecisions = [];
     const townActions = [];
+    const progression = config.campaignMode === "progression"
+      ? createCampaignProgressionState()
+      : null;
+    const progressionTransitions = [];
     let stopReason = null;
 
     for (let index = 0; index < config.maxExpeditions; index += 1) {
       const expeditionNumber = index + 1;
-      const desiredTargetDistance = config.expeditionPlan[index % config.expeditionPlan.length];
+      const routeId = progression?.currentRouteId ?? player.selectedExpeditionId ?? "old_forest_road";
+      if (!routeId) {
+        stopReason = "current-content-completed";
+        break;
+      }
+      const desiredTargetDistance = progression
+        ? config.expeditionPlan[Math.min(progression.routeIndex, config.expeditionPlan.length - 1)]
+        : config.expeditionPlan[index % config.expeditionPlan.length];
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
+      if (progression && player.selectedExpeditionId !== routeId) {
+        player.selectedExpeditionId = routeId;
+      }
       const townEntry = CampaignRules.enterLocation(player);
-      const preparationActions = [{
+      const preparationActions = [];
+      if (stateBeforeDecisions.selectedExpeditionId !== routeId) {
+        preparationActions.push({
+          type: "select-expedition",
+          expeditionNumber,
+          expeditionId: routeId,
+          previousExpeditionId: stateBeforeDecisions.selectedExpeditionId ?? null,
+        });
+      }
+      preparationActions.push({
         type: "town-entry",
         expeditionNumber,
         provisionsGranted: townEntry.provisionsGranted,
         provisionStockBefore: stateBeforeDecisions.provisionStock,
         provisionStockAfter: player.provisions,
-      }];
+      });
 
       if (HealingRules.arthurHealth(player) <= 0) {
         stopReason = "arthur-died";
@@ -56,6 +85,7 @@ const CampaignSimulationRunner = Object.freeze({
         preparationActions,
       );
       decision.expeditionNumber = expeditionNumber;
+      decision.expeditionId = routeId;
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
 
@@ -95,6 +125,7 @@ const CampaignSimulationRunner = Object.freeze({
       const run = SimulationRunner.run({
         id: `${config.id}:expedition-${expeditionNumber}`,
         seed: expeditionSeed,
+        expeditionId: routeId,
         companion: player.selectedCompanion,
         companions: selectedCompanionIds(player),
         provisions: provisionsPacked,
@@ -128,9 +159,18 @@ const CampaignSimulationRunner = Object.freeze({
         ? "arthur-died"
         : !run.returnedSafely && isCampaignResourceExhaustion(run.failureReason)
           ? "expedition-resource-exhaustion" : null;
-      expeditions.push({
+      const progressionAttempt = progression
+        ? evaluateCampaignProgressionAttempt(
+          routeId, desiredTargetDistance, decision, run, stateBeforeDecisions, endingState,
+        )
+        : null;
+      const expeditionEntry = {
         expeditionNumber,
         expeditionSeed,
+        expeditionId: routeId,
+        routeId,
+        campaignStageAtDeparture: progression ? routeId : null,
+        routeAttemptNumber: progression ? progression.attemptsByRoute[routeId] + 1 : null,
         targetDistance: actualTargetDistance,
         desiredTargetDistance,
         actualTargetDistance,
@@ -263,7 +303,39 @@ const CampaignSimulationRunner = Object.freeze({
         expeditionTelemetry: run,
         stateBefore: stateBeforeDecisions,
         stateAfter: endingState,
-      });
+        routeAttemptStatus: progressionAttempt?.status ?? null,
+        routeAttemptCompleted: Boolean(progressionAttempt?.completed),
+        routeCompletionReason: progressionAttempt?.reason ?? null,
+        routeCompletionItem: progressionAttempt?.securedItemId ?? null,
+      };
+      expeditions.push(expeditionEntry);
+
+      if (progression) {
+        progression.attemptsByRoute[routeId] += 1;
+        if (progressionAttempt.completed) {
+          progression.routesCompleted.push(routeId);
+          progression.routeCompletionAttempt[routeId] = expeditionNumber;
+          progression.routeCompletionStatus[routeId] = "completed";
+          const nextRoute = CAMPAIGN_PROGRESSION_ROUTES[progression.routeIndex + 1] ?? null;
+          progressionTransitions.push({
+            expeditionNumber,
+            fromRouteId: routeId,
+            toRouteId: nextRoute,
+            reason: progressionAttempt.reason,
+          });
+          progression.routeIndex += 1;
+          progression.currentRouteId = nextRoute;
+          progression.currentContentCompleted = !nextRoute;
+        } else {
+          progression.routeCompletionStatus[routeId] = progressionAttempt.status;
+        }
+        progression.lastRoute = routeId;
+        progression.lastAttemptReason = progressionAttempt.reason;
+        if (progression.currentContentCompleted) {
+          stopReason = "current-content-completed";
+          break;
+        }
+      }
 
       if (!run.returnedSafely && run.finalArthurHealth <= 0) {
         stopReason = "arthur-died";
@@ -280,12 +352,14 @@ const CampaignSimulationRunner = Object.freeze({
       }
     }
 
-    stopReason ??= expeditions.length >= config.maxExpeditions
-      ? "max-expeditions-reached"
+    stopReason ??= progression?.currentContentCompleted
+      ? "current-content-completed"
+      : expeditions.length >= config.maxExpeditions
+        ? progression ? "progression-attempt-cap" : "max-expeditions-reached"
       : "cannot-support-any-expedition";
     return finalizeCampaignTelemetry(
       config, policy, startingState, player, shopStocks, expeditions,
-      betweenExpeditionDecisions, townActions, stopReason,
+      betweenExpeditionDecisions, townActions, stopReason, progression, progressionTransitions,
     );
   },
 
@@ -371,7 +445,10 @@ const CampaignSimulationTelemetry = Object.freeze({
 
   campaignsToCsv(batchOrResults) {
     const results = Array.isArray(batchOrResults) ? batchOrResults : batchOrResults.results;
-    const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "expeditionsAttempted",
+    const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "campaignProgressionMode",
+      "currentRoute", "lastRoute", "progressionRouteSequence", "routesCompleted", "attemptsByRoute",
+      "routeCompletionAttempt", "routeCompletionStatus", "waterOfBarentonSecured", "morgansTokenSecured",
+      "currentContentCompleted", "finalProgressionStage", "expeditionsAttempted",
       "expeditionsReturned", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
       "strategyConstraintCount", "strategyConstraintTypes", "startingGold", "endingGold", "endingArthurHealth",
       "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
@@ -395,6 +472,7 @@ const CampaignSimulationTelemetry = Object.freeze({
     return campaignCsv(fields, results.map((campaign) => ({
       ...campaign,
       strategyConstraintTypes: campaign.strategyConstraints.map((constraint) => constraint.type).join("|"),
+      progressionRouteSequence: (campaign.routeSequence ?? []).join("|"),
     })));
   },
 
@@ -412,7 +490,9 @@ const CampaignSimulationTelemetry = Object.freeze({
       strategyConstraintTypes: expedition.strategyConstraints.map((constraint) => constraint.type).join("|"),
       ...expedition,
     })));
-    const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "success",
+    const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "expeditionId", "routeId",
+      "campaignStageAtDeparture", "routeAttemptNumber", "routeAttemptStatus", "routeAttemptCompleted",
+      "routeCompletionReason", "routeCompletionItem", "success",
       "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "totalEstimatedProvisionRequirement",
@@ -478,6 +558,9 @@ function compactExportMetadata(batch, campaigns) {
       Number(configuration.maxExpeditions) || configuration.expeditionPlan?.length || 0
     ))),
     strategies: distinctStrings(campaigns.map((campaign) => campaign.strategy)),
+    campaignModes: distinctStrings(campaigns.map((campaign) => (
+      campaign.campaignProgressionMode ? "progression" : "repeated"
+    ))),
     economicPolicies: distinctStrings(campaigns.map((campaign) => (
       campaign.betweenExpeditionPolicy
     ))),
@@ -602,6 +685,18 @@ function compactCampaignSummary(campaign, expeditions) {
       hardFailure: Boolean(campaign.hardFailure),
       hardFailureReason: campaign.hardFailureReason ?? null,
     },
+    progression: {
+      mode: campaign.campaignProgressionMode ? "current-campaign" : "repeated-route",
+      routeSequence: compactClone(campaign.routeSequence ?? []),
+      routesCompleted: compactClone(campaign.routesCompleted ?? []),
+      attemptsByRoute: compactClone(campaign.attemptsByRoute ?? {}),
+      routeCompletionAttempt: compactClone(campaign.routeCompletionAttempt ?? {}),
+      routeCompletionStatus: compactClone(campaign.routeCompletionStatus ?? {}),
+      waterOfBarentonSecured: Boolean(campaign.waterOfBarentonSecured),
+      morgansTokenSecured: Boolean(campaign.morgansTokenSecured),
+      finalProgressionStage: campaign.finalProgressionStage ?? null,
+      currentContentCompleted: Boolean(campaign.currentContentCompleted),
+    },
     startingStateSummary: compactCampaignState(campaign.startingState),
     endingStateSummary: compactCampaignState(campaign.endingState),
     equipmentPurchasesById,
@@ -687,7 +782,14 @@ function compactExpedition(entry, campaign) {
   });
   return {
     expeditionNumber: entry.expeditionNumber,
-    expeditionId: run.runId ?? `${campaign.campaignId}:expedition-${entry.expeditionNumber}`,
+    expeditionId: entry.expeditionId ?? replay.expeditionId ?? run.expeditionId ?? null,
+    routeId: entry.routeId ?? entry.expeditionId ?? replay.expeditionId ?? null,
+    campaignStageAtDeparture: entry.campaignStageAtDeparture ?? null,
+    routeAttemptNumber: entry.routeAttemptNumber ?? null,
+    routeAttemptStatus: entry.routeAttemptStatus ?? null,
+    routeAttemptCompleted: Boolean(entry.routeAttemptCompleted),
+    routeCompletionReason: entry.routeCompletionReason ?? null,
+    routeCompletionItem: entry.routeCompletionItem ?? null,
     campaignId: campaign.campaignId,
     campaignSeed: campaign.seed,
     expeditionSeed: entry.expeditionSeed ?? run.seed,
@@ -2122,9 +2224,73 @@ function normalizeCampaignConfiguration(configuration) {
     betweenExpeditionPolicy: configuration.betweenExpeditionPolicy ?? "conservative-sustainer",
     expeditionPlan: plan.map((distance) => Math.max(1, Number(distance) || 50)),
     maxExpeditions: count,
+    campaignMode: configuration.campaignMode === "progression"
+      || configuration.progressionMode === true
+      || configuration.campaignProgressionMode === true
+      ? "progression" : "repeated",
     startingState: configuration.startingState ?? {},
     healingEnabled: configuration.healingEnabled !== false,
     autoSellRecoveredLoot: configuration.autoSellRecoveredLoot !== false,
+  };
+}
+
+function createCampaignProgressionState() {
+  return {
+    routeIndex: 0,
+    currentRouteId: CAMPAIGN_PROGRESSION_ROUTES[0],
+    lastRoute: null,
+    lastAttemptReason: null,
+    routesCompleted: [],
+    attemptsByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, 0])),
+    routeCompletionAttempt: {},
+    routeCompletionStatus: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, "pending"])),
+    currentContentCompleted: false,
+  };
+}
+
+function evaluateCampaignProgressionAttempt(
+  routeId, desiredTargetDistance, decision, run, stateBefore, endingState,
+) {
+  const returnedSafely = Boolean(run.returnedSafely);
+  const maximumDistance = Number(run.maximumDistance) || 0;
+  const intendedTargetReached = maximumDistance >= Number(desiredTargetDistance);
+  const securedQuantity = (itemId) => Number(endingState.ownedItems?.[itemId]) || 0;
+  const hadQuantity = (itemId) => Number(stateBefore.ownedItems?.[itemId]) || 0;
+  const hardFailure = !returnedSafely && Boolean(
+    run.finalArthurHealth <= 0 || isCampaignResourceExhaustion(run.failureReason),
+  );
+  if (routeId === "old_forest_road") {
+    if (returnedSafely && intendedTargetReached) {
+      return { completed: true, status: "completed", reason: "returned-at-requested-target" };
+    }
+    return {
+      completed: false,
+      status: hardFailure ? "hard-failure" : "returned-not-completed",
+      reason: !returnedSafely
+        ? (run.failureReason ?? "failed-before-return")
+        : decision.targetDistanceReduced || maximumDistance < Number(desiredTargetDistance)
+          ? "returned-before-requested-target"
+          : "returned-without-meaningful-route-progress",
+    };
+  }
+  const questItem = routeId === "fountain_of_barenton" ? "water_of_barenton" : "morgans_token";
+  const secured = securedQuantity(questItem) > 0;
+  const acquiredThisAttempt = securedQuantity(questItem) > hadQuantity(questItem);
+  if (returnedSafely && secured) {
+    return {
+      completed: true,
+      status: "completed",
+      reason: acquiredThisAttempt ? `secured-${questItem}` : `confirmed-${questItem}-secured`,
+      securedItemId: questItem,
+    };
+  }
+  return {
+    completed: false,
+    status: hardFailure ? "hard-failure" : "returned-not-completed",
+    reason: !returnedSafely
+      ? `${questItem}-lost-before-safe-return`
+      : `returned-without-${questItem}`,
+    securedItemId: secured ? questItem : null,
   };
 }
 
@@ -2173,6 +2339,7 @@ function tagCampaignTownActions(actions, expeditionNumber) {
 function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
   return deepCampaignClone({
     expeditionNumber,
+    selectedExpeditionId: player.selectedExpeditionId,
     gold: player.currentGold,
     provisionStock: player.provisions,
     ownedItems: player.ownedItems,
@@ -2197,6 +2364,7 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
 
 function finalizeCampaignTelemetry(
   config, policy, startingState, player, shopStocks, expeditions, decisions, townActions, stopReason,
+  progression = null, progressionTransitions = [],
 ) {
   const endingState = campaignStateSnapshot(player, shopStocks, expeditions.length);
   const totals = (selector) => expeditions.reduce((sum, entry) => sum + (Number(selector(entry)) || 0), 0);
@@ -2249,6 +2417,24 @@ function finalizeCampaignTelemetry(
       : netCampaignWealth >= -Math.max(8, expeditions.length * 3)
         ? "slowly-declining"
         : "rapidly-unsustainable";
+  const routesCompleted = progression?.routesCompleted ?? [];
+  const routeCompletionStatus = progression?.routeCompletionStatus
+    ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+      routeId,
+      expeditions.some((entry) => entry.routeId === routeId && entry.routeAttemptCompleted)
+        ? "completed" : "not-attempted",
+    ]));
+  const attemptsByRoute = progression?.attemptsByRoute
+    ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+      routeId, expeditions.filter((entry) => entry.routeId === routeId).length,
+    ]));
+  const routeSequence = expeditions.map((entry) => entry.routeId ?? entry.expeditionId);
+  const waterOfBarentonSecured = Boolean(endingState.ownedItems?.water_of_barenton);
+  const morgansTokenSecured = Boolean(endingState.ownedItems?.morgans_token);
+  const currentContentCompleted = Boolean(progression?.currentContentCompleted);
+  const finalProgressionStage = config.campaignMode === "progression"
+    ? currentContentCompleted ? "current-content-completed" : progression?.currentRouteId ?? null
+    : null;
   return {
     campaignId: `${config.id}:${config.seed}`,
     seed: config.seed,
@@ -2260,6 +2446,7 @@ function finalizeCampaignTelemetry(
       betweenExpeditionPolicy: policy.name,
       expeditionPlan: config.expeditionPlan,
       maxExpeditions: config.maxExpeditions,
+      campaignMode: config.campaignMode,
       healingEnabled: config.healingEnabled,
       autoSellRecoveredLoot: config.autoSellRecoveredLoot,
     },
@@ -2283,7 +2470,22 @@ function finalizeCampaignTelemetry(
     hardFailureReason: stopCategory === "hard-failure" ? stopReason : null,
     strategyConstraints,
     strategyConstraintCount: strategyConstraints.length,
-    completedPlan: campaignCompletedPlan(config, expeditions, stopReason),
+    completedPlan: config.campaignMode === "progression"
+      ? currentContentCompleted
+      : campaignCompletedPlan(config, expeditions, stopReason),
+    campaignProgressionMode: config.campaignMode === "progression",
+    routesCompleted: deepCampaignClone(routesCompleted),
+    currentRoute: progression?.currentRouteId ?? null,
+    lastRoute: progression?.lastRoute ?? expeditions.at(-1)?.routeId ?? null,
+    attemptsByRoute: deepCampaignClone(attemptsByRoute),
+    routeCompletionAttempt: deepCampaignClone(progression?.routeCompletionAttempt ?? {}),
+    routeCompletionStatus: deepCampaignClone(routeCompletionStatus),
+    routeSequence,
+    waterOfBarentonSecured,
+    morgansTokenSecured,
+    currentContentCompleted,
+    finalProgressionStage,
+    progressionTransitions: deepCampaignClone(progressionTransitions),
     totalGoldEarned,
     totalGoldSpent,
     totalHealingCost,
@@ -2416,6 +2618,9 @@ function finalizeCampaignTelemetry(
     replay: {
       version: 2,
       campaignSeed: config.seed,
+      campaignProgressionMode: config.campaignMode === "progression",
+      progressionTransitions: deepCampaignClone(progressionTransitions),
+      routeSequence,
       startingState,
       expeditionSeeds: expeditions.map((entry) => entry.expeditionSeed),
       betweenExpeditionDecisions: decisions,
@@ -2438,6 +2643,7 @@ function finalizeCampaignTelemetry(
         endingState,
         expeditionsAttempted: expeditions.length,
         stopReason,
+        campaignProgressionMode: config.campaignMode === "progression",
       },
       endingState,
     },
@@ -2447,6 +2653,26 @@ function finalizeCampaignTelemetry(
 function summarizeCampaigns(results) {
   const averageField = (field) => campaignAverage(results.map((entry) => entry[field]));
   const expeditions = results.flatMap((entry) => entry.expeditions);
+  const routeAttempts = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+    routeId, results.flatMap((campaign) => campaign.expeditions
+      .filter((entry) => (entry.routeId ?? entry.expeditionId) === routeId)),
+  ]));
+  const routeRate = (routeId, predicate) => results.length
+    ? results.filter((campaign) => predicate(campaign, routeId)).length / results.length : 0;
+  const routeAverages = (routeId, field) => {
+    const entries = routeAttempts[routeId];
+    return entries.length ? campaignAverage(entries.map((entry) => entry[field])) : 0;
+  };
+  const deathsByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+    routeId,
+    routeAttempts[routeId].filter((entry) => entry.hardFailureReason === "arthur-died"
+      || (!entry.success && Number(entry.endingHealth) <= 0)).length,
+  ]));
+  const resourceFailuresByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+    routeId,
+    routeAttempts[routeId].filter((entry) => entry.hardFailureReason === "expedition-resource-exhaustion"
+      || Boolean(entry.provisionExhaustionFailure)).length,
+  ]));
   return {
     totalCampaigns: results.length,
     campaignCompletionRate: results.length ? results.filter((entry) => entry.completedPlan).length / results.length : 0,
@@ -2503,6 +2729,52 @@ function summarizeCampaigns(results) {
     averageGaugeControl: averageField("totalGaugeControl"),
     economicallyGrowingRate: results.length
       ? results.filter((entry) => entry.economicTrend === "economically-growing").length / results.length : 0,
+    oldForestReachedRate: routeRate("old_forest_road", (campaign) => (
+      (campaign.attemptsByRoute?.old_forest_road ?? campaign.expeditions
+        .some((entry) => (entry.routeId ?? entry.expeditionId) === "old_forest_road")) > 0
+    )),
+    oldForestCompletionRate: routeRate("old_forest_road", (campaign) => (
+      campaign.routesCompleted?.includes("old_forest_road")
+      ?? campaign.expeditions.some((entry) => entry.routeId === "old_forest_road" && entry.routeAttemptCompleted)
+    )),
+    barentonReachedRate: routeRate("fountain_of_barenton", (campaign) => (
+      (campaign.attemptsByRoute?.fountain_of_barenton ?? campaign.expeditions
+        .some((entry) => (entry.routeId ?? entry.expeditionId) === "fountain_of_barenton")) > 0
+    )),
+    barentonCompletionRate: routeRate("fountain_of_barenton", (campaign) => (
+      campaign.routesCompleted?.includes("fountain_of_barenton")
+      ?? campaign.expeditions.some((entry) => entry.routeId === "fountain_of_barenton" && entry.routeAttemptCompleted)
+    )),
+    valReachedRate: routeRate("val_sans_retour", (campaign) => (
+      (campaign.attemptsByRoute?.val_sans_retour ?? campaign.expeditions
+        .some((entry) => (entry.routeId ?? entry.expeditionId) === "val_sans_retour")) > 0
+    )),
+    valCompletionRate: routeRate("val_sans_retour", (campaign) => (
+      campaign.routesCompleted?.includes("val_sans_retour")
+      ?? campaign.expeditions.some((entry) => entry.routeId === "val_sans_retour" && entry.routeAttemptCompleted)
+    )),
+    fullCurrentCampaignCompletionRate: results.length
+      ? results.filter((entry) => entry.currentContentCompleted).length / results.length : 0,
+    averageTotalAttempts: averageField("expeditionsAttempted"),
+    averageAttemptsOldForest: campaignAverage(results.map((entry) => entry.attemptsByRoute?.old_forest_road ?? 0)),
+    averageAttemptsBarenton: campaignAverage(results.map((entry) => entry.attemptsByRoute?.fountain_of_barenton ?? 0)),
+    averageAttemptsVal: campaignAverage(results.map((entry) => entry.attemptsByRoute?.val_sans_retour ?? 0)),
+    attemptCapFailureRate: results.length
+      ? results.filter((entry) => entry.stopReason === "progression-attempt-cap").length / results.length : 0,
+    deathsByRoute,
+    resourceFailuresByRoute,
+    averageEndingHealthByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+      routeId, routeAverages(routeId, "endingHealth"),
+    ])),
+    averageDamageByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+      routeId, routeAverages(routeId, "damageTaken"),
+    ])),
+    averageCombatsByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+      routeId, routeAverages(routeId, "combats"),
+    ])),
+    averageEncounterCountByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+      routeId, routeAverages(routeId, "encounters"),
+    ])),
   };
 }
 
@@ -2566,7 +2838,8 @@ function campaignStopCategory(stopReason) {
     .includes(stopReason)) {
     return "hard-failure";
   }
-  if (stopReason === "max-expeditions-reached") return "completed";
+  if (["max-expeditions-reached", "current-content-completed"].includes(stopReason)) return "completed";
+  if (stopReason === "progression-attempt-cap") return "incomplete";
   return "simulation-error";
 }
 
