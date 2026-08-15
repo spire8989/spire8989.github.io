@@ -96,6 +96,12 @@ tests, live zero-error catalog validation, and browser smoke coverage for all
 Phase 3 categories. No live Grail content definitions or runtime code were
 modified; this milestone only records the development-tool capability.
 
+Follow-up: Encounter `startCombat` outcomes now expose schema-aware Combat,
+Victory, and Fled editing without requiring raw JSON. Loot-table and direct
+item rewards use typed selectors with Open navigation, nested references are
+included in validation and Used By reporting, and temporary-fixture tests
+verified source-preserving edits that change only the owning encounter.
+
 ## 2026-08-15 - Provision Preparation and Supply-Run Balance Patch
 
 ### Goal
