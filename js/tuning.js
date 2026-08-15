@@ -2,7 +2,10 @@
 
 // Central gameplay-feel values for rapid iteration during playtesting.
 const EXPEDITION_TUNING = Object.freeze({
-  outboundTravelSpeed: 2.25,
+  // One league per second is approximately 44% of the former 2.25 league/s
+  // presentation speed. Encounter spacing is rescaled with it below so the
+  // real-time interruption cadence stays close to the existing feel.
+  outboundTravelSpeed: 1,
   returnSpeedMultiplier: 4,
   baseProvisionsPerDistance: 0.068,
   travelPaces: Object.freeze({
@@ -82,15 +85,17 @@ const EXPEDITION_TUNING = Object.freeze({
     aggressive: 0,
     greedy: 1,
   }),
-  encounterMinimumDistance: 14,
-  encounterMaximumDistance: 22,
+  // More authored encounter slots across a 100-league route without making
+  // encounters interrupt travel more often in wall-clock time.
+  encounterMinimumDistance: 7,
+  encounterMaximumDistance: 10,
   encounterActionDelays: Object.freeze({
     physical: Object.freeze({ minimumMs: 800, maximumMs: 1400 }),
     search: Object.freeze({ minimumMs: 1200, maximumMs: 2400 }),
     rest: Object.freeze({ minimumMs: 1500, maximumMs: 2600 }),
     combat: Object.freeze({ minimumMs: 1000, maximumMs: 1800 }),
   }),
-  postEncounterSafeDistance: 8,
+  postEncounterSafeDistance: 4.5,
   packSlots: 6,
   materialBagCapacity: 10,
   minimumStartingProvisions: 1,

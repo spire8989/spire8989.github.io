@@ -1,5 +1,59 @@
 # Build Log
 
+## 2026-08-15 - Expedition Travel-Scale Rebalance
+
+### Goal
+
+Rebalance the league scale so a 100-league expedition has substantially more
+room for authored encounters without making interruptions arrive much more
+often in real-world play time or doubling baseline provision pressure.
+
+### Human prompt and direction
+
+The human developer supplied a rebalance guide and asked for a fresh codebase
+rescan, implementation, and a local add/commit. The guide explicitly deferred
+new Barenton/Val sans Retour content, XP, combat, camping, and unrelated
+cleanup.
+
+### AI-assisted implementation
+
+- Rescanned the current travel loop, `ExpeditionRules`, encounter scheduler,
+  simulation, campaign simulation, compact export, and replay playback before
+  editing.
+- Reduced the shared outbound presentation speed from `2.25` to `1.0`
+  league/second, approximately 44% of the former progression rate. The return
+  multiplier and pace identities remain unchanged.
+- Tightened shared encounter rolls from `14–22` to `7–10` leagues and reduced
+  the post-encounter safety floor from `8` to `4.5` leagues. Existing weighted
+  selection, route/direction filters, occurrence limits, requirements, seeded
+  RNG, and minimum/maximum authored distances remain intact.
+- Kept provisions distance-based through `ExpeditionRules`; no new time-based
+  food cost was introduced. Baseline 100-league round trips therefore retain
+  their existing pressure while pace and ration multipliers remain active.
+- Updated the production UI assertion and replay coverage fixture for the new
+  scale. Simulation, campaign, compact export, and replay continue to consume
+  the shared tuning rather than receiving separate rebalance constants.
+
+### Manual changes
+
+The human developer supplied the rebalance targets and scope limits. No manual
+code edits were reported.
+
+### Verification and resulting prototype state
+
+The prototype now advances through league distance at approximately 44% of the
+former normal rate while rolling encounters in a 7–10 league window. A
+representative 32-seed normal batch averaged about 8.3 leagues between outbound
+encounters and 9.7 outbound encounters on a 100-league target; the former
+configured roll average was 18 leagues, or roughly 5–6 slots. Arthur plus Kay
+normal round-trip provision costs remain approximately 13.26, 17.68, and 17.86
+for 75, 100, and 101 leagues respectively.
+
+Verified 429 UI/provision/location assertions, 45 deterministic simulation
+assertions, 78 campaign/health/Inn assertions, 15 replay assertions, and
+`git diff --check`. The changes are intended for a local commit only; nothing
+was pushed.
+
 ## 2026-08-14 - Campaign Replay Controls, Context, and Fast-Forward Fixes
 
 ### Goal

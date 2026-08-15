@@ -116,7 +116,7 @@ def run():
             "Replay restart did not reproduce the same final state",
         )
         check(
-            "(() => { const run=SimulationRunner.run({seed:'coverage-0',strategy:'aggressive',provisions:30,turnaroundPolicy:{type:'fixedDistance',distance:100}}); const bad=JSON.parse(JSON.stringify(run)); const action=bad.replay.decisions.find(decision=>decision.type==='combat-action'&&decision.targetId); if(!action) return false; action.targetId='missing-target'; ReplayController.exit(); ReplayController.start(bad); ReplayController.skipTo('end'); return ReplayController.state().status==='desync'&&ReplayController.state().error?.expectedDecision?.targetId==='missing-target'; })()",
+            "(() => { const run=SimulationRunner.run({seed:'coverage-0',strategy:'aggressive',provisions:30,turnaroundPolicy:{type:'fixedDistance',distance:100}}); const bad=JSON.parse(JSON.stringify(run)); const action=bad.replay.decisions.find(decision=>decision.type==='combat-action'&&decision.actionId==='attack'); if(!action) return false; action.targetId='missing-target'; ReplayController.exit(); ReplayController.start(bad); ReplayController.skipTo('end'); return ReplayController.state().status==='desync'&&ReplayController.state().error?.expectedDecision?.targetId==='missing-target'; })()",
             "Recorded combat target changes were not rejected as a replay desync",
         )
         check(
