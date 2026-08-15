@@ -24,12 +24,31 @@ const CampaignRules = Object.freeze({
     return stocks;
   },
 
-  enterLocation(player) {
+  restockTownProvisions(shopStocks) {
+    const shop = SHOP_DEFINITIONS.village_general_goods;
+    const offer = shop.provisionsForSale;
+    const before = Math.max(0, Number(shopStocks?.[shop.id] ?? offer.stock) || 0);
+    const after = Math.min(offer.stock, before + EXPEDITION_TUNING.townProvisionRestock);
+    if (shopStocks) shopStocks[shop.id] = after;
+    return {
+      stockBefore: before,
+      stockAfter: after,
+      quantity: after - before,
+    };
+  },
+
+  enterLocation(player, shopStocks = null) {
     const before = player.provisions;
     if (player.provisions < EXPEDITION_TUNING.minimumTownProvisions) {
       player.provisions = EXPEDITION_TUNING.minimumTownProvisions;
     }
-    return { provisionsGranted: player.provisions - before };
+    const restock = shopStocks ? this.restockTownProvisions(shopStocks) : null;
+    return {
+      provisionsGranted: player.provisions - before,
+      shopProvisionStockBefore: restock?.stockBefore ?? null,
+      shopProvisionStockAfter: restock?.stockAfter ?? null,
+      shopProvisionsRestocked: restock?.quantity ?? 0,
+    };
   },
 
   sellMerchantItems(player, items) {

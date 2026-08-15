@@ -179,6 +179,14 @@ def run():
             "Combat Bandages did not heal, consume, and record one carried item",
         )
         check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.materials={}; player.packedMaterials={}; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); EncounterManager.force(expedition,'wolves_in_brush'); const started=EncounterManager.resolveChoice(expedition,player,'stand_ground',{startCombat:()=>true}); const completed=EncounterManager.completeCombat(expedition,player,'victory'); const reward=expedition.activeEncounter.rewards.find(entry=>entry.materialId==='raw_meat'); return started.combatStarted&&completed.awaitingContinue&&reward?.quantity===3; })()",
+            "Three-wolf victory did not stage exactly three raw meat",
+        )
+        check(
+            "(() => { const amounts=Array.from({length:40},(_,index)=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:GameRandom.create('bandit-food-'+index).random}); EncounterManager.force(expedition,'bandit_ambush'); const started=EncounterManager.resolveChoice(expedition,player,'fight',{startCombat:()=>true}); EncounterManager.completeCombat(expedition,player,'victory'); return started.combatStarted ? expedition.provisions-10 : -1; }); return amounts.some(amount=>amount>=2&&amount<=4)&&amounts.some(amount=>amount===0)&&amounts.every(amount=>amount===0||(amount>=2&&amount<=4)); })()",
+            "Normal bandit victories did not produce a seeded sometimes-2–4 provision reward branch",
+        )
+        check(
             "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanion=null; player.ownedItems.bandages=2; const expedition=ExpeditionRules.createExpedition(player,{companion:null,provisions:5,health:20,packedItems:['bandages']}); const combat=CombatSystem.create(expedition,'wild_boar',{random:()=>0}); combat.status='awaitingAction'; combat.activeActorId='arthur'; combat.allies[0].gauge=100; const menu=CombatSystem.chooseAction(combat,expedition,'items'); const before=expedition.carriedItems.bandages; const backed=CombatSystem.chooseAction(combat,expedition,'back'); return menu.menu==='items' && backed.menu==='main' && expedition.carriedItems.bandages===before && !expedition.consumedItems.bandages; })()",
             "Opening and canceling the Items submenu consumed a Bandage",
         )

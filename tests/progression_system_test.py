@@ -119,6 +119,18 @@ def run() -> None:
             "(() => { const c=CampaignSimulationRunner.run({seed:'progression-health-default',campaignMode:'progression',expeditions:1,turnaroundDistance:1,startingState:{selectedCompanions:[],selectedCompanion:null}}); return c.startingArthurHealth===45&&c.startingState.arthurHealth===45&&c.startingState.arthurMaxHealth===45; })()",
             "A fresh progression campaign did not start Arthur at full intended health",
         )
+        check(
+            "(() => { const c=CampaignSimulationRunner.run({seed:'progression-supply-run',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',expeditionPlan:[1,101],startingState:{arthurHealth:45,currentGold:10,provisions:10,materials:{},packedMaterials:{},learnedRecipes:[],shopStocks:{village_general_goods:0}}}); const supply=c.expeditions[1]; return c.supplyRunCount===1&&supply.isSupplyRun&&supply.supplyRunForRoute==='fountain_of_barenton'&&supply.routeId==='old_forest_road'&&supply.campaignStageAtDeparture==='fountain_of_barenton'&&supply.actualTargetDistance>=50&&supply.actualTargetDistance<=75&&c.attemptsByRoute.fountain_of_barenton===0&&c.routeAttemptSequence.join(',')==='old_forest_road'; })()",
+            "Progression did not use a clearly marked 50–75 league Old Forest supply run before a provision-short deep objective",
+        )
+        check(
+            "(() => { const c=CampaignSimulationRunner.run({seed:'progression-supply-run',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',expeditionPlan:[1,101],startingState:{arthurHealth:45,currentGold:10,provisions:10,materials:{},packedMaterials:{},learnedRecipes:[],shopStocks:{village_general_goods:0}}}); const compact=JSON.parse(CampaignSimulationTelemetry.toCompactJson({results:[c]})); const data=CampaignReplayData.normalize(c); const e=compact.campaigns[0].expeditions[1]; return e.isSupplyRun&&e.supplyRunForRoute==='fountain_of_barenton'&&data.expeditions[1].replay.expeditionId==='old_forest_road'; })()",
+            "Compact telemetry and campaign replay did not preserve the marked supply-run route",
+        )
+        check(
+            "(async () => { const c=CampaignSimulationRunner.run({seed:'progression-supply-run',campaignMode:'progression',expeditions:2,betweenExpeditionPolicy:'conservative-sustainer',expeditionPlan:[1,101],startingState:{arthurHealth:45,currentGold:10,provisions:10,materials:{},packedMaterials:{},learnedRecipes:[],shopStocks:{village_general_goods:0}}}); const started=CampaignReplayController.start(c); const reached=await CampaignReplayController.skipTo('end'); const state=CampaignReplayController.state(); const supply=state?.data.expeditions[1]; CampaignReplayController.exit(); return started&&reached&&state.status==='completed'&&state.error===null&&supply.replay.expeditionId==='old_forest_road'; })()",
+            "Campaign replay could not reproduce an intentional supply run",
+        )
 
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")

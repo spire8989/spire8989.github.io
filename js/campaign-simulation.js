@@ -44,7 +44,8 @@ const CampaignSimulationRunner = Object.freeze({
 
     for (let index = 0; index < config.maxExpeditions; index += 1) {
       const expeditionNumber = index + 1;
-      const routeId = progression?.currentRouteId ?? player.selectedExpeditionId ?? "old_forest_road";
+      const progressionRouteId = progression?.currentRouteId ?? null;
+      let routeId = progressionRouteId ?? player.selectedExpeditionId ?? "old_forest_road";
       if (!routeId) {
         stopReason = "current-content-completed";
         break;
@@ -54,10 +55,19 @@ const CampaignSimulationRunner = Object.freeze({
         : config.expeditionPlan[index % config.expeditionPlan.length];
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
-      if (progression && player.selectedExpeditionId !== routeId) {
-        player.selectedExpeditionId = routeId;
+      if (progression && player.selectedExpeditionId !== progressionRouteId) {
+        player.selectedExpeditionId = progressionRouteId;
       }
-      const townEntry = CampaignRules.enterLocation(player);
+      const townEntry = CampaignRules.enterLocation(player, shopStocks);
+      const supplyRunForRoute = progression && shouldRunProgressionSupplyRun(
+        progressionRouteId, desiredTargetDistance, player, shopStocks, policy, config.strategy,
+      ) ? progressionRouteId : null;
+      const isSupplyRun = Boolean(supplyRunForRoute);
+      if (isSupplyRun) routeId = "old_forest_road";
+      if (player.selectedExpeditionId !== routeId) player.selectedExpeditionId = routeId;
+      const plannedTargetDistance = isSupplyRun
+        ? progressionSupplyRunDistance(config.strategy)
+        : desiredTargetDistance;
       const preparationActions = [];
       if (stateBeforeDecisions.selectedExpeditionId !== routeId) {
         preparationActions.push({
@@ -73,6 +83,9 @@ const CampaignSimulationRunner = Object.freeze({
         provisionsGranted: townEntry.provisionsGranted,
         provisionStockBefore: stateBeforeDecisions.provisionStock,
         provisionStockAfter: player.provisions,
+        shopProvisionStockBefore: townEntry.shopProvisionStockBefore,
+        shopProvisionStockAfter: townEntry.shopProvisionStockAfter,
+        shopProvisionsRestocked: townEntry.shopProvisionsRestocked,
       });
 
       if (HealingRules.arthurHealth(player) <= 0) {
@@ -80,12 +93,16 @@ const CampaignSimulationRunner = Object.freeze({
         break;
       }
       const decision = applyBetweenExpeditionPolicy(
-        player, shopStocks, policy, desiredTargetDistance, config.healingEnabled, config.strategy,
+        player, shopStocks, policy, plannedTargetDistance, config.healingEnabled, config.strategy,
         preparationRandom.random,
         preparationActions,
       );
       decision.expeditionNumber = expeditionNumber;
       decision.expeditionId = routeId;
+      decision.progressionRouteId = progressionRouteId;
+      decision.isSupplyRun = isSupplyRun;
+      decision.supplyRunForRoute = supplyRunForRoute;
+      decision.supplyRunTargetDistance = isSupplyRun ? plannedTargetDistance : null;
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
 
@@ -160,8 +177,9 @@ const CampaignSimulationRunner = Object.freeze({
         : !run.returnedSafely && isCampaignResourceExhaustion(run.failureReason)
           ? "expedition-resource-exhaustion" : null;
       const progressionAttempt = progression
+        && !isSupplyRun
         ? evaluateCampaignProgressionAttempt(
-          routeId, desiredTargetDistance, decision, run, stateBeforeDecisions, endingState,
+          progressionRouteId, desiredTargetDistance, decision, run, stateBeforeDecisions, endingState,
         )
         : null;
       const expeditionEntry = {
@@ -169,8 +187,13 @@ const CampaignSimulationRunner = Object.freeze({
         expeditionSeed,
         expeditionId: routeId,
         routeId,
-        campaignStageAtDeparture: progression ? routeId : null,
-        routeAttemptNumber: progression ? progression.attemptsByRoute[routeId] + 1 : null,
+        campaignStageAtDeparture: progression ? progressionRouteId ?? routeId : null,
+        routeAttemptNumber: progression && !isSupplyRun
+          ? progression.attemptsByRoute[progressionRouteId] + 1 : null,
+        isSupplyRun,
+        supplyRunForRoute,
+        supplyRunTargetDistance: isSupplyRun ? actualTargetDistance : null,
+        supplyRunObjectiveDistance: isSupplyRun ? desiredTargetDistance : null,
         targetDistance: actualTargetDistance,
         desiredTargetDistance,
         actualTargetDistance,
@@ -310,16 +333,18 @@ const CampaignSimulationRunner = Object.freeze({
       };
       expeditions.push(expeditionEntry);
 
-      if (progression) {
-        progression.attemptsByRoute[routeId] += 1;
+      if (progression && isSupplyRun) {
+        progression.supplyRunsByRoute[supplyRunForRoute] += 1;
+      } else if (progression) {
+        progression.attemptsByRoute[progressionRouteId] += 1;
         if (progressionAttempt.completed) {
-          progression.routesCompleted.push(routeId);
-          progression.routeCompletionAttempt[routeId] = expeditionNumber;
-          progression.routeCompletionStatus[routeId] = "completed";
+          progression.routesCompleted.push(progressionRouteId);
+          progression.routeCompletionAttempt[progressionRouteId] = expeditionNumber;
+          progression.routeCompletionStatus[progressionRouteId] = "completed";
           const nextRoute = CAMPAIGN_PROGRESSION_ROUTES[progression.routeIndex + 1] ?? null;
           progressionTransitions.push({
             expeditionNumber,
-            fromRouteId: routeId,
+            fromRouteId: progressionRouteId,
             toRouteId: nextRoute,
             reason: progressionAttempt.reason,
           });
@@ -327,9 +352,9 @@ const CampaignSimulationRunner = Object.freeze({
           progression.currentRouteId = nextRoute;
           progression.currentContentCompleted = !nextRoute;
         } else {
-          progression.routeCompletionStatus[routeId] = progressionAttempt.status;
+          progression.routeCompletionStatus[progressionRouteId] = progressionAttempt.status;
         }
-        progression.lastRoute = routeId;
+        progression.lastRoute = progressionRouteId;
         progression.lastAttemptReason = progressionAttempt.reason;
         if (progression.currentContentCompleted) {
           stopReason = "current-content-completed";
@@ -468,7 +493,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
       "equipmentPurchases", "equipmentPurchaseGoldSpent",
       "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
-      "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
+      "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend", "supplyRunCount"];
     return campaignCsv(fields, results.map((campaign) => ({
       ...campaign,
       strategyConstraintTypes: campaign.strategyConstraints.map((constraint) => constraint.type).join("|"),
@@ -492,7 +517,7 @@ const CampaignSimulationTelemetry = Object.freeze({
     })));
     const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "expeditionId", "routeId",
       "campaignStageAtDeparture", "routeAttemptNumber", "routeAttemptStatus", "routeAttemptCompleted",
-      "routeCompletionReason", "routeCompletionItem", "success",
+      "routeCompletionReason", "routeCompletionItem", "isSupplyRun", "supplyRunForRoute", "supplyRunTargetDistance", "supplyRunObjectiveDistance", "success",
       "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "totalEstimatedProvisionRequirement",
@@ -688,8 +713,11 @@ function compactCampaignSummary(campaign, expeditions) {
     progression: {
       mode: campaign.campaignProgressionMode ? "current-campaign" : "repeated-route",
       routeSequence: compactClone(campaign.routeSequence ?? []),
+      routeAttemptSequence: compactClone(campaign.routeAttemptSequence ?? []),
       routesCompleted: compactClone(campaign.routesCompleted ?? []),
       attemptsByRoute: compactClone(campaign.attemptsByRoute ?? {}),
+      supplyRunCount: Number(campaign.supplyRunCount) || 0,
+      supplyRunsByRoute: compactClone(campaign.supplyRunsByRoute ?? {}),
       routeCompletionAttempt: compactClone(campaign.routeCompletionAttempt ?? {}),
       routeCompletionStatus: compactClone(campaign.routeCompletionStatus ?? {}),
       waterOfBarentonSecured: Boolean(campaign.waterOfBarentonSecured),
@@ -790,6 +818,10 @@ function compactExpedition(entry, campaign) {
     routeAttemptCompleted: Boolean(entry.routeAttemptCompleted),
     routeCompletionReason: entry.routeCompletionReason ?? null,
     routeCompletionItem: entry.routeCompletionItem ?? null,
+    isSupplyRun: Boolean(entry.isSupplyRun),
+    supplyRunForRoute: entry.supplyRunForRoute ?? null,
+    supplyRunTargetDistance: entry.supplyRunTargetDistance ?? null,
+    supplyRunObjectiveDistance: entry.supplyRunObjectiveDistance ?? null,
     campaignId: campaign.campaignId,
     campaignSeed: campaign.seed,
     expeditionSeed: entry.expeditionSeed ?? run.seed,
@@ -2241,11 +2273,94 @@ function createCampaignProgressionState() {
     lastRoute: null,
     lastAttemptReason: null,
     routesCompleted: [],
+    supplyRunsByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, 0])),
     attemptsByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, 0])),
     routeCompletionAttempt: {},
     routeCompletionStatus: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, "pending"])),
     currentContentCompleted: false,
   };
+}
+
+function shouldRunProgressionSupplyRun(
+  routeId, desiredTargetDistance, player, shopStocks, policy, strategyName,
+) {
+  const preparation = CAMPAIGN_TUNING.provisionPreparation;
+  if (!routeId || routeId === "old_forest_road"
+    || Number(desiredTargetDistance) < preparation.deepObjectiveMinimumDistance) {
+    return false;
+  }
+  const quote = quoteCampaignProvisionAvailability(
+    player, shopStocks, policy, desiredTargetDistance, strategyName,
+  );
+  return quote.preferredSafeDistance < Math.min(
+    Number(desiredTargetDistance), preparation.deepObjectiveMinimumDistance,
+  );
+}
+
+function progressionSupplyRunDistance(strategyName) {
+  const targets = CAMPAIGN_TUNING.provisionPreparation.supplyRunTargetDistance;
+  return targets[strategyName] ?? targets.random;
+}
+
+function quoteCampaignProvisionAvailability(
+  player, shopStocks, policy, targetDistance, strategyName,
+) {
+  const planningStrategy = strategyName ?? defaultStrategyForBetweenPolicy(policy);
+  const activeCompanions = selectedCompanionIds(player);
+  const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions);
+  const travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+    provisions: player.provisions,
+    capacity,
+    injuries: player.injuries,
+  });
+  const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
+  const shop = SHOP_DEFINITIONS.village_general_goods;
+  const availableShopStock = Math.max(0, Number(shopStocks?.[shop.id]) || 0);
+  const affordablePurchaseQuantity = Math.min(
+    Math.floor(Math.max(0, Number(player.currentGold) || 0) / shop.provisionsForSale.price),
+    availableShopStock,
+    Math.max(0, capacity - (Number(player.provisions) || 0)),
+  );
+  const provisionStock = Math.min(
+    capacity,
+    Math.max(0, Number(player.provisions) || 0)
+      + quoteInnCookingProvisionGain(player, strategyName)
+      + affordablePurchaseQuantity,
+  );
+  return {
+    capacity,
+    provisionStock,
+    desiredProvisionStock: Math.min(capacity, estimateCampaignProvisionRequirement(
+      targetDistance, activeCompanions, policy.provisionMargin,
+      encounterProvisionReserve, travelSettings,
+    )),
+    preferredSafeDistance: maximumCampaignDistanceForProvisions(
+      provisionStock, activeCompanions, policy.provisionMargin,
+      encounterProvisionReserve, travelSettings,
+    ),
+  };
+}
+
+function quoteInnCookingProvisionGain(player, strategyName) {
+  const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
+    .map((recipe) => ({
+      recipe,
+      quote: CraftingRules.quote(player, recipe.id, "campfire", { context: "inn" }),
+    }))
+    .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
+  if (!candidates.length) return 0;
+  const scores = candidates.map((candidate) => {
+    const output = Number(candidate.recipe.output.provisions) || 0;
+    const ingredientCount = Object.values(candidate.recipe.ingredients ?? {})
+      .reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const score = strategyName === "cautious"
+      ? output * 2 + output / Math.max(1, ingredientCount)
+      : strategyName === "aggressive"
+        ? output + output / Math.max(1, ingredientCount) * 2
+        : output + output / Math.max(1, ingredientCount);
+    return { output, score };
+  });
+  return scores.sort((left, right) => right.score - left.score || right.output - left.output)[0].output;
 }
 
 function evaluateCampaignProgressionAttempt(
@@ -2421,7 +2536,7 @@ function finalizeCampaignTelemetry(
   const routeCompletionStatus = progression?.routeCompletionStatus
     ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
       routeId,
-      expeditions.some((entry) => entry.routeId === routeId && entry.routeAttemptCompleted)
+      expeditions.some((entry) => !entry.isSupplyRun && entry.routeId === routeId && entry.routeAttemptCompleted)
         ? "completed" : "not-attempted",
     ]));
   const attemptsByRoute = progression?.attemptsByRoute
@@ -2429,6 +2544,13 @@ function finalizeCampaignTelemetry(
       routeId, expeditions.filter((entry) => entry.routeId === routeId).length,
     ]));
   const routeSequence = expeditions.map((entry) => entry.routeId ?? entry.expeditionId);
+  const routeAttemptSequence = expeditions
+    .filter((entry) => !entry.isSupplyRun)
+    .map((entry) => entry.routeId ?? entry.expeditionId);
+  const supplyRunsByRoute = progression?.supplyRunsByRoute
+    ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+      routeId, expeditions.filter((entry) => entry.isSupplyRun && entry.supplyRunForRoute === routeId).length,
+    ]));
   const waterOfBarentonSecured = Boolean(endingState.ownedItems?.water_of_barenton);
   const morgansTokenSecured = Boolean(endingState.ownedItems?.morgans_token);
   const currentContentCompleted = Boolean(progression?.currentContentCompleted);
@@ -2481,6 +2603,9 @@ function finalizeCampaignTelemetry(
     routeCompletionAttempt: deepCampaignClone(progression?.routeCompletionAttempt ?? {}),
     routeCompletionStatus: deepCampaignClone(routeCompletionStatus),
     routeSequence,
+    routeAttemptSequence,
+    supplyRunCount: expeditions.filter((entry) => entry.isSupplyRun).length,
+    supplyRunsByRoute: deepCampaignClone(supplyRunsByRoute),
     waterOfBarentonSecured,
     morgansTokenSecured,
     currentContentCompleted,
@@ -2621,6 +2746,7 @@ function finalizeCampaignTelemetry(
       campaignProgressionMode: config.campaignMode === "progression",
       progressionTransitions: deepCampaignClone(progressionTransitions),
       routeSequence,
+      routeAttemptSequence,
       startingState,
       expeditionSeeds: expeditions.map((entry) => entry.expeditionSeed),
       betweenExpeditionDecisions: decisions,
@@ -2655,7 +2781,7 @@ function summarizeCampaigns(results) {
   const expeditions = results.flatMap((entry) => entry.expeditions);
   const routeAttempts = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId, results.flatMap((campaign) => campaign.expeditions
-      .filter((entry) => (entry.routeId ?? entry.expeditionId) === routeId)),
+      .filter((entry) => !entry.isSupplyRun && (entry.routeId ?? entry.expeditionId) === routeId)),
   ]));
   const routeRate = (routeId, predicate) => results.length
     ? results.filter((campaign) => predicate(campaign, routeId)).length / results.length : 0;

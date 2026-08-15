@@ -1435,9 +1435,16 @@ const CampaignReplayController = Object.freeze({
     let result = null;
     switch (action.type) {
       case "town-entry":
-        result = CampaignRules.enterLocation(player);
+        result = CampaignRules.enterLocation(
+          player,
+          Number.isFinite(Number(action.shopProvisionStockAfter)) ? state.shopStocks : null,
+        );
         if (result.provisionsGranted !== Number(action.provisionsGranted ?? result.provisionsGranted)) {
           return this.desync("The recorded town entry granted different provisions.", action);
+        }
+        if (Number.isFinite(Number(action.shopProvisionStockAfter))
+          && result.shopProvisionStockAfter !== Number(action.shopProvisionStockAfter)) {
+          return this.desync("The recorded town entry restocked a different provision supply.", action);
         }
         break;
       case "inn-rest":

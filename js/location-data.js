@@ -65,7 +65,7 @@ const SHOP_DEFINITIONS = Object.freeze({
       bandages: { price: 5, stock: 8 },
       dried_herbs: { price: 4 },
     },
-    provisionsForSale: { price: 1, stock: 50 },
+    provisionsForSale: { price: 1, stock: 70 },
     acceptedCategories: ["supply", "consumable", "gear", "valuable"],
     acceptedTags: ["mundane", "tool", "supplies", "valuable"],
     sellValues: {

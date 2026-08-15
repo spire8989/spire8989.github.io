@@ -100,6 +100,7 @@ const EXPEDITION_TUNING = Object.freeze({
   materialBagCapacity: 10,
   minimumStartingProvisions: 1,
   minimumTownProvisions: 10,
+  townProvisionRestock: 12,
   companionBonuses: Object.freeze({
     llamreiProvisionCapacity: 10,
     llamreiSoloTravelSpeed: 0.25,
@@ -108,6 +109,10 @@ const EXPEDITION_TUNING = Object.freeze({
 });
 
 const CAMPAIGN_TUNING = Object.freeze({
+  provisionPreparation: Object.freeze({
+    deepObjectiveMinimumDistance: 75,
+    supplyRunTargetDistance: Object.freeze({ cautious: 65, random: 60, aggressive: 75 }),
+  }),
   consumablePurchasing: Object.freeze({
     bandages: Object.freeze({
       aggressive: Object.freeze({ target: 3, minimum: 1, combatUseThreshold: 0.55 }),

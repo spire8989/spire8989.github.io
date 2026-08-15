@@ -330,8 +330,8 @@ function enterLocation(locationId) {
 }
 
 function showLocation() {
-  const locationEntry = CampaignRules.enterLocation(game.player);
-  if (locationEntry.provisionsGranted > 0) {
+  const locationEntry = CampaignRules.enterLocation(game.player, game.provisionShopStock);
+  if (locationEntry.provisionsGranted > 0 || locationEntry.shopProvisionsRestocked > 0) {
     savePlayer();
   }
   game.activeDestinationId = null;

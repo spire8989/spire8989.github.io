@@ -1377,7 +1377,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             type: "startCombat",
             combatId: "wolves",
             victory: {
-              outcomes: [{ type: "gainUnsecuredItem", itemId: "raw_meat", quantity: 2 }],
+              outcomes: [{ type: "gainUnsecuredItem", itemId: "raw_meat", quantity: 3 }],
               resultText: "Arthur holds firm until the last wolf is driven down. The company gathers the meat the Material Bag can carry.",
             },
             fled: {
@@ -1431,6 +1431,17 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             victory: {
               outcomes: [
                 { type: "rollLootTable", tableId: "bandit_ambush_loot", rolls: 2 },
+                {
+                  type: "randomChance",
+                  chance: 0.35,
+                  effects: [{
+                    type: "modifyResource",
+                    resource: "provisions",
+                    randomMinimum: 2,
+                    randomMaximum: 4,
+                  }],
+                  resultText: "The bandits' packs contain a small reserve of provisions.",
+                },
                 {
                   type: "setRunFlag",
                   flag: "banditLeaderEligible",

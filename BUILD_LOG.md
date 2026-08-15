@@ -1,5 +1,60 @@
 # Build Log
 
+## 2026-08-15 - Provision Preparation and Supply-Run Balance Patch
+
+### Goal
+
+Make a small preparation pass for 101-league progression play without
+changing travel consumption, combat balance, encounter frequency, or quest
+content. The patch also makes wolf and ordinary bandit field rewards more
+intuitive while keeping all seeded simulation and replay paths compatible.
+
+### Human prompt and direction
+
+The human developer supplied the provision/preparation balance guide and
+requested finite town availability improvements, intentional Old Forest Road
+supply runs when a deep progression objective is not reasonably provisionable,
+seeded three-wolf and ordinary-bandit food rewards, validation, and a local
+git commit. Bandit Leader rewards and the broader game balance were explicitly
+left unchanged.
+
+### AI-assisted implementation
+
+- Increased the General Goods provision stock from 50 to 70 and added a
+  finite 12-provision town restock on location entry, shared by live play,
+  campaign simulation, and campaign replay through `CampaignRules`.
+- Added high-level progression preparation logic that, when Barenton or Val
+  cannot safely support the current deep objective, launches a strategy-sized
+  Old Forest Road supply run at 60, 65, or 75 leagues. The progression stage
+  remains unchanged, and telemetry distinguishes the supply route, objective
+  route, target, route attempts, compact export, and replay actions.
+- Changed three-wolf victory to stage exactly 3 Raw Meat. Added a seeded 35%
+  ordinary-bandit victory branch that grants 2–4 provisions. Bandit Leader
+  content was not modified.
+- Updated focused regression fixtures for the new wolf reward and preserved a
+  deterministic replay fixture with its intended camp/cooking coverage.
+
+### Manual changes
+
+The human developer supplied the balance guide and requested implementation,
+verification, and local commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The town supply remains finite per stock pool and replenishes only up to the
+70-provision merchant cap. A seeded progression smoke case with a 101-league
+deep objective produced a marked 65-league Old Forest supply run, without
+incrementing a Barenton attempt. Three-wolf victory staged 3 Raw Meat, and a
+seeded ordinary-bandit victory granted 2 provisions from the 2–4 branch.
+
+Verified 22 progression assertions, 47 deterministic simulation assertions,
+78 campaign/health/Inn assertions, 15 single-expedition replay assertions,
+30 campaign-replay assertions, 10 Barenton/Val content assertions, 429
+UI/provision/location assertions, and `git diff --check`. The remaining
+provision bottleneck is the finite 30-provision default Arthur/Sir Kay party
+capacity: a 101-league run can still be target-reduced or require a supply run
+when cooking, gold, or merchant stock cannot cover the preferred buffer.
+
 ## 2026-08-15 - Current Campaign Progression Simulation
 
 ### Goal
