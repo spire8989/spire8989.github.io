@@ -35,6 +35,14 @@ const CAMP_EVENT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ eventId: "wounded_traveler", weight: 10 }),
     ]),
   }),
+  val_supernatural: Object.freeze({
+    id: "val_supernatural",
+    entries: Object.freeze([
+      Object.freeze({ eventId: "morgan_across_campfire", weight: 14 }),
+      Object.freeze({ eventId: "strange_lights", weight: 24 }),
+      Object.freeze({ eventId: "wolves_near_fire", weight: 18 }),
+    ]),
+  }),
 });
 
 const CAMP_EVENT_CONTEXT_TABLES = Object.freeze({
@@ -187,6 +195,23 @@ const CAMP_EVENT_DEFINITIONS = Object.freeze({
           endEncounter: true,
         },
         { id: "leave_them_alone", label: "Leave Them Alone", resultText: "Arthur keeps the company close to the fire until the wolves lose interest.", endEncounter: true },
+      ],
+    } },
+  },
+  morgan_across_campfire: {
+    id: "morgan_across_campfire",
+    title: "Morgan Across the Campfire",
+    description: "A woman sits beyond the firelight, close enough to speak and far enough that the flames never touch her.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    tags: ["campaign", "val", "morgan", "dialogue"],
+    requirements: [{ type: "runFlag", flag: "valBoundaryRevealed" }],
+    stages: { start: {
+      text: "Morgan looks at the fire rather than at Arthur. She asks why he keeps moving when no one in the valley is forcing him to suffer.",
+      choices: [
+        { id: "answer_morgan", label: "Answer Her", outcomes: [{ type: "setRunFlag", flag: "morganRevealed", value: true }], resultText: "Arthur says that rest can be wise without becoming a place to hide. Morgan considers the distinction and does not argue.", endEncounter: true },
+        { id: "listen_to_morgan", label: "Listen Without Agreeing", outcomes: [{ type: "setRunFlag", flag: "morganRevealed", value: true }], resultText: "Morgan says Camelot may be another prison, then lets the thought sit between them until the fire burns lower.", endEncounter: true },
+        { id: "refuse_conversation", label: "Refuse the Conversation", resultText: "Arthur keeps his eyes on the fire. When he looks up again, only the empty far side of the clearing remains.", endEncounter: true },
       ],
     } },
   },

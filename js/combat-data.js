@@ -89,11 +89,27 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   }),
   summoned_guardian: Object.freeze({
     id: "summoned_guardian",
-    name: "Summoned Guardian",
-    maxHp: 54,
-    speed: 10,
-    defense: 2,
+    name: "Morgan's Guardian",
+    maxHp: 50,
+    speed: 11,
+    defense: 3,
     actionPattern: ["guardian_sweep", "guardian_sweep"],
+  }),
+  fountain_knight: Object.freeze({
+    id: "fountain_knight",
+    name: "Fountain Knight",
+    maxHp: 48,
+    speed: 12,
+    defense: 3,
+    actionPattern: ["knight_lance", "knight_guard", "knight_lance"],
+  }),
+  false_knight: Object.freeze({
+    id: "false_knight",
+    name: "False Knight",
+    maxHp: 36,
+    speed: 11,
+    defense: 2,
+    actionPattern: ["false_knight_blade", "false_knight_blade"],
   }),
 });
 
@@ -162,6 +178,26 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "bruised_ribs",
     injuryChance: 0.16,
   }),
+  knight_lance: Object.freeze({
+    id: "knight_lance",
+    name: "Measured Lance",
+    damage: Object.freeze({ minimum: 6, maximum: 10 }),
+    target: "arthur",
+    injuryId: "deep_cut",
+    injuryChance: 0.1,
+  }),
+  knight_guard: Object.freeze({
+    id: "knight_guard",
+    name: "Guarded Stroke",
+    damage: Object.freeze({ minimum: 4, maximum: 7 }),
+    target: "arthur",
+  }),
+  false_knight_blade: Object.freeze({
+    id: "false_knight_blade",
+    name: "Uncertain Blade",
+    damage: Object.freeze({ minimum: 5, maximum: 8 }),
+    target: "arthur",
+  }),
 });
 
 const COMBAT_DEFINITIONS = Object.freeze({
@@ -184,5 +220,13 @@ const COMBAT_DEFINITIONS = Object.freeze({
   summoned_guardian: Object.freeze({
     id: "summoned_guardian",
     enemyIds: ["summoned_guardian"],
+  }),
+  fountain_knight: Object.freeze({
+    id: "fountain_knight",
+    enemyIds: ["fountain_knight"],
+  }),
+  false_knight: Object.freeze({
+    id: "false_knight",
+    enemyIds: ["false_knight"],
   }),
 });

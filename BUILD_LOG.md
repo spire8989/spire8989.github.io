@@ -1,5 +1,67 @@
 # Build Log
 
+## 2026-08-15 - Barenton and Val sans Retour Expedition Content
+
+### Goal
+
+Fill out the two remaining normal Brocéliande expeditions with authored
+Arthurian story beats while preserving the current travel pacing, combat
+balance, quest-item settlement, simulation determinism, and replay/export
+contracts.
+
+### Human prompt and direction
+
+The human developer supplied the Part 2 expedition-content guide and requested
+implementation from the latest `main`, focused validation, a build-log entry,
+and a local git commit. The guide explicitly deferred Search for Merlin, XP,
+global combat/economy rebalance, and broad provision changes.
+
+### AI-assisted implementation
+
+- Added Barenton rumors, the Keeper of Bulls, still-forest and stone-marker
+  approach beats, and a deep Perron milestone. Filling Merlin's Flask before
+  the ordeal now produces a subtle empty-vessel result; pouring water across
+  the stone stages the supernatural storm and aftermath before a balanced
+  solo Fountain Knight trial. Water of Barenton is awarded as unsecured loot
+  only after victory and settles only on a safe return.
+- Added Val sans Retour comfort, delay, false-knight, repeated-road, boundary,
+  faithful-lady, chapel, mirror, Great Hall, Morgan's Offer, and return beats.
+  Morgan's campfire appearance uses the existing camp-event system; accepting
+  comfort can be immediately beneficial while setting route flags. Morgan is
+  not a combatant; refusing the deep offer leads to Morgan's Guardian, whose
+  deliberate victory reward is unsecured Morgan's Token.
+- Added route-aware milestone selection that preserves encounter spacing except
+  for the deep guardian threshold needed to resolve a 100-league target, and
+  extended the normal travel pool with a restrained mix of forest, weather,
+  shrine, stream, shelter, and return content. Existing legacy fountain data
+  remains unreachable in production but is retained for old replay/test shape
+  compatibility.
+- Added Fountain Knight, False Knight, and Morgan's Guardian enemy definitions
+  without changing the global combat formula. Simulation strategies now make
+  explicit Barenton/Val choices while Random remains seeded and genuinely
+  variable. Simulation route selection now carries `expeditionId` into replay.
+- Added focused Barenton/Val browser regression coverage and updated the
+  encounter-pool count assertion.
+
+### Manual changes
+
+The human developer supplied the content guide and requested implementation,
+verification, and a local commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The two routes now reach their deep milestones near 94–100 leagues in focused
+100-league simulations. The sampled full round trips produced 14–18 total
+encounters, 0–1 combats, and no content-specific provision failure; the normal
+route pool remains mixed with story, forest, weather, recovery, and return
+events. Cautious, Random, and Aggressive runs all terminated cleanly, while
+the focused deterministic sample safely settled both quest rewards.
+
+Verified 10 Barenton/Val content assertions, 45 deterministic simulation
+assertions, 78 campaign/health/Inn assertions, 15 single-expedition replay
+assertions, 30 campaign-replay assertions, 429 UI/provision/location browser
+assertions, clean local-HTTP production startup, and `git diff --check`.
+
 ## 2026-08-15 - Expedition Survivability and Equipment Progression Balance
 
 ### Goal

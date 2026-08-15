@@ -192,6 +192,7 @@ const SimulationRunner = Object.freeze({
     const replayStartingState = replayPlayerSnapshot(player);
     const startingStock = player.provisions;
     const expedition = ExpeditionRules.startExpedition(player, {
+      expeditionId: normalized.expeditionId,
       provisions: Math.min(normalized.provisions, player.provisions),
       companion: normalized.companion,
       companions: normalized.companions,
@@ -549,7 +550,10 @@ const SimulationTelemetry = Object.freeze({
 function createStrategy(name, chooseEncounter) {
   return Object.freeze({
     name,
-    chooseEncounter,
+    chooseEncounter(choices, context) {
+      const authoredChoice = authoredStrategyChoice(name, choices, context);
+      return authoredChoice ?? chooseEncounter(choices, context);
+    },
     chooseCombatAction(combat, expedition, context) {
       const actions = CombatSystem.availableActions(combat, expedition);
       const maxHealth = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
@@ -601,6 +605,37 @@ function createStrategy(name, chooseEncounter) {
       return targets.sort((left, right) => (left.hp / left.maxHp) - (right.hp / right.maxHp))[0]?.id;
     },
   });
+}
+
+function authoredStrategyChoice(strategyName, choices, context = {}) {
+  if (strategyName === "random" || strategyName === "normal") return null;
+  const encounterId = context.encounter?.id;
+  const choiceById = (id) => choices.find((choice) => choice.id === id);
+  if (encounterId === "barenton_fountain_ritual") {
+    const priorities = context.stageId === "aftermath"
+      ? ["face_fountain_knight", "withdraw_from_trial"]
+      : context.stageId === "storm"
+        ? (strategyName === "cautious"
+          ? ["shelter_with_cloak", "wait_out_storm", "hold_to_stone"]
+          : ["hold_to_stone", "shelter_with_cloak", "wait_out_storm"])
+        : context.stageId === "ritual"
+          ? ["pour_on_perron", "use_basin_water", "step_away"]
+          : ["fill_flask", "study_perron", "leave_fountain"];
+    return priorities.map(choiceById).find(Boolean) ?? null;
+  }
+  if (encounterId === "summoned_guardian") {
+    if (strategyName === "aggressive") return choiceById("fight_guardian") ?? null;
+    if (strategyName === "cautious" && Number(context.expedition?.health) >= PLAYER_CHARACTER_DEFINITION.combat.maxHp * 0.45) {
+      return choiceById("fight_guardian") ?? null;
+    }
+  }
+  if (encounterId === "val_false_knight" && strategyName === "cautious") {
+    return choiceById("question_false_knight") ?? choiceById("leave_false_knight") ?? null;
+  }
+  if (encounterId === "val_morgans_offer") {
+    return choiceById("refuse_morgans_offer") ?? choiceById("ask_what_it_costs") ?? null;
+  }
+  return null;
 }
 
 function aggressiveEmergencyCombatDecision(combat, expedition, actions) {
@@ -693,6 +728,10 @@ function normalizeScenario(scenario) {
     ? requestedCompanions : [requestedCompanions]).filter((companionId) => COMPANION_DEFINITIONS[companionId]))].slice(0, 2);
   const companion = scenario.companion !== undefined ? scenario.companion : companions[0] ?? null;
   const capacity = ExpeditionRules.partyProvisionCapacity(companions);
+  const requestedExpeditionId = scenario.expeditionId ?? startingState.selectedExpeditionId;
+  const expeditionId = EXPEDITION_DEFINITIONS[requestedExpeditionId]
+    ? requestedExpeditionId : "old_forest_road";
+  const expeditionDefinition = ExpeditionCatalog.get(expeditionId);
   const turnaroundPolicy = scenario.turnaroundPolicy ?? { type: "fixedDistance", distance: 50 };
   const strategy = scenario.strategy ?? "cautious";
   const provisions = Math.max(1, Math.min(Number(scenario.provisions) || Math.min(24, capacity), capacity));
@@ -705,6 +744,7 @@ function normalizeScenario(scenario) {
     id: scenario.id ?? scenario.scenarioId ?? "default",
     scenarioId: scenario.scenarioId ?? scenario.id ?? "default",
     seed: scenario.seed ?? "grail-simulation",
+    expeditionId,
     companion,
     companions,
     provisions,
@@ -722,7 +762,7 @@ function normalizeScenario(scenario) {
     turnaroundPolicy,
     startingState: scenario.startingState ?? {},
     regionId: scenario.regionId ?? "broceliande",
-    pathId: scenario.pathId ?? "old_forest_road",
+    pathId: scenario.pathId ?? expeditionDefinition.pathId,
     paceId: EXPEDITION_TUNING.travelPaces[scenario.paceId]
       ? scenario.paceId : defaultTravelSettings.paceId,
     rationId: EXPEDITION_TUNING.rationLevels[scenario.rationId]
@@ -783,6 +823,7 @@ function createSimulationPlayer(scenario) {
   );
   player.selectedCompanions = [...scenario.companions];
   player.selectedCompanion = scenario.companions[0] ?? null;
+  player.selectedExpeditionId = scenario.expeditionId;
   player.unlockedCompanions = [...new Set([
     ...player.unlockedCompanions,
     ...scenario.companions,
@@ -1066,7 +1107,9 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
       fail(`Encounter ${definition.id} had no available choices.`);
       return;
     }
-    const choice = strategy.chooseEncounter(choices, { expedition, player, encounter: definition, stage, random })
+    const choice = strategy.chooseEncounter(choices, {
+      expedition, player, encounter: definition, stage, stageId: active.stageId, random,
+    })
       ?? choices[0];
     history.availableChoices.push({ stageId: active.stageId, choiceIds: choices.map((entry) => entry.id) });
     history.decisions.push({ stageId: active.stageId, choiceId: choice.id, label: choice.label });
@@ -1619,6 +1662,7 @@ function replayPlayerSnapshot(player) {
     unlockedCompanions: player.unlockedCompanions,
     selectedCompanions: player.selectedCompanions,
     selectedCompanion: player.selectedCompanion,
+    selectedExpeditionId: player.selectedExpeditionId,
     arthurHealth: HealingRules.arthurHealth(player),
     injuries: player.injuries,
     companionStates: player.companionStates ?? {},

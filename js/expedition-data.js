@@ -18,7 +18,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
   fountain_of_barenton: Object.freeze({
     id: "fountain_of_barenton",
     name: "Fountain of Barenton",
-    description: "A dangerous route toward a place tied to old enchantments.",
+    description: "A dangerous route toward a fountain where stone, water, and storm answer one another.",
     danger: 2,
     regionId: "broceliande",
     pathId: "fountain_of_barenton",
@@ -34,7 +34,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathId: "val_sans_retour",
     kind: "normal",
-    campEventTableIds: ["deep_forest"],
+    campEventTableIds: ["deep_forest", "val_supernatural"],
     prerequisites: [],
   }),
   search_for_merlin: Object.freeze({

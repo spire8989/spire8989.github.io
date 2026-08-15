@@ -380,6 +380,7 @@ const EncounterManager = Object.freeze({
     expedition.activeEncounter = null;
     expedition.lastEncounterId = null;
     expedition.lastEncounterResult = "";
+    expedition.lastEncounterTravelDistance = null;
     expedition.journeyLog ??= [];
   },
 
@@ -389,6 +390,15 @@ const EncounterManager = Object.freeze({
     }
 
     expedition.encounterTravelDistance += Math.abs(distanceTraveled);
+    const dueMilestone = this.selectDueMilestone(expedition, player);
+    const spacedEnoughForMilestone = expedition.lastEncounterTravelDistance === null
+      || expedition.lastEncounterTravelDistance === undefined
+      || expedition.encounterTravelDistance - expedition.lastEncounterTravelDistance
+        >= EXPEDITION_TUNING.postEncounterSafeDistance;
+    if (dueMilestone && (spacedEnoughForMilestone || dueMilestone.ignoreEncounterSpacing === true)) {
+      this.begin(expedition, dueMilestone.id);
+      return dueMilestone;
+    }
     if (expedition.encounterTravelDistance < expedition.nextEncounterAt) {
       return null;
     }
@@ -407,6 +417,15 @@ const EncounterManager = Object.freeze({
 
   selectEligible(expedition, player) {
     return weightedChoice(this.eligibleDefinitions(expedition, player), expedition.random);
+  },
+
+  selectDueMilestone(expedition, player) {
+    return this.eligibleDefinitions(expedition, player)
+      .filter((encounter) => encounter.milestone === true)
+      .sort((left, right) => (
+        (Number(left.milestoneOrder ?? left.minimumDistance) || 0)
+          - (Number(right.milestoneOrder ?? right.minimumDistance) || 0)
+      ))[0] ?? null;
   },
 
   eligibleDefinitions(expedition, player) {
@@ -645,6 +664,7 @@ const EncounterManager = Object.freeze({
     }
     expedition.lastEncounterId = expedition.activeEncounter?.encounterId ?? null;
     expedition.lastEncounterResult = message;
+    expedition.lastEncounterTravelDistance = expedition.encounterTravelDistance;
     expedition.activeEncounter = null;
     expedition.nextEncounterAt = expedition.encounterTravelDistance
       + Math.max(randomEncounterSpacing(expedition.random), EXPEDITION_TUNING.postEncounterSafeDistance);

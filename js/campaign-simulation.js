@@ -1628,7 +1628,10 @@ function applyBetweenExpeditionPolicy(
     (sum, purchase) => sum + (Number(purchase.goldCost) || 0), 0,
   );
   const bandagesAfterPurchase = player.ownedItems.bandages ?? 0;
+  const routeQuestPack = player.selectedExpeditionId === "fountain_of_barenton"
+    ? { flask: 1 } : {};
   const bandagesPacked = packCampaignItems(player, {
+    ...routeQuestPack,
     bandages: Math.min(bandagePlan.target, bandagesAfterPurchase),
   });
   townActions.push({
