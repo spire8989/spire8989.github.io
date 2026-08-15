@@ -1,5 +1,52 @@
 # Build Log
 
+## 2026-08-15 - Standalone Grail Content Editor Phase 1
+
+### Goal
+
+Create a local authoring tool that makes the game's data-driven content safer
+and faster to browse and edit without migrating the Grail runtime or content
+format.
+
+### Human prompt and direction
+
+The human developer supplied the Phase 1 Content Editor guide and directed
+implementation under the separate `Tools` workspace. The guide explicitly
+limited the first phase to encounters and shops and required validation,
+explicit saving, temporary-copy testing, documentation, and this milestone
+entry. No manual Grail gameplay or content edits were reported.
+
+### AI-assisted implementation
+
+- Added `Tools/ContentEditor`, a dependency-free Python local server and
+  browser editor with category navigation, search, add/duplicate/delete,
+  schema-aware encounter and shop forms, advanced JSON escape hatches, and an
+  unsaved-change indicator.
+- Added a constrained JavaScript object-literal parser/serializer that reads
+  the live `encounter-data.js` and `location-data.js` constants and replaces
+  only the targeted definition block when saving.
+- Added reference-aware validation for required encounter structure, item,
+  combat, injury, path, region, and loot IDs, chance ranges, distance ranges,
+  shop prices/stock, and shop deletion references from understood locations.
+- Added stale-file conflict detection, validation-before-save, atomic writes,
+  and recovery backups under `Tools/ContentEditor/.backups/`.
+
+### Verification and resulting prototype state
+
+The editor loads the current 54 encounters, 3 shops, and 44 item IDs. It is
+launched with `python Tools/ContentEditor/server.py` and defaults to the
+sibling `Grail` project. It edits encounters and shops in memory until
+explicit Save Changes; it does not autosave or add runtime dependencies to
+the contest submission.
+
+Verified 8 Content Editor unit tests, including real-definition loading,
+semantic round-trip, encounter save/parse, shop price/stock save/parse,
+invalid-reference reporting, deletion blocking, stale-source rejection, and
+unrelated-file preservation. Also verified a clean local browser startup,
+zero validation errors on the current content, `git diff --check`, and an
+unchanged Grail worktree before this log-only update. No Grail gameplay or
+content definition files were modified.
+
 ## 2026-08-15 - Provision Preparation and Supply-Run Balance Patch
 
 ### Goal
