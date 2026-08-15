@@ -314,12 +314,15 @@ const CampaignSimulationTelemetry = Object.freeze({
       ? { results: batchOrResults }
       : (batchOrResults ?? { results: [] });
     const campaigns = batch.results ?? [];
-    return {
-      compactExportVersion: 1,
+    const compactCampaigns = campaigns.map((campaign) => compactCampaign(campaign));
+    const payload = {
+      compactExportVersion: 2,
       exportMetadata: compactExportMetadata(batch, campaigns),
-      batchSummary: deepCampaignClone(batch.summary ?? summarizeCampaigns(campaigns)),
-      campaigns: campaigns.map((campaign) => compactCampaign(campaign)),
+      batchSummary: compactBatchSummary(batch.summary ?? summarizeCampaigns(campaigns), campaigns),
+      campaigns: compactCampaigns,
     };
+    payload.serializationStats = compactSerializationStats(compactCampaigns);
+    return compactClean(payload);
   },
 
   toCompactJson(batchOrResults, spacing = 2) {
@@ -426,7 +429,7 @@ function compactExportMetadata(batch, campaigns) {
     maxExpeditions: configuration.maxExpeditions ?? null,
   })));
   return {
-    compactExportVersion: 1,
+    compactExportVersion: 2,
     generatedAt: batch.generatedAt ?? new Date().toISOString(),
     source: "campaign-simulation",
     gameVersion: "html5-prototype",
@@ -473,10 +476,44 @@ function compactCampaign(campaign) {
   };
 }
 
+function compactBatchSummary(summary, campaigns) {
+  const compactSummary = compactOmitZeroNumbers(compactClone(summary));
+  if (compactSummary.groups) {
+    const groupFields = {
+      strategy: (campaign) => campaign.strategy,
+      betweenExpeditionPolicy: (campaign) => campaign.betweenExpeditionPolicy,
+      planKey: (campaign) => campaign.planKey,
+    };
+    compactSummary.groups = Object.fromEntries(Object.entries(compactSummary.groups)
+      .filter(([field]) => !groupFields[field]
+        || new Set(campaigns.map(groupFields[field])).size > 1));
+  }
+  return compactSummary;
+}
+
 function compactCampaignSummary(campaign, expeditions) {
   const summary = {};
+  const duplicatedCampaignFields = new Set([
+    ...COMPACT_CAMPAIGN_OMISSIONS,
+    "seed",
+    "betweenExpeditionPolicy",
+    "simulationConfiguration",
+    "expeditionPlan",
+    "planKey",
+    "completedPlan",
+    "stopReason",
+    "stopCategory",
+    "hardFailure",
+    "hardFailureReason",
+    "startingGold",
+    "endingGold",
+    "startingProvisionStock",
+    "endingProvisionStock",
+    "startingArthurHealth",
+    "endingArthurHealth",
+  ]);
   Object.entries(campaign).forEach(([key, value]) => {
-    if (COMPACT_CAMPAIGN_OMISSIONS.has(key)) return;
+    if (duplicatedCampaignFields.has(key)) return;
     summary[key] = compactClone(value);
   });
   const plan = campaign.expeditionPlan ?? [];
@@ -494,6 +531,9 @@ function compactCampaignSummary(campaign, expeditions) {
   );
   const encounterOutcomes = compactMergeNestedCounts(
     ...expeditions.map((entry) => entry.encounters.outcomesById),
+  );
+  const encounterChoices = compactMergeNestedCounts(
+    ...expeditions.map((entry) => entry.encounters.choicesById),
   );
   const injuriesBySource = compactMergeMaps(
     ...expeditions.map((entry) => entry.injuries.gained.bySource),
@@ -513,11 +553,11 @@ function compactCampaignSummary(campaign, expeditions) {
   const recipesUsedById = compactMergeMaps(
     ...expeditions.map((entry) => entry.crafting.recipesUsedById),
   );
+  const compactAggregates = compactOmitZeroNumbers(summary);
   return {
-    ...summary,
+    ...compactAggregates,
     campaignSeed: campaign.seed,
     economicPolicy: campaign.betweenExpeditionPolicy,
-    desiredTurnaroundDistance: plan.length === 1 ? plan[0] : null,
     desiredTurnaroundPlan: compactClone(plan),
     finalOutcome: {
       completed: Boolean(campaign.completedPlan),
@@ -528,11 +568,11 @@ function compactCampaignSummary(campaign, expeditions) {
     },
     startingStateSummary: compactCampaignState(campaign.startingState),
     endingStateSummary: compactCampaignState(campaign.endingState),
-    finalEquippedItems: compactClone(campaign.endingState?.equippedItems ?? {}),
     equipmentPurchasesById,
     equipmentPurchaseExpeditionsById,
     encountersById: encounterCounts,
     encounterOutcomesById: encounterOutcomes,
+    encounterChoicesById: encounterChoices,
     injuriesBySource,
     injuriesByCharacter,
     companionsUsedById,
@@ -593,7 +633,7 @@ function compactExpedition(entry, campaign) {
   const plannedTargetDistance = Number(entry.departureTargetDistance ?? entry.targetDistance) || 0;
   const maximumDistanceReached = Number(entry.actualMaximumDistance ?? run.maximumDistance) || 0;
   const encounterProvisionReserve = Number(entry.encounterProvisionReserve) || 0;
-  const provisions = {
+  const provisions = compactOmitZeroNumbers({
     stockBeforePreparation: Number(entry.startingProvisionStock) || 0,
     starting: Number(run.startingProvisions ?? entry.provisionsPacked) || 0,
     purchased: Number(entry.provisionsPurchased) || 0,
@@ -608,7 +648,7 @@ function compactExpedition(entry, campaign) {
     endingStock: Number(entry.endingProvisionStock) || 0,
     provisionExhaustionFailure: Boolean(entry.provisionExhaustionFailure),
     estimatedReturnRequirement: run.emergencyReturnTotalRequirement ?? null,
-  };
+  });
   return {
     expeditionNumber: entry.expeditionNumber,
     expeditionId: run.runId ?? `${campaign.campaignId}:expedition-${entry.expeditionNumber}`,
@@ -617,25 +657,21 @@ function compactExpedition(entry, campaign) {
     expeditionSeed: entry.expeditionSeed ?? run.seed,
     pathId: replay.pathId ?? run.scenario?.pathId ?? null,
     regionId: replay.regionId ?? run.scenario?.regionId ?? null,
-    strategy: campaign.strategy,
-    economicPolicy: campaign.betweenExpeditionPolicy,
-    desiredTurnaroundDistance: Number(entry.desiredTargetDistance) || null,
-    plannedTargetDistance,
-    actualTargetDistance: Number(entry.actualTargetDistance) || plannedTargetDistance,
-    targetDistanceReduced: Boolean(entry.targetDistanceReduced),
-    targetDistanceReduction: Number(entry.targetDistanceReduction) || 0,
-    targetDistanceReductionReason: entry.targetDistanceReductionReason ?? null,
-    maximumDistanceReached,
-    returnedSuccessfully,
-    failed: !returnedSuccessfully,
-    outcome: entry.outcome ?? run.outcome ?? null,
-    failureReason: entry.failureReason ?? run.failureReason ?? null,
-    emergencyTurnaround: Boolean(entry.emergencyProvisionTurnaround),
-    emergencyTurnaroundDistance: entry.emergencyProvisionTurnaroundDistance ?? null,
-    returnRewardTier: entry.returnRewardTier ?? run.returnRewardTier ?? null,
-    hardFailure: Boolean(entry.hardFailure),
-    hardFailureReason: entry.hardFailureReason ?? null,
+    result: {
+      maximumDistanceReached,
+      returnedSuccessfully,
+      failed: !returnedSuccessfully,
+      outcome: entry.outcome ?? run.outcome ?? null,
+      failureReason: entry.failureReason ?? run.failureReason ?? null,
+      emergencyTurnaround: Boolean(entry.emergencyProvisionTurnaround),
+      emergencyTurnaroundDistance: entry.emergencyProvisionTurnaroundDistance ?? null,
+      returnRewardTier: entry.returnRewardTier ?? run.returnRewardTier ?? null,
+      hardFailure: Boolean(entry.hardFailure),
+      hardFailureReason: entry.hardFailureReason ?? null,
+    },
     planning: {
+      strategy: campaign.strategy,
+      economicPolicy: campaign.betweenExpeditionPolicy,
       desiredTurnaroundDistance: Number(entry.desiredTargetDistance) || null,
       plannedTargetDistance,
       actualTargetDistance: Number(entry.actualTargetDistance) || plannedTargetDistance,
@@ -644,14 +680,11 @@ function compactExpedition(entry, campaign) {
       strategyConstraints: compactClone(entry.strategyConstraints ?? []),
       selectedPace: entry.paceSelectedAtDeparture ?? run.paceSelectedAtDeparture ?? null,
       selectedRations: entry.rationSelectedAtDeparture ?? run.rationSelectedAtDeparture ?? null,
-      paceChanges: compactClone(entry.paceChanges ?? run.paceChanges ?? []),
-      rationChanges: compactClone(entry.rationChanges ?? run.rationChanges ?? []),
       departurePassiveFoodEstimate: entry.departurePassiveFoodEstimate ?? null,
       encounterProvisionReserve,
       estimatedProvisionRequirement: entry.totalEstimatedProvisionRequirement ?? null,
-      provisionExhaustionFailure: Boolean(entry.provisionExhaustionFailure),
     },
-    economy: {
+    economy: compactOmitZeroNumbers({
       startingGold: Number(entry.startingGold) || 0,
       endingGold: Number(entry.endingGold) || 0,
       goldEarned: goldEarnedTotal + goldEarnedFromSales,
@@ -670,7 +703,7 @@ function compactExpedition(entry, campaign) {
         itemId: sale.itemId,
         quantity: sale.quantity,
       }))),
-    },
+    }),
     items: {
       purchasedById: compactClone(entry.itemsPurchasedById ?? {}),
       packedById: compactClone(entry.itemsPackedById ?? run.itemsPackedById ?? {}),
@@ -688,8 +721,6 @@ function compactExpedition(entry, campaign) {
       arthurDeath: arthurDied ? 1 : 0,
       companionIncapacitations,
       preparationHealing: compactHealingSummary(entry.healingBefore),
-      fieldHealing: rest.fieldHealingByPartyMember,
-      innHealing: compactHealingMap(entry.healingByPartyMember ?? {}),
       damageTaken: Number(entry.damageTaken) || 0,
       damageTakenByCharacter: compactClone(entry.damageReceivedByPartyMember ?? {}),
     },
@@ -719,7 +750,6 @@ function compactExpedition(entry, campaign) {
     diagnostics: {
       healingTriggeredByLowHp: Boolean(entry.healingTriggeredByLowHp),
       healingTriggerReason: entry.healingTriggerReason ?? null,
-      aggressiveEmergencyActions: Number(entry.aggressiveEmergencyActions) || 0,
       combatsStartedBelow50Percent: Number(entry.combatsStartedBelow50Percent) || 0,
       combatsStartedBelow25Percent: Number(entry.combatsStartedBelow25Percent) || 0,
       returnedWhileInjured: Boolean(entry.returnedWhileInjured),
@@ -741,6 +771,11 @@ function compactCampaignState(state) {
     unlockedCompanions: compactClone(state.unlockedCompanions ?? []),
     learnedRecipes: compactClone(state.learnedRecipes ?? []),
     learnedKnowledge: compactClone(state.learnedKnowledge ?? []),
+    importantItemsById: Object.fromEntries(Object.entries(state.ownedItems ?? {})
+      .filter(([itemId]) => {
+        const item = ITEM_DEFINITIONS[itemId];
+        return item?.questItem || item?.campaignItem || item?.unique || item?.rarity === "rare";
+      })),
     materials: compactClone(state.materials ?? {}),
     packedMaterials: compactClone(state.packedMaterials ?? {}),
     campaignFlags: compactClone(state.campaignFlags ?? {}),
@@ -753,6 +788,9 @@ function compactEncounterSummary(run) {
   const encountersById = compactCountById(histories, "encounterId");
   const outcomesById = {};
   const choicesById = {};
+  const injuryDistances = new Set((run.injuryEvents ?? [])
+    .map((event) => Number(event.distance))
+    .filter(Number.isFinite));
   const encounterResults = histories.map((encounter) => {
     const category = encounter.completed
       ? encounter.combatTriggered ? "combat-triggered" : "resolved"
@@ -766,30 +804,53 @@ function compactEncounterSummary(run) {
       const byEncounter = choicesById[encounter.encounterId] ??= {};
       byEncounter[decision.choiceId] = (byEncounter[decision.choiceId] ?? 0) + 1;
     });
-    return {
-      encounterId: encounter.encounterId,
-      eventKind: encounter.eventKind ?? "travel",
-      campEventId: encounter.campEventId ?? null,
-      distance: encounter.distance ?? null,
-      direction: encounter.direction ?? null,
-      pathId: encounter.pathId ?? null,
-      completed: Boolean(encounter.completed),
-      combatTriggered: Boolean(encounter.combatTriggered),
-      outcomeCategory: category,
-      choicesById: choices,
-      itemsGainedById: compactItemEntriesToMap(encounter.itemsGained),
-      itemsLostById: compactItemEntriesToMap(encounter.itemsLost),
-      resourceChanges: compactClone(encounter.resourceChanges ?? {}),
-      healthChanges: compactClone(encounter.healthChanges ?? {}),
-      materialChanges: compactClone(encounter.materialBagChanges ?? {}),
+    const itemsGained = compactItemEntriesToMap(encounter.itemsGained);
+    const itemsLost = compactItemEntriesToMap(encounter.itemsLost);
+    const resources = compactClone(encounter.resourceChanges ?? {});
+    const health = compactClone(encounter.healthChanges ?? {});
+    const materials = compactClone(encounter.materialBagChanges ?? {});
+    const camp = encounter.eventKind === "camp" || Boolean(encounter.campEventId);
+    const notable = compactEncounterIsNotable(encounter.encounterId);
+    const nonDefaultChoice = (encounter.decisions ?? []).some((decision) => {
+      const stage = (encounter.availableChoices ?? []).find((available) => (
+        available.stageId === decision.stageId
+      ));
+      return stage?.choiceIds?.[0] && stage.choiceIds[0] !== decision.choiceId;
+    });
+    const meaningful = Boolean(encounter.combatTriggered) || camp || notable
+      || hasCompactEntries(itemsGained) || hasCompactEntries(itemsLost)
+      || hasCompactEntries(resources) || hasCompactEntries(health) || hasCompactEntries(materials)
+      || nonDefaultChoice
+      || injuryDistances.has(Number(encounter.distance))
+      || (run.emergencyProvisionTurnaround
+        && Number(encounter.distance) === Number(run.emergencyProvisionTurnaroundDistance));
+    if (!meaningful) return null;
+    const result = {
+      id: encounter.encounterId,
+      d: encounter.distance,
+      dir: encounter.direction,
     };
-  });
+    if (camp) result.camp = true;
+    if (encounter.combatTriggered) result.combat = true;
+    if (!encounter.completed) result.complete = false;
+    if (category !== "resolved" && !encounter.combatTriggered) result.outcome = category;
+    if (Object.keys(choices).length) result.choices = choices;
+    if (hasCompactEntries(health)) result.hp = health;
+    if (hasCompactEntries(resources)) result.resources = resources;
+    if (hasCompactEntries(materials)) result.materials = materials;
+    if (hasCompactEntries(itemsGained) || hasCompactEntries(itemsLost)) {
+      result.items = {};
+      if (hasCompactEntries(itemsGained)) result.items.gained = itemsGained;
+      if (hasCompactEntries(itemsLost)) result.items.lost = itemsLost;
+    }
+    return result;
+  }).filter(Boolean);
   const combatEncounterIds = histories.filter((encounter) => encounter.combatTriggered)
     .map((encounter) => encounter.encounterId);
   const notableEncounterIds = [...new Set(histories
     .filter((encounter) => compactEncounterIsNotable(encounter.encounterId))
     .map((encounter) => encounter.encounterId))];
-  return {
+  return compactOmitZeroNumbers({
     total: histories.length,
     encountersById,
     outcomesById,
@@ -799,12 +860,32 @@ function compactEncounterSummary(run) {
     nonCombatCount: histories.length - combatEncounterIds.length,
     notableEncounterIds,
     results: encounterResults,
-  };
+  });
 }
 
 function compactEncounterIsNotable(encounterId) {
+  if (["bandit_ambush", "bandit_leader"].includes(encounterId)) return true;
   const tags = ENCOUNTER_DEFINITIONS[encounterId]?.tags ?? [];
-  return tags.some((tag) => ["rare_loot", "campaign", "companion", "milestone", "fountain"].includes(tag));
+  return tags.some((tag) => [
+    "rare_loot", "campaign", "companion", "milestone", "fountain", "destination", "quest",
+  ].includes(tag));
+}
+
+function compactSerializationStats(campaigns) {
+  const expeditions = campaigns.flatMap((campaign) => campaign.expeditions ?? []);
+  return compactOmitZeroNumbers({
+    campaignCount: campaigns.length,
+    expeditionCount: expeditions.length,
+    detailedEncounterResultsKept: expeditions.reduce(
+      (sum, expedition) => sum + (expedition.encounters.results?.length ?? 0), 0,
+    ),
+    detailedEncounterResultsDropped: expeditions.reduce(
+      (sum, expedition) => sum + Math.max(
+        0, (expedition.encounters.total ?? 0) - (expedition.encounters.results?.length ?? 0),
+      ),
+      0,
+    ),
+  });
 }
 
 function compactCombatSummary(entry, run, encounters) {
@@ -827,14 +908,13 @@ function compactCombatSummary(entry, run, encounters) {
     healingPerformed += Number(combat.healingPerformed) || 0;
     gaugeControl += Number(combat.gaugeControl) || 0;
   });
-  return {
+  return compactOmitZeroNumbers({
     count: Number(entry.combats) || combats.length,
     victories: outcomesById.victory ?? 0,
     flees: outcomesById.fled ?? 0,
     defeats: outcomesById.defeat ?? 0,
     outcomesById,
     enemyTypesById,
-    combatEncountersById: compactClone(encounters.combatEncountersById),
     damageTaken: Number(entry.damageTaken) || damageReceived,
     damageDealt,
     damageReceivedByPartyMember: compactClone(entry.damageReceivedByPartyMember ?? {}),
@@ -844,7 +924,7 @@ function compactCombatSummary(entry, run, encounters) {
     abilitiesUsedById: compactClone(entry.abilityUsesById ?? {}),
     itemsUsedById: compactClone(entry.itemUsesById ?? {}),
     aggressiveEmergencyActions: Number(entry.aggressiveEmergencyActions) || 0,
-  };
+  });
 }
 
 function compactInjurySummary(entry, run) {
@@ -853,7 +933,7 @@ function compactInjurySummary(entry, run) {
   const treated = compactInjuryCollection(entry.injuriesTreated, "treated");
   const activeAtEnd = compactInjuryCollection(entry.activeInjuriesAtEnd, "active");
   const injuryEvents = run.injuryEvents ?? [];
-  return {
+  return compactOmitZeroNumbers({
     atDeparture: departure,
     gained,
     treated,
@@ -869,7 +949,7 @@ function compactInjurySummary(entry, run) {
       method: treatment.itemId ?? treatment.source ?? "unknown",
     })), "method"),
     eventCountsByType: compactCountById(injuryEvents, "type"),
-  };
+  });
 }
 
 function compactInjuryCollection(collection, _kind) {
@@ -905,7 +985,7 @@ function compactRestSummary(run) {
       ) + 1;
     });
   });
-  return {
+  return compactOmitZeroNumbers({
     briefRestCount: Number(run.briefRestCount) || briefRests.length,
     briefRestHealingByPartyMember: compactMergeMaps(
       ...briefRests.map((rest) => rest.healingByPartyMember ?? {}),
@@ -918,7 +998,7 @@ function compactRestSummary(run) {
     campEventCount: Number(run.campEventCount) || (run.campEvents ?? []).length,
     campEventsById,
     restHealingModified: compactClone(run.restHealingModified ?? []),
-  };
+  });
 }
 
 function compactCraftingSummary(entry, run) {
@@ -951,7 +1031,7 @@ function compactCraftingSummary(entry, run) {
       action.itemsConsumed ?? {},
     )),
   );
-  return {
+  return compactOmitZeroNumbers({
     actions: fieldCooking.length + innCooking.length + preparationCrafting.length,
     goldCost: [...fieldCooking, ...innCooking, ...preparationCrafting]
       .reduce((sum, action) => sum + (Number(action.goldCost) || 0), 0),
@@ -959,7 +1039,6 @@ function compactCraftingSummary(entry, run) {
     providersById,
     itemsCraftedById,
     ingredientsConsumedById: allIngredients,
-    recipesLearned: compactClone(entry.recipesLearned ?? []),
     fieldCooking: {
       actions: fieldCooking.length,
       recipesById: compactCountById(fieldCooking, "recipeId"),
@@ -974,13 +1053,13 @@ function compactCraftingSummary(entry, run) {
       actions: preparationCrafting.length,
       recipesById: compactCountById(preparationCrafting, "recipeId"),
     },
-  };
+  });
 }
 
 function compactMaterialSummary(entry, run, crafting) {
   const startingBag = run.startingMaterialBag ?? entry.startingMaterialBag ?? {};
   const endingBag = run.materialBagAtEnd ?? entry.materialBagAtEnd ?? {};
-  return {
+  return compactOmitZeroNumbers({
     foundById: compactClone(entry.materialsFoundDuringExpedition ?? run.materialsFoundDuringExpedition ?? {}),
     consumedById: compactClone(crafting.ingredientsConsumedById),
     returnedById: compactClone(entry.materialsReturnedSafely ?? run.materialsReturnedSafely ?? {}),
@@ -991,7 +1070,7 @@ function compactMaterialSummary(entry, run, crafting) {
     endingBag: compactClone(endingBag),
     startingUsed: compactQuantityTotal(startingBag.contents),
     endingUsed: compactQuantityTotal(endingBag.contents),
-  };
+  });
 }
 
 function compactProgressionSummary(entry, startingState, endingState) {
@@ -1047,7 +1126,6 @@ function compactEquipmentSummary(entry, run, endingState) {
   return {
     equippedAtDeparture,
     purchases,
-    purchaseGoldSpent: Number(entry.equipmentPurchaseGoldSpent) || 0,
     changes,
     equippedAtReturn,
   };
@@ -1170,9 +1248,8 @@ function compactLowestPartyHealth(starting, ending, run) {
 }
 
 function compactHealingSummary(healing) {
-  if (!healing) return { attempted: false, applied: false, goldCost: 0, healingByPartyMember: {} };
+  if (!healing?.attempted) return undefined;
   return {
-    attempted: Boolean(healing.attempted),
     applied: Boolean(healing.applied),
     goldCost: Number(healing.goldCost) || 0,
     quotedGoldCost: Number(healing.quotedGoldCost) || 0,
@@ -1180,10 +1257,6 @@ function compactHealingSummary(healing) {
     healingByPartyMember: compactClone(healing.healingByPartyMember ?? {}),
     restActionCount: Number(healing.restActionCount) || 0,
   };
-}
-
-function compactHealingMap(value) {
-  return Object.fromEntries(Object.entries(value ?? {}).map(([id, amount]) => [id, Number(amount) || 0]));
 }
 
 function compactCountById(entries, idField) {
@@ -1254,6 +1327,30 @@ function compactChangedMap(before = {}, after = {}) {
 
 function compactClone(value) {
   return value === undefined ? undefined : deepCampaignClone(value);
+}
+
+function hasCompactEntries(value) {
+  return value && typeof value === "object" && Object.keys(value).length > 0;
+}
+
+function compactOmitZeroNumbers(value) {
+  if (Array.isArray(value)) return value.map(compactOmitZeroNumbers);
+  if (!value || typeof value !== "object") return value === 0 ? undefined : value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([, entry]) => entry !== 0)
+    .map(([key, entry]) => [key, compactOmitZeroNumbers(entry)]));
+}
+
+function compactClean(value) {
+  if (Array.isArray(value)) {
+    const entries = value.map(compactClean).filter((entry) => entry !== undefined);
+    return entries.length ? entries : undefined;
+  }
+  if (!value || typeof value !== "object") return value === null ? undefined : value;
+  const entries = Object.entries(value)
+    .map(([key, entry]) => [key, compactClean(entry)])
+    .filter(([, entry]) => entry !== undefined);
+  return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
 function distinctCompactValues(values) {

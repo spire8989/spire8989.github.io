@@ -1,5 +1,46 @@
 # Build Log
 
+## 2026-08-14 - Compact Campaign Export v2 Size Reduction
+
+### Goal
+
+Reduce redundant and high-volume data in the Compact Campaign JSON export while
+preserving its role as the primary analysis artifact and retaining replay seeds,
+campaign behavior context, and full JSON/replay behavior.
+
+### Human prompt and direction
+
+The human developer supplied a focused size-reduction guide after the first
+Compact Export pass and requested the v2 implementation, verification, and git
+commit. The guide explicitly required preserving analytical categories rather
+than replacing the export with a shallow summary.
+
+### AI-assisted implementation
+
+- Bumped `compactExportVersion` from 1 to 2 and kept the existing metadata,
+  batch summary, campaign, expedition, and notable-event hierarchy.
+- Filtered per-expedition `encounters.results` to combat, HP/resource/item/
+  material/progression changes, camp, notable, emergency, injury-related, and
+  non-default-choice encounters, using a smaller readable shape (`id`, distance,
+  direction, choices, combat, HP/resources/items/materials, and exceptional state).
+- Removed duplicate campaign aliases and duplicate expedition planning/healing/
+  combat fields, kept one canonical pace/ration change location, trimmed state
+  snapshots to analytical progression/equipment/material fields, and omitted
+  empty/null optional values and zero-only aggregate counters.
+- Omitted homogeneous strategy/policy/plan grouping summaries while retaining
+  grouping for mixed batches, and added `serializationStats` for kept/dropped
+  encounter details.
+- Left simulation behavior, telemetry collection, and full JSON/replay exports
+  unchanged; updated the Compact Export regression coverage and documentation.
+
+### Verification and resulting prototype state
+
+On a representative 100-campaign, 10-expedition aggressive-101 batch, Compact
+JSON measured approximately 23.3 MB in v1 and 15.8 MB in v2 (about 32% smaller),
+while full JSON remained approximately 167.2 MB. Verified 77 campaign/health/Inn
+assertions, 45 deterministic simulation assertions, 429 UI/provision/location
+browser assertions, and `git diff --check`.
+
 ## 2026-08-14 - Compact Campaign Analysis Export
 
 ### Goal

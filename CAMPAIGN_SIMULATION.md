@@ -161,7 +161,7 @@ CampaignSimulationTelemetry.campaignsToCsv(batch);   // one row per campaign
 CampaignSimulationTelemetry.expeditionsToCsv(batch); // one row per expedition
 ```
 
-The Compact JSON export has `compactExportVersion: 1` and is organized as
+The Compact JSON export has `compactExportVersion: 2` and is organized as
 `exportMetadata`, `batchSummary`, and a `campaigns` array. Each campaign contains
 its aggregate `campaignSummary`, compact per-expedition records, and a sparse
 `notableEvents` array. It preserves campaign and expedition seeds, path/region
@@ -173,8 +173,17 @@ sequences, encounter descriptions/choice labels, and other frame-level data.
 
 `toCompactJson` is a projection of the existing campaign and expedition
 telemetry, so the full JSON remains available for forensic inspection and future
-replay work. `compactToJson` is retained as an equivalent method name for code
-that prefers export-oriented naming.
+replay work. Version 2 omits empty/null optional fields (missing means none or
+zero where the field is a count/map), filters expedition encounter details to
+combat, resource/health/item/material/progression changes, camp, notable, and
+non-default-choice results, and keeps one canonical location for pace/ration
+changes and campaign configuration. Homogeneous `batchSummary.groups` dimensions
+are omitted; mixed dimensions remain available. `serializationStats` reports
+campaign/expedition totals and kept/dropped encounter-detail counts.
+
+`compactToJson` is retained as an equivalent method name for code that prefers
+export-oriented naming. These v2 conventions apply only to Compact JSON; the
+full JSON/replay export remains unchanged.
 
 ## Determinism and replay
 
