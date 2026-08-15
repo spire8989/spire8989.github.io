@@ -819,6 +819,95 @@ const ReplayController = Object.freeze({
     replayControls = null;
   },
 
+  decorateCampaignControls() {
+    if (!campaignReplayControls || campaignReplayControls.dataset.decorated === "true") return;
+    campaignReplayControls.dataset.decorated = "true";
+    const primary = campaignReplayControls.querySelector(".replay-primary-controls");
+    const skipControls = campaignReplayControls.querySelector(".replay-skip-controls");
+    const status = campaignReplayControls.querySelector(".campaign-replay-status");
+    const progress = campaignReplayControls.querySelector(".replay-progress-row");
+    const annotation = campaignReplayControls.querySelector("[data-replay-annotation]");
+    const error = campaignReplayControls.querySelector("[data-replay-error]");
+    const warning = campaignReplayControls.querySelector("[data-replay-warning]");
+    const exit = campaignReplayControls.querySelector("[data-replay-action=\"exit\"]");
+    const speed = campaignReplayControls.querySelector("[data-replay-speed]");
+    const restart = campaignReplayControls.querySelector("[data-replay-action=\"restart\"]");
+    const step = campaignReplayControls.querySelector("[data-replay-action=\"step\"]");
+    const autoSkip = campaignReplayControls.querySelector("[data-replay-autoskip]")?.closest("label");
+    if (!primary || !skipControls || !status || !progress || !error || !exit) return;
+
+    const glance = document.createElement("div");
+    glance.className = "campaign-replay-glance";
+    const glanceExpedition = document.createElement("span");
+    glanceExpedition.dataset.replayGlanceExpedition = "";
+    const glancePhase = document.createElement("span");
+    glancePhase.dataset.replayGlancePhase = "";
+    glance.append(glanceExpedition, glancePhase);
+
+    const nextEvent = document.createElement("button");
+    nextEvent.type = "button";
+    nextEvent.dataset.replayAction = "next-event";
+    nextEvent.textContent = "Next Event";
+    nextEvent.disabled = Boolean(primary.querySelector("[data-replay-action=\"play\"]")?.disabled);
+
+    const inlineError = document.createElement("span");
+    inlineError.className = "replay-inline-error";
+    inlineError.dataset.replayErrorInline = "";
+    inlineError.hidden = true;
+
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "replay-more-button";
+    more.dataset.replayAction = "toggle-more";
+    more.setAttribute("aria-expanded", "false");
+    more.textContent = "More";
+
+    const speedLabel = speed?.closest("label");
+    primary.insertBefore(nextEvent, speedLabel ?? primary.firstChild);
+    primary.append(glance, inlineError, more, exit);
+
+    const actionIndex = document.createElement("span");
+    actionIndex.dataset.replayProgressActionIndex = "";
+    progress.insertBefore(actionIndex, progress.firstChild);
+
+    const advanced = document.createElement("div");
+    advanced.className = "campaign-replay-advanced";
+    advanced.dataset.replayAdvanced = "";
+    advanced.hidden = true;
+    const advancedActions = document.createElement("div");
+    advancedActions.className = "replay-controls-row replay-advanced-actions";
+    [restart, step, autoSkip].forEach((node) => {
+      if (node) advancedActions.append(node);
+    });
+    advancedActions.append(skipControls);
+
+    const errorDetails = document.createElement("details");
+    errorDetails.className = "replay-error-details";
+    errorDetails.dataset.replayErrorContainer = "";
+    errorDetails.hidden = true;
+    const errorSummary = document.createElement("summary");
+    errorSummary.dataset.replayErrorDetailsSummary = "";
+    errorSummary.textContent = "Replay error details";
+    errorDetails.append(errorSummary, error);
+
+    advanced.append(advancedActions, status);
+    if (annotation) advanced.append(annotation);
+    advanced.append(errorDetails);
+    if (warning) advanced.append(warning);
+    campaignReplayControls.querySelectorAll("[data-campaign-segment]").forEach((segment) => {
+      const timelineSegment = campaignReplayState?.data?.timeline?.find((entry) => (
+        String(entry.actionIndex) === segment.dataset.campaignSegment
+      ));
+      const label = segment.querySelector("strong");
+      if (label && timelineSegment) {
+        label.textContent = timelineSegment.kind === "town"
+          ? "T"
+          : `E${timelineSegment.expeditionNumber}`;
+      }
+    });
+    campaignReplayControls.append(advanced);
+  },
+
   renderControls() {
     if (!replayControls || !replayState || replayState.externalControls) return;
     const data = replayState.data;
@@ -1129,6 +1218,17 @@ const CampaignReplayController = Object.freeze({
     this.renderControls();
   },
 
+  toggleMore() {
+    const advanced = campaignReplayControls?.querySelector("[data-replay-advanced]");
+    const toggle = campaignReplayControls?.querySelector("[data-replay-action=\"toggle-more\"]");
+    if (!advanced || !toggle) return;
+    const expanded = advanced.hidden;
+    advanced.hidden = !expanded;
+    campaignReplayControls.dataset.expanded = String(expanded);
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.textContent = expanded ? "Less" : "More";
+  },
+
   step() {
     if (!campaignReplayState || ["completed", "desync"].includes(campaignReplayState.status)) return;
     this.cancelFastForward();
@@ -1164,6 +1264,7 @@ const CampaignReplayController = Object.freeze({
         kind,
         initial,
         steps: 0,
+        lastResult: null,
         stalled: false,
         reached: false,
         cancelled: false,
@@ -1190,6 +1291,7 @@ const CampaignReplayController = Object.freeze({
         type: "seek",
         target,
         steps: 0,
+        lastResult: null,
         stalled: false,
         reached: false,
         cancelled: false,
@@ -1210,11 +1312,12 @@ const CampaignReplayController = Object.freeze({
       && state.status !== "completed" && state.status !== "desync") {
       const before = this.progressSignature();
       state.presentationWait = 0;
-      this.advanceLogicalStep();
+      const result = this.advanceLogicalStep();
       this.finishExpeditionIfReady();
+      job.lastResult = result;
       job.steps += 1;
       processed += 1;
-      if (job.type === "skip" && this.skipReached(job.kind, job.initial, before)) {
+      if (job.type === "skip" && this.skipReached(job.kind, job.initial, before, result)) {
         job.reached = true;
         break;
       }
@@ -1228,7 +1331,7 @@ const CampaignReplayController = Object.freeze({
       }
     }
     const reached = job.reached || (job.type === "skip"
-      ? this.skipReached(job.kind, job.initial, this.progressSignature())
+      ? this.skipReached(job.kind, job.initial, this.progressSignature(), job.lastResult)
       : this.currentActionIndex() >= job.target);
     if (job.stalled || reached || state.status === "completed" || state.status === "desync") {
       this.finishFastForwardJob(job, !job.stalled && state.status !== "desync");
@@ -1550,7 +1653,7 @@ const CampaignReplayController = Object.freeze({
     return actions[state.townCursor] ?? null;
   },
 
-  skipReached(kind, initial, before) {
+  skipReached(kind, initial, before, result = null) {
     const state = campaignReplayState;
     const current = this.progressSignature();
     if (kind === "end") return state.status === "completed";
@@ -1565,6 +1668,7 @@ const CampaignReplayController = Object.freeze({
       && (ReplayController.state()?.expedition?.campCycle ?? 0) > initial.campCycle;
     if (kind === "return") return state.mode === "return"
       && (initial.mode !== "return" || state.expeditionIndex > initial.expeditionIndex);
+    if (kind === "event") return Boolean(result?.meaningful);
     return false;
   },
 
@@ -1646,6 +1750,8 @@ const CampaignReplayController = Object.freeze({
       const action = button.dataset.replayAction;
       if (action === "play") this.play();
       if (action === "pause") this.pause();
+      if (action === "toggle-more") this.toggleMore();
+      if (action === "next-event") this.skipTo("event");
       if (action === "restart") this.restart();
       if (action === "step") this.step();
       if (action === "skip-town") this.skipTo("town");
@@ -1694,6 +1800,11 @@ const CampaignReplayController = Object.freeze({
       <pre class="replay-error" data-replay-error role="alert" ${state.error ? "" : "hidden"}>${state.error ? escapeReplayText(JSON.stringify(state.error, null, 2)) : ""}</pre>
       <p class="replay-warning" data-replay-warning role="status" ${state.warning ? "" : "hidden"}>${state.warning ? escapeReplayText(state.warning) : ""}</p>
       <button class="replay-exit-button" type="button" data-replay-action="exit">Exit Replay</button>`;
+    this.decorateCampaignControls();
+  },
+
+  decorateCampaignControls() {
+    ReplayController.decorateCampaignControls();
   },
 
   renderControls() {
@@ -1723,12 +1834,15 @@ const CampaignReplayController = Object.freeze({
     setText("[data-replay-expedition]", `Expedition ${Math.min(state.expeditionIndex + 1, Math.max(1, data.expeditions.length))} / ${data.expeditions.length}`);
     setText("[data-replay-phase]", `Phase: ${phase}`);
     setText("[data-replay-action-index]", `Action ${Math.min(actionIndex + 1, data.totalActionCount)} / ${data.totalActionCount}`);
+    setText("[data-replay-progress-action-index]", `Action ${Math.min(actionIndex + 1, data.totalActionCount)} / ${data.totalActionCount}`);
+    setText("[data-replay-glance-expedition]", `Exp ${Math.min(state.expeditionIndex + 1, Math.max(1, data.expeditions.length))}/${data.expeditions.length}`);
+    setText("[data-replay-glance-phase]", phase);
     setText("[data-replay-gold]", `Gold: ${Math.floor(player?.currentGold ?? 0)}g`);
     setText("[data-replay-arthur]", `Arthur: ${arthurHealth}/${arthurMaxHealth}`);
     setText("[data-replay-provisions]", `Provisions: ${Math.floor(expedition?.provisions ?? player?.provisions ?? 0)}`);
     setText("[data-replay-equipment]", `Gear: ${equipment}`);
     setText("[data-replay-speed-label]", `Speed ${state.speed}x`);
-    ["play", "pause", "step", "skip-town", "skip-expedition", "skip-purchase", "skip-combat", "skip-camp", "skip-return", "skip-end"].forEach((action) => {
+    ["play", "pause", "step", "next-event", "skip-town", "skip-expedition", "skip-purchase", "skip-combat", "skip-camp", "skip-return", "skip-end"].forEach((action) => {
       const button = campaignReplayControls.querySelector(`[data-replay-action="${action}"]`);
       if (button) button.disabled = !canPlay;
     });
@@ -1755,6 +1869,13 @@ const CampaignReplayController = Object.freeze({
       error.hidden = !state.error;
       error.textContent = state.error ? JSON.stringify(state.error, null, 2) : "";
     }
+    const errorContainer = campaignReplayControls.querySelector("[data-replay-error-container]");
+    if (errorContainer) errorContainer.hidden = !state.error;
+    const errorMessage = state.error ? `Replay desync: ${state.error.message ?? "Unknown replay error"}` : "";
+    setText("[data-replay-error-inline]", errorMessage);
+    const inlineError = campaignReplayControls.querySelector("[data-replay-error-inline]");
+    if (inlineError) inlineError.hidden = !state.error;
+    setText("[data-replay-error-details-summary]", errorMessage || "Replay error details");
     const warning = campaignReplayControls.querySelector("[data-replay-warning]");
     if (warning) {
       warning.hidden = !state.warning;

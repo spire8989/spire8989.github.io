@@ -1932,3 +1932,32 @@ The human developer supplied the gameplay guide and requested implementation plu
 Players can now see crafting progress before any materials or gold are consumed, return from expeditions with persistent injuries, understand and treat those injuries in the village, and make safer or riskier travel choices through shared pace/ration rules. Simulations and campaigns use the same production mutations and retain injury/material/recipe/health/provision state between runs.
 
 Verified 416 UI/provision/location browser assertions, 33 deterministic simulation assertions, 68 campaign/health/Inn assertions, clean production-page startup through local HTTP, and `git diff --check`. The milestone is committed locally; nothing is pushed.
+
+## 2026-08-14 - Compact Campaign Replay Viewer Layout
+
+### Goal
+
+Make the full Campaign Replay Viewer easier to use on desktop and mobile without changing replay state, sequencing, determinism, or gameplay behavior.
+
+### Human prompt and direction
+
+The human developer supplied a focused Replay Viewer CSS/layout guide and requested the changes be added and committed locally without pushing.
+
+### AI-assisted implementation
+
+- Constrained the desktop replay game column to a readable portrait size and reserved the right-side development/simulation panel, while keeping the replay dock associated with the game column.
+- Reorganized the campaign dock into a compact primary row with Play, Pause, speed, Next Event, glance status, More, and Exit. Restart, Step, autoskip, specialized skip actions, detailed status, annotations, and diagnostics are available through the stable More panel.
+- Added compact clickable campaign timeline pills (`T`, `E1`, `E2`, and so on) with current/completed styling and horizontal overflow handling.
+- Added a compact inline desync message with expandable full JSON diagnostics instead of allowing an error block to push the game off-screen.
+- Added responsive mobile rules for a touch-sized 48–60px bottom control strip, safe-area spacing, a readable advanced bottom sheet, and usable horizontal timeline/control overflow.
+- Exposed Next Event through the existing chunked fast-forward path so town actions and expedition events retain their existing replay semantics.
+
+### Manual changes
+
+The human developer supplied the layout guide and requested a local add/commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The Campaign Replay Viewer now keeps the game readable beside the `?sim=1` panel on desktop, presents only the most important controls by default, and provides a touch-friendly compact mobile overlay with advanced controls on demand. Replay controls remain stable across rendering, and full error details stay expandable.
+
+Verified 45 deterministic simulation assertions, 78 campaign/health/Inn assertions, 15 single-replay assertions, 26 campaign-replay assertions including desktop/mobile geometry checks, 429 UI/provision/location browser assertions, clean local-HTTP browser startup, and `git diff --check`. The milestone is ready for a local commit; nothing is pushed.

@@ -91,6 +91,25 @@ def run():
             "Campaign replay control nodes were replaced during a playback update",
         )
         check(
+            "(() => { const controls=document.querySelector('.campaign-replay-controls'); const more=controls?.querySelector('[data-replay-action=\\\"toggle-more\\\"]'); const advanced=controls?.querySelector('[data-replay-advanced]'); const next=controls?.querySelector('[data-replay-action=\\\"next-event\\\"]'); if(!more||!advanced||!next||!advanced.hidden) return false; const original=more.textContent; more.click(); const opened=!advanced.hidden&&more.getAttribute('aria-expanded')==='true'; more.click(); return opened&&advanced.hidden&&more.textContent===original&&next.isConnected; })()",
+            "Campaign replay More and Next Event controls did not keep a compact stable DOM",
+        )
+        devtools.call("Emulation.setDeviceMetricsOverride", {
+            "width": 1366, "height": 768, "deviceScaleFactor": 1, "mobile": False,
+        })
+        check(
+            "(() => { const game=document.querySelector('.game-viewport')?.getBoundingClientRect(); const controls=document.querySelector('.campaign-replay-controls')?.getBoundingClientRect(); const tools=document.querySelector('.simulation-tools')?.getBoundingClientRect(); return game&&controls&&tools&&game.width<=620.5&&game.height<=700&&controls.width<=650.5&&controls.right<=tools.left; })()",
+            "Desktop campaign replay layout did not reserve a readable game column beside the simulation panel",
+        )
+        devtools.call("Emulation.setDeviceMetricsOverride", {
+            "width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True,
+        })
+        check(
+            "(() => { const controls=document.querySelector('.campaign-replay-controls'); const rect=controls?.getBoundingClientRect(); const advanced=controls?.querySelector('[data-replay-advanced]'); const timeline=controls?.querySelector('.campaign-replay-timeline'); return rect&&rect.height<=62&&getComputedStyle(controls).maxHeight==='60px'&&advanced?.hidden&&getComputedStyle(timeline).display==='none'; })()",
+            "Mobile campaign replay controls did not collapse into a compact touch overlay",
+        )
+        devtools.call("Emulation.clearDeviceMetricsOverride")
+        check(
             "(() => { CampaignReplayController.pause(); return CampaignReplayController.state().status==='paused'&&!CampaignReplayController.state().playing; })()",
             "Campaign replay did not pause while active",
         )

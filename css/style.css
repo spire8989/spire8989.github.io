@@ -166,6 +166,162 @@
 .replay-warning { border-color: #b18d4a; background: #2c2618; color: #f0d897; }
 .replay-exit-button { justify-self: end; }
 
+/* Campaign replay layout: keep the game column readable while the optional
+   simulation inspector remains available on the right. */
+.simulation-tools { background: #171b16f2; }
+.replay-controls {
+  max-height: min(13rem, calc(100dvh - 2rem));
+  padding: 0.55rem 0.65rem;
+  gap: 0.35rem;
+}
+.campaign-replay-controls { max-height: min(14rem, calc(100dvh - 2rem)); }
+.campaign-replay-primary { flex-wrap: nowrap; }
+.campaign-replay-glance {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.5rem;
+  color: #d8c78e;
+  overflow: hidden;
+}
+.campaign-replay-glance span { white-space: nowrap; }
+.campaign-replay-glance span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.campaign-replay-advanced {
+  display: grid;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #514a36;
+}
+.campaign-replay-advanced[hidden],
+.replay-error-details[hidden] { display: none; }
+.replay-advanced-actions { align-items: center; }
+.replay-inline-error {
+  max-width: 15rem;
+  overflow: hidden;
+  color: #f0b6a5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.replay-error-details { margin: 0; }
+.replay-error-details summary {
+  cursor: pointer;
+  color: #f0b6a5;
+}
+.replay-error {
+  max-height: 8rem;
+  overflow: auto;
+}
+.campaign-replay-timeline {
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+  padding: 0.1rem 0 0.2rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.campaign-replay-segment {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.75rem;
+  padding: 0.2rem 0.4rem;
+  text-align: center;
+}
+.campaign-replay-segment strong { font-size: 0.78rem; }
+.campaign-replay-segment span { display: none; }
+.campaign-replay-segment.town { min-width: 1.75rem; }
+.campaign-replay-status { gap: 0.3rem 0.7rem; }
+
+@media (min-width: 901px) {
+  body.replay-active {
+    --replay-dev-space: min(36rem, 44vw);
+    padding-right: var(--replay-dev-space);
+  }
+  body.replay-active .game-viewport {
+    width: min(620px, calc(100vw - var(--replay-dev-space) - 2rem));
+    max-height: calc(100dvh - 7rem);
+  }
+  body.replay-active .replay-controls {
+    right: calc(var(--replay-dev-space) + 1rem);
+    left: 1rem;
+    max-width: 650px;
+    margin-inline: auto;
+  }
+  body.replay-active .simulation-tools {
+    width: min(34rem, calc(var(--replay-dev-space) - 1rem));
+  }
+}
+
+@media (max-width: 900px) {
+  .campaign-replay-controls {
+    right: calc(0.35rem + env(safe-area-inset-right));
+    bottom: calc(0.35rem + env(safe-area-inset-bottom));
+    left: calc(0.35rem + env(safe-area-inset-left));
+    max-height: 3.75rem;
+    overflow: visible;
+    padding: 0.25rem;
+    border-color: #c29b54;
+    background: #171b16ee;
+  }
+  .campaign-replay-controls .replay-controls-heading { display: none; }
+  .campaign-replay-primary {
+    min-height: 2.75rem;
+    gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .campaign-replay-primary::-webkit-scrollbar { display: none; }
+  .campaign-replay-primary button,
+  .campaign-replay-primary select { min-height: 2.5rem; }
+  .campaign-replay-primary > label:not(.replay-checkbox) { white-space: nowrap; }
+  .campaign-replay-primary .replay-checkbox { display: none; }
+  .campaign-replay-glance {
+    flex: 0 1 auto;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+  }
+  .campaign-replay-glance span:last-child { max-width: 5rem; }
+  .campaign-replay-controls .replay-progress-row,
+  .campaign-replay-controls .campaign-replay-timeline { display: none; }
+  .campaign-replay-controls[data-expanded="true"] {
+    max-height: min(70vh, 32rem);
+  }
+  .campaign-replay-controls[data-expanded="true"] .replay-progress-row,
+  .campaign-replay-controls[data-expanded="true"] .campaign-replay-timeline { display: flex; }
+  .campaign-replay-controls[data-expanded="true"] .campaign-replay-timeline {
+    max-height: 2.2rem;
+    flex: 0 0 auto;
+  }
+  .campaign-replay-advanced {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.35rem);
+    left: 0;
+    max-height: min(64vh, 28rem);
+    overflow: auto;
+    padding: 0.65rem;
+    border: 1px solid #b18d4a;
+    border-radius: 0.5rem;
+    background: #171b16f5;
+    box-shadow: 0 0.8rem 2rem #000b;
+  }
+  .replay-advanced-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .replay-advanced-actions .replay-skip-controls {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .replay-advanced-actions button,
+  .replay-advanced-actions label { min-height: 2.5rem; }
+  .campaign-replay-status { line-height: 1.5; }
+  .replay-inline-error { max-width: 8rem; font-size: 0.72rem; }
+  .replay-exit-button { display: block; }
+}
+
 body.replay-active #screen-root button,
 body.replay-active #screen-root [data-action] {
   cursor: not-allowed;
