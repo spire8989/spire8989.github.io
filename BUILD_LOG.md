@@ -1,5 +1,43 @@
 # Build Log
 
+## 2026-08-14 - Compact Campaign Analysis Export
+
+### Goal
+
+Add a stable, analysis-oriented Compact Campaign JSON export alongside the
+existing full JSON and CSV simulation exports, while preserving the seeds and
+identifiers needed for future replay selection.
+
+### Human prompt and direction
+
+The human developer supplied a Compact Campaign Export guide and requested that
+the implementation follow the project guidance, use the existing authoritative
+campaign telemetry, and update this build log.
+
+### AI-assisted implementation
+
+- Added `CampaignSimulationTelemetry.toCompactJson` (and equivalent
+  `toCompact`/`compactToJson` methods) with `compactExportVersion: 1`, batch
+  metadata, configuration and seeded-RNG metadata, preserved campaign/expedition
+  IDs and seeds, campaign summaries, compact expedition records, and sparse
+  notable events.
+- Projected existing economy, provisions, crafting, materials, equipment,
+  progression, injury, health/rest, travel, encounter, combat, bandit, and
+  companion telemetry into stable ID/count/value maps and outcome records.
+- Excluded replay decisions, generic event streams, combat action histories,
+  encounter/UI text, repeated full state snapshots, and other high-volume
+  forensic data from Compact JSON while keeping the full JSON export available
+  for forensic inspection.
+- Added a developer-panel Compact JSON download and documented the schema/API in
+  `CAMPAIGN_SIMULATION.md`.
+
+### Verification and resulting prototype state
+
+Verified 74 campaign/health/Inn assertions, 45 deterministic simulation
+assertions, 429 UI/provision/location browser assertions, and `git diff --check`.
+The developer panel now offers full campaign JSON, Compact JSON, and both CSV
+views from the same completed campaign batch.
+
 ## 2026-08-14 - Bandit Chain, Town Crafting, and Simulation Parity
 
 ### Goal

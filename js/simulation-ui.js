@@ -54,6 +54,7 @@ function initializeSimulationTools() {
       <label>Inspect campaign <select id="campaign-run-select"></select></label>
       <details><summary>Campaign timeline</summary><pre id="campaign-run-detail"></pre></details>
       <div><button type="button" data-sim-action="campaign-json">Download campaign JSON</button>
+        <button type="button" data-sim-action="campaign-compact-json">Download Compact JSON</button>
         <button type="button" data-sim-action="campaign-csv">Campaign CSV</button>
         <button type="button" data-sim-action="campaign-expedition-csv">Expedition CSV</button></div>
     </div>`;
@@ -76,6 +77,10 @@ function initializeSimulationTools() {
     );
     if (action === "campaign-json" && lastCampaignBatch) downloadSimulationFile(
       "grail-campaigns.json", CampaignSimulationTelemetry.toJson(lastCampaignBatch), "application/json",
+    );
+    if (action === "campaign-compact-json" && lastCampaignBatch) downloadSimulationFile(
+      "grail-campaigns-compact.json",
+      CampaignSimulationTelemetry.toCompactJson(lastCampaignBatch), "application/json",
     );
     if (action === "campaign-csv" && lastCampaignBatch) downloadSimulationFile(
       "grail-campaigns.csv", CampaignSimulationTelemetry.campaignsToCsv(lastCampaignBatch), "text/csv",

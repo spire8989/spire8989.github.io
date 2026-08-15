@@ -156,9 +156,25 @@ Exports:
 
 ```js
 CampaignSimulationTelemetry.toJson(batch);
+CampaignSimulationTelemetry.toCompactJson(batch); // primary analysis artifact
 CampaignSimulationTelemetry.campaignsToCsv(batch);   // one row per campaign
 CampaignSimulationTelemetry.expeditionsToCsv(batch); // one row per expedition
 ```
+
+The Compact JSON export has `compactExportVersion: 1` and is organized as
+`exportMetadata`, `batchSummary`, and a `campaigns` array. Each campaign contains
+its aggregate `campaignSummary`, compact per-expedition records, and a sparse
+`notableEvents` array. It preserves campaign and expedition seeds, path/region
+IDs, configuration, progression, economy, provisions, health, injuries, travel,
+rest, crafting, materials, encounters, combat, bandit, companion, and equipment
+telemetry using stable IDs, counts, values, and outcomes. It intentionally omits
+full state snapshots, replay decisions, generic event streams, combat action
+sequences, encounter descriptions/choice labels, and other frame-level data.
+
+`toCompactJson` is a projection of the existing campaign and expedition
+telemetry, so the full JSON remains available for forensic inspection and future
+replay work. `compactToJson` is retained as an equivalent method name for code
+that prefers export-oriented naming.
 
 ## Determinism and replay
 
