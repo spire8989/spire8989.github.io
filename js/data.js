@@ -678,6 +678,27 @@ const ITEM_DEFINITIONS = Object.freeze({
     sellable: false,
     protected: true,
   },
+  glimmering_blade: {
+    id: "glimmering_blade",
+    name: "Glimmering Blade",
+    description: "The blade glimmers brightly in the moonlight.",
+    category: "weapon",
+    rarity: "rare",
+    tags: ["martial", "steel", "knightly"],
+    equippable: true,
+    equipmentSlot: "weapon",
+    carriable: false,
+    consumable: false,
+    effects: {
+      combatDamage: {
+        minimum: 18,
+        maximum: 24
+      },
+      grantedAbilityIds: ["pommel_strike"]
+    },
+    questItem: false,
+    unique: true
+  }
 });
 
 const KNOWLEDGE_DEFINITIONS = Object.freeze({

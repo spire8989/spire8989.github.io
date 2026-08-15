@@ -59,18 +59,53 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "item", itemId: "rope", weight: 1 }),
     ]),
   }),
-  bandit_leader_loot: Object.freeze({
+  bandit_leader_loot: {
     id: "bandit_leader_loot",
-    entries: Object.freeze([
-      Object.freeze({ type: "gold", minimum: 8, maximum: 14, weight: 8 }),
-      Object.freeze({ type: "item", itemId: "coin_purse", weight: 4 }),
-      Object.freeze({ type: "item", itemId: "merchants_ring", weight: 4 }),
-      Object.freeze({ type: "item", itemId: "silver_cup", weight: 3 }),
-      Object.freeze({ type: "item", itemId: "gilded_brooch", weight: 2 }),
-      Object.freeze({ type: "item", itemId: "blackthorn_badge", weight: 1 }),
-      Object.freeze({ type: "item", itemId: "silver_reliquary", weight: 1 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "gold",
+        minimum: 8,
+        maximum: 14,
+        weight: 8
+      },
+      {
+        type: "item",
+        itemId: "coin_purse",
+        weight: 4
+      },
+      {
+        type: "item",
+        itemId: "merchants_ring",
+        weight: 4
+      },
+      {
+        type: "item",
+        itemId: "silver_cup",
+        weight: 3
+      },
+      {
+        type: "item",
+        itemId: "gilded_brooch",
+        weight: 2
+      },
+      {
+        type: "item",
+        itemId: "blackthorn_badge",
+        weight: 1
+      },
+      {
+        type: "item",
+        itemId: "silver_reliquary",
+        weight: 1
+      },
+      {
+        type: "item",
+        itemId: "glimmering_blade",
+        weight: 10,
+        quantity: 1
+      }
+    ]
+  },
   apothecary_common_recipes: Object.freeze({
     id: "apothecary_common_recipes",
     entries: Object.freeze([

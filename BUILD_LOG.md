@@ -1,5 +1,42 @@
 # Build Log
 
+## 2026-08-15 - Generalized Campaign Equipment Automation
+
+### Goal
+
+Make campaign preparation evaluate owned equipment generically so recovered
+weapons, armor, relics, and future authored gear can be equipped after safe
+return and can suppress inferior shop purchases.
+
+### Human prompt and direction
+
+The human developer reported that the content editor's new `glimmering_blade`
+loot weapon was recovered by simulation but ignored by automation, and
+requested generalized equipment evaluation without item-ID special cases.
+The human's content changes added the weapon and Bandit Leader loot entry.
+
+### AI-assisted implementation
+
+- Added shared `EquipmentRules` evaluation across all owned equippable items,
+  with deterministic slot/item tie-breaking and combat-aware weapon, armor,
+  and granted-ability scoring.
+- Campaign preparation now equips owned upgrades at the next legal town phase,
+  after safe settlement; smithy purchases compare against the best owned gear
+  rather than only the currently equipped item.
+- Recorded owned-inventory equipment changes in preparation/replay actions and
+  preserved compact notable equipment events.
+- Added regressions for loot weapon and armor upgrades, inferior loot,
+  arbitrary fixture IDs, safe-return timing, purchase suppression, replay/
+  compact telemetry, and a deterministic recovered Glimmering Blade campaign.
+
+### Verification and resulting prototype state
+
+Verified 47 deterministic simulation assertions, 22 progression assertions,
+85 campaign assertions, and 429 UI/provision/location assertions. A seeded
+campaign recovered `glimmering_blade` from current Bandit Leader loot and
+equipped it during the following preparation. No authored gameplay values were
+changed by this automation pass.
+
 ## 2026-08-15 - Standalone Grail Content Editor Phase 1
 
 ### Goal
