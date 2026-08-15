@@ -1,5 +1,28 @@
 # Build Log
 
+## 2026-08-14 - Focused Expedition Injury HUD Cleanup
+
+### Goal
+
+Make persistent injury information quiet and readable during travel while removing empty or competing injury UI from expedition interruption states.
+
+### Human prompt and direction
+
+The human developer requested the next focused expedition-HUD polish pass for injury presentation and asked for the completed files to be added and committed locally.
+
+### AI-assisted implementation
+
+- Removed the empty injury panel and its "No persistent injuries" message when Arthur and the active party are healthy.
+- Added a compact, wrapped injury row for ordinary traveling and paused-travel states only, using authored readable injury names and muted amber for recoverable injuries or muted rust for serious Deep Cut, Poisoned, and Infection states.
+- Kept detailed injury descriptions, recovery status, and treatment controls in town panels, while keeping encounter choice/pending/result, camp, and combat presentation free of compact injury UI.
+- Added regression coverage for healthy, single/multiple-party injuries, paused travel, camp, active encounter priority, combat suppression, and 320–430px portrait layouts.
+
+### Verification and resulting prototype state
+
+Travel now shows injury context only when it is actionable and relevant to route decisions; encounter and interruption screens retain their status-first hierarchy without blank reserved space. No injury mechanics or balance values changed.
+
+Verified 425 UI/provision/location browser assertions, 44 deterministic simulation assertions, 68 campaign/health/Inn assertions, and `git diff --check`.
+
 ## 2026-08-14 - Corrective Injury Recovery and Expedition Rest Pass
 
 ### Goal

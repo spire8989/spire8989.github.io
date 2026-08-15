@@ -580,7 +580,7 @@ function renderPersistentInjuryPanel(holder, options = {}) {
     .filter((characterId) => characterId === "arthur" || selectedCompanionIds(holder).includes(characterId))
     .flatMap((characterId) => InjuryRules.forCharacter(holder, characterId)
       .map((instance) => ({ characterId, instance, injuryId: InjuryRules.idOf(instance) })));
-  if (!entries.length) return `<section class="injury-panel injury-panel-empty"><span>${options.title ?? "Injuries"}</span><em>No persistent injuries.</em></section>`;
+  if (!entries.length) return "";
   const rows = entries.map(({ characterId, injuryId, instance }) => {
     const injury = INJURY_DEFINITIONS[injuryId];
     const itemId = InjuryRules.treatmentItemFor(injuryId);
@@ -588,7 +588,7 @@ function renderPersistentInjuryPanel(holder, options = {}) {
     const recovery = Number(instance.remainingRecoveryDistance) > 0
       ? `<span>${Math.ceil(instance.remainingRecoveryDistance)} leagues until recovery${instance.stabilized ? " · Stabilized" : ""}</span>`
       : instance.stabilized ? "<span>Stabilized</span>" : "";
-    return `<div class="injury-row"><div><strong>${characterNameForUi(characterId)} · ${injury.name}</strong><span>${injury.description}</span>${recovery}</div>${canTreat ? `<button class="small-button" type="button" data-action="treat-injury" data-target-id="${characterId}" data-item-id="${itemId}">Use ${ITEM_DEFINITIONS[itemId].name}</button>` : itemId && options.includeTreatment ? `<span class="injury-treatment-missing">Need ${ITEM_DEFINITIONS[itemId].name}</span>` : ""}</div>`;
+    return `<div class="injury-row"><div><strong>${characterNameForUi(characterId)} · <span class="injury-name ${injurySemanticTone(injuryId)}">${injury.name}</span></strong><span>${injury.description}</span>${recovery}</div>${canTreat ? `<button class="small-button" type="button" data-action="treat-injury" data-target-id="${characterId}" data-item-id="${itemId}">Use ${ITEM_DEFINITIONS[itemId].name}</button>` : itemId && options.includeTreatment ? `<span class="injury-treatment-missing">Need ${ITEM_DEFINITIONS[itemId].name}</span>` : ""}</div>`;
   }).join("");
   return `<section class="injury-panel" aria-label="${options.title ?? "Injuries"}"><div class="section-title-row"><strong>${options.title ?? "Injuries"}</strong><span>${entries.length}/${InjuryRules.maximumActive} active</span></div>${rows}</section>`;
 }
@@ -1699,6 +1699,7 @@ function renderTravelPanel(expedition, companions, loadout) {
         <p class="eyebrow" id="expedition-status-title">Expedition Status</p>
         ${renderExpeditionResources(expedition)}
       </section>
+      ${renderCompactExpeditionInjurySummary(expedition)}
       ${renderTravelSettings(expedition)}
       <div class="progress-track" aria-label="Current return distance">
         <div class="progress-fill" id="distance-progress"></div>
@@ -2005,8 +2006,26 @@ function renderExpeditionResources(expedition) {
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}</strong></div>
       <div class="resource-card material-bag-card"><span>Material Bag</span><strong id="material-bag-count">${materialBagUsed} / ${MaterialRules.capacity()}</strong></div>
       <div class="resource-card"><span>Unsecured Loot</span><strong id="loot-count">${unsecuredLootDisplayValue(expedition)}</strong></div>
-    </div>
-    ${renderPersistentInjuryPanel(expedition, { title: "Company injuries", includeTreatment: false })}`;
+    </div>`;
+}
+
+function renderCompactExpeditionInjurySummary(expedition) {
+  if (!expedition || expedition.activeEncounter || expedition.combat || !["traveling", "paused"].includes(expedition.travelState)) return "";
+  const entries = ["arthur", ...selectedCompanionIds(expedition)]
+    .flatMap((characterId) => InjuryRules.forCharacter(expedition, characterId)
+      .map((instance) => ({ characterId, injuryId: InjuryRules.idOf(instance) })));
+  if (!entries.length) return "";
+  const rows = entries.map(({ characterId, injuryId }) => {
+    const injury = INJURY_DEFINITIONS[injuryId];
+    return `<span class="expedition-injury-entry"><span class="expedition-injury-character">${characterNameForUi(characterId)}</span><span aria-hidden="true">—</span><span class="injury-name ${injurySemanticTone(injuryId)}">${injury.name}</span></span>`;
+  }).join("");
+  return `<section class="expedition-injury-summary" aria-label="Active injuries"><span class="expedition-injury-label">Injuries</span><div class="expedition-injury-list">${rows}</div></section>`;
+}
+
+function injurySemanticTone(injuryId) {
+  return ["deep_cut", "poisoned", "infection"].includes(injuryId)
+    ? "injury-tone-serious"
+    : "injury-tone-recoverable";
 }
 
 function renderEncounterChoice(choice, expedition) {

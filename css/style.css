@@ -3773,7 +3773,6 @@ button.combatant {
   transition: width 80ms linear;
 }
 .injury-panel { margin-top: 0.55rem; }
-.injury-panel-empty { color: #b7b6a3; }
 .injury-row {
   display: flex;
   align-items: center;
@@ -3785,6 +3784,45 @@ button.combatant {
 .injury-row > div { display: grid; gap: 0.15rem; min-width: 0; }
 .injury-row strong { color: #f0e3bd; font-size: clamp(0.56rem, 2.35cqw, 0.68rem); }
 .injury-row span { color: #b7b6a3; font-size: clamp(0.5rem, 2.05cqw, 0.61rem); }
+.injury-row strong .injury-name { font-size: inherit; }
+.injury-tone-recoverable { color: #d9b35e !important; }
+.injury-tone-serious { color: #c9826f !important; }
+
+.expedition-injury-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.55rem;
+  margin: 0.45rem 0 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border-inline-start: 2px solid rgb(217 189 114 / 42%);
+  border-radius: 0.25rem;
+  background: rgb(28 39 29 / 46%);
+  font-family: system-ui, sans-serif;
+}
+.expedition-injury-label {
+  color: #c8c2a9;
+  font-size: clamp(0.54rem, 2.25cqw, 0.66rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.expedition-injury-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.7rem;
+  min-width: 0;
+}
+.expedition-injury-entry {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  min-width: 0;
+  color: #e7dfc6;
+  font-size: clamp(0.54rem, 2.3cqw, 0.67rem);
+}
+.expedition-injury-character { color: #d8d1b8; }
 
 .expedition-action-bar {
   grid-template-columns: minmax(0, 2fr) minmax(4.6rem, 1fr);
