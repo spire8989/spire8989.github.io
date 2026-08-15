@@ -111,7 +111,7 @@ def run():
             "Simulation strategies did not select their authored departure pace and ration settings",
         )
         check(
-            "(() => { const normal=SimulationRunner.run({seed:'pace-cost-normal',strategy:'normal',paceId:'normal',rationId:'normal',provisions:30,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:20}}); const cautious=SimulationRunner.run({seed:'pace-cost-cautious',strategy:'normal',paceId:'cautious',rationId:'normal',provisions:30,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:20}}); return cautious.provisionsConsumed<normal.provisionsConsumed&&normal.provisionsConsumed>0; })()",
+            "(() => { const normal=SimulationRunner.run({seed:'pace-cost-parity',strategy:'normal',paceId:'normal',rationId:'normal',provisions:20,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:20}}); const cautious=SimulationRunner.run({seed:'pace-cost-parity',strategy:'normal',paceId:'cautious',rationId:'normal',provisions:20,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:20}}); const normalExp=ExpeditionRules.createExpedition(SaveSystem.createDefaultPlayerState(),{provisions:20,companions:[],paceId:'normal',rationId:'normal'}); const cautiousExp=ExpeditionRules.createExpedition(SaveSystem.createDefaultPlayerState(),{provisions:20,companions:[],paceId:'cautious',rationId:'normal'}); return cautious.departurePassiveFoodEstimate<normal.departurePassiveFoodEstimate&&ExpeditionRules.provisionConsumptionMultiplier(cautiousExp)<ExpeditionRules.provisionConsumptionMultiplier(normalExp)&&normal.provisionsConsumed>0; })()",
             "Simulation pace/ration settings did not affect production provision consumption",
         )
         check(
@@ -133,6 +133,10 @@ def run():
         check(
             f"(() => {{ const run=SimulationRunner.run({camp_scenario}); const csv=SimulationTelemetry.toCsv({{results:[run]}}); return csv.includes('paceSelectedAtDeparture')&&csv.includes('campEvents')&&csv.includes('recipesCooked')&&csv.includes('startingMaterialBag')&&csv.includes('materialsReturnedSafely')&&run.replay.startingPlayerState.packedMaterials.raw_meat===1&&run.events.some(event=>event.type==='camp-entered')&&run.events.some(event=>event.type==='recipe-cooked'); }})()",
             "Simulation telemetry exports did not preserve travel-management decisions and events",
+        )
+        check(
+            "(() => { const runs=Array.from({length:200},(_,index)=>SimulationRunner.run({seed:'bandit-chain-'+index,strategy:'aggressive',provisions:30,turnaroundPolicy:{type:'fixedDistance',distance:100}})); const run=runs.find(entry=>entry.banditAmbushVictories>0&&entry.banditLeaderEncounters>0&&entry.banditLeaderVictories>0); return Boolean(run)&&run.banditAmbushEncounters>=run.banditAmbushVictories&&run.banditLeaderEligibilityTriggered>0&&run.banditGoldRecovered>=0&&run.banditLootValueRecovered>=0&&run.decisions.some(decision=>decision.type==='encounter-choice'&&decision.encounterId==='bandit_ambush'); })()",
+            "Simulation combat AI did not complete the seeded bandit ambush/leader chain or expose its telemetry",
         )
         check(
             "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.startingMaterialBag.capacity===10&&run.startingMaterialBag.contents.raw_meat===10&&run.materialBagCapacity===10; })()",

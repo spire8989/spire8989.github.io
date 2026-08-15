@@ -39,6 +39,8 @@ const EncounterRequirements = Object.freeze({
         return expedition.currentPathId === requirement.pathId;
       case "runFlag":
         return expedition.runFlags[requirement.flag] === (requirement.value ?? true);
+      case "notRunFlag":
+        return expedition.runFlags[requirement.flag] !== (requirement.value ?? true);
       case "campaignFlag":
         return player.campaignFlags?.[requirement.flag] === (requirement.value ?? true);
       default:

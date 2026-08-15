@@ -46,7 +46,7 @@ const RECIPE_DEFINITIONS = Object.freeze({
   strong_tonic: Object.freeze({
     id: "strong_tonic", name: "Strong Tonic", description: "Concentrate rare herbs into a potent restorative.",
     craftingProvider: "apothecary", ingredients: Object.freeze({ rare_herbs: 2, alchemical_reagents: 1, sacred_oil: 1 }),
-    output: Object.freeze({ itemId: "strong_tonic", quantity: 1 }), goldCost: 2, rarity: "uncommon",
+    output: Object.freeze({ itemId: "strong_tonic", quantity: 2 }), goldCost: 2, rarity: "uncommon",
   }),
   repair_kit: Object.freeze({
     id: "repair_kit", name: "Repair Kit", description: "Fit spare iron, wood, and leather into a portable repair kit.",

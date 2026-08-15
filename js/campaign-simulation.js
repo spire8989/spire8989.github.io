@@ -78,6 +78,7 @@ const CampaignSimulationRunner = Object.freeze({
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
         paceId: decision.paceId,
         rationId: decision.rationId,
+        lockTravelSettings: false,
         materialBagContents: decision.materialBagContents,
         startingState: deepCampaignClone(player),
       });
@@ -138,6 +139,9 @@ const CampaignSimulationRunner = Object.freeze({
         campEventCount: run.campEventCount,
         cookingActionCount: run.cookingActionCount,
         cookingProvisionsGained: run.cookingProvisionsGained,
+        innCookingActions: decision.innCookingActions,
+        innCookingProvisionsGained: decision.innCookingProvisionsGained,
+        innIngredientsConsumedById: decision.innIngredientsConsumedById,
         encounterProvisionReserve: decision.encounterProvisionReserve,
         totalEstimatedProvisionRequirement: decision.totalEstimatedProvisionRequirement,
         emergencyProvisionTurnaround: run.emergencyProvisionTurnaround,
@@ -168,6 +172,8 @@ const CampaignSimulationRunner = Object.freeze({
         itemsPurchasedById: decision.itemsPurchasedById,
         itemPurchaseGoldSpentById: decision.itemPurchaseGoldSpentById,
         itemPurchaseGoldSpent: decision.itemPurchaseGoldSpent,
+        equipmentPurchases: decision.equipmentPurchases,
+        equipmentPurchaseGoldSpent: decision.equipmentPurchaseGoldSpent,
         bandagesPurchased: decision.bandagesPurchased,
         bandagesCrafted: decision.bandagesCrafted,
         craftingActions: decision.craftingActions,
@@ -178,6 +184,13 @@ const CampaignSimulationRunner = Object.freeze({
         bandagesReturned: run.itemsReturnedById?.bandages ?? 0,
         bandagesUsed: run.bandagesUsed ?? run.itemUsesById?.bandages ?? 0,
         bandageHealingPerformed: run.bandageHealingPerformed ?? 0,
+        banditAmbushEncounters: run.banditAmbushEncounters,
+        banditAmbushVictories: run.banditAmbushVictories,
+        banditLeaderEligibilityTriggered: run.banditLeaderEligibilityTriggered,
+        banditLeaderEncounters: run.banditLeaderEncounters,
+        banditLeaderVictories: run.banditLeaderVictories,
+        banditGoldRecovered: run.banditGoldRecovered,
+        banditLootValueRecovered: run.banditLootValueRecovered,
         success: run.returnedSafely,
         outcome: run.outcome,
         failureReason: run.failureReason,
@@ -305,6 +318,9 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
       "totalBriefRests", "totalCampRests", "totalCampEvents", "totalCookingActions", "totalCookingProvisionsGained",
+      "totalInnCookingActions", "totalInnCookingProvisionsGained", "innIngredientsConsumedById",
+      "totalBanditAmbushEncounters", "totalBanditAmbushVictories", "totalBanditLeaderEncounters", "totalBanditLeaderVictories",
+      "totalBanditLeaderEligibilityTriggered", "totalBanditGoldRecovered", "totalBanditLootValueRecovered",
       "injuriesPerRun", "injuriesByType", "injuriesTreated", "injuriesNaturallyRecovered",
       "naturalRecoveriesByType", "infectionOccurrences", "deepCutsStabilized", "exhaustionOccurrences",
       "ingredientsConsumedById", "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
@@ -313,6 +329,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
+      "equipmentPurchases", "equipmentPurchaseGoldSpent",
       "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
       "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend"];
     return campaignCsv(fields, results.map((campaign) => ({
@@ -346,7 +363,10 @@ const CampaignSimulationTelemetry = Object.freeze({
       "injuriesAtDeparture", "injuriesGained", "injuriesTreated", "injuriesNaturallyRecovered",
       "naturalRecoveriesByType", "infectionOccurrences", "deepCutsStabilized", "averageRecoveryDistanceByType",
       "activeInjuriesAtEnd", "exhaustionOccurrences",
-      "cookingActionCount", "cookingProvisionsGained", "campEvents", "recipesCooked", "ingredientsConsumedById",
+      "cookingActionCount", "cookingProvisionsGained", "innCookingActions", "innCookingProvisionsGained", "innIngredientsConsumedById",
+      "campEvents", "recipesCooked", "ingredientsConsumedById",
+      "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered", "banditLeaderEncounters", "banditLeaderVictories",
+      "banditGoldRecovered", "banditLootValueRecovered",
       "startingMaterialBag", "materialBagCapacity", "materialBagAtEnd", "materialsFoundDuringExpedition",
       "materialsRejectedDueToCapacity", "materialsReturnedSafely", "unsecuredMaterialsLost",
       "actualMaximumDistance", "startingHealth", "endingHealth", "damageTaken",
@@ -451,12 +471,23 @@ function applyBetweenExpeditionPolicy(
   const goldAfterHealing = player.currentGold;
   const activeCompanions = selectedCompanionIds(player);
   const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions);
-  const travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+  let travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
     provisions: player.provisions,
     capacity,
     injuries: player.injuries,
   });
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
+  const initialProvisionNeed = estimateCampaignProvisionRequirement(
+    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve, travelSettings,
+  );
+  const innCooking = strategyName && player.provisions < Math.min(initialProvisionNeed, capacity)
+    ? cookAtInn(player, planningStrategy, preparationRandom)
+    : { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
+  travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+    provisions: player.provisions,
+    capacity,
+    injuries: player.injuries,
+  });
   const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
     targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve, travelSettings,
   );
@@ -493,13 +524,24 @@ function applyBetweenExpeditionPolicy(
     player, shopStocks, "bandages", bandagePurchaseTarget,
     healing.attempted ? HEALING_TUNING.innRestGoldCost : 0,
   );
+  const equipmentPurchases = provisionPurchase.shortfall > 0
+    ? [] : buyCampaignEquipment(player, shopStocks, planningStrategy);
+  const equipmentPurchaseGoldSpent = equipmentPurchases.reduce(
+    (sum, purchase) => sum + (Number(purchase.goldCost) || 0), 0,
+  );
   const bandagesAfterPurchase = player.ownedItems.bandages ?? 0;
   const bandagesPacked = packCampaignItems(player, {
     bandages: Math.min(bandagePlan.target, bandagesAfterPurchase),
   });
-  const itemPurchaseGoldSpent = bandagePurchase.goldCost;
-  const itemsPurchasedById = bandagePurchase.quantity > 0 ? { bandages: bandagePurchase.quantity } : {};
-  const itemPurchaseGoldSpentById = bandagePurchase.quantity > 0 ? { bandages: itemPurchaseGoldSpent } : {};
+  const itemPurchaseGoldSpent = bandagePurchase.goldCost + equipmentPurchaseGoldSpent;
+  const itemsPurchasedById = {
+    ...(bandagePurchase.quantity > 0 ? { bandages: bandagePurchase.quantity } : {}),
+    ...Object.fromEntries(equipmentPurchases.map((purchase) => [purchase.itemId, purchase.quantity])),
+  };
+  const itemPurchaseGoldSpentById = {
+    ...(bandagePurchase.quantity > 0 ? { bandages: bandagePurchase.goldCost } : {}),
+    ...Object.fromEntries(equipmentPurchases.map((purchase) => [purchase.itemId, purchase.goldCost])),
+  };
   const actualProvisionStockAfterPurchase = player.provisions;
   const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
   const preferredSafeDistance = maximumCampaignDistanceForProvisions(
@@ -657,6 +699,11 @@ function applyBetweenExpeditionPolicy(
     bandagesAfterPurchase,
     bandagesPurchased: bandagePurchase.quantity,
     bandagesPacked,
+    innCookingActions: innCooking.actions,
+    innCookingProvisionsGained: innCooking.provisionsGained,
+    innIngredientsConsumedById: innCooking.ingredientsConsumedById,
+    equipmentPurchases,
+    equipmentPurchaseGoldSpent,
     itemsPurchasedById,
     itemPurchaseGoldSpentById,
     itemPurchaseGoldSpent,
@@ -738,6 +785,81 @@ function estimateCampaignPassiveProvisionCost(distance, companionId, travelSetti
   const ration = ExpeditionRules.rationDefinition(travelSettings.rationId);
   const multiplier = baseMultiplier * pace.provisionMultiplier * ration.provisionMultiplier;
   return SimulationProvisionPlanning.passiveRoundTripCost(distance, multiplier);
+}
+
+function buyCampaignEquipment(player, shopStocks, strategyName) {
+  const shop = SHOP_DEFINITIONS.village_smithy;
+  const slotScore = (item) => item.equipmentSlot === "weapon"
+    ? Number(item.effects?.combatDamage?.maximum) || 0
+    : Number(item.effects?.combatDefense) || 0;
+  const currentScore = (slot) => slotScore(ITEM_DEFINITIONS[player.equippedItems?.[slot]])
+    || (slot === "weapon" ? 0 : 0);
+  const candidates = Object.entries(shop.itemsForSale ?? {})
+    .map(([itemId, offer]) => ({ item: ITEM_DEFINITIONS[itemId], itemId, offer }))
+    .filter(({ item, offer }) => item?.equippable && Number.isFinite(offer.price))
+    .filter(({ item }) => slotScore(item) > currentScore(item.equipmentSlot))
+    .sort((left, right) => {
+      const gainLeft = slotScore(left.item) - currentScore(left.item.equipmentSlot);
+      const gainRight = slotScore(right.item) - currentScore(right.item.equipmentSlot);
+      return gainRight - gainLeft || left.offer.price - right.offer.price
+        || left.itemId.localeCompare(right.itemId);
+    });
+  for (const candidate of candidates) {
+    if (player.currentGold < candidate.offer.price + 10) continue;
+    const result = EconomyRules.buyItem(player, shop, shopStocks, candidate.itemId, 1);
+    if (!result.applied) continue;
+    player.equippedItems[candidate.item.equipmentSlot] = candidate.itemId;
+    return [{
+      ...result,
+      equipmentSlot: candidate.item.equipmentSlot,
+      strategy: strategyName,
+    }];
+  }
+  return [];
+}
+
+function cookAtInn(player, strategyName, random = GameRandom.random) {
+  const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
+    .map((recipe) => ({
+      recipe,
+      quote: CraftingRules.quote(player, recipe.id, "campfire"),
+    }))
+    .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
+  if (!candidates.length) return { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
+  const roll = () => Math.min(1 - Number.EPSILON, Math.max(0, Number(random()) || 0));
+  const selected = candidates
+    .map((candidate) => {
+      const output = Number(candidate.recipe.output.provisions) || 0;
+      const ingredientCount = Object.values(candidate.recipe.ingredients ?? {})
+        .reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const score = strategyName === "cautious"
+        ? output * 2 + output / Math.max(1, ingredientCount)
+        : strategyName === "aggressive"
+          ? output + output / Math.max(1, ingredientCount) * 2
+          : output + output / Math.max(1, ingredientCount);
+      return { ...candidate, score };
+    })
+    .sort((left, right) => right.score - left.score || left.recipe.id.localeCompare(right.recipe.id));
+  const candidate = strategyName === "random"
+    ? selected[Math.floor(roll() * selected.length)]
+    : selected[0];
+  const result = CraftingRules.craft(player, candidate.recipe.id, "campfire");
+  if (!result.applied) return { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
+  const ingredientsConsumedById = {
+    ...(result.materialsConsumed ?? {}),
+    ...(result.itemsConsumed ?? {}),
+  };
+  return {
+    actions: [{
+      recipeId: result.recipeId,
+      providerId: "campfire",
+      provisionsGained: result.provisions ?? 0,
+      ingredientsConsumed: deepCampaignClone(ingredientsConsumedById),
+      goldCost: result.goldCost ?? 0,
+    }],
+    provisionsGained: result.provisions ?? 0,
+    ingredientsConsumedById,
+  };
 }
 
 function treatCampaignInjuries(player, strategyName) {
@@ -959,7 +1081,7 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalHealingCost,
     totalProvisionCost,
     totalItemPurchaseGoldSpent,
-    totalGearSpending: 0,
+    totalGearSpending: totals((entry) => entry.equipmentPurchaseGoldSpent),
     itemsPurchasedById,
     itemPurchaseGoldSpentById,
     itemsPackedById,
@@ -975,6 +1097,21 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     totalCampEvents: totals((entry) => entry.campEventCount),
     totalCookingActions: totals((entry) => entry.cookingActionCount),
     totalCookingProvisionsGained: totals((entry) => entry.cookingProvisionsGained),
+    totalInnCookingActions: totals((entry) => (entry.innCookingActions ?? []).length),
+    totalInnCookingProvisionsGained: totals((entry) => entry.innCookingProvisionsGained),
+    innIngredientsConsumedById: decisions.reduce((totalsById, decision) => {
+      Object.entries(decision.innIngredientsConsumedById ?? {}).forEach(([itemId, quantity]) => {
+        totalsById[itemId] = (totalsById[itemId] ?? 0) + quantity;
+      });
+      return totalsById;
+    }, {}),
+    totalBanditAmbushEncounters: totals((entry) => entry.banditAmbushEncounters),
+    totalBanditAmbushVictories: totals((entry) => entry.banditAmbushVictories),
+    totalBanditLeaderEncounters: totals((entry) => entry.banditLeaderEncounters),
+    totalBanditLeaderVictories: totals((entry) => entry.banditLeaderVictories),
+    totalBanditLeaderEligibilityTriggered: totals((entry) => entry.banditLeaderEligibilityTriggered),
+    totalBanditGoldRecovered: totals((entry) => entry.banditGoldRecovered),
+    totalBanditLootValueRecovered: totals((entry) => entry.banditLootValueRecovered),
     ingredientsConsumedById,
     injuriesPerRun: expeditions.length ? injuriesGained.length / expeditions.length : 0,
     runsWithAnyInjury: expeditions.filter((entry) => (entry.injuriesGained ?? []).length > 0).length,

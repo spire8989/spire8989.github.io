@@ -46,6 +46,31 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "item", itemId: "honey", quantity: 1, weight: 8 }),
     ]),
   }),
+  bandit_ambush_loot: Object.freeze({
+    id: "bandit_ambush_loot",
+    entries: Object.freeze([
+      Object.freeze({ type: "gold", minimum: 2, maximum: 5, weight: 7 }),
+      Object.freeze({ type: "item", itemId: "old_coin", weight: 5 }),
+      Object.freeze({ type: "item", itemId: "coin_purse", weight: 3 }),
+      Object.freeze({ type: "item", itemId: "decorated_buckle", weight: 3 }),
+      Object.freeze({ type: "item", itemId: "silver_brooch", weight: 2 }),
+      Object.freeze({ type: "item", itemId: "bandages", weight: 1 }),
+      Object.freeze({ type: "item", itemId: "dried_herbs", weight: 2 }),
+      Object.freeze({ type: "item", itemId: "rope", weight: 1 }),
+    ]),
+  }),
+  bandit_leader_loot: Object.freeze({
+    id: "bandit_leader_loot",
+    entries: Object.freeze([
+      Object.freeze({ type: "gold", minimum: 8, maximum: 14, weight: 8 }),
+      Object.freeze({ type: "item", itemId: "coin_purse", weight: 4 }),
+      Object.freeze({ type: "item", itemId: "merchants_ring", weight: 4 }),
+      Object.freeze({ type: "item", itemId: "silver_cup", weight: 3 }),
+      Object.freeze({ type: "item", itemId: "gilded_brooch", weight: 2 }),
+      Object.freeze({ type: "item", itemId: "blackthorn_badge", weight: 1 }),
+      Object.freeze({ type: "item", itemId: "silver_reliquary", weight: 1 }),
+    ]),
+  }),
   apothecary_common_recipes: Object.freeze({
     id: "apothecary_common_recipes",
     entries: Object.freeze([

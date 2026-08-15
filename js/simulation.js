@@ -237,7 +237,7 @@ const SimulationRunner = Object.freeze({
         );
         continue;
       }
-      applySimulationTravelSettings(expedition, strategy.name, telemetry);
+      applySimulationTravelSettings(expedition, strategy.name, telemetry, normalized);
       if (turnaroundPolicy.shouldTurn(expedition, telemetry)) {
         ExpeditionRules.beginReturn(expedition);
         telemetry.turnaroundDistance = rounded(expedition.distance);
@@ -443,6 +443,13 @@ const SimulationTelemetry = Object.freeze({
       campEventCount: run.campEventCount,
       cookingActionCount: run.cookingActionCount,
       cookingProvisionsGained: run.cookingProvisionsGained,
+      banditAmbushEncounters: run.banditAmbushEncounters,
+      banditAmbushVictories: run.banditAmbushVictories,
+      banditLeaderEligibilityTriggered: run.banditLeaderEligibilityTriggered,
+      banditLeaderEncounters: run.banditLeaderEncounters,
+      banditLeaderVictories: run.banditLeaderVictories,
+      banditGoldRecovered: run.banditGoldRecovered,
+      banditLootValueRecovered: run.banditLootValueRecovered,
       startingProvisions: run.startingProvisions,
       originalTargetDistance: run.originalTargetDistance,
       departurePassiveFoodEstimate: run.departurePassiveFoodEstimate,
@@ -521,6 +528,8 @@ const SimulationTelemetry = Object.freeze({
       "maximumDistance", "finalDistance", "finalArthurHealth",
       "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
       "briefRestCount", "campRestCount", "campEventCount", "cookingActionCount", "cookingProvisionsGained",
+      "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered",
+      "banditLeaderEncounters", "banditLeaderVictories", "banditGoldRecovered", "banditLootValueRecovered",
       "campEvents", "recipesCooked", "ingredientsConsumedById",
       "startingMaterialBag", "materialBagCapacity", "materialBagAtEnd",
       "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
@@ -652,7 +661,9 @@ function cautiousChoiceScore(choice) {
 
 function aggressiveChoiceScore(choice) {
   const text = choiceText(choice);
-  return (/fight|combat|attack|stand_ground|confront|force|cross|push/.test(text) ? 20 : 0)
+  const startsCombat = (choice.outcomes ?? []).some((outcome) => outcome.type === "startCombat");
+  return (startsCombat ? 50 : 0)
+    + (/fight|combat|attack|stand_ground|confront|force|cross|push/.test(text) ? 20 : 0)
     - (/flee|avoid|leave|wait|return/.test(text) ? 10 : 0);
 }
 
@@ -715,6 +726,8 @@ function normalizeScenario(scenario) {
       ? scenario.paceId : defaultTravelSettings.paceId,
     rationId: EXPEDITION_TUNING.rationLevels[scenario.rationId]
       ? scenario.rationId : defaultTravelSettings.rationId,
+    lockTravelSettings: scenario.lockTravelSettings
+      ?? (scenario.paceId !== undefined || scenario.rationId !== undefined),
     startingHealth: Number.isFinite(scenario.startingState?.health)
       ? scenario.startingState.health
       : Number.isFinite(scenario.startingState?.arthurHealth)
@@ -815,8 +828,12 @@ function optionalRestIsSafe(expedition, strategyName, cost) {
   return expedition.provisions - cost >= requiredReturn + reserve;
 }
 
-function applySimulationTravelSettings(expedition, strategyName, telemetry) {
+function applySimulationTravelSettings(expedition, strategyName, telemetry, scenario = {}) {
   const settings = SimulationTravelPolicy.travelSettings(expedition, strategyName);
+  if (scenario.lockTravelSettings) {
+    settings.paceId = expedition.paceId;
+    settings.rationId = expedition.rationId;
+  }
   if (settings.paceId !== expedition.paceId) {
     const change = {
       type: "pace-change",
@@ -1018,6 +1035,8 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
       before: resourceSnapshot(expedition),
     };
     telemetry.encounters.push(history);
+    if (definition.id === "bandit_ambush") telemetry.banditAmbushEncounters += 1;
+    if (definition.id === "bandit_leader") telemetry.banditLeaderEncounters += 1;
   }
   if (active.phase === "pending") {
     const result = EncounterManager.completePendingAction(expedition, player, active.pendingToken, {
@@ -1240,6 +1259,14 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
     damageReceivedByPartyMember: history.damageReceivedByPartyMember,
   });
   expedition.combat = null;
+  const encounterId = expedition.activeEncounter?.encounterId;
+  if (combat.result === "victory" && encounterId === "bandit_ambush") {
+    telemetry.banditAmbushVictories += 1;
+    telemetry.banditLeaderEligibilityTriggered += 1;
+  }
+  if (combat.result === "victory" && encounterId === "bandit_leader") {
+    telemetry.banditLeaderVictories += 1;
+  }
   EncounterManager.completeCombat(expedition, player, combat.result, { failExpedition: fail });
 }
 
@@ -1282,6 +1309,13 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     campEvents: [],
     recipesCooked: [],
     ingredientsConsumedById: {},
+    banditAmbushEncounters: 0,
+    banditAmbushVictories: 0,
+    banditLeaderEligibilityTriggered: 0,
+    banditLeaderEncounters: 0,
+    banditLeaderVictories: 0,
+    banditGoldRecovered: 0,
+    banditLootValueRecovered: 0,
     startingMaterialBag: deepClone({
       capacity: MaterialRules.capacity(),
       contents: MaterialRules.expeditionContents(expedition),
@@ -1487,6 +1521,12 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     cookingProvisionsGained: rounded(telemetry.recipesCooked.reduce(
       (sum, recipe) => sum + (Number(recipe.provisionsGained) || 0), 0,
     )),
+    banditGoldRecovered: rounded(telemetry.encounters
+      .filter((encounter) => ["bandit_ambush", "bandit_leader"].includes(encounter.encounterId))
+      .reduce((sum, encounter) => sum + Math.max(0, Number(encounter.resourceChanges?.goldCarried) || 0), 0)),
+    banditLootValueRecovered: estimateLootValue(telemetry.encounters
+      .filter((encounter) => ["bandit_ambush", "bandit_leader"].includes(encounter.encounterId))
+      .flatMap((encounter) => encounter.lootGained ?? [])),
     restHealingModified: [...telemetry.briefRests, ...telemetry.campRests]
       .filter((rest) => rest.restHealingMultiplier !== 1)
       .map((rest) => ({ kind: rest.kind, multiplier: rest.restHealingMultiplier, distance: rest.distance })),
@@ -1763,6 +1803,13 @@ function summarizeRuns(results) {
     averageCampEvents: average(values("campEventCount")),
     averageCookingActions: average(values("cookingActionCount")),
     averageCookingProvisionsGained: average(values("cookingProvisionsGained")),
+    banditAmbushEncounters: results.reduce((sum, run) => sum + (Number(run.banditAmbushEncounters) || 0), 0),
+    banditAmbushVictories: results.reduce((sum, run) => sum + (Number(run.banditAmbushVictories) || 0), 0),
+    banditLeaderEligibilityTriggered: results.reduce((sum, run) => sum + (Number(run.banditLeaderEligibilityTriggered) || 0), 0),
+    banditLeaderEncounters: results.reduce((sum, run) => sum + (Number(run.banditLeaderEncounters) || 0), 0),
+    banditLeaderVictories: results.reduce((sum, run) => sum + (Number(run.banditLeaderVictories) || 0), 0),
+    banditGoldRecovered: results.reduce((sum, run) => sum + (Number(run.banditGoldRecovered) || 0), 0),
+    banditLootValueRecovered: results.reduce((sum, run) => sum + (Number(run.banditLootValueRecovered) || 0), 0),
     injuriesPerRun: rounded(injuryEvents.length / Math.max(1, total)),
     runsWithAnyInjury: results.filter((run) => (run.injuriesGained ?? []).length > 0).length,
     runsWithTwoInjuries: results.filter((run) => Object.values(run.activeInjuriesAtEnd ?? {}).some((injuries) => injuries.length >= 2)).length,

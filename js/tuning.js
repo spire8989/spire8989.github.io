@@ -128,6 +128,7 @@ const HEALING_TUNING = Object.freeze({
   innRestoration: 10,
   innRestGoldCost: 3,
   innRecoveryDistanceReduction: 15,
+  innRestDurationMs: 2200,
 });
 
 const CRAFTING_TUNING = Object.freeze({

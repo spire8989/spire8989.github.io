@@ -14,6 +14,7 @@ const game = {
   preparationStep: "route",
   activeDestinationId: null,
   shopTab: "buy",
+  innTab: "rest",
   campTab: "rest",
   provisionShopStock: createProvisionShopStock(),
   itemShopStock: createItemShopStock(),
@@ -23,6 +24,7 @@ const game = {
   lastTimestamp: null,
   hudAccumulator: 0,
   craftingAction: null,
+  restAction: null,
 };
 
 const ui = {
@@ -81,7 +83,11 @@ function handleAction(event) {
       showNpcDialogue(control.dataset.npcId, "rumors");
       break;
     case "rest-at-inn":
-      restAtInn();
+      beginInnRest();
+      break;
+    case "inn-tab":
+      game.innTab = ["rest", "cook"].includes(control.dataset.tab) ? control.dataset.tab : "rest";
+      refreshDestination();
       break;
     case "shop-tab":
       game.shopTab = ["buy", "sell", "craft"].includes(control.dataset.tab)
@@ -99,6 +105,9 @@ function handleAction(event) {
       break;
     case "craft-item":
       craftItem(recipeId);
+      break;
+    case "inn-cook-recipe":
+      cookInnRecipe(recipeId);
       break;
     case "treat-injury":
       treatInjury(control.dataset.targetId, itemId);
@@ -377,6 +386,7 @@ function openDestination(destinationId) {
   if (destination.requiresIntro !== false && !isVillageUnlocked()) return;
   game.activeDestinationId = destinationId;
   game.shopTab = "buy";
+  game.innTab = "rest";
   game.campTab = "rest";
   game.dialogueSession = null;
   const npc = NPC_DEFINITIONS[destination.npcIds[0]];
@@ -439,7 +449,28 @@ function renderHallInteraction(destination, npc) {
 }
 
 function renderInnInteraction(destination, npc) {
+  const cookingSelected = game.innTab === "cook";
+  const taskBusy = Boolean(game.restAction || game.craftingAction);
+  const tabs = `
+    <div class="inn-tabs" role="tablist" aria-label="Inn actions">
+      <button class="${cookingSelected ? "" : "is-selected"}" type="button" role="tab" aria-selected="${!cookingSelected}" data-action="inn-tab" data-tab="rest" ${taskBusy ? "disabled" : ""}>Rest</button>
+      <button class="${cookingSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${cookingSelected}" data-action="inn-tab" data-tab="cook" ${taskBusy ? "disabled" : ""}>Cook</button>
+    </div>`;
+  if (cookingSelected) {
+    return `
+      <article class="npc-card">
+        <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
+        <p>${npc.description}</p>
+      </article>
+      <div class="interaction-actions">
+        <button class="small-button" type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
+        <button class="small-button" type="button" data-action="hear-rumor" data-npc-id="${npc.id}">Hear Rumor</button>
+      </div>
+      ${tabs}
+      ${renderInnCookingPanel(destination)}`;
+  }
   const rest = HealingRules.quoteInnRest(game.player);
+  const restBusy = Boolean(game.restAction);
   const partyHealth = rest.partyMembers.map((member) => `
     <div class="inn-health-row">
       <strong>${member.name}</strong>
@@ -448,8 +479,10 @@ function renderInnInteraction(destination, npc) {
     </div>`).join("");
   const restAction = rest.fullHealth
     ? `<p class="inn-rest-complete">Everyone is fully rested.</p>`
-    : `<div class="inn-rest-action"><span>Rest restores the active company</span><strong>${rest.goldCost}g</strong></div>
-      <button class="game-button" type="button" data-action="rest-at-inn" ${rest.available ? "" : "disabled"}>${rest.available ? `Rest · ${rest.goldCost}g` : `Cannot Afford · ${rest.goldCost}g`}</button>`;
+    : restBusy
+      ? renderInnRestProgress(game.restAction)
+      : `<div class="inn-rest-action"><span>Rest restores the active company</span><strong>${rest.goldCost}g</strong></div>
+        <button class="game-button" type="button" data-action="rest-at-inn" ${rest.available ? "" : "disabled"}>${rest.available ? `Rest · ${rest.goldCost}g` : `Cannot Afford · ${rest.goldCost}g`}</button>`;
   return `
     <article class="npc-card">
       <div><strong>${npc.name}</strong><span>${npc.role}</span></div>
@@ -459,12 +492,47 @@ function renderInnInteraction(destination, npc) {
       <button class="small-button" type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
       <button class="small-button" type="button" data-action="hear-rumor" data-npc-id="${npc.id}">Hear Rumor</button>
     </div>
+    ${tabs}
     <article class="provision-offer inn-rest-offer">
       <div class="inn-rest-heading"><strong>Rest the Company</strong><span>${rest.fullHealth ? "No payment needed" : "One rest"}</span></div>
       <div class="inn-health-list">${partyHealth}</div>
       ${renderPersistentInjuryPanel(game.player, { title: "Persistent injuries", includeTreatment: false })}
       ${restAction}
     </article>`;
+}
+
+function renderInnCookingPanel(destination) {
+  const recipes = CraftingRules.knownRecipesForProvider(game.player, destination.craftingProviderId ?? "campfire");
+  const rows = recipes.map((recipe) => craftingRow(recipe, "campfire", { action: "inn-cook-recipe" })).join("");
+  return `
+    <section class="inn-cooking-panel" aria-labelledby="inn-cooking-title">
+      <div class="section-title-row"><h2 id="inn-cooking-title">Cook for the Road</h2><span>Town Materials → Provisions</span></div>
+      <p class="section-help">Use known campfire recipes without starting an expedition. Finished meals go directly into the village provision stores.</p>
+      ${renderCookingIngredientInventory()}
+      ${renderMaterialInventory()}
+      <div class="shop-list inn-recipe-list">${rows || '<p class="empty-loot">No recipes are known at this hearth.</p>'}</div>
+    </section>`;
+}
+
+function renderInnRestProgress(action) {
+  const percent = Math.round((action.progress ?? 0) * 100);
+  return `<div class="inn-rest-progress" aria-live="polite"><div class="inn-rest-progress-heading"><strong>Resting...</strong><span>${percent}%</span></div><div class="crafting-progress-track"><div class="crafting-progress-fill" style="width:${percent}%"></div></div><p>Healing and recovery apply when the rest is complete.</p></div>`;
+}
+
+function beginInnRest() {
+  if (game.activeDestinationId !== "inn") return;
+  if (game.restAction || game.craftingAction) return;
+  const quote = HealingRules.quoteInnRest(game.player);
+  if (quote.fullHealth || !quote.available) {
+    restAtInn();
+    return;
+  }
+  game.restAction = {
+    startedAt: performance.now(),
+    durationMs: HEALING_TUNING.innRestDurationMs,
+    progress: 0,
+  };
+  refreshDestination();
 }
 
 function restAtInn() {
@@ -499,6 +567,7 @@ function restAtInn() {
 
 function renderShopInteraction(destination, npc) {
   const shop = SHOP_DEFINITIONS[destination.shopId];
+  const taskBusy = game.craftingAction ? "disabled" : "";
   const buySelected = game.shopTab === "buy";
   const sellSelected = game.shopTab === "sell";
   const craftSelected = game.shopTab === "craft" && Boolean(destination.craftingProviderId);
@@ -521,14 +590,13 @@ function renderShopInteraction(destination, npc) {
       <span class="gold-display">${Math.floor(game.player.currentGold)} gold</span>
     </div>
     <div class="shop-tabs" role="tablist" aria-label="Shop actions">
-      <button class="${buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${buySelected}" data-action="shop-tab" data-tab="buy">Buy</button>
-      <button class="${sellSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${sellSelected}" data-action="shop-tab" data-tab="sell">Sell</button>
-      ${destination.craftingProviderId ? `<button class="${craftSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${craftSelected}" data-action="shop-tab" data-tab="craft">Craft</button>` : ""}
-      <button type="button" data-action="npc-talk" data-npc-id="${npc.id}">Talk</button>
+      <button class="${buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${buySelected}" data-action="shop-tab" data-tab="buy" ${taskBusy}>Buy</button>
+      <button class="${sellSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${sellSelected}" data-action="shop-tab" data-tab="sell" ${taskBusy}>Sell</button>
+      ${destination.craftingProviderId ? `<button class="${craftSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${craftSelected}" data-action="shop-tab" data-tab="craft" ${taskBusy}>Craft</button>` : ""}
+      <button type="button" data-action="npc-talk" data-npc-id="${npc.id}" ${taskBusy}>Talk</button>
     </div>
     ${provisionOffer}
     ${materials}
-    ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
     ${treatmentPanel}
     <div class="shop-list">${rows || '<p class="empty-loot">Nothing available.</p>'}</div>`;
 }
@@ -543,6 +611,19 @@ function renderMaterialInventory() {
     `<span class="material-chip rarity-${MaterialRules.definition(materialId).rarity}">${itemIcon("material", { ...MaterialRules.definition(materialId), id: materialId, category: "material" })}<span>${MaterialRules.definition(materialId).name}</span> <strong>${quantity}</strong></span>`
   )).join("");
   return `<div class="material-inventory"><span>Materials</span><div>${chips || '<em>None owned</em>'}</div></div>`;
+}
+
+function renderCookingIngredientInventory() {
+  const ingredientIds = [...new Set(Object.values(RECIPE_DEFINITIONS)
+    .filter((recipe) => recipe.craftingProvider === "campfire")
+    .flatMap((recipe) => Object.keys(recipe.ingredients ?? {})))];
+  const chips = ingredientIds
+    .map((itemId) => ({ itemId, item: ITEM_DEFINITIONS[itemId], quantity: game.player.materials[itemId] ?? game.player.ownedItems[itemId] ?? 0 }))
+    .filter((entry) => entry.item && entry.quantity > 0)
+    .map(({ item, quantity }) => (
+      `<span class="material-chip"><span>${itemIcon(item.category, item)}${item.name}</span> <strong>${quantity}</strong></span>`
+    )).join("");
+  return `<div class="material-inventory"><span>Town Ingredients</span><div>${chips || '<em>None owned</em>'}</div></div>`;
 }
 
 function renderMaterialBagChips(expedition, emptyLabel = "None") {
@@ -564,14 +645,16 @@ function craftingRow(recipe, providerId, options = {}) {
   const output = recipe.output.provisions > 0
     ? `${recipe.output.provisions} Provisions`
     : `${quote.item?.name ?? "Unknown item"}${recipe.output.quantity > 1 ? ` ×${recipe.output.quantity}` : ""}`;
-  const outputLabel = recipe.output.provisions > 0 ? `<span>Creates ${output}</span>` : "";
+  const outputLabel = `<span class="crafting-output">Creates ${output}</span>`;
   const action = options.action ?? "craft-item";
-  const busy = Boolean(game.craftingAction);
+  const busy = Boolean(game.craftingAction || game.restAction);
+  const active = game.craftingAction?.recipeId === recipe.id;
+  const progress = active ? renderCraftingProgress(game.craftingAction, { inline: true }) : "";
   return `
-    <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"}">
+    <article class="shop-item-row crafting-row ${quote.available ? "" : "is-blocked"} ${active ? "is-busy" : ""}" data-recipe-id="${recipe.id}">
       <div class="item-icon" aria-hidden="true">${recipe.output.provisions > 0 ? categoryIcon("healing") : itemIcon(quote.item?.category, quote.item)}</div>
-      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost"><span class="crafting-requirements">${ingredients}${cost}</span></span>${outputLabel}</div>
-      <button class="small-button" type="button" data-action="${action}" data-recipe-id="${recipe.id}" ${busy ? "disabled" : ""}>${busy ? "Busy" : providerId === "campfire" ? "Cook" : "Craft"}</button>
+      <div><strong>${recipe.name} <span class="rarity-label">${capitalize(recipe.rarity)}</span></strong><span>${recipe.description}</span><span class="crafting-cost"><span class="crafting-requirements">${ingredients}${cost}</span></span>${outputLabel}${progress}</div>
+      <button class="small-button" type="button" data-action="${action}" data-recipe-id="${recipe.id}" ${busy ? "disabled" : ""}>${active ? "Working..." : busy ? "Busy" : providerId === "campfire" ? "Cook" : "Craft"}</button>
     </article>`;
 }
 
@@ -597,10 +680,11 @@ function characterNameForUi(characterId) {
   return characterId === "arthur" ? PLAYER_CHARACTER_DEFINITION.name : COMPANION_DEFINITIONS[characterId]?.name ?? characterId;
 }
 
-function renderCraftingProgress(action) {
+function renderCraftingProgress(action, options = {}) {
   const recipe = RECIPE_DEFINITIONS[action.recipeId];
   const percent = Math.round((action.progress ?? 0) * 100);
-  return `<section class="crafting-progress" aria-live="polite"><div class="crafting-progress-heading"><strong>${action.providerId === "campfire" ? "Cooking" : "Crafting"} ${recipe?.name ?? "item"}</strong><span>${percent}%</span></div><div class="crafting-progress-track"><div class="crafting-progress-fill" style="width:${percent}%"></div></div><p>Work is in progress. Ingredients are only consumed when complete.</p></section>`;
+  const verb = action.providerId === "campfire" ? "Cooking" : "Crafting";
+  return `<div class="crafting-progress ${options.inline ? "crafting-progress-inline" : ""}" data-recipe-id="${action.recipeId}" aria-live="polite"><div class="crafting-progress-heading"><strong>${verb} ${recipe?.name ?? "item"}...</strong><span>${percent}%</span></div><div class="crafting-progress-track"><div class="crafting-progress-fill" style="width:${percent}%"></div></div><p>Ingredients are only consumed when complete.</p></div>`;
 }
 
 function renderProvisionOffer(shop, offer) {
@@ -744,8 +828,13 @@ function craftItem(recipeId) {
   refreshDestination();
 }
 
+function cookInnRecipe(recipeId) {
+  if (game.activeDestinationId !== "inn") return;
+  beginCraftingAction(recipeId, "campfire", { screen: "destination", destinationId: "inn" });
+}
+
 function beginCraftingAction(recipeId, providerId, context = {}) {
-  if (game.craftingAction || !providerId) return;
+  if (game.craftingAction || game.restAction || !providerId) return;
   const expedition = context.expedition ?? null;
   const quote = CraftingRules.quote(game.player, recipeId, providerId, expedition ? { expedition } : {});
   if (!quote.available) {
@@ -1559,7 +1648,7 @@ function renderCamp(expedition) {
     ["rest", "Rest"],
     ["cook", "Cook"],
     ["craft", "Craft"],
-  ].map(([tabId, label]) => `<button class="camp-tab ${game.campTab === tabId ? "is-selected" : ""}" type="button" data-action="camp-tab" data-tab="${tabId}" aria-pressed="${game.campTab === tabId}">${label}</button>`).join("");
+  ].map(([tabId, label]) => `<button class="camp-tab ${game.campTab === tabId ? "is-selected" : ""}" type="button" data-action="camp-tab" data-tab="${tabId}" aria-pressed="${game.campTab === tabId}" ${game.craftingAction ? "disabled" : ""}>${label}</button>`).join("");
   const tabContent = game.campTab === "cook"
     ? renderCampCookPanel(expedition)
     : game.campTab === "craft"
@@ -1605,7 +1694,6 @@ function renderCampRestPanel(expedition) {
       <div class="section-title-row"><h2 id="camp-rest-title">Rest at Camp</h2><span>Costs ${cost} provisions</span></div>
       <p class="section-help">A camp rest restores more health than a brief roadside pause and can trigger one event for this camp cycle.</p>
       ${eventStatus}
-      ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
       <button class="game-button" type="button" data-action="camp-rest" ${canRest ? "" : "disabled"}>${canRest ? `Rest · ${cost} Provisions` : `Need ${cost} Provisions`}</button>
     </section>`;
 }
@@ -1621,7 +1709,6 @@ function renderCampCookPanel(expedition) {
     <section class="camp-content" aria-labelledby="camp-cook-title">
       <div class="section-title-row"><h2 id="camp-cook-title">Cook</h2><span>Ingredients → Provisions</span></div>
       <p class="section-help">Cooked meals use secured and newly discovered ingredients from the Material Bag. The result becomes expedition provisions.</p>
-      ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
       <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${ingredients || "<em>No cooking ingredients available</em>"}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No recipes are available at this fire.</p>'}</div>
     </section>`;
@@ -1634,7 +1721,6 @@ function renderCampCraftPanel(expedition) {
     <section class="camp-content" aria-labelledby="camp-craft-title">
       <div class="section-title-row"><h2 id="camp-craft-title">Field Craft</h2><span>Use Material Bag</span></div>
       <p class="section-help">A campfire can support simple field repairs. Apothecary work still belongs in the village.</p>
-      ${game.craftingAction ? renderCraftingProgress(game.craftingAction) : ""}
       <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No field recipes are known.</p>'}</div>
     </section>`;
@@ -2661,7 +2747,6 @@ function renderSummary() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen summary-screen ${returned ? "is-success" : "is-failure"}" aria-labelledby="summary-title">
-      <div class="summary-emblem" aria-hidden="true">${returned ? "♜" : "♞"}</div>
       <div class="screen-heading">
         <p class="eyebrow">Expedition Report</p>
         <h1 id="summary-title">${summary.title}</h1>
@@ -2812,6 +2897,8 @@ function resetSave() {
   game.shopTab = "buy";
   game.provisionShopStock = createProvisionShopStock();
   game.itemShopStock = createItemShopStock();
+  game.craftingAction = null;
+  game.restAction = null;
   game.dialogueSession = null;
   game.preparationSupplies = Math.min(18, game.player.provisions);
   savePlayer();
@@ -2947,6 +3034,7 @@ function gameLoop(timestamp) {
   game.elapsedSeconds += deltaSeconds;
 
   updateCraftingProgress(timestamp);
+  updateInnRestProgress(timestamp);
 
   if (game.screen === "expedition") {
     if (game.expedition?.combat) {
@@ -2977,6 +3065,20 @@ function updateCraftingProgress(timestamp) {
   if (progressFill) progressFill.style.width = `${Math.round(action.progress * 100)}%`;
   if (progressLabel) progressLabel.textContent = `${Math.round(action.progress * 100)}%`;
   if (action.progress >= 1) completeCraftingAction();
+}
+
+function updateInnRestProgress(timestamp) {
+  const action = game.restAction;
+  if (!action) return;
+  action.progress = clamp((timestamp - action.startedAt) / action.durationMs, 0, 1);
+  const progressFill = document.querySelector(".inn-rest-progress .crafting-progress-fill");
+  const progressLabel = document.querySelector(".inn-rest-progress-heading span");
+  if (progressFill) progressFill.style.width = `${Math.round(action.progress * 100)}%`;
+  if (progressLabel) progressLabel.textContent = `${Math.round(action.progress * 100)}%`;
+  if (action.progress >= 1) {
+    game.restAction = null;
+    restAtInn();
+  }
 }
 
 initializeGame();

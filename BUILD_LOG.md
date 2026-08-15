@@ -1,5 +1,30 @@
 # Build Log
 
+## 2026-08-14 - Bandit Chain, Town Crafting, and Simulation Parity
+
+### Goal
+
+Add the next focused gameplay/content pass: a small bandit escalation chain, clearer town crafting and Inn rest interactions, and simulation parity for the authored travel, rest, camp, cooking, loot, and equipment systems.
+
+### Human prompt and direction
+
+The human developer supplied the attached gameplay/UI/content polish guide and requested the completed files be added, committed, and pushed to `main` for testing. The guide called for a small implementation with no automatic balance rebalance.
+
+### AI-assisted implementation
+
+- Added regular Bandit Ambush and conditional Bandit Leader encounters with distinct combat definitions, modest shared loot tables, seeded run-flag eligibility, normal victory settlement, and Fountain of Barenton gating at 90 leagues.
+- Added Knightly Longsword and Reinforced Mail as expensive Smithy upgrades, and taught campaign preparation to buy and equip one affordable upgrade when provision needs are covered.
+- Moved crafting/cooking progress into the active recipe card, disabled conflicting station actions while busy, added a town Inn Cook tab using the real campfire recipes/material mutations, and added a centralized 2.2-second Inn rest completion delay with completion-only healing and charging.
+- Updated Strong Tonic to produce two items and reduced only the campfire visual; removed the large summary emblem and added modest mobile town touch/readability rules.
+- Extended single-expedition and campaign simulations with explicit travel-setting handling, Inn cooking, equipment purchasing, bandit combat/eligibility/loot telemetry, and replay/CSV fields while retaining seeded production rules and no simulator-only healing.
+- Added focused browser assertions for rest/craft delays, Bandit content, Fountain gating, Inn cooking, campaign persistence, Strong Tonic output, and deterministic bandit simulation behavior.
+
+### Verification and resulting prototype state
+
+The prototype now presents active town work in its owning card, completes Inn recovery through the real healing rule, and lets seeded campaign simulations make the same authored travel, camp, cooking, combat, and loot decisions as production. No existing global balance constants were rebased.
+
+Verified 429 UI/provision/location browser assertions, 45 deterministic simulation assertions, 73 campaign/health/Inn assertions, and `git diff --check`.
+
 ## 2026-08-14 - Focused Expedition Injury HUD Cleanup
 
 ### Goal

@@ -71,6 +71,22 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 0,
     actionPattern: ["wolf_bite", "wolf_lunge", "wolf_bite"],
   }),
+  bandit: Object.freeze({
+    id: "bandit",
+    name: "Bandit",
+    maxHp: 20,
+    speed: 12,
+    defense: 1,
+    actionPattern: ["bandit_slash", "bandit_feint", "bandit_slash"],
+  }),
+  bandit_leader: Object.freeze({
+    id: "bandit_leader",
+    name: "Bandit Leader",
+    maxHp: 44,
+    speed: 13,
+    defense: 3,
+    actionPattern: ["leader_strike", "leader_command", "leader_strike"],
+  }),
   summoned_guardian: Object.freeze({
     id: "summoned_guardian",
     name: "Summoned Guardian",
@@ -108,6 +124,36 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "sprained_ankle",
     injuryChance: 0.2,
   }),
+  bandit_slash: Object.freeze({
+    id: "bandit_slash",
+    name: "Slash",
+    damage: Object.freeze({ minimum: 4, maximum: 7 }),
+    target: "arthur",
+  }),
+  bandit_feint: Object.freeze({
+    id: "bandit_feint",
+    name: "Feint",
+    damage: Object.freeze({ minimum: 3, maximum: 6 }),
+    target: "arthur",
+    injuryId: "bruised_ribs",
+    injuryChance: 0.12,
+  }),
+  leader_strike: Object.freeze({
+    id: "leader_strike",
+    name: "Leader's Strike",
+    damage: Object.freeze({ minimum: 7, maximum: 11 }),
+    target: "arthur",
+    injuryId: "deep_cut",
+    injuryChance: 0.12,
+  }),
+  leader_command: Object.freeze({
+    id: "leader_command",
+    name: "Commanding Blow",
+    damage: Object.freeze({ minimum: 5, maximum: 9 }),
+    target: "arthur",
+    injuryId: "bruised_ribs",
+    injuryChance: 0.18,
+  }),
   guardian_sweep: Object.freeze({
     id: "guardian_sweep",
     name: "Spectral Sweep",
@@ -126,6 +172,14 @@ const COMBAT_DEFINITIONS = Object.freeze({
   wolves: Object.freeze({
     id: "wolves",
     enemyIds: ["wolf", "wolf", "wolf"],
+  }),
+  bandit_ambush: Object.freeze({
+    id: "bandit_ambush",
+    enemyIds: ["bandit", "bandit"],
+  }),
+  bandit_leader: Object.freeze({
+    id: "bandit_leader",
+    enemyIds: ["bandit_leader"],
   }),
   summoned_guardian: Object.freeze({
     id: "summoned_guardian",

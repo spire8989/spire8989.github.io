@@ -1407,6 +1407,121 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     } },
   },
 
+  bandit_ambush: {
+    id: "bandit_ambush",
+    title: "Bandit Ambush",
+    description: "Two armed figures step from the roadside thorns and block the Old Forest Road.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
+    weight: 5,
+    minimumDistance: 12,
+    tags: ["humanoid", "bandit", "danger", "combat"],
+    repeatable: false,
+    requirements: [],
+    stages: { start: {
+      text: "Their blades are plain, but their stance says they have done this before.",
+      choices: [
+        {
+          id: "fight",
+          label: "Fight the Bandits",
+          outcomes: [{
+            type: "startCombat",
+            combatId: "bandit_ambush",
+            victory: {
+              outcomes: [
+                { type: "rollLootTable", tableId: "bandit_ambush_loot", rolls: 2 },
+                {
+                  type: "setRunFlag",
+                  flag: "banditLeaderEligible",
+                  value: true,
+                  message: "A blackthorn mark suggests someone more important will come looking.",
+                },
+              ],
+              resultText: "The two bandits fall back into the brush. Their blackthorn mark may draw a more dangerous pursuer.",
+            },
+            fled: {
+              outcomes: [],
+              resultText: "The company breaks from the ambush and leaves the bandits to the road.",
+            },
+          }],
+        },
+        {
+          id: "break_through",
+          label: "Break Through",
+          costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+          outcomes: [{
+            type: "randomChance",
+            chance: 0.25,
+            effects: [{ type: "modifyResource", resource: "health", amount: -2 }],
+            resultText: "Arthur forces a gap, but one blade catches him as the company gets past.",
+            elseResultText: "Arthur drives through the gap before the bandits can close it.",
+          }],
+          endEncounter: true,
+        },
+        {
+          id: "pay_toll",
+          label: "Pay Their Toll",
+          costs: [{ type: "modifyResource", resource: "goldCarried", amount: -4 }],
+          resultText: "The bandits take the coins and vanish among the trees.",
+          endEncounter: true,
+        },
+      ],
+    } },
+  },
+
+  bandit_leader: {
+    id: "bandit_leader",
+    title: "Bandit Leader",
+    description: "A scarred captain waits beside the road, furious that Arthur survived the earlier ambush.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "overgrown_trail"],
+    directions: ["outbound", "returning"],
+    weight: 3,
+    minimumDistance: 28,
+    tags: ["humanoid", "bandit", "leader", "danger", "combat"],
+    repeatable: false,
+    requirements: [
+      { type: "runFlag", flag: "banditLeaderEligible" },
+      { type: "notRunFlag", flag: "banditLeaderDefeated" },
+    ],
+    stages: { start: {
+      text: "The captain's armor is better than the ambush crew's, and the road behind him is empty.",
+      choices: [
+        {
+          id: "fight",
+          label: "Face the Captain",
+          outcomes: [{
+            type: "startCombat",
+            combatId: "bandit_leader",
+            victory: {
+              outcomes: [
+                { type: "rollLootTable", tableId: "bandit_leader_loot", rolls: 2 },
+                {
+                  type: "setRunFlag",
+                  flag: "banditLeaderDefeated",
+                  value: true,
+                  message: "The blackthorn band will trouble this road no more this season.",
+                },
+              ],
+              resultText: "The bandit captain yields the road. His better-hidden purse confirms the rank he carried.",
+            },
+            fled: {
+              outcomes: [],
+              resultText: "The captain lets the company go, certain the road will offer another chance.",
+            },
+          }],
+        },
+        {
+          id: "turn_back",
+          label: "Turn Back",
+          resultText: "Arthur turns away before the captain can force a costly fight.",
+          endEncounter: true,
+        },
+      ],
+    } },
+  },
+
   ruined_wayside_shrine: {
     id: "ruined_wayside_shrine",
     title: "Ruined Wayside Shrine",
@@ -1660,8 +1775,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     expeditionIds: ["fountain_of_barenton"],
     directions: ["outbound"],
     weight: 20,
-    minimumDistance: 5,
-    maximumDistance: 90,
+    minimumDistance: 90,
     tags: ["campaign", "fountain", "mystery"],
     repeatable: false,
     requirements: [],

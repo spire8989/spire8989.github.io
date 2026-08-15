@@ -367,8 +367,8 @@ button:focus-visible {
   z-index: 2;
   bottom: 12%;
   left: 50%;
-  width: 16%;
-  height: 25%;
+  width: 12%;
+  height: 19%;
   transform: translateX(-50%);
   filter: drop-shadow(0 0 0.75rem rgb(241 155 65 / 75%));
 }
@@ -2756,18 +2756,6 @@ button.combatant {
     linear-gradient(180deg, #2b2520, #151a15 60%, #10130f);
 }
 
-.summary-emblem {
-  align-self: center;
-  color: var(--gold);
-  font-size: clamp(3rem, 18cqw, 6rem);
-  line-height: 1;
-  text-shadow: 0 0 1.2rem rgb(217 189 114 / 25%);
-}
-
-.is-failure .summary-emblem {
-  color: #a76856;
-}
-
 .summary-card {
   padding: 0.85rem;
   border: 1px solid rgb(217 189 114 / 25%);
@@ -3163,18 +3151,21 @@ button.combatant {
 }
 
 .interaction-actions,
-.shop-tabs {
+.shop-tabs,
+.inn-tabs {
   display: flex;
   gap: 0.45rem;
   margin-top: 0.6rem;
 }
 
 .interaction-actions button,
-.shop-tabs button {
+.shop-tabs button,
+.inn-tabs button {
   flex: 1;
 }
 
-.shop-tabs button {
+.shop-tabs button,
+.inn-tabs button {
   padding: 0.45rem;
   border: 1px solid #536354;
   border-radius: 0.3rem;
@@ -3185,7 +3176,8 @@ button.combatant {
   cursor: pointer;
 }
 
-.shop-tabs button.is-selected {
+.shop-tabs button.is-selected,
+.inn-tabs button.is-selected {
   border-color: var(--gold);
   background: #604e2f;
   color: #fff1c6;
@@ -3701,6 +3693,33 @@ button.combatant {
   padding: 0.65rem 0.58rem;
 }
 
+.crafting-row.is-busy {
+  border-color: rgb(217 189 114 / 62%);
+  background: rgb(82 69 39 / 34%);
+}
+
+.crafting-progress-inline {
+  margin-top: 0.12rem;
+}
+
+.inn-rest-progress {
+  margin-top: 0.35rem;
+}
+
+.inn-rest-progress-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: #f0e3bd;
+  font-size: clamp(0.62rem, 2.7cqw, 0.78rem);
+}
+
+.inn-rest-progress p {
+  margin: 0;
+  color: #b7b6a3;
+  font-size: clamp(0.56rem, 2.35cqw, 0.68rem);
+}
+
 .crafting-row > div:nth-child(2) {
   display: grid;
   gap: 0.42rem;
@@ -3771,6 +3790,31 @@ button.combatant {
   border-radius: inherit;
   background: linear-gradient(90deg, #b88c42, #e7c978);
   transition: width 80ms linear;
+}
+
+@media (max-width: 700px) {
+  .destination-screen .small-button,
+  .destination-screen .interaction-actions button,
+  .destination-screen .shop-tabs button,
+  .destination-screen .inn-tabs button {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.75rem;
+    font-size: clamp(0.68rem, 3cqw, 0.82rem);
+  }
+
+  .destination-screen .shop-item-row .small-button {
+    min-width: 4.5rem;
+  }
+
+  .destination-screen .shop-item-row > div:nth-child(2) strong {
+    font-size: clamp(0.72rem, 3.1cqw, 0.9rem);
+  }
+
+  .destination-screen .shop-item-row > div:nth-child(2) span,
+  .destination-screen .npc-card p,
+  .destination-screen .shopkeeper-row span {
+    font-size: clamp(0.62rem, 2.65cqw, 0.78rem);
+  }
 }
 .injury-panel { margin-top: 0.55rem; }
 .injury-row {
