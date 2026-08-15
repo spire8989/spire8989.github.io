@@ -55,6 +55,13 @@ function handleAction(event) {
 
   const { action, itemId, materialId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId } = control.dataset;
 
+  // Replay playback owns an isolated game state. Keep the real gameplay
+  // controls visible for faithful rendering, but do not let them mutate the
+  // sandbox while the recorded decisions are driving it.
+  if (typeof ReplayController !== "undefined" && ReplayController.isActive()) {
+    return;
+  }
+
   switch (action) {
     case "show-campaign":
       if (!game.expedition || game.expedition.status !== "active") {
@@ -2879,6 +2886,10 @@ function announceTravelEvent(message) {
 }
 
 function savePlayer() {
+  if (typeof ReplayController !== "undefined" && ReplayController.isActive()) {
+    ui.saveStatus.textContent = "Replay sandbox";
+    return false;
+  }
   const saved = SaveSystem.save(game.player);
   ui.saveStatus.textContent = saved ? "Saved locally" : "Save unavailable";
 }
@@ -3037,7 +3048,9 @@ function gameLoop(timestamp) {
   updateInnRestProgress(timestamp);
 
   if (game.screen === "expedition") {
-    if (game.expedition?.combat) {
+    if (typeof ReplayController !== "undefined" && ReplayController.isActive()) {
+      ReplayController.update(deltaSeconds);
+    } else if (game.expedition?.combat) {
       updateCombat(deltaSeconds);
     } else {
       updateExpedition(deltaSeconds);

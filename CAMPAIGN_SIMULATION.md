@@ -191,13 +191,14 @@ full JSON/replay export remains unchanged.
 CampaignSimulationRunner.verifyDeterminism(configuration, "known-campaign-seed");
 ```
 
-The replay payload retains campaign starting/ending state, campaign seed, derived expedition seeds, between-expedition decisions, purchases, healing, sales, settlement snapshots, and every expedition replay payload. Visual replay and recorded-decision enforcement remain future work.
+The replay payload retains campaign starting/ending state, campaign seed, derived expedition seeds, between-expedition decisions, purchases, healing, sales, settlement snapshots, and every expedition replay payload. Phase 1 can watch an individual full simulation expedition through the developer panel using its replay payload; full campaign/town sequencing remains future work. Compact JSON remains an analysis artifact and intentionally omits the decisions needed for playback.
 
 ## Tests
 
 ```sh
 python tests/campaign_system_test.py
 python tests/simulation_system_test.py
+python tests/replay_system_test.py
 python tests/location_system_test.py
 ```
 

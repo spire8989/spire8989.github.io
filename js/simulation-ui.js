@@ -27,7 +27,9 @@ function initializeSimulationTools() {
       <label>Inspect run <select id="sim-run-select"></select></label>
       <details><summary>Run telemetry</summary><pre id="sim-run-detail"></pre></details>
       <div><button type="button" data-sim-action="json">Download JSON</button>
-        <button type="button" data-sim-action="csv">Download CSV</button></div>
+        <button type="button" data-sim-action="csv">Download CSV</button>
+        <button type="button" data-sim-action="replay">Watch Replay</button>
+        <button type="button" data-sim-action="replay-json">Download Replay JSON</button></div>
     </div>
     <hr>
     <h3>Campaign Simulation</h3>
@@ -75,6 +77,21 @@ function initializeSimulationTools() {
     if (action === "csv" && lastBatch) downloadSimulationFile(
       "grail-simulations.csv", SimulationTelemetry.toCsv(lastBatch), "text/csv",
     );
+    if (action === "replay" && lastBatch) {
+      const run = selectedSimulationRun(panel, lastBatch);
+      if (run) {
+        ReplayController.start(run);
+        panel.querySelector("#sim-status").textContent = `Watching replay ${run.seed}`;
+      }
+      return;
+    }
+    if (action === "replay-json" && lastBatch) {
+      const run = selectedSimulationRun(panel, lastBatch);
+      if (run?.replay) downloadSimulationFile(
+        `grail-replay-${run.seed}.json`, JSON.stringify(run.replay, null, 2), "application/json",
+      );
+      return;
+    }
     if (action === "campaign-json" && lastCampaignBatch) downloadSimulationFile(
       "grail-campaigns.json", CampaignSimulationTelemetry.toJson(lastCampaignBatch), "application/json",
     );
@@ -211,6 +228,11 @@ function renderSimulationBatch(panel, batch) {
     `<option value="${index}">${index + 1}: ${run.seed} · ${run.outcome} · ${run.maximumDistance}</option>`
   )).join("");
   panel.querySelector("#sim-run-detail").textContent = JSON.stringify(batch.results[0], null, 2);
+}
+
+function selectedSimulationRun(panel, batch) {
+  const index = Number(panel.querySelector("#sim-run-select")?.value) || 0;
+  return batch?.results?.[index] ?? null;
 }
 
 function downloadSimulationFile(filename, contents, mimeType) {

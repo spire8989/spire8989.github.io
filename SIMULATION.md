@@ -101,10 +101,12 @@ Each run contains identity/configuration fields, outcome/failure, distances, par
 - `combats`: enemies, before/after party HP, result/flee, damage totals, rounds/actions, and production combat events.
 - `decisions`: the compact pace/ration, rest/camp/cooking, encounter, combat, and turnaround policy decisions.
 - `events`: chronological human-readable expedition, encounter, combat, rest, camp, cooking, turnaround, and result events.
-- `replay`: seed, region/path, departure pace/rations, the actual pre-departure player/loadout/resource snapshot, and a copy of every simulation decision.
+- `replay`: version, seed, expedition/region/path IDs, companions, departure pace/rations, starting provisions, loadout, packed items and Material Bag contents, turnaround configuration, travel step, the actual pre-departure player snapshot, and a copy of every simulation decision.
 - `scenario` + `seed`: normalized configuration needed to rerun the deterministic rule stream.
 
-The future replay system can rerun `scenario` with `seed` while consuming/asserting `decisions`, or present the recorded `events` directly. The event schema is intentionally plain JSON and uses stable content IDs.
+Phase 1 visual replay is available from the `?sim=1` developer panel. Select a single expedition, choose **Watch Replay**, and the viewer creates a sandboxed player/expedition from `run.replay` plus the authoritative full-run result. `ReplayData.normalize(run)` provides the stable internal shape; `ReplayController` consumes decisions in order, calls production rules, and renders through the normal game UI. Compact Campaign JSON is intentionally not a replay source because v2 omits decision/action detail.
+
+The viewer supports pace/ration changes, fixed or provision-based turnarounds, brief rest, camp, campfire cooking, camp events, encounter choices, combat actions/abilities/items/targets, and leave-camp. It pauses with a structured desync error if a recorded decision is missing, unavailable, or aimed at a different encounter/combat state. Controls include play/pause, restart, decision stepping, speed selection, forward skips, a restart-and-replay seek slider, auto-skip for uneventful travel, and exit. Replay mutations never call `SaveSystem.save`; exiting restores the prior game object references and screen.
 
 For a quick deterministic diagnostic:
 
@@ -142,8 +144,8 @@ python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-The focused suite verifies normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, strategy pace/ration selection and adaptation, production provision effects, real brief-rest/camp/cooking flows, Material Bag capacity and replay state, camp-event determinism, replay metadata, production-state telemetry, and direct encounter selection. It also temporarily makes native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
+The focused suites verify normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, strategy pace/ration selection and adaptation, production provision effects, real brief-rest/camp/cooking flows, Material Bag capacity and replay state, camp-event determinism, replay metadata, production-state telemetry, direct encounter selection, and Phase 1 visual replay sandboxing/determinism/desync handling. They also temporarily make native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
 
 ## Current Phase 1 boundaries
 
-All currently authored expedition encounters, camp events, campfire recipes, and current combats use the simulator. Normal play and simulation share expedition creation, capacity/consumption, pace/rations, travel, rest, camping, cooking, turnaround, and complete success/failure settlement. Presentation delays are intentionally collapsed. The simulator does not yet drive a visual replay, enforce a recorded decision stream during replay, serialize custom strategy/policy function bodies, use a Web Worker, or generate exhaustive loadout permutations. `durationMs` and batch `generatedAt` are diagnostic metadata and are not deterministic replay fields.
+All currently authored expedition encounters, camp events, campfire recipes, and current combats use the simulator. Normal play, simulation, and Phase 1 replay share expedition creation, capacity/consumption, pace/rations, travel, rest, camping, cooking, turnaround, and complete success/failure settlement. The simulator still collapses presentation delays, while replay restores lightweight visual holds around meaningful states. Replay does not yet cover full campaign/town sequencing, real-human recording, branching playback, custom strategy/policy function serialization, a Web Worker, or exhaustive loadout permutations. `durationMs` and batch `generatedAt` are diagnostic metadata and are not deterministic replay fields.

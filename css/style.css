@@ -59,8 +59,91 @@
   word-break: break-word;
 }
 
+.replay-controls {
+  position: fixed;
+  z-index: 1100;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  display: grid;
+  gap: 0.55rem;
+  max-height: min(19rem, calc(100vh - 2rem));
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid #b18d4a;
+  border-radius: 0.5rem;
+  background: #171b16;
+  color: #f0ead8;
+  box-shadow: 0 0.8rem 2rem #000b;
+  font: 13px/1.35 system-ui, sans-serif;
+}
+
+.replay-controls-heading,
+.replay-controls-row,
+.replay-progress-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.replay-controls-heading {
+  justify-content: space-between;
+  color: #d8c78e;
+}
+
+.replay-controls-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.replay-eyebrow {
+  color: #e4bd61;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.replay-controls button,
+.replay-controls select {
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #6d654b;
+  border-radius: 0.25rem;
+  background: #293329;
+  color: #f0ead8;
+  font: inherit;
+}
+
+.replay-controls button { cursor: pointer; }
+.replay-controls button:hover { border-color: #d9bd72; background: #3a432f; }
+.replay-controls button:disabled { cursor: not-allowed; opacity: 0.45; }
+.replay-controls label { display: inline-flex; align-items: center; gap: 0.35rem; }
+.replay-controls .replay-checkbox { margin-left: 0.25rem; }
+.replay-progress-row { color: #c1c7b8; }
+.replay-progress-row .replay-seek { flex: 1 1 8rem; min-width: 6rem; accent-color: #d9bd72; }
+.replay-error,
+.replay-warning {
+  margin: 0;
+  padding: 0.55rem;
+  border: 1px solid #b45d4f;
+  background: #291817;
+  color: #f0b6a5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.replay-warning { border-color: #b18d4a; background: #2c2618; color: #f0d897; }
+.replay-exit-button { justify-self: end; }
+
+body.replay-active #screen-root button,
+body.replay-active #screen-root [data-action] {
+  cursor: not-allowed;
+}
+
 @media (max-width: 700px) {
   .simulation-tools { inset: 0; width: auto; max-height: none; border-radius: 0; }
+  .replay-controls { right: 0.35rem; bottom: 0.35rem; left: 0.35rem; }
 }
 
 * {

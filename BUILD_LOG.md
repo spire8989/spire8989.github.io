@@ -1,5 +1,66 @@
 # Build Log
 
+## 2026-08-14 - Phase 1 Visual Expedition Replay Viewer
+
+### Goal
+
+Add a focused visual replay viewer for one simulated expedition. The viewer
+must consume the recorded decision stream, reuse production gameplay rules and
+the normal expedition/encounter/camp/combat renderer, sandbox all mutations,
+and stop clearly on desync rather than selecting new AI decisions.
+
+### Human prompt and direction
+
+The human developer supplied the Phase 1 replay guide, emphasized deterministic
+recorded-decision playback and sandboxing, explicitly deferred campaign replay
+and human-run recording, and authorized staging, committing, and pushing the
+finished implementation.
+
+### AI-assisted implementation
+
+- Added generic `ReplayData.normalize` and `ReplayController` layers in
+  `js/replay.js`. Full simulation runs remain the replay source; Compact JSON
+  remains analysis-only.
+- Extended the existing replay metadata with expedition ID, companions,
+  starting provisions, loadout, packed items and Material Bag contents,
+  turnaround configuration, and travel-step information.
+- Created an isolated replay player/expedition from the recorded starting
+  snapshot and seeded RNG. Replay settlement, crafting, and other mutation
+  paths never write localStorage; Exit Replay restores the previous game
+  object references and screen.
+- Enforced recorded pace/ration, turnaround and emergency-turnaround,
+  brief-rest/camp, cooking, camp-event, encounter-choice, leave-camp, and
+  combat action/ability/item/target decisions. Invalid or unavailable records
+  pause with decision index, expected decision, current state, encounter, and
+  combat context.
+- Added Play/Pause, Restart, decision Step, 0.25x–8x speed, forward skip,
+  restart-and-replay seeking, auto-skip travel, completion comparison, Exit
+  Replay, Watch Replay, and Download Replay JSON developer controls.
+- Preserved the ordinary expedition, camp, encounter, combat, summary, HUD,
+  and gauge rendering rather than creating a telemetry-only replay scene.
+- Added focused browser coverage for normalization, sandbox/save isolation,
+  deterministic completion, camp/cooking/combat decision enforcement, target
+  desync, restart, seek, exit restoration, and invalid decision reporting.
+
+### Manual changes
+
+The human developer supplied the replay guide and requested the implementation
+be committed and pushed. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The `?sim=1` developer panel can now launch one selected simulation expedition
+into a labeled REPLAY session. At normal speed it shows production travel,
+encounter choices/results, combat gauges and actions, rest, campfire cooking,
+camp events, resource changes, and return/failure presentation. Playback can
+be paused, stepped, sped up, skipped, sought by replay decision, restarted, or
+exited without changing the real save.
+
+Verified 15 replay assertions, 45 deterministic simulation assertions, 78
+campaign/health/Inn assertions, 429 UI/provision/location browser assertions,
+and `git diff --check`. Full campaign/town replay and real-human recording
+remain intentionally out of scope for Phase 1.
+
 ## 2026-08-14 - Compact Campaign Export v2 Size Reduction
 
 ### Goal
