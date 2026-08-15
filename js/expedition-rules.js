@@ -501,6 +501,32 @@ const ExpeditionRules = Object.freeze({
       };
     });
     player.bestExpeditionDistance = Math.max(player.bestExpeditionDistance, expedition.maxDistanceReached);
+    this.normalizePackedState(player);
+  },
+
+  normalizePackedState(player) {
+    player.ownedItems ??= {};
+    player.equippedItems ??= {};
+    player.packedItems = [...new Set(player.packedItems ?? [])]
+      .filter((itemId) => ITEM_DEFINITIONS[itemId]?.carriable
+        && !MaterialRules.isMaterialId(itemId)
+        && (player.ownedItems[itemId] ?? 0) > 0
+        && !Object.values(player.equippedItems).includes(itemId))
+      .slice(0, EXPEDITION_TUNING.packSlots);
+
+    let remainingCapacity = Math.max(0, Math.floor(Number(EXPEDITION_TUNING.materialBagCapacity) || 0));
+    const packedMaterials = {};
+    Object.entries(MaterialRules.normalizeCollection(player.packedMaterials ?? {})).forEach(([materialId, quantity]) => {
+      if (remainingCapacity <= 0) return;
+      const available = Math.max(0, Math.floor(Number(player.materials?.[materialId]) || 0));
+      const accepted = Math.min(quantity, available, remainingCapacity);
+      if (accepted > 0) {
+        packedMaterials[materialId] = accepted;
+        remainingCapacity -= accepted;
+      }
+    });
+    player.packedMaterials = packedMaterials;
+    return player;
   },
 });
 

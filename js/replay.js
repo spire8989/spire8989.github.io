@@ -975,6 +975,12 @@ const CampaignReplayData = Object.freeze({
         }),
         stateBefore: deepClone(entry?.stateBefore ?? campaign?.expeditions?.[index]?.stateBefore ?? null),
         stateAfter: deepClone(entry?.stateAfter ?? campaign?.expeditions?.[index]?.stateAfter ?? null),
+        settlementState: deepClone(
+          entry?.settlementState
+            ?? entry?.expeditionTelemetry?.endingPlayerState
+            ?? campaign?.expeditions?.[index]?.expeditionTelemetry?.endingPlayerState
+            ?? null,
+        ),
         success: entry?.success ?? campaign?.expeditions?.[index]?.success ?? null,
         outcome: entry?.outcome ?? campaign?.expeditions?.[index]?.outcome ?? null,
         failureReason: entry?.failureReason ?? campaign?.expeditions?.[index]?.failureReason ?? null,
@@ -1265,6 +1271,7 @@ const CampaignReplayController = Object.freeze({
         initial,
         steps: 0,
         lastResult: null,
+        noProgressSteps: 0,
         stalled: false,
         reached: false,
         cancelled: false,
@@ -1292,6 +1299,7 @@ const CampaignReplayController = Object.freeze({
         target,
         steps: 0,
         lastResult: null,
+        noProgressSteps: 0,
         stalled: false,
         reached: false,
         cancelled: false,
@@ -1325,7 +1333,9 @@ const CampaignReplayController = Object.freeze({
         job.reached = true;
         break;
       }
-      if (this.progressSignature() === before && job.steps > 100) {
+      if (this.progressSignature() === before) job.noProgressSteps += 1;
+      else job.noProgressSteps = 0;
+      if (job.noProgressSteps >= 100) {
         job.stalled = true;
         break;
       }
@@ -1390,6 +1400,9 @@ const CampaignReplayController = Object.freeze({
 
   advanceTownAction() {
     const state = campaignReplayState;
+    if (state.townCursor === 0 && state.mode === "town" && !this.validateTownCheckpoint()) {
+      return { meaningful: true, desync: true };
+    }
     const town = state.data.towns[state.expeditionIndex];
     if (!town) return this.completeCampaign();
     const actions = state.mode === "return" ? town.returnActions : town.preparation;
@@ -1529,6 +1542,17 @@ const CampaignReplayController = Object.freeze({
     const state = campaignReplayState;
     const entry = state.data.expeditions[state.expeditionIndex];
     if (!entry) return this.completeCampaign();
+    const startingStateDifferences = campaignReplayStateDifferences(
+      campaignReplayPlayerSnapshot(state.player),
+      entry.replay.startingPlayerState,
+    );
+    if (startingStateDifferences.length) {
+      this.desync(
+        `Campaign replay state mismatch before Expedition ${state.expeditionIndex + 1} playback:\n${startingStateDifferences.map((difference) => `- ${difference}`).join("\n")}`,
+        action,
+      );
+      return { meaningful: true, desync: true };
+    }
     state.mode = "expedition";
     state.phase = "Traveling";
     state.expeditionActionBase = state.actionIndex;
@@ -1548,6 +1572,18 @@ const CampaignReplayController = Object.freeze({
     if (!sub || sub.status !== "completed") return false;
     const completedPlayer = deepClone(sub.player);
     const completedExpedition = deepClone(sub.expedition);
+    const expectedSettlement = state.data.expeditions[state.expeditionIndex]?.settlementState;
+    const settlementDifferences = expectedSettlement
+      ? campaignReplayStateDifferences(campaignReplayPlayerSnapshot(completedPlayer), expectedSettlement)
+      : [];
+    if (settlementDifferences.length) {
+      ReplayController.exit();
+      this.desync(
+        `Campaign replay settlement state mismatch after Expedition ${state.expeditionIndex + 1}:\n${settlementDifferences.map((difference) => `- ${difference}`).join("\n")}`,
+        { type: "settlement-checkpoint", expeditionNumber: state.expeditionIndex + 1 },
+      );
+      return false;
+    }
     const summary = deepClone(game.summary);
     ReplayController.exit();
     copyReplayObject(state.player, completedPlayer);
@@ -1651,6 +1687,20 @@ const CampaignReplayController = Object.freeze({
     if (!town || state.mode === "expedition" || state.mode === "complete") return null;
     const actions = state.mode === "return" ? town.returnActions : town.preparation;
     return actions[state.townCursor] ?? null;
+  },
+
+  validateTownCheckpoint() {
+    const state = campaignReplayState;
+    const entry = state?.data.expeditions[state.expeditionIndex];
+    if (!entry?.stateBefore) return true;
+    const actual = campaignReplayStateSnapshot(state.player, state.shopStocks, state.expeditionIndex + 1);
+    const differences = campaignReplayStateDifferences(actual, entry.stateBefore);
+    if (!differences.length) return true;
+    this.desync(
+      `Campaign replay state mismatch before Expedition ${state.expeditionIndex + 1}:\n${differences.map((difference) => `- ${difference}`).join("\n")}`,
+      { type: "state-checkpoint", expeditionNumber: state.expeditionIndex + 1 },
+    );
+    return false;
   },
 
   skipReached(kind, initial, before, result = null) {
@@ -1975,14 +2025,46 @@ function applyReplayEquipment(player, itemId, equipmentSlot) {
 
 function applyReplayPack(player, packedItems, packedMaterials) {
   const ids = Array.isArray(packedItems) ? packedItems : Object.keys(packedItems ?? {});
-  const valid = ids.length <= EXPEDITION_TUNING.packSlots
-    && ids.every((itemId) => ITEM_DEFINITIONS[itemId]?.carriable
-      && !MaterialRules.isMaterialId(itemId) && player.ownedItems[itemId]
-      && !Object.values(player.equippedItems).includes(itemId));
-  if (!valid) return { applied: false, reason: "The recorded pack contents exceed capacity or contain an unavailable item." };
-  const selectedMaterials = MaterialRules.selectionFromRequest(packedMaterials ?? {}, player.materials);
-  if (MaterialRules.collectionTotal(selectedMaterials) > EXPEDITION_TUNING.materialBagCapacity) {
-    return { applied: false, reason: "The recorded Material Bag contents exceed capacity." };
+  if (ids.length > EXPEDITION_TUNING.packSlots) {
+    return { applied: false, reason: `The recorded pack contains ${ids.length} items, but capacity is ${EXPEDITION_TUNING.packSlots}.` };
+  }
+  if (new Set(ids).size !== ids.length) {
+    return { applied: false, reason: "The recorded pack contains a duplicate item." };
+  }
+  const unavailableItem = ids.find((itemId) => (
+    !ITEM_DEFINITIONS[itemId]?.carriable
+      || MaterialRules.isMaterialId(itemId)
+      || !(player.ownedItems?.[itemId] > 0)
+      || Object.values(player.equippedItems ?? {}).includes(itemId)
+  ));
+  if (unavailableItem) {
+    const owned = Number(player.ownedItems?.[unavailableItem]) || 0;
+    return { applied: false, reason: `The recorded pack item ${unavailableItem} is unavailable (owned ${owned}).` };
+  }
+
+  const materialRequest = Array.isArray(packedMaterials)
+    ? Object.fromEntries(packedMaterials.map((materialId) => [materialId, player.materials?.[materialId] ?? 1]))
+    : packedMaterials ?? {};
+  const selectedMaterials = {};
+  let remainingCapacity = EXPEDITION_TUNING.materialBagCapacity;
+  for (const [materialId, requestedValue] of Object.entries(materialRequest)) {
+    if (!MaterialRules.isMaterialId(materialId)) {
+      return { applied: false, reason: `The recorded Material Bag contains an unknown material: ${materialId}.` };
+    }
+    const requested = Math.floor(Number(requestedValue));
+    if (!Number.isFinite(requested) || requested < 0) {
+      return { applied: false, reason: `The recorded Material Bag quantity for ${materialId} is invalid.` };
+    }
+    if (requested === 0) continue;
+    const owned = Number(player.materials?.[materialId]) || 0;
+    if (requested > owned) {
+      return { applied: false, reason: `The recorded Material Bag requests ${requested} ${materialId}, but replay owns ${owned}.` };
+    }
+    if (requested > remainingCapacity) {
+      return { applied: false, reason: `The recorded Material Bag contents exceed capacity at ${materialId}.` };
+    }
+    selectedMaterials[materialId] = requested;
+    remainingCapacity -= requested;
   }
   player.packedItems = [...ids];
   player.packedMaterials = selectedMaterials;
@@ -2051,12 +2133,107 @@ function campaignReplayPlayerSnapshot(player) {
     packedItems: deepClone(player.packedItems),
     packedMaterials: deepClone(player.packedMaterials),
     materials: deepClone(player.materials),
+    learnedKnowledge: deepClone(player.learnedKnowledge),
     learnedRecipes: deepClone(player.learnedRecipes),
+    campaignFlags: deepClone(player.campaignFlags),
+    injuries: deepClone(player.injuries),
+    unlockedCompanions: deepClone(player.unlockedCompanions),
     arthurHealth: HealingRules.arthurHealth(player),
     selectedCompanions: deepClone(selectedCompanionIds(player)),
     selectedCompanion: player.selectedCompanion,
+    currentLocation: player.currentLocationId,
     companionStates: deepClone(player.companionStates),
   };
+}
+
+function campaignReplayStateDifferences(actual = {}, expected = {}) {
+  const differences = [];
+  const expectedValue = (...keys) => keys.map((key) => expected[key]).find((value) => value !== undefined);
+  const actualValue = (...keys) => keys.map((key) => actual[key]).find((value) => value !== undefined);
+  const compareScalar = (label, actualKeys, expectedKeys, fallback = null) => {
+    const wanted = expectedValue(...expectedKeys);
+    if (wanted === undefined) return;
+    const got = actualValue(...actualKeys);
+    const normalizedGot = got ?? fallback;
+    if (normalizedGot !== wanted) differences.push(`${label}: replay ${normalizedGot}, recorded ${wanted}`);
+  };
+  const compareNumber = (label, actualKeys, expectedKeys) => {
+    const wanted = expectedValue(...expectedKeys);
+    if (wanted === undefined) return;
+    const got = Number(actualValue(...actualKeys) ?? 0);
+    const recorded = Number(wanted) || 0;
+    if (got !== recorded) differences.push(`${label}: replay ${got}, recorded ${recorded}`);
+  };
+  const compareQuantityMap = (label, actualKey, expectedKey) => {
+    if (expected[expectedKey] === undefined) return;
+    const replayValues = actual[actualKey] ?? {};
+    const recordedValues = expected[expectedKey] ?? {};
+    [...new Set([...Object.keys(replayValues), ...Object.keys(recordedValues)])]
+      .sort()
+      .forEach((itemId) => {
+        const got = Number(replayValues[itemId]) || 0;
+        const wanted = Number(recordedValues[itemId]) || 0;
+        if (got !== wanted) differences.push(`${label}.${itemId}: replay ${got}, recorded ${wanted}`);
+      });
+  };
+  const compareArray = (label, actualKey, expectedKey = actualKey) => {
+    if (expected[expectedKey] === undefined) return;
+    if (replayStable(actual[actualKey] ?? []) !== replayStable(expected[expectedKey] ?? [])) {
+      differences.push(`${label}: replay ${replayStable(actual[actualKey] ?? [])}, recorded ${replayStable(expected[expectedKey] ?? [])}`);
+    }
+  };
+  const compareObject = (label, actualKey, expectedKey = actualKey) => {
+    if (expected[expectedKey] === undefined) return;
+    if (replayStable(actual[actualKey] ?? {}) !== replayStable(expected[expectedKey] ?? {})) {
+      differences.push(`${label}: replay ${replayStable(actual[actualKey] ?? {})}, recorded ${replayStable(expected[expectedKey] ?? {})}`);
+    }
+  };
+
+  compareNumber("gold", ["gold", "currentGold"], ["gold", "currentGold"]);
+  compareNumber("provisionStock", ["provisionStock", "provisions"], ["provisionStock", "provisions"]);
+  compareNumber("arthurHealth", ["arthurHealth"], ["arthurHealth"]);
+  compareQuantityMap("ownedItems", "ownedItems", "ownedItems");
+  compareQuantityMap("materials", "materials", "materials");
+  compareQuantityMap("packedMaterials", "packedMaterials", "packedMaterials");
+  compareQuantityMap("shopStocks", "shopStocks", "shopStocks");
+  compareObject("equippedItems", "equippedItems");
+  compareArray("packedItems", "packedItems");
+  compareArray("learnedKnowledge", "learnedKnowledge");
+  compareArray("learnedRecipes", "learnedRecipes");
+  compareArray("unlockedCompanions", "unlockedCompanions");
+  compareArray("selectedCompanions", "selectedCompanions");
+  compareObject("campaignFlags", "campaignFlags");
+  compareObject("injuries", "injuries");
+  compareScalar("selectedCompanion", ["selectedCompanion"], ["selectedCompanion"]);
+  compareScalar("currentLocation", ["currentLocation", "currentLocationId"], ["currentLocation", "currentLocationId"]);
+  Object.entries(actual.ownedItems ?? {}).forEach(([itemId, quantity]) => {
+    if ((actual.packedItems ?? []).includes(itemId) && !(Number(quantity) > 0)) {
+      differences.push(`packedItems.${itemId}: replay packed but owned ${Number(quantity) || 0}`);
+    }
+  });
+  (actual.packedItems ?? []).forEach((itemId) => {
+    if (!(Number(actual.ownedItems?.[itemId]) > 0)) {
+      differences.push(`packedItems.${itemId}: replay packed but owned 0`);
+    }
+  });
+  Object.entries(actual.packedMaterials ?? {}).forEach(([materialId, quantity]) => {
+    const owned = Number(actual.materials?.[materialId]) || 0;
+    if (Number(quantity) > owned) {
+      differences.push(`packedMaterials.${materialId}: replay packed ${Number(quantity) || 0}, owned ${owned}`);
+    }
+  });
+  if (expected.companionStates !== undefined) {
+    const replayStates = actual.companionStates ?? {};
+    const recordedStates = expected.companionStates ?? {};
+    [...new Set([...Object.keys(replayStates), ...Object.keys(recordedStates)])]
+      .sort()
+      .forEach((characterId) => {
+        const got = Number(replayStates[characterId]?.health ?? replayStates[characterId]) || 0;
+        const wanted = Number(recordedStates[characterId]?.health ?? recordedStates[characterId]) || 0;
+        if (got !== wanted) differences.push(`companionStates.${characterId}.health: replay ${got}, recorded ${wanted}`);
+      });
+  }
+  return differences;
 }
 
 function campaignReplayStateSnapshot(player, shopStocks, expeditionNumber) {

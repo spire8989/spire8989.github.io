@@ -715,7 +715,8 @@ function normalizeScenario(scenario) {
       ?? (scenario.packContents !== undefined
         ? (Array.isArray(scenario.packContents)
           ? scenario.packContents
-          : Object.keys(scenario.packContents ?? {})).filter((itemId) => MaterialRules.isMaterialId(itemId))
+          : Object.fromEntries(Object.entries(scenario.packContents ?? {})
+            .filter(([itemId]) => MaterialRules.isMaterialId(itemId))))
         : defaultPlayer.packedMaterials),
     strategy,
     turnaroundPolicy,
@@ -736,16 +737,24 @@ function normalizeScenario(scenario) {
     maxSimulationSteps: Math.max(100, Math.floor(Number(scenario.maxSimulationSteps) || 10000)),
     maxCombatSteps: Math.max(50, Math.floor(Number(scenario.maxCombatSteps) || 2000)),
     travelStepDistance: Math.max(0.1, Number(scenario.travelStepDistance) || 1),
+    startingStateIsAuthoritative: Boolean(scenario.startingStateIsAuthoritative),
   };
 }
 
 function createSimulationPlayer(scenario) {
   const defaults = SaveSystem.createDefaultPlayerState();
+  const authoritativeState = Boolean(scenario.startingStateIsAuthoritative);
   const player = deepClone({ ...defaults, ...scenario.startingState });
-  player.ownedItems = { ...defaults.ownedItems, ...(scenario.startingState.ownedItems ?? {}) };
+  player.ownedItems = authoritativeState
+    ? { ...(scenario.startingState.ownedItems ?? {}) }
+    : { ...defaults.ownedItems, ...(scenario.startingState.ownedItems ?? {}) };
   player.injuries = InjuryRules.snapshot({ injuries: scenario.startingState.injuries ?? defaults.injuries });
-  player.materials = { ...defaults.materials, ...(scenario.startingState.materials ?? {}) };
-  player.packedMaterials = { ...defaults.packedMaterials, ...(scenario.startingState.packedMaterials ?? {}) };
+  player.materials = authoritativeState
+    ? { ...(scenario.startingState.materials ?? {}) }
+    : { ...defaults.materials, ...(scenario.startingState.materials ?? {}) };
+  player.packedMaterials = authoritativeState
+    ? { ...(scenario.startingState.packedMaterials ?? {}) }
+    : { ...defaults.packedMaterials, ...(scenario.startingState.packedMaterials ?? {}) };
   Object.entries(scenario.startingState.ownedItems ?? {}).forEach(([itemId, quantity]) => {
     if (MaterialRules.isMaterialId(itemId) && scenario.startingState.materials?.[itemId] === undefined) {
       player.materials[itemId] = Math.max(0, Number(quantity) || 0);
@@ -757,11 +766,11 @@ function createSimulationPlayer(scenario) {
     ? scenario.packContents.map((itemId) => [itemId, player.ownedItems[itemId] ?? 1])
     : Object.entries(scenario.packContents ?? {});
   packedEntries.forEach(([itemId, quantity]) => {
-    if (MaterialRules.isMaterialId(itemId)) {
-      player.materials[itemId] = Math.max(1, Number(quantity) || 1);
-    } else {
-      player.ownedItems[itemId] = Math.max(1, Number(quantity) || 1);
-    }
+    if (MaterialRules.isMaterialId(itemId)) return;
+    player.ownedItems[itemId] = Math.max(
+      Number(player.ownedItems[itemId]) || 0,
+      Math.max(1, Number(quantity) || 1),
+    );
   });
   Object.values(player.equippedItems).filter(Boolean).forEach((itemId) => { player.ownedItems[itemId] ??= 1; });
   player.packedItems = packedEntries
@@ -1611,6 +1620,7 @@ function replayPlayerSnapshot(player) {
     selectedCompanions: player.selectedCompanions,
     selectedCompanion: player.selectedCompanion,
     arthurHealth: HealingRules.arthurHealth(player),
+    injuries: player.injuries,
     companionStates: player.companionStates ?? {},
     learnedKnowledge: player.learnedKnowledge,
     materials: player.materials,

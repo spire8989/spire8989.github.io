@@ -1961,3 +1961,33 @@ The human developer supplied the layout guide and requested a local add/commit. 
 The Campaign Replay Viewer now keeps the game readable beside the `?sim=1` panel on desktop, presents only the most important controls by default, and provides a touch-friendly compact mobile overlay with advanced controls on demand. Replay controls remain stable across rendering, and full error details stay expandable.
 
 Verified 45 deterministic simulation assertions, 78 campaign/health/Inn assertions, 15 single-replay assertions, 26 campaign-replay assertions including desktop/mobile geometry checks, 429 UI/provision/location browser assertions, clean local-HTTP browser startup, and `git diff --check`. The milestone is ready for a local commit; nothing is pushed.
+
+## 2026-08-14 - Campaign Replay Inventory and Checkpoint Corrections
+
+### Goal
+
+Fix the Campaign 40 replay divergence that left Rope and Material Bag contents inconsistent before a later recorded pack action, then keep long replay seeking usable.
+
+### Human prompt and direction
+
+The human developer supplied the replay bug report and requested root-cause tracing, inventory/material validation, regression coverage, and a local add/commit without pushing.
+
+### AI-assisted implementation
+
+- Normalized persistent packed items and packed materials after expedition settlement and before campaign packing so consumed, lost, or unavailable entries cannot remain stale.
+- Made campaign expedition simulation snapshots authoritative for carried inventory, preventing default Rope ownership from being reintroduced after production settlement removed it.
+- Preserved persistent injury state in expedition replay snapshots so later combat actor scheduling remains deterministic.
+- Made replay pack application validate the complete item and Material Bag request before mutating either packed field, with detailed failure reasons.
+- Added campaign state checkpoints before town preparation and after nested expedition settlement, comparing gold, provisions, health, companions, equipment, items, materials, recipes, knowledge, injuries, and other persistent state. Added packed-item/material invariants to the diagnostics.
+- Changed campaign fast-forward stall detection to require a sustained no-progress streak, allowing legitimate combat/travel microsteps to complete while retaining a safety bound.
+- Added settlement, atomic-pack, packed-state, Campaign 40 Expedition 3, action-76+, and later-seek regression assertions.
+
+### Manual changes
+
+The human developer supplied the replay bug guide and requested implementation plus a local add/commit. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Campaign Replay now reproduces the production inventory and Material Bag state through Expedition 3 and later expeditions, reports useful checkpoint differences at the first divergence, and can seek beyond action 76 without the prior Rope/material desync.
+
+Verified 45 deterministic simulation assertions, 78 campaign/health/Inn assertions, 15 single-replay assertions, 30 campaign-replay assertions, 429 UI/provision/location browser assertions, clean local-HTTP browser startup, and `git diff --check`. The milestone is ready for a local commit; nothing is pushed.

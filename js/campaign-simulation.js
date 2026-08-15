@@ -106,6 +106,7 @@ const CampaignSimulationRunner = Object.freeze({
         rationId: decision.rationId,
         lockTravelSettings: false,
         materialBagContents: decision.materialBagContents,
+        startingStateIsAuthoritative: true,
         startingState: deepCampaignClone(player),
       });
 
@@ -1845,6 +1846,7 @@ function chooseBandagePlan(strategyName, random = GameRandom.random) {
 }
 
 function packCampaignItems(player, desiredQuantities) {
+  ExpeditionRules.normalizePackedState(player);
   const packed = [...new Set(player.packedItems ?? [])];
   Object.entries(desiredQuantities).forEach(([itemId, desiredQuantity]) => {
     if (desiredQuantity <= 0 || (player.ownedItems[itemId] ?? 0) <= 0
@@ -2080,6 +2082,7 @@ function createCampaignPlayer(overrides) {
     ...merged.selectedCompanions,
   ])];
   merged.companionStates = deepCampaignClone(overrides.companionStates ?? defaults.companionStates);
+  ExpeditionRules.normalizePackedState(merged);
   return merged;
 }
 
