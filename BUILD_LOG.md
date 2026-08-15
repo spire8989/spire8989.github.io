@@ -76,6 +76,26 @@ Content Editor tests plus local API/static and headless Chrome UI smoke checks;
 the Grail worktree remained clean and no runtime dependency or authored game
 content was added by this tooling milestone.
 
+### Phase 3 Combat, Abilities, and Loot Tables editor
+
+Extended the separate `Tools/ContentEditor` with Combat, Abilities, and Loot
+Tables categories backed by the live `combat-data.js` and `loot-data.js`
+definitions. Combat editing supports multi-enemy rosters plus shared enemy
+stats and action patterns; Abilities exposes the authored shared combat
+ability fields; Loot Tables supports weighted gold, item, material, recipe,
+and nested-table entries with fixed or min/max quantities. Cross-content Open
+actions connect encounter combat/loot references, item ability grants, enemy
+action references, and nested loot tables.
+
+Added source-preserving grouped saves for the combat definitions, enemy
+definitions, enemy actions, and abilities that share `combat-data.js`, along
+with loot-table saves, stale-source checks, reference-aware validation, and
+deletion blocking. The complete Bandit Leader encounter-to-combat-to-loot
+workflow was verified in the local browser. Verified 32 Content Editor unit
+tests, live zero-error catalog validation, and browser smoke coverage for all
+Phase 3 categories. No live Grail content definitions or runtime code were
+modified; this milestone only records the development-tool capability.
+
 ## 2026-08-15 - Provision Preparation and Supply-Run Balance Patch
 
 ### Goal
