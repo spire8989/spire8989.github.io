@@ -20,13 +20,13 @@ The campaign runner extends rather than replaces `SimulationRunner`. Each campai
 
 ## Persistent health
 
-Arthur's authoritative base maximum is `PLAYER_CHARACTER_DEFINITION.combat.maxHp`, currently **40 HP**. Companion maxima remain in each companion definition; Sir Kay is currently **50 HP**. `HealingRules.arthurMaxHealth(player)` is the future extension point for equipment, relic, injury, buff, or progression modifiers. Combat damage was not rescaled.
+Arthur's authoritative base maximum is `PLAYER_CHARACTER_DEFINITION.combat.maxHp`, currently **45 HP**. Companion maxima remain in each companion definition; Sir Kay is currently **50 HP**. `HealingRules.arthurMaxHealth(player)` is the future extension point for equipment, relic, injury, buff, or progression modifiers. Combat damage was not globally rescaled.
 
 Save schema 6 adds:
 
 ```js
 {
-  arthurHealth: 40,
+  arthurHealth: 45,
   companionStates: {
     sir_kay: { health: 50 }
   }
@@ -64,7 +64,7 @@ const campaign = CampaignSimulationRunner.run({
   startingState: {
     currentGold: 100,
     provisions: 30,
-    arthurHealth: 40,
+    arthurHealth: 45,
   },
 });
 ```
@@ -97,7 +97,7 @@ Configured expedition distances are nominal targets. Each policy buys toward its
 
 The reserve is deterministic and does not inspect future encounter identities, outcomes, costs, spacing rolls, or loot. If supplies cannot cover every preference, planning first drops the policy margin, then the fixed encounter reserve only as a last resort before declaring a true inability to launch. During outbound simulation, current distance and current provisions are rechecked against the passive return estimate plus the strategy reserve after resolved events. If that known-state requirement becomes unsafe, the expedition turns back immediately. Replay, run, campaign, and CSV telemetry record the emergency decision, trigger distance, passive return estimate, reserve, original target, and actual turnaround distance.
 
-Town provision safety grants, persistent merchant stock, provision prices, item sale protection, sale values, expedition settlement, and Inn costs are production rules. By default recovered sellable loot is auto-sold through the real village merchant rules. `autoSellRecoveredLoot: false` disables that simulation convenience. Gear spending is reported as zero because the current default loadout already owns the available combat equipment and no useful upgrade-selection policy has been authored.
+Town provision safety grants, persistent merchant stock, provision prices, item sale protection, sale values, expedition settlement, and Inn costs are production rules. By default recovered sellable loot is auto-sold through the real village merchant rules. `autoSellRecoveredLoot: false` disables that simulation convenience. Campaign preparation now uses discretionary gold for meaningful Smithy upgrades after provisioning, healing, and minimum bandage readiness; aggressive prioritizes the long-run value of starter-armor mitigation before its weapon upgrade when both are affordable.
 
 ## Automated consumable purchasing
 
@@ -106,6 +106,8 @@ Between-expedition preparation first uses the same known Bandage recipe and gene
 Bandage targets are strategy-driven: Aggressive targets 3 with a minimum preference of 1, Cautious targets 2, and Random makes a seeded purchase decision for 0–2. A small rest-cost reserve prevents a discretionary purchase from consuming the gold needed for an immediately available Inn rest. Existing packed utility items remain in place, and Bandages are added only when a free slot remains within the six-slot pack. Exact pack quantities are passed into `ExpeditionRules`, so only purchased/carried quantities can be consumed in combat.
 
 Campaign and expedition telemetry reports crafting actions, Bandages crafted, `itemsPurchasedById`, `itemPurchaseGoldSpentById`, `itemsPackedById`, `itemsConsumedById`, `itemsReturnedById`, recovered materials, learned recipes, return-reward tiers/results, Bandage purchase/pack/use/return counts, Bandage healing performed, and total item-purchase spending. Decisions also record preferred targets and constraints when materials, stock, gold, or pack capacity prevent the preference from being met. Item stock is persistent for one simulated campaign and remains session-scoped in the normal browser shop, matching the existing provision-stock behavior.
+
+Aggressive preparation secures its minimum Bandage preference before evaluating permanent gear, then fills the remaining Bandage target only with discretionary gold after the upgrade decision. This remains data-driven and does not use a scripted expedition-number purchase sequence; armor's repeated-hit mitigation is compared against weapon damage value using the authored combat definitions and production damage formula.
 
 ## In-expedition management
 

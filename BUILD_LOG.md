@@ -1,5 +1,67 @@
 # Build Log
 
+## 2026-08-15 - Expedition Survivability and Equipment Progression Balance
+
+### Goal
+
+Apply the narrow survivability patch from the balance brief without changing
+travel speed, encounter frequency, encounter spacing, provision consumption,
+enemy damage, healing amounts, inventory capacity, or future Barenton/Val/XP
+content.
+
+### Human prompt and direction
+
+The human developer reported cumulative combat attrition in deep aggressive
+campaigns and asked for a modest Arthur health increase, more meaningful armor,
+and aggressive-reinvestor prioritization of permanent upgrades over surplus
+consumables. The developer explicitly requested local add/commit only, with no
+push.
+
+### AI-assisted implementation
+
+- Raised Arthur's authoritative base/max HP from 40 to 45 while leaving Sir
+  Kay at 50. Save defaults, sanitization, expedition snapshots, healing, UI,
+  campaign state, simulation, and replay continue to read the shared data and
+  rules.
+- Raised Chainmail Hauberk defense from 3 to 4 and Reinforced Mail defense
+  from 5 to 6. Combat still uses the same flat `max(1, rawDamage - defense)`
+  mitigation formula; enemy damage and combat tuning were not globally
+  reduced.
+- Changed only aggressive campaign preparation ordering: required provisions,
+  recovery, and minimum Bandages remain protected; an affordable permanent
+  Smithy upgrade is then evaluated before discretionary Bandages. Aggressive
+  gear comparison uses the authored combat damage/defense definitions and
+  gives starter-armor mitigation its repeated-hit value without a scripted
+  expedition-number sequence. Non-aggressive purchasing behavior remains
+  unchanged.
+- Kept campaign expedition execution on `SimulationRunner` and production
+  `CombatSystem`; added a small replay comparison tolerance for floating-point
+  injury recovery distances so the changed combat progression remains replay
+  deterministic without weakening state checks.
+
+### Manual changes
+
+The human developer supplied the balance targets and explicit exclusions. No
+manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Representative 50-campaign smoke batches with 100/101-league targets and
+100 gold/30 provisions showed aggressive Reinforced Mail purchases on all
+sampled campaigns, followed by Knightly Longsword purchases in nearly all
+campaigns. Aggressive 101 campaigns averaged about 4.49 combats, 29.11 damage,
+and 30.74 ending HP per attempted expedition in the post-change sample; the
+same pre-change sample averaged 4.49 combats, 43.76 damage, and 18.52 ending
+HP. Cautious remained safer in the comparison sample, with 0 deaths and 49/50
+completed campaigns versus aggressive's 1 death and 31/50 completed campaigns;
+the remaining aggressive stops were primarily resource exhaustion rather than
+Arthur deaths. Starter armor remains materially riskier than Reinforced Mail
+in direct 101-league smoke runs.
+
+Focused browser suites passed: simulation (45 assertions), campaign (78),
+single-expedition replay (15), campaign replay (30), and location/UI (429).
+
+
 ## 2026-08-15 - Expedition Travel-Scale Rebalance
 
 ### Goal

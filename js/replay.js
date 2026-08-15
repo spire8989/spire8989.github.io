@@ -2124,6 +2124,26 @@ function replayQuantityMap(value) {
     .filter(([, quantity]) => quantity !== 0));
 }
 
+function replayEquivalent(left, right) {
+  if (typeof left === "number" && typeof right === "number") {
+    return Math.abs(left - right) <= 0.000001;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right)
+      && left.length === right.length
+      && left.every((value, index) => replayEquivalent(value, right[index]));
+  }
+  if ((left && typeof left === "object") || (right && typeof right === "object")) {
+    if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    return leftKeys.length === rightKeys.length
+      && leftKeys.every((key, index) => key === rightKeys[index]
+        && replayEquivalent(left[key], right[key]));
+  }
+  return left === right;
+}
+
 function campaignReplayPlayerSnapshot(player) {
   return {
     gold: player.currentGold,
@@ -2184,7 +2204,7 @@ function campaignReplayStateDifferences(actual = {}, expected = {}) {
   };
   const compareObject = (label, actualKey, expectedKey = actualKey) => {
     if (expected[expectedKey] === undefined) return;
-    if (replayStable(actual[actualKey] ?? {}) !== replayStable(expected[expectedKey] ?? {})) {
+    if (!replayEquivalent(actual[actualKey] ?? {}, expected[expectedKey] ?? {})) {
       differences.push(`${label}: replay ${replayStable(actual[actualKey] ?? {})}, recorded ${replayStable(expected[expectedKey] ?? {})}`);
     }
   };

@@ -1583,23 +1583,47 @@ function applyBetweenExpeditionPolicy(
   const bandagesBeforePurchase = player.ownedItems.bandages ?? 0;
   const bandagePackAvailable = player.packedItems.includes("bandages")
     || player.packedItems.length < EXPEDITION_TUNING.packSlots;
+  const reserveMinimumBandages = planningStrategy === "aggressive"
+    ? Math.min(bandagePlan.target, bandagePlan.minimum)
+    : bandagePlan.target;
   const bandagePurchaseTarget = provisionPurchase.shortfall > 0 || !bandagePackAvailable
-    ? bandagesBeforePurchase : bandagePlan.target;
-  const bandagePurchase = CampaignRules.buyItemsTo(
+    ? bandagesBeforePurchase : Math.max(bandagesBeforePurchase, reserveMinimumBandages);
+  const bandagePurchaseBeforeEquipment = CampaignRules.buyItemsTo(
     player, shopStocks, "bandages", bandagePurchaseTarget,
     healing.attempted ? HEALING_TUNING.innRestGoldCost : 0,
   );
-  if (bandagePurchase.quantity > 0) {
+  if (bandagePurchaseBeforeEquipment.quantity > 0) {
     townActions.push({
       type: "buy-item",
       shopId: "village_general_goods",
       itemId: "bandages",
-      quantity: bandagePurchase.quantity,
-      goldCost: bandagePurchase.goldCost,
+      quantity: bandagePurchaseBeforeEquipment.quantity,
+      goldCost: bandagePurchaseBeforeEquipment.goldCost,
     });
   }
   const equipmentPurchases = provisionPurchase.shortfall > 0
     ? [] : buyCampaignEquipment(player, shopStocks, planningStrategy, townActions);
+  const bandagePurchaseAfterEquipment = planningStrategy === "aggressive"
+    && provisionPurchase.shortfall <= 0
+    && bandagePackAvailable
+    ? CampaignRules.buyItemsTo(player, shopStocks, "bandages", bandagePlan.target)
+    : { quantity: 0, goldCost: 0, shortfall: 0, itemId: "bandages" };
+  if (bandagePurchaseAfterEquipment.quantity > 0) {
+    townActions.push({
+      type: "buy-item",
+      shopId: "village_general_goods",
+      itemId: "bandages",
+      quantity: bandagePurchaseAfterEquipment.quantity,
+      goldCost: bandagePurchaseAfterEquipment.goldCost,
+    });
+  }
+  const bandagePurchase = {
+    ...bandagePurchaseBeforeEquipment,
+    applied: bandagePurchaseBeforeEquipment.applied || bandagePurchaseAfterEquipment.applied,
+    quantity: bandagePurchaseBeforeEquipment.quantity + bandagePurchaseAfterEquipment.quantity,
+    goldCost: bandagePurchaseBeforeEquipment.goldCost + bandagePurchaseAfterEquipment.goldCost,
+    shortfall: Math.max(0, bandagePlan.target - (player.ownedItems.bandages ?? 0)),
+  };
   const equipmentPurchaseGoldSpent = equipmentPurchases.reduce(
     (sum, purchase) => sum + (Number(purchase.goldCost) || 0), 0,
   );
@@ -1702,7 +1726,7 @@ function applyBetweenExpeditionPolicy(
       type: reason,
       desiredBandages: bandagePlan.target,
       ownedBandages: bandagesBeforePurchase,
-      availableBandages: bandagePurchase.stock,
+      availableBandages: bandagePurchaseBeforeEquipment.stock,
       availableGold: player.currentGold,
     });
   }
@@ -1875,18 +1899,63 @@ function buyCampaignEquipment(player, shopStocks, strategyName, townActions = []
     : Number(item.effects?.combatDefense) || 0;
   const currentScore = (slot) => slotScore(ITEM_DEFINITIONS[player.equippedItems?.[slot]])
     || (slot === "weapon" ? 0 : 0);
+  const currentItemFor = (slot) => ITEM_DEFINITIONS[player.equippedItems?.[slot]] ?? null;
+  const upgradeValue = (item) => {
+    const currentItem = currentItemFor(item.equipmentSlot);
+    const currentValue = slotScore(currentItem);
+    const candidateValue = slotScore(item);
+    if (strategyName !== "aggressive") return candidateValue - currentValue;
+    if (item.equipmentSlot === "weapon") {
+      const averageDamage = (range, defense) => {
+        const minimum = Math.ceil(Number(range?.minimum) || 0);
+        const maximum = Math.floor(Number(range?.maximum) || 0);
+        const rolls = Array.from({ length: Math.max(0, maximum - minimum + 1) }, (_, index) => minimum + index);
+        return rolls.length
+          ? rolls.reduce((sum, raw) => sum + calculateCombatDamage(raw, defense), 0) / rolls.length : 0;
+      };
+      const enemyDefenses = Object.values(COMBAT_ENEMY_DEFINITIONS).map((enemy) => enemy.defense);
+      const currentDamage = currentItem?.effects?.combatDamage;
+      const candidateDamage = item.effects?.combatDamage;
+      return enemyDefenses.length
+        ? enemyDefenses.reduce((sum, defense) => sum
+          + averageDamage(candidateDamage, defense) - averageDamage(currentDamage, defense), 0) / enemyDefenses.length
+        : candidateValue - currentValue;
+    }
+    const averageDamage = (range, defense) => {
+      const minimum = Math.ceil(Number(range?.minimum) || 0);
+      const maximum = Math.floor(Number(range?.maximum) || 0);
+      const rolls = Array.from({ length: Math.max(0, maximum - minimum + 1) }, (_, index) => minimum + index);
+      return rolls.length
+        ? rolls.reduce((sum, raw) => sum + calculateCombatDamage(raw, defense), 0) / rolls.length : 0;
+    };
+    const currentDefense = currentValue;
+    const candidateDefense = candidateValue;
+    const incomingActions = Object.values(COMBAT_ENEMY_ACTION_DEFINITIONS);
+    const averageReduction = incomingActions.length
+      ? incomingActions.reduce((sum, action) => sum
+        + averageDamage(action.damage, currentDefense) - averageDamage(action.damage, candidateDefense), 0)
+        / incomingActions.length
+      : candidateValue - currentValue;
+    const enemyActionPatternLength = Object.values(COMBAT_ENEMY_DEFINITIONS)
+      .reduce((sum, enemy) => sum + enemy.actionPattern.length, 0)
+      / Math.max(1, Object.keys(COMBAT_ENEMY_DEFINITIONS).length);
+    const starterArmorDefense = Number(ITEM_DEFINITIONS.quilted_hauberk?.effects?.combatDefense) || 0;
+    const starterArmorPriority = currentDefense <= starterArmorDefense ? 1.15 : 1;
+    return averageReduction * enemyActionPatternLength * starterArmorPriority;
+  };
   const candidates = Object.entries(shop.itemsForSale ?? {})
     .map(([itemId, offer]) => ({ item: ITEM_DEFINITIONS[itemId], itemId, offer }))
     .filter(({ item, offer }) => item?.equippable && Number.isFinite(offer.price))
     .filter(({ item }) => slotScore(item) > currentScore(item.equipmentSlot))
     .sort((left, right) => {
-      const gainLeft = slotScore(left.item) - currentScore(left.item.equipmentSlot);
-      const gainRight = slotScore(right.item) - currentScore(right.item.equipmentSlot);
-      return gainRight - gainLeft || left.offer.price - right.offer.price
+      const valueLeft = upgradeValue(left.item);
+      const valueRight = upgradeValue(right.item);
+      return valueRight - valueLeft || left.offer.price - right.offer.price
         || left.itemId.localeCompare(right.itemId);
     });
   for (const candidate of candidates) {
-    if (player.currentGold < candidate.offer.price + 10) continue;
+    const goldReserve = strategyName === "aggressive" ? 0 : 10;
+    if (player.currentGold < candidate.offer.price + goldReserve) continue;
     const previousItemId = player.equippedItems?.[candidate.item.equipmentSlot] ?? null;
     const result = EconomyRules.buyItem(player, shop, shopStocks, candidate.itemId, 1);
     if (!result.applied) continue;
