@@ -551,7 +551,7 @@ const ReplayController = Object.freeze({
           replayState.player,
           next.recipeId,
           "campfire",
-          { expedition },
+          { expedition, context: next.context ?? "camp" },
         );
         if (!result.applied) return this.desync("The recorded camp recipe is not craftable.", next);
         this.consumeDecision();
@@ -900,10 +900,9 @@ const CampaignReplayData = Object.freeze({
     const townActions = Array.isArray(raw.townActions) && raw.townActions.length
       ? deepClone(raw.townActions)
       : reconstructLegacyCampaignTownActions(campaign, raw, replayEntries);
-    const normalizedActions = townActions.map((action, index) => ({
+    const normalizedActions = normalizeCampaignTownActions(townActions).map((action, index) => ({
       ...action,
       actionIndex: index,
-      expeditionNumber: Number(action.expeditionNumber) || 1,
     }));
     const towns = replayEntries.map((entry) => {
       const actions = normalizedActions.filter((action) => action.expeditionNumber === entry.expeditionNumber);
@@ -970,6 +969,7 @@ const CampaignReplayData = Object.freeze({
 
 let campaignReplayState = null;
 let campaignReplayControls = null;
+const CAMPAIGN_REPLAY_FAST_FORWARD_CHUNK_SIZE = 120;
 
 const CampaignReplayController = Object.freeze({
   isActive() {
@@ -980,6 +980,20 @@ const CampaignReplayController = Object.freeze({
     return campaignReplayState;
   },
 
+  cancelFastForward() {
+    const state = campaignReplayState;
+    const job = state?.fastForwardJob;
+    if (!job) return false;
+    job.cancelled = true;
+    state.fastForwardJob = null;
+    state.silent = false;
+    if (state.expeditionReplayActive && typeof ReplayController !== "undefined" && ReplayController.isActive()) {
+      ReplayController.pause();
+    }
+    job.resolve(false);
+    return true;
+  },
+
   start(input) {
     if (campaignReplayState) this.exit();
     let data;
@@ -987,7 +1001,17 @@ const CampaignReplayController = Object.freeze({
       data = CampaignReplayData.normalize(input);
     } catch (error) {
       this.mountControls();
-      campaignReplayState = { status: "desync", error: { message: error.message, actionIndex: 0 } };
+      campaignReplayState = {
+        data: { timeline: [], totalActionCount: 0, expeditions: [], seed: "", campaignId: "" },
+        realGameState: captureReplayGameState(),
+        player: SaveSystem.createDefaultPlayerState(),
+        expeditionIndex: 0,
+        phase: "Replay Error",
+        status: "desync",
+        error: { message: error.message, actionIndex: 0 },
+        warning: null,
+        fastForwardJob: null,
+      };
       document.body.classList.add("replay-active");
       this.renderControls();
       return false;
@@ -1017,6 +1041,8 @@ const CampaignReplayController = Object.freeze({
       lastTownAction: null,
       lastExpeditionResult: null,
       actualStopReason: null,
+      fastForwardJob: null,
+      fastForwardYields: 0,
     };
     document.body.classList.add("replay-active");
     this.mountControls();
@@ -1026,6 +1052,7 @@ const CampaignReplayController = Object.freeze({
 
   restart() {
     if (!campaignReplayState?.data) return false;
+    this.cancelFastForward();
     if (typeof ReplayController !== "undefined" && ReplayController.isActive()) ReplayController.exit();
     const data = campaignReplayState.data;
     campaignReplayState.player = createCampaignReplayPlayer(data.startingState);
@@ -1041,6 +1068,7 @@ const CampaignReplayController = Object.freeze({
     campaignReplayState.playing = true;
     campaignReplayState.status = "playing";
     campaignReplayState.phase = "Town";
+    campaignReplayState.silent = false;
     campaignReplayState.error = null;
     campaignReplayState.lastTownAction = null;
     campaignReplayState.lastExpeditionResult = null;
@@ -1062,6 +1090,7 @@ const CampaignReplayController = Object.freeze({
 
   play() {
     if (!campaignReplayState || ["completed", "desync"].includes(campaignReplayState.status)) return;
+    this.cancelFastForward();
     campaignReplayState.playing = true;
     campaignReplayState.status = "playing";
     if (campaignReplayState.expeditionReplayActive) ReplayController.play();
@@ -1069,7 +1098,16 @@ const CampaignReplayController = Object.freeze({
   },
 
   pause() {
-    if (!campaignReplayState || campaignReplayState.status !== "playing") return;
+    if (!campaignReplayState || ["completed", "desync"].includes(campaignReplayState.status)) return;
+    if (campaignReplayState.fastForwardJob) this.cancelFastForward();
+    if (campaignReplayState.status !== "playing") {
+      campaignReplayState.playing = false;
+      campaignReplayState.status = "paused";
+      campaignReplayState.silent = false;
+      this.renderReplayGame();
+      this.renderControls();
+      return;
+    }
     campaignReplayState.playing = false;
     campaignReplayState.status = "paused";
     if (campaignReplayState.expeditionReplayActive) ReplayController.pause();
@@ -1093,6 +1131,7 @@ const CampaignReplayController = Object.freeze({
 
   step() {
     if (!campaignReplayState || ["completed", "desync"].includes(campaignReplayState.status)) return;
+    this.cancelFastForward();
     campaignReplayState.playing = false;
     campaignReplayState.status = "paused";
     campaignReplayState.presentationWait = 0;
@@ -1106,7 +1145,8 @@ const CampaignReplayController = Object.freeze({
   },
 
   skipTo(kind) {
-    if (!campaignReplayState || ["completed", "desync"].includes(campaignReplayState.status)) return;
+    if (!campaignReplayState || ["completed", "desync"].includes(campaignReplayState.status)) return Promise.resolve(false);
+    this.cancelFastForward();
     campaignReplayState.playing = false;
     campaignReplayState.status = "paused";
     campaignReplayState.presentationWait = 0;
@@ -1118,22 +1158,25 @@ const CampaignReplayController = Object.freeze({
       combatCount: ReplayController.isActive() ? ReplayController.state().combatCount : 0,
       campCycle: ReplayController.isActive() ? ReplayController.state().expedition?.campCycle ?? 0 : 0,
     };
-    let steps = 0;
-    while (campaignReplayState.status !== "completed"
-      && campaignReplayState.status !== "desync" && steps < 50000) {
-      const before = this.progressSignature();
-      this.advanceLogicalStep();
-      this.finishExpeditionIfReady();
-      steps += 1;
-      if (this.skipReached(kind, initial, before)) break;
-      if (this.progressSignature() === before && steps > 100) break;
-    }
-    this.renderReplayGame();
-    this.renderControls();
+    return new Promise((resolve) => {
+      const job = {
+        type: "skip",
+        kind,
+        initial,
+        steps: 0,
+        stalled: false,
+        reached: false,
+        cancelled: false,
+        resolve,
+      };
+      campaignReplayState.fastForwardJob = job;
+      this.renderControls();
+      this.processFastForwardJob(job);
+    });
   },
 
   seek(targetIndex) {
-    if (!campaignReplayState?.data || campaignReplayState.status === "desync") return;
+    if (!campaignReplayState?.data || campaignReplayState.status === "desync") return Promise.resolve(false);
     const target = Math.max(0, Math.min(
       campaignReplayState.data.totalActionCount,
       Math.floor(Number(targetIndex) || 0),
@@ -1142,18 +1185,71 @@ const CampaignReplayController = Object.freeze({
     campaignReplayState.playing = false;
     campaignReplayState.status = "paused";
     campaignReplayState.silent = true;
-    let steps = 0;
-    while (this.currentActionIndex() < target
-      && campaignReplayState.status !== "completed"
-      && campaignReplayState.status !== "desync" && steps < 100000) {
-      campaignReplayState.presentationWait = 0;
+    return new Promise((resolve) => {
+      const job = {
+        type: "seek",
+        target,
+        steps: 0,
+        stalled: false,
+        reached: false,
+        cancelled: false,
+        resolve,
+      };
+      campaignReplayState.fastForwardJob = job;
+      this.renderControls();
+      this.processFastForwardJob(job);
+    });
+  },
+
+  processFastForwardJob(job) {
+    const state = campaignReplayState;
+    if (!state || state.fastForwardJob !== job || job.cancelled) return;
+    if (job.type === "seek" && this.currentActionIndex() >= job.target) job.reached = true;
+    let processed = 0;
+    while (!job.reached && processed < CAMPAIGN_REPLAY_FAST_FORWARD_CHUNK_SIZE
+      && state.status !== "completed" && state.status !== "desync") {
+      const before = this.progressSignature();
+      state.presentationWait = 0;
       this.advanceLogicalStep();
       this.finishExpeditionIfReady();
-      steps += 1;
+      job.steps += 1;
+      processed += 1;
+      if (job.type === "skip" && this.skipReached(job.kind, job.initial, before)) {
+        job.reached = true;
+        break;
+      }
+      if (job.type === "seek" && this.currentActionIndex() >= job.target) {
+        job.reached = true;
+        break;
+      }
+      if (this.progressSignature() === before && job.steps > 100) {
+        job.stalled = true;
+        break;
+      }
     }
-    campaignReplayState.silent = false;
+    const reached = job.reached || (job.type === "skip"
+      ? this.skipReached(job.kind, job.initial, this.progressSignature())
+      : this.currentActionIndex() >= job.target);
+    if (job.stalled || reached || state.status === "completed" || state.status === "desync") {
+      this.finishFastForwardJob(job, !job.stalled && state.status !== "desync");
+      return;
+    }
     this.renderReplayGame();
     this.renderControls();
+    state.fastForwardYields += 1;
+    window.setTimeout(() => this.processFastForwardJob(job), 0);
+  },
+
+  finishFastForwardJob(job, reached) {
+    const state = campaignReplayState;
+    if (!state || state.fastForwardJob !== job) return;
+    state.fastForwardJob = null;
+    state.silent = false;
+    state.playing = false;
+    if (!["completed", "desync"].includes(state.status)) state.status = "paused";
+    this.renderReplayGame();
+    this.renderControls();
+    job.resolve(Boolean(reached));
   },
 
   update(deltaSeconds) {
@@ -1263,9 +1359,15 @@ const CampaignReplayController = Object.freeze({
       case "craft-item":
       case "cook-recipe":
         this.showTownDestination(action.providerId === "blacksmith" ? "blacksmith" : action.providerId === "apothecary" ? "apothecary" : "inn", "craft");
-        result = CraftingRules.craft(player, action.recipeId, action.providerId);
-        if (!result.applied || result.recipeId !== action.recipeId) {
+        result = CraftingRules.craft(player, action.recipeId, action.providerId, {
+          context: action.context ?? (action.type === "cook-recipe" ? "inn" : "town"),
+        });
+        if (!result.applied) {
           return this.desync("The recorded town crafting action is unavailable.", action);
+        }
+        const craftDifferences = replayCraftDifferences(action, result);
+        if (craftDifferences.length) {
+          return this.desync(`The recorded town crafting result differs: ${craftDifferences.join("; ")}.`, action);
         }
         break;
       case "treat-injury":
@@ -1568,10 +1670,10 @@ const CampaignReplayController = Object.freeze({
     campaignReplayControls = null;
   },
 
-  renderControls() {
+  buildControls() {
     if (!campaignReplayControls || !campaignReplayState) return;
     const state = campaignReplayState;
-    const data = state.data;
+    const data = state.data ?? { timeline: [], totalActionCount: 0, expeditions: [], seed: "", campaignId: "" };
     const sub = ReplayController.isActive() ? ReplayController.state() : null;
     const player = sub?.player ?? state.player;
     const expedition = sub?.expedition;
@@ -1582,16 +1684,82 @@ const CampaignReplayController = Object.freeze({
     const equipment = Object.values(player?.equippedItems ?? {}).map((itemId) => ITEM_DEFINITIONS[itemId]?.name ?? itemId).join(" · ") || "None";
     const timeline = data.timeline.map((segment, index) => `<button type="button" class="campaign-replay-segment ${segment.kind} ${segment.expeditionNumber === state.expeditionIndex + 1 ? "is-current" : ""}" data-campaign-segment="${segment.actionIndex}" title="Seek to ${escapeReplayText(segment.label)}"><strong>${escapeReplayText(segment.label)}</strong>${segment.kind === "expedition" ? `<span>${segment.status} · ${segment.maximumDistance ?? "—"}</span>` : ""}</button>`).join("");
     campaignReplayControls.innerHTML = `
-      <div class="replay-controls-heading"><div><span class="replay-eyebrow">CAMPAIGN REPLAY</span><strong>${status}</strong></div><span>Seed: ${escapeReplayText(data.seed)} · ${escapeReplayText(data.campaignId)}</span></div>
+      <div class="replay-controls-heading"><div><span class="replay-eyebrow">CAMPAIGN REPLAY</span><strong data-replay-status>${status}</strong></div><span data-replay-meta>Seed: ${escapeReplayText(data.seed)} · ${escapeReplayText(data.campaignId)}</span></div>
       <div class="replay-controls-row replay-primary-controls"><button type="button" data-replay-action="play" ${canPlay ? "" : "disabled"}>Play</button><button type="button" data-replay-action="pause" ${canPlay ? "" : "disabled"}>Pause</button><button type="button" data-replay-action="restart">Restart</button><button type="button" data-replay-action="step" ${canPlay ? "" : "disabled"}>Step</button><label>Speed <select data-replay-speed>${[0.25, 0.5, 1, 2, 4, 8].map((speed) => `<option value="${speed}" ${state.speed === speed ? "selected" : ""}>${speed}×</option>`).join("")}</select></label><label class="replay-checkbox"><input type="checkbox" data-replay-autoskip ${state.autoSkipTravel ? "checked" : ""}> Auto-skip travel</label></div>
       <div class="replay-controls-row replay-skip-controls"><button type="button" data-replay-action="skip-town" ${canPlay ? "" : "disabled"}>Next Town</button><button type="button" data-replay-action="skip-expedition" ${canPlay ? "" : "disabled"}>Next Expedition</button><button type="button" data-replay-action="skip-purchase" ${canPlay ? "" : "disabled"}>Next Purchase</button><button type="button" data-replay-action="skip-combat" ${canPlay ? "" : "disabled"}>Next Combat</button><button type="button" data-replay-action="skip-camp" ${canPlay ? "" : "disabled"}>Next Camp</button><button type="button" data-replay-action="skip-return" ${canPlay ? "" : "disabled"}>Next Return</button><button type="button" data-replay-action="skip-end" ${canPlay ? "" : "disabled"}>Skip to Campaign End</button></div>
-      <div class="campaign-replay-status"><span>Expedition ${Math.min(state.expeditionIndex + 1, Math.max(1, data.expeditions.length))} / ${data.expeditions.length}</span><span>Phase: ${escapeReplayText(phase)}</span><span>Action ${Math.min(this.currentActionIndex() + 1, data.totalActionCount)} / ${data.totalActionCount}</span><span>Gold: ${Math.floor(player?.currentGold ?? 0)}g</span><span>Arthur: ${Math.ceil(expedition?.health ?? HealingRules.arthurHealth(player))}/${Math.ceil(expedition ? InjuryRules.effectiveMaxHealth(expedition, "arthur") : HealingRules.arthurMaxHealth(player))}</span><span>Provisions: ${Math.floor(expedition?.provisions ?? player?.provisions ?? 0)}</span><span>Gear: ${escapeReplayText(equipment)}</span></div>
+      <div class="campaign-replay-status"><span data-replay-expedition>Expedition ${Math.min(state.expeditionIndex + 1, Math.max(1, data.expeditions.length))} / ${data.expeditions.length}</span><span data-replay-phase>Phase: ${escapeReplayText(phase)}</span><span data-replay-action-index>Action ${Math.min(this.currentActionIndex() + 1, data.totalActionCount)} / ${data.totalActionCount}</span><span data-replay-gold>Gold: ${Math.floor(player?.currentGold ?? 0)}g</span><span data-replay-arthur>Arthur: ${Math.ceil(expedition?.health ?? HealingRules.arthurHealth(player))}/${Math.ceil(expedition ? InjuryRules.effectiveMaxHealth(expedition, "arthur") : HealingRules.arthurMaxHealth(player))}</span><span data-replay-provisions>Provisions: ${Math.floor(expedition?.provisions ?? player?.provisions ?? 0)}</span><span data-replay-equipment>Gear: ${escapeReplayText(equipment)}</span></div>
       <div class="campaign-replay-timeline">${timeline}</div>
-      <div class="replay-progress-row"><input class="replay-seek" type="range" data-replay-seek min="0" max="${data.totalActionCount}" value="${this.currentActionIndex()}" aria-label="Seek campaign replay"><span>Speed ${state.speed}×</span></div>
-      ${state.lastTownAction ? `<p class="replay-annotation">${escapeReplayText(campaignTownActionLabel(state.lastTownAction))}</p>` : ""}
-      ${state.error ? `<pre class="replay-error" role="alert">${escapeReplayText(JSON.stringify(state.error, null, 2))}</pre>` : ""}
-      ${state.warning ? `<p class="replay-warning" role="status">${escapeReplayText(state.warning)}</p>` : ""}
+      <div class="replay-progress-row"><input class="replay-seek" type="range" data-replay-seek min="0" max="${data.totalActionCount}" value="${this.currentActionIndex()}" aria-label="Seek campaign replay"><span data-replay-speed-label>Speed ${state.speed}×</span></div>
+      <p class="replay-annotation" data-replay-annotation hidden>${state.lastTownAction ? escapeReplayText(campaignTownActionLabel(state.lastTownAction)) : ""}</p>
+      <pre class="replay-error" data-replay-error role="alert" ${state.error ? "" : "hidden"}>${state.error ? escapeReplayText(JSON.stringify(state.error, null, 2)) : ""}</pre>
+      <p class="replay-warning" data-replay-warning role="status" ${state.warning ? "" : "hidden"}>${state.warning ? escapeReplayText(state.warning) : ""}</p>
       <button class="replay-exit-button" type="button" data-replay-action="exit">Exit Replay</button>`;
+  },
+
+  renderControls() {
+    if (!campaignReplayControls || !campaignReplayState) return;
+    if (!campaignReplayControls.querySelector("[data-replay-status]")) this.buildControls();
+    const state = campaignReplayState;
+    const data = state.data ?? { timeline: [], totalActionCount: 0, expeditions: [], seed: "", campaignId: "" };
+    const sub = ReplayController.isActive() ? ReplayController.state() : null;
+    const player = sub?.player ?? state.player;
+    const expedition = sub?.expedition;
+    const status = state.fastForwardJob
+      ? state.fastForwardJob.type === "seek" ? "Seeking" : "Skipping"
+      : state.status === "playing" ? "Playing" : state.status === "paused" ? "Paused"
+        : state.status === "completed" ? "Complete" : "Replay desync";
+    const canPlay = !["completed", "desync"].includes(state.status);
+    const phase = expedition ? replayPhaseForExpedition(expedition) : state.phase;
+    const equipment = Object.values(player?.equippedItems ?? {}).map((itemId) => ITEM_DEFINITIONS[itemId]?.name ?? itemId).join(" · ") || "None";
+    const actionIndex = this.currentActionIndex();
+    const arthurHealth = player ? Math.ceil(expedition?.health ?? HealingRules.arthurHealth(player)) : "—";
+    const arthurMaxHealth = player ? Math.ceil(expedition ? InjuryRules.effectiveMaxHealth(expedition, "arthur") : HealingRules.arthurMaxHealth(player)) : "—";
+    const setText = (selector, value) => {
+      const node = campaignReplayControls.querySelector(selector);
+      if (node) node.textContent = String(value);
+    };
+    setText("[data-replay-status]", status);
+    setText("[data-replay-meta]", `Seed: ${data.seed} · ${data.campaignId}`);
+    setText("[data-replay-expedition]", `Expedition ${Math.min(state.expeditionIndex + 1, Math.max(1, data.expeditions.length))} / ${data.expeditions.length}`);
+    setText("[data-replay-phase]", `Phase: ${phase}`);
+    setText("[data-replay-action-index]", `Action ${Math.min(actionIndex + 1, data.totalActionCount)} / ${data.totalActionCount}`);
+    setText("[data-replay-gold]", `Gold: ${Math.floor(player?.currentGold ?? 0)}g`);
+    setText("[data-replay-arthur]", `Arthur: ${arthurHealth}/${arthurMaxHealth}`);
+    setText("[data-replay-provisions]", `Provisions: ${Math.floor(expedition?.provisions ?? player?.provisions ?? 0)}`);
+    setText("[data-replay-equipment]", `Gear: ${equipment}`);
+    setText("[data-replay-speed-label]", `Speed ${state.speed}x`);
+    ["play", "pause", "step", "skip-town", "skip-expedition", "skip-purchase", "skip-combat", "skip-camp", "skip-return", "skip-end"].forEach((action) => {
+      const button = campaignReplayControls.querySelector(`[data-replay-action="${action}"]`);
+      if (button) button.disabled = !canPlay;
+    });
+    const speed = campaignReplayControls.querySelector("[data-replay-speed]");
+    if (speed) speed.value = String(state.speed);
+    const autoSkip = campaignReplayControls.querySelector("[data-replay-autoskip]");
+    if (autoSkip) autoSkip.checked = Boolean(state.autoSkipTravel);
+    const seek = campaignReplayControls.querySelector("[data-replay-seek]");
+    if (seek) {
+      seek.max = String(data.totalActionCount ?? 0);
+      seek.value = String(Math.min(actionIndex, Number(data.totalActionCount) || 0));
+    }
+    campaignReplayControls.querySelectorAll("[data-campaign-segment]").forEach((segment) => {
+      const timelineSegment = data.timeline?.find((entry) => String(entry.actionIndex) === segment.dataset.campaignSegment);
+      segment.classList.toggle("is-current", timelineSegment?.expeditionNumber === state.expeditionIndex + 1);
+    });
+    const annotation = campaignReplayControls.querySelector("[data-replay-annotation]");
+    if (annotation) {
+      annotation.hidden = !state.lastTownAction;
+      annotation.textContent = state.lastTownAction ? campaignTownActionLabel(state.lastTownAction) : "";
+    }
+    const error = campaignReplayControls.querySelector("[data-replay-error]");
+    if (error) {
+      error.hidden = !state.error;
+      error.textContent = state.error ? JSON.stringify(state.error, null, 2) : "";
+    }
+    const warning = campaignReplayControls.querySelector("[data-replay-warning]");
+    if (warning) {
+      warning.hidden = !state.warning;
+      warning.textContent = state.warning ?? "";
+    }
   },
 
   desync(message, action) {
@@ -1613,6 +1781,7 @@ const CampaignReplayController = Object.freeze({
 
   exit() {
     if (!campaignReplayState) return;
+    this.cancelFastForward();
     if (ReplayController.isActive()) ReplayController.exit();
     const previous = campaignReplayState.realGameState;
     this.clearControls();
@@ -1708,6 +1877,48 @@ function replayStable(value) {
   if (Array.isArray(value)) return `[${value.map(replayStable).join(",")}]`;
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${replayStable(value[key])}`).join(",")}}`;
   return JSON.stringify(value);
+}
+
+function replayCraftDifferences(action, result) {
+  const differences = [];
+  if (action.recipeId !== undefined && result.recipeId !== action.recipeId) {
+    differences.push(`recipe ${result.recipeId} (expected ${action.recipeId})`);
+  }
+  if (action.context !== undefined && result.context !== action.context) {
+    differences.push(`context ${result.context ?? "unknown"} (expected ${action.context})`);
+  }
+  const expectedIngredients = action.ingredientsConsumed
+    ?? action.result?.ingredientsConsumed
+    ?? action.result?.materialsConsumed
+    ?? null;
+  const actualIngredients = {
+    ...(result.materialsConsumed ?? {}),
+    ...(result.itemsConsumed ?? {}),
+  };
+  if (expectedIngredients && replayStable(replayQuantityMap(expectedIngredients))
+    !== replayStable(replayQuantityMap(actualIngredients))) {
+    differences.push(`ingredients ${replayStable(replayQuantityMap(actualIngredients))} (expected ${replayStable(replayQuantityMap(expectedIngredients))})`);
+  }
+  if (action.provisionsGained !== undefined
+    && Number(result.provisions ?? 0) !== Number(action.provisionsGained)) {
+    differences.push(`provisions ${result.provisions ?? 0} (expected ${action.provisionsGained})`);
+  }
+  if (action.goldCost !== undefined && Number(result.goldCost ?? 0) !== Number(action.goldCost)) {
+    differences.push(`gold cost ${result.goldCost ?? 0} (expected ${action.goldCost})`);
+  }
+  if (action.itemId !== undefined && result.itemId !== action.itemId) {
+    differences.push(`item ${result.itemId ?? "none"} (expected ${action.itemId})`);
+  }
+  if (action.quantity !== undefined && Number(result.quantity ?? 0) !== Number(action.quantity)) {
+    differences.push(`quantity ${result.quantity ?? 0} (expected ${action.quantity})`);
+  }
+  return differences;
+}
+
+function replayQuantityMap(value) {
+  return Object.fromEntries(Object.entries(value ?? {})
+    .map(([key, quantity]) => [key, Number(quantity) || 0])
+    .filter(([, quantity]) => quantity !== 0));
 }
 
 function campaignReplayPlayerSnapshot(player) {
@@ -1809,7 +2020,9 @@ function reconstructLegacyCampaignTownActions(campaign, raw, entries) {
     (decision.healing?.restActions ?? []).forEach((rest) => actions.push({
       type: "inn-rest", expeditionNumber, applied: Boolean(rest.applied), goldCost: rest.goldCost ?? 0,
     }));
-    (decision.innCookingActions ?? []).forEach((action) => actions.push({ type: "cook-recipe", expeditionNumber, ...action }));
+    (decision.innCookingActions ?? []).forEach((action) => actions.push({
+      type: "cook-recipe", expeditionNumber, ...action, context: "inn",
+    }));
     if (decision.provisionPurchase?.quantity > 0) actions.push({
       type: "buy-provisions", expeditionNumber, quantity: decision.provisionPurchase.quantity,
       goldCost: decision.provisionPurchase.goldCost,
@@ -1839,4 +2052,24 @@ function reconstructLegacyCampaignTownActions(campaign, raw, entries) {
     }));
   });
   return actions;
+}
+
+function normalizeCampaignTownActions(actions) {
+  let currentExpeditionNumber = 1;
+  return actions.map((sourceAction) => {
+    const action = deepClone(sourceAction ?? {});
+    const explicitExpeditionNumber = Number(action.expeditionNumber);
+    if (Number.isFinite(explicitExpeditionNumber) && explicitExpeditionNumber > 0) {
+      currentExpeditionNumber = explicitExpeditionNumber;
+    } else {
+      action.expeditionNumber = currentExpeditionNumber;
+    }
+    if (action.type === "cook-recipe"
+      && action.providerId === "campfire"
+      && !action.context) {
+      action.context = "inn";
+    }
+    action.expeditionNumber = Number(action.expeditionNumber) || currentExpeditionNumber;
+    return action;
+  });
 }

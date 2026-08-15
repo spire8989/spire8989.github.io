@@ -953,13 +953,13 @@ function cookAtCamp(expedition, player, strategyName, telemetry) {
   const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
     .map((recipe) => ({
       recipe,
-      quote: CraftingRules.quote(player, recipe.id, "campfire", { expedition }),
+      quote: CraftingRules.quote(player, recipe.id, "campfire", { expedition, context: "camp" }),
     }))
     .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
   const candidate = SimulationTravelPolicy.chooseCookingRecipe(candidates, expedition, strategyName);
   if (!candidate) return null;
   const before = resourceSnapshot(expedition);
-  const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { expedition });
+  const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { expedition, context: "camp" });
   if (!result.applied) return null;
   const after = resourceSnapshot(expedition);
   const ingredientsConsumed = mergeQuantityCollections(
@@ -968,6 +968,7 @@ function cookAtCamp(expedition, player, strategyName, telemetry) {
   );
   const cooked = {
     recipeId: result.recipeId,
+    context: "camp",
     provisionsBefore: before.resources.provisions,
     provisionsAfter: after.resources.provisions,
     provisionsGained: rounded(after.resources.provisions - before.resources.provisions),

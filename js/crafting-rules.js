@@ -22,6 +22,8 @@ const CraftingRules = Object.freeze({
   quote(player, recipeId, providerId, context = {}) {
     const recipe = RECIPE_DEFINITIONS[recipeId];
     const expedition = context.expedition ?? null;
+    const productionContext = context.context
+      ?? (expedition ? "camp" : providerId === "campfire" ? "inn" : "town");
     const item = recipe?.output?.itemId ? ITEM_DEFINITIONS[recipe.output.itemId] : null;
     const known = Boolean(recipe && (
       player.learnedRecipes?.includes(recipeId)
@@ -41,16 +43,19 @@ const CraftingRules = Object.freeze({
     const uniqueAlreadyOwned = Boolean(item?.unique && player.ownedItems[item.id]);
     const affordable = Boolean(recipe && player.currentGold >= recipe.goldCost);
     const validOutput = Boolean(recipe && (item || Number(recipe.output?.provisions) > 0));
-    const available = Boolean(recipe && validOutput && known && correctProvider && affordable
+    const contextValid = productionContext === "camp" ? Boolean(expedition) : productionContext === "inn" ? !expedition : true;
+    const available = Boolean(recipe && validOutput && known && correctProvider && contextValid && affordable
       && !uniqueAlreadyOwned && ingredientStatus.every((entry) => entry.sufficient));
     return {
       recipeId,
       recipe,
       item,
       expedition,
+      context: productionContext,
       ingredientType,
       known,
       correctProvider,
+      contextValid,
       ingredientStatus,
       affordable,
       uniqueAlreadyOwned,
@@ -90,6 +95,7 @@ const CraftingRules = Object.freeze({
       applied: true,
       recipeId,
       providerId,
+      context: quote.context,
       itemId,
       quantity: quantity ?? 0,
       provisions,
@@ -116,6 +122,7 @@ function craftingBlockReason(quote) {
   if (!quote.recipe || !quote.validOutput) return "invalid-recipe";
   if (!quote.known) return "recipe-unknown";
   if (!quote.correctProvider) return "wrong-provider";
+  if (!quote.contextValid) return quote.context === "camp" ? "camp-requires-expedition" : "inn-requires-town";
   if (quote.uniqueAlreadyOwned) return "unique-item-owned";
   if (!quote.affordable) return "insufficient-gold";
   if (quote.ingredientStatus.some((entry) => !entry.sufficient)) return "insufficient-materials";

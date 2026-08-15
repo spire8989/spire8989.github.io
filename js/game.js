@@ -838,13 +838,18 @@ function craftItem(recipeId) {
 
 function cookInnRecipe(recipeId) {
   if (game.activeDestinationId !== "inn") return;
-  beginCraftingAction(recipeId, "campfire", { screen: "destination", destinationId: "inn" });
+  beginCraftingAction(recipeId, "campfire", {
+    screen: "destination", destinationId: "inn", context: "inn",
+  });
 }
 
 function beginCraftingAction(recipeId, providerId, context = {}) {
   if (game.craftingAction || game.restAction || !providerId) return;
   const expedition = context.expedition ?? null;
-  const quote = CraftingRules.quote(game.player, recipeId, providerId, expedition ? { expedition } : {});
+  const quote = CraftingRules.quote(game.player, recipeId, providerId, {
+    ...context,
+    ...(expedition ? { expedition } : {}),
+  });
   if (!quote.available) {
     const reason = craftingBlockReasonForUi(quote);
     showToast({ title: craftingFailureTitle({ reason, quote }), message: craftingFailureMessage({ reason, quote }), type: "warning" });
@@ -853,6 +858,7 @@ function beginCraftingAction(recipeId, providerId, context = {}) {
   game.craftingAction = {
     recipeId,
     providerId,
+    context: context.context ?? (expedition ? "camp" : providerId === "campfire" ? "inn" : "town"),
     expedition,
     screen: context.screen ?? game.screen,
     destinationId: context.destinationId ?? game.activeDestinationId,
@@ -868,6 +874,7 @@ function craftingBlockReasonForUi(quote) {
   if (!quote.recipe || !quote.validOutput) return "invalid-recipe";
   if (!quote.known) return "recipe-unknown";
   if (!quote.correctProvider) return "wrong-provider";
+  if (!quote.contextValid) return quote.context === "camp" ? "camp-requires-expedition" : "inn-requires-town";
   if (quote.uniqueAlreadyOwned) return "unique-item-owned";
   if (!quote.affordable) return "insufficient-gold";
   if (quote.ingredientStatus.some((entry) => !entry.sufficient)) return "insufficient-materials";
@@ -886,7 +893,10 @@ function completeCraftingAction() {
     showToast({ title: "Crafting Cancelled", message: "The crafting station is no longer available.", type: "warning" });
     return;
   }
-  const result = CraftingRules.craft(game.player, action.recipeId, action.providerId, action.expedition ? { expedition: action.expedition } : {});
+  const result = CraftingRules.craft(game.player, action.recipeId, action.providerId, {
+    context: action.context,
+    ...(action.expedition ? { expedition: action.expedition } : {}),
+  });
   if (!result.applied) {
     showToast({ title: craftingFailureTitle(result), message: craftingFailureMessage(result), type: "warning" });
   } else if (result.provisions > 0) {
@@ -2276,7 +2286,7 @@ function leaveCamp() {
 function cookRecipe(recipeId) {
   const actionExpedition = game.expedition;
   if (!actionExpedition || actionExpedition.travelState !== "camped" || actionExpedition.activeEncounter) return;
-  beginCraftingAction(recipeId, "campfire", { screen: "expedition", expedition: actionExpedition });
+  beginCraftingAction(recipeId, "campfire", { screen: "expedition", expedition: actionExpedition, context: "camp" });
   return;
   const expedition = game.expedition;
   if (!expedition || expedition.travelState !== "camped" || expedition.activeEncounter) return;

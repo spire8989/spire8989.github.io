@@ -1,5 +1,57 @@
 # Build Log
 
+## 2026-08-14 - Campaign Replay Controls, Context, and Fast-Forward Fixes
+
+### Goal
+
+Fix the full Campaign Replay Viewer bugs found in campaign 51-style playback:
+keep controls clickable during active playback, preserve town action ordering,
+replay Inn cooking through the correct production context, and keep long seeks
+and skips responsive without changing deterministic outcomes.
+
+### Human prompt and direction
+
+The human developer supplied the campaign replay bug guide, added the
+requirement for yielding long skip/seek operations and a regression harness,
+and requested add/commit without pushing.
+
+### AI-assisted implementation
+
+- Mounted campaign replay controls once and changed playback updates to mutate
+  stable text, value, disabled, progress, timeline, annotation, and error
+  properties instead of rebuilding the control DOM every frame.
+- Tagged recorded town actions with the expedition they precede and normalized
+  legacy unnumbered actions in order, restoring the sequence of preparation,
+  expedition, return/settlement, and the next preparation phase.
+- Added explicit crafting production contexts: Inn cooking records `inn`,
+  wilderness cooking records `camp`, camp context requires a real expedition,
+  and town replay compares recipe, context, ingredients, provisions, gold, and
+  item results where recorded. Legacy town `providerId: "campfire"` cooking is
+  normalized to the Inn context.
+- Reworked campaign `skipTo()` and `seek()` into bounded 120-step batches that
+  yield with `setTimeout(0)`. Pause, Play, Restart, Step, Seek, and Exit cancel
+  pending work safely while preserving recorded state semantics.
+- Expanded the campaign replay browser suite with stable-node, pause/speed,
+  skip, Inn/camp cooking, exact Hunter's Stew ingredient, legacy normalization,
+  ordering, and long-seek event-loop-yield assertions. Updated replay docs.
+
+### Manual changes
+
+The human developer supplied the bug guide and responsive fast-forward section.
+No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Campaign replay controls remain interactable during fast playback and long
+seeks yield back to the browser. Inn preparation actions replay after the
+correct return phase, while wilderness cooking remains expedition-scoped.
+
+Verified 23 campaign replay assertions, 15 single-expedition replay
+assertions, 45 deterministic simulation assertions, 78 campaign/health/Inn
+assertions, 429 UI/provision/location browser assertions, and `git diff
+--check`. No balance changes were made. Changes are intended for a local
+commit only; nothing was pushed.
+
 ## 2026-08-14 - Full Campaign Replay Viewer
 
 ### Goal

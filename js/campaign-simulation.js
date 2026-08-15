@@ -60,7 +60,7 @@ const CampaignSimulationRunner = Object.freeze({
       betweenExpeditionDecisions.push(decision);
 
       if (decision.stopReason) {
-        townActions.push(...preparationActions);
+        townActions.push(...tagCampaignTownActions(preparationActions, expeditionNumber));
         stopReason = decision.stopReason;
         break;
       }
@@ -69,7 +69,7 @@ const CampaignSimulationRunner = Object.freeze({
       const capacity = ExpeditionRules.partyProvisionCapacity(selectedCompanionIds(player));
       const provisionsPacked = Math.min(player.provisions, decision.provisionsToPack, capacity);
       if (provisionsPacked < EXPEDITION_TUNING.minimumStartingProvisions) {
-        townActions.push(...preparationActions);
+        townActions.push(...tagCampaignTownActions(preparationActions, expeditionNumber));
         stopReason = "cannot-support-any-expedition";
         break;
       }
@@ -87,8 +87,8 @@ const CampaignSimulationRunner = Object.freeze({
         packedItems: deepCampaignClone(decision.packContents),
         packedMaterials: deepCampaignClone(decision.materialBagContents),
       });
-      decision.townActions = deepCampaignClone(preparationActions);
-
+      const taggedPreparationActions = tagCampaignTownActions(preparationActions, expeditionNumber);
+      decision.townActions = deepCampaignClone(taggedPreparationActions);
       const healthAtStart = HealingRules.arthurHealth(player);
       const goldAtStart = stateBeforeDecisions.gold;
       const provisionStockAtStart = stateBeforeDecisions.provisionStock;
@@ -120,7 +120,7 @@ const CampaignSimulationRunner = Object.freeze({
         quantity: 1,
         goldEarned: sale.goldEarned,
       }));
-      townActions.push(...preparationActions, ...settlementActions);
+      townActions.push(...taggedPreparationActions, ...settlementActions);
       const endingState = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       const damageTaken = run.damageTaken;
       const expeditionHardFailureReason = !run.returnedSafely && run.finalArthurHealth <= 0
@@ -1916,7 +1916,7 @@ function cookAtInn(player, strategyName, random = GameRandom.random, townActions
   const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
     .map((recipe) => ({
       recipe,
-      quote: CraftingRules.quote(player, recipe.id, "campfire"),
+      quote: CraftingRules.quote(player, recipe.id, "campfire", { context: "inn" }),
     }))
     .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
   if (!candidates.length) return { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
@@ -1937,7 +1937,7 @@ function cookAtInn(player, strategyName, random = GameRandom.random, townActions
   const candidate = strategyName === "random"
     ? selected[Math.floor(roll() * selected.length)]
     : selected[0];
-  const result = CraftingRules.craft(player, candidate.recipe.id, "campfire");
+  const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { context: "inn" });
   if (!result.applied) return { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
   const ingredientsConsumedById = {
     ...(result.materialsConsumed ?? {}),
@@ -1946,6 +1946,7 @@ function cookAtInn(player, strategyName, random = GameRandom.random, townActions
   const action = {
       recipeId: result.recipeId,
       providerId: "campfire",
+      context: "inn",
       provisionsGained: result.provisions ?? 0,
       ingredientsConsumed: deepCampaignClone(ingredientsConsumedById),
       goldCost: result.goldCost ?? 0,
@@ -2085,6 +2086,13 @@ function createCampaignPlayer(overrides) {
 function replaceCampaignPlayer(target, source) {
   Object.keys(target).forEach((key) => delete target[key]);
   Object.assign(target, deepCampaignClone(source));
+}
+
+function tagCampaignTownActions(actions, expeditionNumber) {
+  return actions.map((action) => ({
+    ...action,
+    expeditionNumber: Number(action.expeditionNumber) || expeditionNumber,
+  }));
 }
 
 function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
