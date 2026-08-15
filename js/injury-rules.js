@@ -12,24 +12,52 @@ const InjuryRules = Object.freeze({
   },
 
   snapshot(holder) {
-    const source = holder?.injuries ?? {};
+    const source = holder?.injuries ?? (isDirectInjuryMap(holder) ? holder : {});
     return Object.fromEntries(INJURY_CHARACTER_IDS.map((characterId) => [
       characterId,
-      normalizeInjuryIds(source[characterId]),
+      normalizeInjuryInstances(source[characterId]),
     ]));
   },
 
   ensure(holder) {
-    holder.injuries = this.snapshot(holder);
+    if (!holder) return {};
+    if (isDirectInjuryMap(holder)) {
+      const alreadyNormalized = INJURY_CHARACTER_IDS.every((characterId) => (
+        Array.isArray(holder[characterId])
+        && holder[characterId].every((entry) => entry && typeof entry === "object"
+          && INJURY_DEFINITIONS[entry.injuryId])
+      ));
+      if (!alreadyNormalized) {
+        const normalized = this.snapshot(holder);
+        INJURY_CHARACTER_IDS.forEach((characterId) => { holder[characterId] = normalized[characterId]; });
+      }
+      return holder;
+    }
+    const source = holder.injuries ?? {};
+    const alreadyNormalized = INJURY_CHARACTER_IDS.every((characterId) => (
+      Array.isArray(source[characterId])
+      && source[characterId].every((entry) => entry && typeof entry === "object"
+        && INJURY_DEFINITIONS[entry.injuryId])
+    ));
+    if (!alreadyNormalized) holder.injuries = this.snapshot(holder);
     return holder.injuries;
   },
 
   forCharacter(holder, characterId) {
-    return normalizeInjuryIds(holder?.injuries?.[characterId]);
+    this.ensure(holder);
+    return holder?.injuries?.[characterId] ?? holder?.[characterId] ?? [];
+  },
+
+  idsForCharacter(holder, characterId) {
+    return this.forCharacter(holder, characterId).map((instance) => this.idOf(instance));
+  },
+
+  idOf(instance) {
+    return typeof instance === "string" ? instance : instance?.injuryId ?? null;
   },
 
   has(holder, characterId, injuryId) {
-    return this.forCharacter(holder, characterId).includes(injuryId);
+    return this.forCharacter(holder, characterId).some((instance) => this.idOf(instance) === injuryId);
   },
 
   apply(holder, characterId, injuryId, metadata = {}) {
@@ -37,33 +65,43 @@ const InjuryRules = Object.freeze({
     if (!holder || !INJURY_CHARACTER_IDS.includes(characterId) || !definition) {
       return { applied: false, reason: "invalid-injury" };
     }
-    this.ensure(holder);
-    const current = holder.injuries[characterId];
-    if (current.includes(injuryId)) return { applied: false, reason: "duplicate", injuryId, characterId };
-    if (current.length >= this.maximumActive) return { applied: false, reason: "maximum-active", injuryId, characterId };
-    current.push(injuryId);
-    const result = {
+    const injuries = this.ensure(holder);
+    const current = injuries[characterId];
+    if (current.some((instance) => this.idOf(instance) === injuryId)) {
+      return { applied: false, reason: "duplicate", injuryId, characterId };
+    }
+    if (current.length >= this.maximumActive) {
+      return { applied: false, reason: "maximum-active", injuryId, characterId };
+    }
+
+    const random = randomSource(metadata.random, holder?.random);
+    const instance = createInjuryInstance(injuryId, metadata, random);
+    current.push(instance);
+    return {
       applied: true,
       injuryId,
       characterId,
       source: metadata.source ?? metadata.cause ?? "unknown",
       definition,
+      instance: copyInjuryInstance(instance),
     };
-    if (holder.injuryEvents) holder.injuryEvents.push({ type: "injury-gained", ...result });
-    return result;
   },
 
   remove(holder, characterId, injuryId, metadata = {}) {
     const current = this.forCharacter(holder, characterId);
-    const index = current.indexOf(injuryId);
+    const index = current.findIndex((instance) => this.idOf(instance) === injuryId);
     if (index < 0) return { applied: false, reason: "not-active", injuryId, characterId };
-    holder.injuries[characterId].splice(index, 1);
+    const instance = current[index];
+    current.splice(index, 1);
     const result = {
       applied: true,
       injuryId,
       characterId,
       method: metadata.method ?? metadata.source ?? "treatment",
       definition: this.definition(injuryId),
+      instance: copyInjuryInstance(instance),
+      stabilized: Boolean(metadata.stabilized),
+      deepCutStabilized: Boolean(metadata.stabilized && injuryId === "deep_cut"),
     };
     if (holder.injuryEvents) holder.injuryEvents.push({ type: "injury-treated", ...result });
     return result;
@@ -77,8 +115,8 @@ const InjuryRules = Object.freeze({
   },
 
   effectMultiplier(holder, characterId, effectName) {
-    return this.forCharacter(holder, characterId).reduce((multiplier, injuryId) => (
-      multiplier * (Number(this.definition(injuryId)?.effects?.[effectName]) || 1)
+    return this.forCharacter(holder, characterId).reduce((multiplier, instance) => (
+      multiplier * (Number(this.definition(this.idOf(instance))?.effects?.[effectName]) || 1)
     ), 1);
   },
 
@@ -118,19 +156,67 @@ const InjuryRules = Object.freeze({
       ? this.remove(holder, characterId, "exhaustion", { method }) : { applied: false, reason: "not-active" };
   },
 
+  accelerateRecovery(holder, characterId, distance, method = "rest") {
+    const reduction = Math.max(0, Number(distance) || 0);
+    if (reduction <= 0) return [];
+    const results = [];
+    const current = this.forCharacter(holder, characterId);
+    [...current].forEach((instance) => {
+      const definition = this.definition(this.idOf(instance));
+      if (!definition?.recoveryDistanceRange || !(Number(instance.remainingRecoveryDistance) > 0)) return;
+      const before = Number(instance.remainingRecoveryDistance);
+      instance.remainingRecoveryDistance = Math.max(0, before - reduction);
+      const accelerated = {
+        applied: true,
+        injuryId: this.idOf(instance),
+        characterId,
+        method,
+        distanceReduced: roundInjuryDistance(before - instance.remainingRecoveryDistance),
+        remainingRecoveryDistance: roundInjuryDistance(instance.remainingRecoveryDistance),
+        recovered: instance.remainingRecoveryDistance <= 0,
+        instance: copyInjuryInstance(instance),
+      };
+      if (instance.remainingRecoveryDistance <= 0) {
+        const recovery = removeInstance(current, instance);
+        accelerated.instance = copyInjuryInstance(recovery);
+        accelerated.recovered = true;
+        this.recordRecovery(holder, {
+          ...accelerated,
+          recoveryType: "accelerated",
+        });
+      } else if (holder.injuryEvents) {
+        holder.injuryEvents.push({ type: "injury-recovery-accelerated", ...accelerated });
+      }
+      results.push(accelerated);
+    });
+    return results;
+  },
+
   treatmentItemFor(injuryId) {
     return this.definition(injuryId)?.treatmentItemId ?? null;
   },
 
   treatWithItem(player, characterId, itemId, metadata = {}) {
     const authoredTreatmentIds = ITEM_DEFINITIONS[itemId]?.effects?.treatment?.injuryIds ?? [];
-    const injuryId = this.forCharacter(player, characterId)
-      .find((candidate) => authoredTreatmentIds.includes(candidate) || this.treatmentItemFor(candidate) === itemId);
+    const target = this.forCharacter(player, characterId)
+      .find((instance) => authoredTreatmentIds.includes(this.idOf(instance))
+        || this.treatmentItemFor(this.idOf(instance)) === itemId);
+    const injuryId = this.idOf(target);
     if (!injuryId) return { applied: false, reason: "wrong-treatment", characterId, itemId };
     if ((player.ownedItems?.[itemId] ?? 0) < 1) return { applied: false, reason: "item-missing", characterId, itemId, injuryId };
+
+    const stabilized = injuryId === "deep_cut" && itemId === "healing_poultice";
+    if (stabilized) {
+      target.stabilized = true;
+      target.infectionChecked = true;
+    }
     player.ownedItems[itemId] -= 1;
     if (player.ownedItems[itemId] <= 0) delete player.ownedItems[itemId];
-    return this.remove(player, characterId, injuryId, { method: itemId, ...metadata });
+    return this.remove(player, characterId, injuryId, {
+      method: itemId,
+      stabilized,
+      ...metadata,
+    });
   },
 
   recordExpeditionResult(expedition, result, metadata = {}) {
@@ -142,10 +228,48 @@ const InjuryRules = Object.freeze({
         characterId: result.characterId,
         source: result.source ?? metadata.source ?? "unknown",
         distance: Number(expedition.distance) || 0,
+        applied: true,
+        originalRecoveryDistance: result.instance?.originalRecoveryDistance ?? null,
+        remainingRecoveryDistance: result.instance?.remainingRecoveryDistance ?? null,
+        initialState: copyInjuryInstance(result.instance),
       });
       JourneyLog.add(expedition, `${INJURY_DEFINITIONS[result.injuryId].name} affects ${characterName(result.characterId)}.`, { category: "injury" });
     }
     return result;
+  },
+
+  recordRecovery(holder, result) {
+    if (!holder?.injuryEvents || !result?.applied) return result;
+    const event = {
+      type: "injury-recovered",
+      injuryId: result.injuryId,
+      characterId: result.characterId,
+      recoveryType: result.recoveryType ?? "natural",
+      method: result.method ?? null,
+      distance: Number(holder.distance) || 0,
+      originalRecoveryDistance: result.instance?.originalRecoveryDistance ?? null,
+      remainingRecoveryDistance: 0,
+    };
+    holder.injuryEvents.push(event);
+    if (typeof JourneyLog !== "undefined") {
+      JourneyLog.add(holder, `${characterName(result.characterId)}'s ${INJURY_DEFINITIONS[result.injuryId].shortName.toLowerCase()} has healed.`, { category: "injury" });
+    }
+    return result;
+  },
+
+  recordExpeditionInfection(expedition, instance, characterId) {
+    const event = {
+      type: "injury-infected",
+      injuryId: "deep_cut",
+      characterId,
+      distance: Number(expedition.distance) || 0,
+      source: "untreated-deep-cut",
+      originalRecoveryDistance: instance.originalRecoveryDistance ?? null,
+    };
+    expedition.injuryEvents ??= [];
+    expedition.injuryEvents.push(event);
+    JourneyLog.add(expedition, `${characterName(characterId)}'s wound has become infected.`, { category: "injury" });
+    return event;
   },
 
   applyToExpedition(expedition, characterId, injuryId, metadata = {}) {
@@ -161,6 +285,55 @@ const InjuryRules = Object.freeze({
       }
     }
     return this.recordExpeditionResult(expedition, result, metadata);
+  },
+
+  advanceNaturalRecovery(expedition, distanceTraveled, characterIds = null) {
+    const distance = Math.max(0, Number(distanceTraveled) || 0);
+    if (!expedition || distance <= 0) return [];
+    const recovered = [];
+    const partyIds = characterIds ?? ["arthur", ...selectedCompanionIds(expedition)];
+    partyIds.forEach((characterId) => {
+      const current = this.forCharacter(expedition, characterId);
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        const instance = current[index];
+        const injuryId = this.idOf(instance);
+        const definition = this.definition(injuryId);
+        if (!definition?.recoveryDistanceRange || !(Number(instance.remainingRecoveryDistance) > 0)) continue;
+        const before = Number(instance.remainingRecoveryDistance);
+        instance.remainingRecoveryDistance = Math.max(0, before - distance);
+
+        if (injuryId === "deep_cut"
+          && !instance.stabilized
+          && !instance.infectionChecked
+          && before - instance.remainingRecoveryDistance >= (Number(definition.infectionCheckDistance) || 0)) {
+          instance.infectionChecked = true;
+          if (Number(instance.infectionRoll) < (Number(definition.infectionChance) || 0)) {
+            current.splice(index, 1);
+            this.recordExpeditionInfection(expedition, instance, characterId);
+            const infection = this.applyToExpedition(expedition, characterId, "infection", {
+              source: "deep-cut-infection",
+            });
+            if (infection.applied) recovered.push({ ...infection, infection: true });
+            continue;
+          }
+        }
+
+        if (instance.remainingRecoveryDistance <= 0) {
+          current.splice(index, 1);
+          const result = {
+            applied: true,
+            injuryId,
+            characterId,
+            method: "travel",
+            recoveryType: "natural",
+            instance: copyInjuryInstance(instance),
+          };
+          this.recordRecovery(expedition, result);
+          recovered.push(result);
+        }
+      }
+    });
+    return recovered;
   },
 
   checkTravelRisk(expedition, player, distanceTraveled) {
@@ -197,10 +370,73 @@ const InjuryRules = Object.freeze({
   },
 });
 
-function normalizeInjuryIds(value) {
-  const ids = Array.isArray(value) ? value : [];
-  return [...new Set(ids.map((entry) => typeof entry === "string" ? entry : entry?.injuryId)
-    .filter((injuryId) => INJURY_DEFINITIONS[injuryId]))].slice(0, InjuryRules.maximumActive);
+function normalizeInjuryInstances(value) {
+  const entries = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  return entries.map((entry) => {
+    const injuryId = typeof entry === "string" ? entry : entry?.injuryId;
+    if (!INJURY_DEFINITIONS[injuryId] || seen.has(injuryId)) return null;
+    seen.add(injuryId);
+    return createInjuryInstance(injuryId, typeof entry === "object" ? entry : {}, null);
+  }).filter(Boolean).slice(0, InjuryRules.maximumActive);
+}
+
+function isDirectInjuryMap(value) {
+  return Boolean(value && value.injuries === undefined
+    && INJURY_CHARACTER_IDS.some((characterId) => value[characterId] !== undefined));
+}
+
+function createInjuryInstance(injuryId, metadata = {}, random = null) {
+  const definition = INJURY_DEFINITIONS[injuryId];
+  const range = definition?.recoveryDistanceRange;
+  const midpoint = range ? (range.minimum + range.maximum) / 2 : null;
+  const rolledDistance = range
+    ? clampInjuryDistance(metadata.originalRecoveryDistance ?? metadata.remainingRecoveryDistance
+      ?? (random ? range.minimum + random() * (range.maximum - range.minimum) : midpoint))
+    : null;
+  const instance = {
+    injuryId,
+    remainingRecoveryDistance: range
+      ? clampInjuryDistance(metadata.remainingRecoveryDistance ?? rolledDistance)
+      : null,
+    originalRecoveryDistance: range
+      ? clampInjuryDistance(metadata.originalRecoveryDistance ?? rolledDistance)
+      : null,
+  };
+  if (injuryId === "deep_cut") {
+    instance.stabilized = Boolean(metadata.stabilized);
+    instance.infectionChecked = Boolean(metadata.infectionChecked);
+    instance.infectionRoll = Number.isFinite(Number(metadata.infectionRoll))
+      ? Number(metadata.infectionRoll)
+      : random ? random() : 1;
+  }
+  return instance;
+}
+
+function copyInjuryInstance(instance) {
+  return instance ? { ...instance } : null;
+}
+
+function removeInstance(collection, instance) {
+  const index = collection.indexOf(instance);
+  if (index >= 0) collection.splice(index, 1);
+  return instance;
+}
+
+function randomSource(primary, fallback) {
+  const source = typeof primary === "function" ? primary : fallback;
+  return typeof source === "function"
+    ? () => Math.min(1 - Number.EPSILON, Math.max(0, Number(source()) || 0))
+    : null;
+}
+
+function clampInjuryDistance(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? roundInjuryDistance(Math.max(0, number)) : null;
+}
+
+function roundInjuryDistance(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 function characterName(characterId) {

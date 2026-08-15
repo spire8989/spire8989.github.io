@@ -191,15 +191,15 @@ def run():
             "Injury application did not enforce authored effects, duplicate protection, or the two-injury cap",
         )
         check(
-            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); InjuryRules.applyToExpedition(expedition,'arthur','deep_cut',{source:'persistence'}); ExpeditionRules.settle(player,expedition,true); const next=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); return player.injuries.arthur.includes('deep_cut')&&next.injuries.arthur.includes('deep_cut')&&next.health<=34; })()",
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); InjuryRules.applyToExpedition(expedition,'arthur','deep_cut',{source:'persistence'}); ExpeditionRules.settle(player,expedition,true); const next=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); return InjuryRules.has(player,'arthur','deep_cut')&&InjuryRules.has(next,'arthur','deep_cut')&&next.health<=34; })()",
             "Injuries did not persist through settlement and the next expedition",
         )
         check(
-            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.injuries={arthur:['deep_cut']}; player.ownedItems.healing_poultice=1; const wrong=InjuryRules.treatWithItem(player,'arthur','antidote'); const right=InjuryRules.treatWithItem(player,'arthur','healing_poultice'); return wrong.reason==='wrong-treatment'&&player.ownedItems.antidote===undefined&&right.applied&&player.ownedItems.healing_poultice===undefined&&!player.injuries.arthur.includes('deep_cut'); })()",
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.injuries={arthur:['deep_cut']}; player.ownedItems.healing_poultice=1; const wrong=InjuryRules.treatWithItem(player,'arthur','antidote'); const right=InjuryRules.treatWithItem(player,'arthur','healing_poultice'); return wrong.reason==='wrong-treatment'&&player.ownedItems.antidote===undefined&&right.applied&&player.ownedItems.healing_poultice===undefined&&!InjuryRules.has(player,'arthur','deep_cut'); })()",
             "Injury treatment did not require the correct real medical item",
         )
         check(
-            "(() => { const make=(pace)=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0.1}); e.paceId=pace; e.nextEncounterAt=999; InjuryRules.checkTravelRisk(e,player,12); return e.injuries.arthur.includes('sprained_ankle'); }; return !make('cautious')&&make('hard_push'); })()",
+            "(() => { const make=(pace)=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0.1}); e.paceId=pace; e.nextEncounterAt=999; InjuryRules.checkTravelRisk(e,player,12); return InjuryRules.has(e,'arthur','sprained_ankle'); }; return !make('cautious')&&make('hard_push'); })()",
             "Cautious and Hard Push did not use different seeded terrain-injury risk",
         )
         check(
@@ -213,6 +213,50 @@ def run():
         check(
             "(() => { const make=seed=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:GameRandom.create(seed).random}); e.travelState='paused'; ExpeditionRules.enterCamp(e); const rest=ExpeditionRules.restAtCamp(e,player); return {event:rest.eventId,active:e.activeEncounter?.encounterId??null}; }; const a=make('camp-event-seed'); const b=make('camp-event-seed'); return a.event&&a.event===b.event&&JSON.stringify(a)===JSON.stringify(b); })()",
             "Camp event selection did not remain contextual and deterministic",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,health:40}); e.travelState='paused'; const before=e.provisions; const rest=ExpeditionRules.briefRest(e); const cautious=SimulationTravelPolicy.chooseAction({...e,travelState:'traveling'},'cautious',{lastRestDistance:null,lastCampDistance:null}); const random=SimulationTravelPolicy.chooseAction({...e,travelState:'traveling'},'random',{lastRestDistance:null,lastCampDistance:null}); return !rest.applied&&rest.reason==='no-benefit'&&e.provisions===before&&cautious==='continue'&&random==='continue'; })()",
+            "A useless brief rest was still available to a full-health cautious or random bot",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:5,health:20}); e.distance=50; e.maxDistanceReached=50; const action=SimulationTravelPolicy.chooseAction(e,'cautious',{lastRestDistance:null,lastCampDistance:null}); return action==='continue'; })()",
+            "Optional rest did not preserve a cautious bot's safe return provisions",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,health:40}); e.distance=10; e.rationId='generous'; InjuryRules.applyToExpedition(e,'arthur','exhaustion',{source:'test'}); return SimulationTravelPolicy.chooseAction(e,'cautious',{lastRestDistance:null,lastCampDistance:null})==='camp'; })()",
+            "Cautious exhaustion policy did not prefer a reasonable camp rest",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:20,random:()=>0}); const gained=InjuryRules.applyToExpedition(e,'arthur','sprained_ankle',{source:'test'}); const rolled=InjuryRules.forCharacter(e,'arthur')[0]; const original=rolled.originalRecoveryDistance; e.nextEncounterAt=999; ExpeditionRules.travel(e,player,10); const afterTen=InjuryRules.forCharacter(e,'arthur')[0]?.remainingRecoveryDistance; ExpeditionRules.travel(e,player,15); return gained.applied&&original===25&&afterTen===15&&!InjuryRules.has(e,'arthur','sprained_ankle')&&e.injuryEvents.filter(event=>event.type==='injury-gained'&&event.injuryId==='sprained_ankle').length===1&&e.injuryEvents.filter(event=>event.type==='injury-recovered'&&event.injuryId==='sprained_ankle').length===1; })()",
+            "Sprained Ankle did not roll once, advance by travel, and recover exactly once",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:50,random:()=>0}); e.nextEncounterAt=999; InjuryRules.applyToExpedition(e,'arthur','bruised_ribs',{source:'test'}); ExpeditionRules.travel(e,player,35); return !InjuryRules.has(e,'arthur','bruised_ribs')&&e.injuryEvents.some(event=>event.type==='injury-recovered'&&event.injuryId==='bruised_ribs'); })()",
+            "Bruised Ribs did not naturally clear after its authored recovery range",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); InjuryRules.applyToExpedition(e,'arthur','sprained_ankle',{source:'test'}); e.travelState='paused'; ExpeditionRules.enterCamp(e); const rest=ExpeditionRules.restAtCamp(e,player); return rest.applied&&rest.recoveryAccelerated[0]?.distanceReduced===8&&InjuryRules.forCharacter(e,'arthur')[0]?.remainingRecoveryDistance===17; })()",
+            "Camp rest did not accelerate physical injury recovery through ExpeditionRules",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.currentGold=10; InjuryRules.apply(player,'arthur','sprained_ankle',{source:'test'}); const before=InjuryRules.forCharacter(player,'arthur')[0].remainingRecoveryDistance; const rest=HealingRules.restAtInn(player); const after=InjuryRules.forCharacter(player,'arthur')[0].remainingRecoveryDistance; return rest.applied&&before===35&&after===20&&rest.recoveryAccelerated[0]?.distanceReduced===15; })()",
+            "Inn rest did not accelerate physical injury recovery through HealingRules",
+        )
+        check(
+            "(() => { let rolls=[0,0.1]; const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:30,random:()=>rolls.shift()??0.1}); InjuryRules.applyToExpedition(e,'arthur','deep_cut',{source:'test'}); e.nextEncounterAt=999; ExpeditionRules.travel(e,player,12); return !InjuryRules.has(e,'arthur','deep_cut')&&InjuryRules.has(e,'arthur','infection')&&e.injuryEvents.filter(event=>event.type==='injury-infected').length===1&&e.injuryEvents.filter(event=>event.type==='injury-gained'&&event.injuryId==='infection').length===1; })()",
+            "Untreated Deep Cut did not produce one deterministic infection event",
+        )
+        check(
+            "(() => { let rolls=[0,0.1]; const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.injuries={arthur:[{injuryId:'deep_cut',remainingRecoveryDistance:30,originalRecoveryDistance:30,stabilized:true,infectionChecked:false,infectionRoll:0}],sir_kay:[],llamrei:[]}; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:30,random:()=>rolls.shift()??0.1}); e.nextEncounterAt=999; ExpeditionRules.travel(e,player,12); return InjuryRules.has(e,'arthur','deep_cut')&&!InjuryRules.has(e,'arthur','infection'); })()",
+            "A stabilized Deep Cut still became infected",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.injuries={arthur:[{injuryId:'infection',remainingRecoveryDistance:null,originalRecoveryDistance:null}],sir_kay:[],llamrei:[]}; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:50,random:()=>0}); e.nextEncounterAt=999; ExpeditionRules.travel(e,player,50); const stillThere=InjuryRules.has(e,'arthur','infection'); player.ownedItems.healing_poultice=1; const treated=InjuryRules.treatWithItem(player,'arthur','healing_poultice'); return stillThere&&treated.applied&&!InjuryRules.has(player,'arthur','infection'); })()",
+            "Infection incorrectly recovered through travel or bypassed its treatment path",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); InjuryRules.applyToExpedition(e,'arthur','exhaustion',{source:'test'}); return e.injuryEvents.filter(event=>event.type==='injury-gained'&&event.injuryId==='exhaustion').length===1&&e.injuryEvents.filter(event=>event.injuryId==='exhaustion').length===1&&e.injuryEvents[0].applied===true&&Number.isFinite(e.injuryEvents[0].distance); })()",
+            "Injury telemetry still double-counted an Exhaustion application",
         )
 
         if devtools.console_errors:

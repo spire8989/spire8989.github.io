@@ -7,6 +7,7 @@ const INJURY_DEFINITIONS = Object.freeze({
     shortName: "Sprained Ankle",
     description: "Uneven ground has left the company limping.",
     effects: Object.freeze({ travelSpeedMultiplier: 0.85, hardPushRiskMultiplier: 1.35 }),
+    recoveryDistanceRange: Object.freeze({ minimum: 25, maximum: 45 }),
     treatmentItemId: null,
   }),
   deep_cut: Object.freeze({
@@ -15,6 +16,9 @@ const INJURY_DEFINITIONS = Object.freeze({
     shortName: "Deep Cut",
     description: "A serious wound lowers effective maximum health until dressed.",
     effects: Object.freeze({ maxHealthMultiplier: 0.85 }),
+    recoveryDistanceRange: Object.freeze({ minimum: 20, maximum: 40 }),
+    infectionCheckDistance: 12,
+    infectionChance: 0.25,
     treatmentItemId: "healing_poultice",
   }),
   bruised_ribs: Object.freeze({
@@ -23,6 +27,7 @@ const INJURY_DEFINITIONS = Object.freeze({
     shortName: "Bruised Ribs",
     description: "Painful ribs make it harder to absorb a blow.",
     effects: Object.freeze({ defenseMultiplier: 0.8 }),
+    recoveryDistanceRange: Object.freeze({ minimum: 35, maximum: 60 }),
     treatmentItemId: null,
   }),
   exhaustion: Object.freeze({
@@ -40,6 +45,14 @@ const INJURY_DEFINITIONS = Object.freeze({
     description: "A lingering venom makes incoming harm more dangerous.",
     effects: Object.freeze({ incomingDamageMultiplier: 1.1 }),
     treatmentItemId: "antidote",
+  }),
+  infection: Object.freeze({
+    id: "infection",
+    name: "Infection",
+    shortName: "Infection",
+    description: "An untreated wound has become infected and needs medical care.",
+    effects: Object.freeze({ maxHealthMultiplier: 0.9, combatGaugeRateMultiplier: 0.9 }),
+    treatmentItemId: "healing_poultice",
   }),
 });
 

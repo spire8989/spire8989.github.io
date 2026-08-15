@@ -524,7 +524,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: true,
     maxStack: 4,
     effects: {
-      treatment: Object.freeze({ injuryIds: ["deep_cut"] }),
+      treatment: Object.freeze({ injuryIds: ["deep_cut", "infection"] }),
       combat: Object.freeze({
         usable: true,
         effectType: "heal",
@@ -549,7 +549,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: true,
     maxStack: 3,
     effects: {
-      treatment: Object.freeze({ injuryIds: ["exhaustion"] }),
+      treatment: Object.freeze({ injuryIds: ["exhaustion", "infection"] }),
       combat: Object.freeze({
         usable: true,
         effectType: "heal",

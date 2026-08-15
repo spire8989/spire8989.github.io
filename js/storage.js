@@ -5,7 +5,7 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 10,
+      saveVersion: 11,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -157,7 +157,7 @@ function sanitizePlayerState(savedState, defaults) {
     : defaults.selectedExpeditionId;
 
   return {
-    saveVersion: 10,
+    saveVersion: 11,
     ownedItems,
     equippedItems,
     packedItems,

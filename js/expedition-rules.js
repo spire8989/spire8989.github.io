@@ -149,6 +149,8 @@ const ExpeditionRules = Object.freeze({
     }
     const cost = EXPEDITION_TUNING.briefRest.provisionCost;
     if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
+    const benefit = this.briefRestBenefit(expedition);
+    if (!benefit.meaningful) return { applied: false, reason: "no-benefit", cost, ...benefit };
     this.adjustProvisions(expedition, -cost);
     const healing = HealingRules.restExpeditionParty(
       expedition,
@@ -158,8 +160,50 @@ const ExpeditionRules = Object.freeze({
       ? selectedPartyIds(expedition).map((id) => InjuryRules.recoverExhaustion(expedition, id, "brief-rest"))
         .filter((result) => result.applied)
       : [];
+    const recoveryAccelerated = selectedPartyIds(expedition).flatMap((id) => (
+      InjuryRules.accelerateRecovery(
+        expedition, id, EXPEDITION_TUNING.briefRest.recoveryDistanceReduction, "brief-rest",
+      )
+    ));
     JourneyLog.add(expedition, "The company took a brief roadside rest.", { category: "rest" });
-    return { applied: true, cost, ...healing, injuriesTreated };
+    return { applied: true, cost, ...healing, injuriesTreated, recoveryAccelerated };
+  },
+
+  briefRestBenefit(expedition) {
+    const requested = Math.round(EXPEDITION_TUNING.briefRest.healing * InjuryRules.restHealingMultiplier(expedition));
+    const healingByPartyMember = {};
+    const recoverableConditions = [];
+    selectedPartyIds(expedition).forEach((characterId) => {
+      const maximum = InjuryRules.effectiveMaxHealth(expedition, characterId);
+      const health = characterId === "arthur"
+        ? Number(expedition.health) || 0
+        : Number(expedition.companionCombatHp?.[characterId]) || 0;
+      healingByPartyMember[characterId] = Math.min(requested, Math.max(0, maximum - health));
+      InjuryRules.forCharacter(expedition, characterId).forEach((instance) => {
+        const injuryId = InjuryRules.idOf(instance);
+        if (injuryId === "exhaustion" && expedition.rationId === "generous") {
+          recoverableConditions.push({ characterId, injuryId, reason: "generous-ration" });
+        } else if (this.definitionCanAdvance(instance)) {
+          recoverableConditions.push({ characterId, injuryId, reason: "recovery-distance" });
+        }
+      });
+    });
+    return {
+      meaningful: Object.values(healingByPartyMember).some((amount) => amount > 0)
+        || recoverableConditions.length > 0,
+      healingByPartyMember,
+      recoverableConditions,
+    };
+  },
+
+  definitionCanAdvance(instance) {
+    return Boolean(this.recoveryDistanceReductionForBriefRest() > 0
+      && Number(instance?.remainingRecoveryDistance) > 0
+      && INJURY_DEFINITIONS[InjuryRules.idOf(instance)]?.recoveryDistanceRange);
+  },
+
+  recoveryDistanceReductionForBriefRest() {
+    return EXPEDITION_TUNING.briefRest.recoveryDistanceReduction;
   },
 
   restAtCamp(expedition, player) {
@@ -179,8 +223,13 @@ const ExpeditionRules = Object.freeze({
       ? selectedPartyIds(expedition).map((id) => InjuryRules.recoverExhaustion(expedition, id, "camp-rest"))
         .filter((result) => result.applied)
       : [];
+    const recoveryAccelerated = selectedPartyIds(expedition).flatMap((id) => (
+      InjuryRules.accelerateRecovery(
+        expedition, id, EXPEDITION_TUNING.campRest.recoveryDistanceReduction, "camp-rest",
+      )
+    ));
     JourneyLog.add(expedition, "The company rested at camp.", { category: "rest" });
-    return { applied: true, cost, ...healing, injuriesTreated, eventId: event?.id ?? null };
+    return { applied: true, cost, ...healing, injuriesTreated, recoveryAccelerated, eventId: event?.id ?? null };
   },
 
   provisionCostForDistance(distance, consumptionMultiplier) {
@@ -356,6 +405,7 @@ const ExpeditionRules = Object.freeze({
         this.provisionConsumptionMultiplier(expedition),
       ),
     );
+    InjuryRules.advanceNaturalRecovery(expedition, distanceTraveled);
     InjuryRules.checkTravelRisk(expedition, player, distanceTraveled);
     if (expedition.provisions <= 0) {
       expedition.provisions = 0;

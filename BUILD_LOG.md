@@ -1,5 +1,29 @@
 # Build Log
 
+## 2026-08-14 - Corrective Injury Recovery and Expedition Rest Pass
+
+### Goal
+
+Correct the latest 75-league simulation issues without changing global combat, encounter, reward, economy, or provision balance.
+
+### Human prompt and direction
+
+The human developer supplied a corrective mechanics guide covering useless bot rests, cautious camp preference, natural injury recovery, Deep Cut infection, treatment acceleration, persistent injury migration, and single-count injury telemetry, then requested a local add/commit.
+
+### AI-assisted implementation
+
+- Converted persistent injuries to normalized instances with one seeded recovery-distance roll for Sprained Ankle, Bruised Ribs, and Deep Cut, while migrating legacy injury-ID arrays safely.
+- Added travel-based recovery, Camp/Inn recovery acceleration, Deep Cut's one-time 12-league infection check at 25%, the distinct Infection status, and metadata-driven medical treatment coverage.
+- Prevented zero-benefit Brief Rests and unsafe optional rests in simulation policy; Cautious now prefers a reasonable Camp Rest for Exhaustion and all strategies avoid useless full-health rests.
+- Removed the duplicate injury-gain event path and added natural recovery, infection, stabilization, recovery-distance, and corrected exhaustion telemetry to single-expedition and campaign exports/replays.
+- Updated injury UI feedback and incremented the save schema from 10 to 11 with legacy migration support.
+
+### Verification and resulting prototype state
+
+The production expedition, rest, camp, town-treatment, and campaign flows now preserve injury instances, advance recoveries deterministically, surface meaningful recovery/infection feedback, and retain one telemetry record per applied injury. No balance values outside the requested recovery/infection/treatment mechanics were changed.
+
+Verified 416 UI/provision/location browser assertions, 44 deterministic simulation assertions, 68 campaign/health/Inn assertions, and `git diff --check`.
+
 ## 2026-08-14 - Expedition Status Grid Cleanup
 
 ### Goal

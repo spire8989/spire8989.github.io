@@ -51,7 +51,10 @@ const HealingRules = Object.freeze({
     const arthur = partyMembers[0];
     const totalHealingAmount = partyMembers.reduce((sum, member) => sum + member.healingAmount, 0);
     const exhaustionMembers = partyMembers.filter((member) => InjuryRules.has(player, member.id, "exhaustion"));
-    const needsRest = totalHealingAmount > 0 || exhaustionMembers.length > 0;
+    const recoveryMembers = partyMembers.filter((member) => InjuryRules.forCharacter(player, member.id)
+      .some((instance) => Number(instance.remainingRecoveryDistance) > 0
+        && INJURY_DEFINITIONS[InjuryRules.idOf(instance)]?.recoveryDistanceRange));
+    const needsRest = totalHealingAmount > 0 || exhaustionMembers.length > 0 || recoveryMembers.length > 0;
     return {
       available: needsRest && player.currentGold >= HEALING_TUNING.innRestGoldCost,
       fullHealth: !needsRest,
@@ -68,6 +71,7 @@ const HealingRules = Object.freeze({
         (member) => [member.id, member.healingAmount],
       )),
       exhaustionMembers: exhaustionMembers.map((member) => member.id),
+      recoveryMembers: recoveryMembers.map((member) => member.id),
       goldCost: needsRest ? HEALING_TUNING.innRestGoldCost : 0,
       quotedGoldCost: needsRest ? HEALING_TUNING.innRestGoldCost : 0,
       resource: "gold",
@@ -110,7 +114,12 @@ const HealingRules = Object.freeze({
     const injuriesTreated = quote.exhaustionMembers
       .map((characterId) => InjuryRules.recoverExhaustion(player, characterId, "inn"))
       .filter((result) => result.applied);
-    return { ...quote, applied: true, injuriesTreated };
+    const recoveryAccelerated = quote.recoveryMembers.flatMap((characterId) => (
+      InjuryRules.accelerateRecovery(
+        player, characterId, HEALING_TUNING.innRecoveryDistanceReduction, "inn",
+      )
+    ));
+    return { ...quote, applied: true, injuriesTreated, recoveryAccelerated };
   },
 
   restExpeditionParty(expedition, amount) {

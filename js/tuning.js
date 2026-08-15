@@ -63,16 +63,25 @@ const EXPEDITION_TUNING = Object.freeze({
   briefRest: Object.freeze({
     provisionCost: 1,
     healing: 4,
+    recoveryDistanceReduction: 2,
   }),
   campRest: Object.freeze({
     provisionCost: 2,
     healing: 8,
+    recoveryDistanceReduction: 8,
   }),
   travelInjuryCheckDistance: 12,
   travelInjuryBaseChance: 0.12,
   exhaustionCheckDistance: 18,
   sparseExhaustionBaseChance: 0.16,
   returnProvisionWarningMarginRatio: 0.2,
+  optionalRestProvisionReserve: Object.freeze({
+    cautious: 2,
+    random: 1,
+    normal: 1,
+    aggressive: 0,
+    greedy: 1,
+  }),
   encounterMinimumDistance: 14,
   encounterMaximumDistance: 22,
   encounterActionDelays: Object.freeze({
@@ -118,6 +127,7 @@ const COMBAT_TUNING = Object.freeze({
 const HEALING_TUNING = Object.freeze({
   innRestoration: 10,
   innRestGoldCost: 3,
+  innRecoveryDistanceReduction: 15,
 });
 
 const CRAFTING_TUNING = Object.freeze({

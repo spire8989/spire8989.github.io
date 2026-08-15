@@ -113,6 +113,11 @@ const CampaignSimulationRunner = Object.freeze({
         injuriesAtDeparture: run.injuriesAtDeparture,
         injuriesGained: run.injuriesGained,
         injuriesTreated: run.injuriesTreated,
+        injuriesNaturallyRecovered: run.injuriesNaturallyRecovered,
+        naturalRecoveriesByType: run.naturalRecoveriesByType,
+        infectionOccurrences: run.infectionOccurrences,
+        deepCutsStabilized: run.deepCutsStabilized,
+        averageRecoveryDistanceByType: run.averageRecoveryDistanceByType,
         activeInjuriesAtEnd: run.activeInjuriesAtEnd,
         returnedWhileInjured: run.returnedWhileInjured,
         exhaustionOccurrences: run.exhaustionOccurrences,
@@ -300,6 +305,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
       "totalBriefRests", "totalCampRests", "totalCampEvents", "totalCookingActions", "totalCookingProvisionsGained",
+      "injuriesPerRun", "injuriesByType", "injuriesTreated", "injuriesNaturallyRecovered",
+      "naturalRecoveriesByType", "infectionOccurrences", "deepCutsStabilized", "exhaustionOccurrences",
       "ingredientsConsumedById", "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
       "materialsReturnedSafely", "unsecuredMaterialsLost",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
@@ -336,6 +343,9 @@ const CampaignSimulationTelemetry = Object.freeze({
       "originalTargetDistance", "departureTargetDistance", "actualTurnaroundDistance",
       "provisionExhaustionFailure",
       "paceSelectedAtDeparture", "rationSelectedAtDeparture", "paceChanges", "rationChanges", "briefRestCount", "campRestCount", "campEventCount",
+      "injuriesAtDeparture", "injuriesGained", "injuriesTreated", "injuriesNaturallyRecovered",
+      "naturalRecoveriesByType", "infectionOccurrences", "deepCutsStabilized", "averageRecoveryDistanceByType",
+      "activeInjuriesAtEnd", "exhaustionOccurrences",
       "cookingActionCount", "cookingProvisionsGained", "campEvents", "recipesCooked", "ingredientsConsumedById",
       "startingMaterialBag", "materialBagCapacity", "materialBagAtEnd", "materialsFoundDuringExpedition",
       "materialsRejectedDueToCapacity", "materialsReturnedSafely", "unsecuredMaterialsLost",
@@ -734,12 +744,13 @@ function treatCampaignInjuries(player, strategyName) {
   const treated = [];
   const crafted = [];
   const allowed = strategyName === "cautious"
-    ? ["sprained_ankle", "deep_cut", "bruised_ribs", "exhaustion", "poisoned"]
+    ? ["sprained_ankle", "deep_cut", "bruised_ribs", "exhaustion", "poisoned", "infection"]
     : strategyName === "aggressive"
-      ? ["deep_cut", "poisoned"]
-      : ["deep_cut", "exhaustion", "poisoned"];
+      ? ["deep_cut", "infection", "poisoned"]
+      : ["deep_cut", "infection", "exhaustion", "poisoned"];
   InjuryRules.characterIds().forEach((characterId) => {
-    InjuryRules.forCharacter(player, characterId).forEach((injuryId) => {
+    InjuryRules.forCharacter(player, characterId).forEach((instance) => {
+      const injuryId = InjuryRules.idOf(instance);
       if (!allowed.includes(injuryId)) return;
       const itemId = InjuryRules.treatmentItemFor(injuryId);
       if (!itemId) return;
@@ -882,6 +893,16 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     counts[entry.injuryId] = (counts[entry.injuryId] ?? 0) + 1;
     return counts;
   }, {});
+  const recoveryDistanceTotals = injuriesGained.reduce((totalsByType, entry) => {
+    if (!(Number(entry.originalRecoveryDistance) > 0)) return totalsByType;
+    const current = totalsByType[entry.injuryId] ?? { total: 0, count: 0 };
+    current.total += Number(entry.originalRecoveryDistance) || 0;
+    current.count += 1;
+    totalsByType[entry.injuryId] = current;
+    return totalsByType;
+  }, {});
+  const averageRecoveryDistanceByType = Object.fromEntries(Object.entries(recoveryDistanceTotals)
+    .map(([injuryId, values]) => [injuryId, values.total / values.count]));
   const totalItemPurchaseGoldSpent = totals((entry) => entry.itemPurchaseGoldSpent);
   const totalGoldEarned = totals((entry) => entry.goldEarnedFromSales + entry.goldEarnedDirect);
   const totalGoldSpent = totalHealingCost + totalProvisionCost + totalItemPurchaseGoldSpent;
@@ -960,6 +981,11 @@ function finalizeCampaignTelemetry(config, policy, startingState, player, shopSt
     runsWithTwoInjuries: expeditions.filter((entry) => Object.values(entry.activeInjuriesAtEnd ?? {}).some((injuries) => injuries.length >= 2)).length,
     injuriesByType,
     injuriesTreated: injuriesTreated.length,
+    injuriesNaturallyRecovered: totals((entry) => entry.injuriesNaturallyRecovered),
+    naturalRecoveriesByType: campaignCombatTotals(expeditions, "naturalRecoveriesByType"),
+    infectionOccurrences: totals((entry) => entry.infectionOccurrences),
+    deepCutsStabilized: totals((entry) => entry.deepCutsStabilized),
+    averageRecoveryDistanceByType,
     returnedWhileInjured: expeditions.filter((entry) => entry.returnedWhileInjured).length,
     exhaustionOccurrences: totals((entry) => entry.exhaustionOccurrences),
     distanceByPace: campaignDistanceTotals(expeditions, "distanceByPace"),

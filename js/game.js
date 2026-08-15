@@ -578,13 +578,17 @@ function craftingRow(recipe, providerId, options = {}) {
 function renderPersistentInjuryPanel(holder, options = {}) {
   const entries = InjuryRules.characterIds()
     .filter((characterId) => characterId === "arthur" || selectedCompanionIds(holder).includes(characterId))
-    .flatMap((characterId) => InjuryRules.forCharacter(holder, characterId).map((injuryId) => ({ characterId, injuryId })));
+    .flatMap((characterId) => InjuryRules.forCharacter(holder, characterId)
+      .map((instance) => ({ characterId, instance, injuryId: InjuryRules.idOf(instance) })));
   if (!entries.length) return `<section class="injury-panel injury-panel-empty"><span>${options.title ?? "Injuries"}</span><em>No persistent injuries.</em></section>`;
-  const rows = entries.map(({ characterId, injuryId }) => {
+  const rows = entries.map(({ characterId, injuryId, instance }) => {
     const injury = INJURY_DEFINITIONS[injuryId];
     const itemId = InjuryRules.treatmentItemFor(injuryId);
     const canTreat = options.includeTreatment && itemId && (holder.ownedItems?.[itemId] ?? 0) > 0;
-    return `<div class="injury-row"><div><strong>${characterNameForUi(characterId)} · ${injury.name}</strong><span>${injury.description}</span></div>${canTreat ? `<button class="small-button" type="button" data-action="treat-injury" data-target-id="${characterId}" data-item-id="${itemId}">Use ${ITEM_DEFINITIONS[itemId].name}</button>` : itemId && options.includeTreatment ? `<span class="injury-treatment-missing">Need ${ITEM_DEFINITIONS[itemId].name}</span>` : ""}</div>`;
+    const recovery = Number(instance.remainingRecoveryDistance) > 0
+      ? `<span>${Math.ceil(instance.remainingRecoveryDistance)} leagues until recovery${instance.stabilized ? " · Stabilized" : ""}</span>`
+      : instance.stabilized ? "<span>Stabilized</span>" : "";
+    return `<div class="injury-row"><div><strong>${characterNameForUi(characterId)} · ${injury.name}</strong><span>${injury.description}</span>${recovery}</div>${canTreat ? `<button class="small-button" type="button" data-action="treat-injury" data-target-id="${characterId}" data-item-id="${itemId}">Use ${ITEM_DEFINITIONS[itemId].name}</button>` : itemId && options.includeTreatment ? `<span class="injury-treatment-missing">Need ${ITEM_DEFINITIONS[itemId].name}</span>` : ""}</div>`;
   }).join("");
   return `<section class="injury-panel" aria-label="${options.title ?? "Injuries"}"><div class="section-title-row"><strong>${options.title ?? "Injuries"}</strong><span>${entries.length}/${InjuryRules.maximumActive} active</span></div>${rows}</section>`;
 }
@@ -808,7 +812,10 @@ function treatInjury(targetId, itemId) {
     return;
   }
   savePlayer();
-  showToast({ title: "Injury Treated", message: `${INJURY_DEFINITIONS[result.injuryId].name} was treated with ${ITEM_DEFINITIONS[itemId].name}.`, type: "success" });
+  const message = result.deepCutStabilized
+    ? `${INJURY_DEFINITIONS[result.injuryId].name} was cleaned and stabilized with ${ITEM_DEFINITIONS[itemId].name}.`
+    : `${INJURY_DEFINITIONS[result.injuryId].name} was treated with ${ITEM_DEFINITIONS[itemId].name}.`;
+  showToast({ title: "Injury Treated", message, type: "success" });
   refreshDestination();
 }
 
