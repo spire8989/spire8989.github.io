@@ -4,6 +4,32 @@
 // currently use. New authored equipment participates through its slot and
 // authored combat effects rather than through an item-specific preference list.
 const EquipmentRules = Object.freeze({
+  equip(player, itemId, definitions = ITEM_DEFINITIONS) {
+    const item = definitions?.[itemId];
+    if (!player || !item?.equippable || !item.equipmentSlot
+      || Number(player.ownedItems?.[itemId]) <= 0) {
+      return { applied: false, reason: "invalid-or-unowned", itemId };
+    }
+
+    player.equippedItems ??= {};
+    const previousItemId = player.equippedItems[item.equipmentSlot] ?? null;
+    player.equippedItems[item.equipmentSlot] = itemId;
+    if (Array.isArray(player.packedItems)) {
+      player.packedItems = player.packedItems.filter((packedItemId) => packedItemId !== itemId);
+    }
+    if (definitions === ITEM_DEFINITIONS
+      && typeof ExpeditionRules !== "undefined"
+      && typeof ExpeditionRules.normalizePackedState === "function") {
+      ExpeditionRules.normalizePackedState(player);
+    }
+    return {
+      applied: true,
+      itemId,
+      equipmentSlot: item.equipmentSlot,
+      previousItemId,
+    };
+  },
+
   supportedSlots(definitions = ITEM_DEFINITIONS) {
     return [...new Set(Object.values(definitions ?? {})
       .filter((item) => item?.equippable && item.equipmentSlot)

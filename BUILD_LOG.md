@@ -2814,3 +2814,28 @@ The human developer supplied the pass guide and requested local commits. The exi
 ### Verification and resulting prototype state
 
 Verified the full current dialogue/NPC/destination/location catalogs load with zero editor validation errors; focused editor CRUD, surgical round-trip, link validation, and safe-deletion tests; a local-HTTP Chrome authoring flow; 53 deterministic simulation assertions including combat-victory dialogue suspension/resume and town-context requirement safety; and clean Python syntax plus `git diff --check`. The existing location suite remains blocked by its stale expectation of nine recipes while the preserved worktree contains ten, and the existing campaign suite still expects the older `glimmering_blade` ID; neither failure is caused by this pass. Nothing was pushed.
+
+## 2026-08-16 - General Game Debug Panel
+
+### Goal
+
+Turn the existing `?debug=1` encounter controls into a compact, general-purpose developer panel for testing authored items, equipment, progression, encounters, expeditions, and combat without editing saves in the browser console.
+
+### Human prompt and direction
+
+The human developer supplied the Game Debug panel guide and requested the implementation, documentation update, verification, and local commits for the affected repositories.
+
+### AI-assisted implementation
+
+- Added the developer-only `js/debug-tools.js` overlay with collapsible Player, Items, Materials, Progression, Encounters/Expedition, Combat Debug, and Save/State sections.
+- Made item/material selectors, recipes, knowledge, injuries, companions, campaign flags, expeditions, encounters, combat definitions, and combat statuses derive from the live production catalogs. Item removal clamps and cleans zero quantities; equipment uses shared `EquipmentRules`; health/injuries use `HealingRules` and `InjuryRules`; combat status application uses a canonical `CombatSystem` API.
+- Preserved encounter forcing and next-encounter controls while replacing the Wild Boar/Wolves-only launcher with the full `COMBAT_DEFINITIONS` catalog. Added safe expedition distance controls, production return/pause/resume controls, live expedition/combat inspection, save/copy conveniences, and replay mutation isolation.
+- Removed the duplicate in-travel debug rendering, retained the normal `?sim=1` simulation panel, and kept `Tools` unchanged.
+
+### Manual changes
+
+The human developer supplied the debug-panel guide and requested local commits. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+Added `tests/debug_tools_test.py` covering normal/debug URL gating, combined debug/simulation startup, item grant/remove/equip, materials, recipe and knowledge progression, healing, encounter forcing, data-driven combat launch, canonical status application, and replay protection. The focused debug suite passed 15 assertions and the deterministic simulation suite passed 59 assertions; existing location/campaign/replay suites still stop on their pre-existing stale content expectations. The panel remains absent unless `?debug=1` is present and all persistent mutations save through the existing save path.

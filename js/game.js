@@ -1,7 +1,7 @@
 "use strict";
 
-// Add ?debug=1 to the URL to expose temporary encounter testing controls.
-const DEBUG_ENCOUNTERS_ENABLED = new URLSearchParams(window.location.search).has("debug");
+// Add ?debug=1 to the URL to expose the developer-only Game Debug panel.
+const DEBUG_TOOLS_ENABLED = new URLSearchParams(window.location.search).has("debug");
 
 const game = {
   player: SaveSystem.load(),
@@ -1479,17 +1479,15 @@ function companionCard(companion, slotIndex = 0, selectedCompanion = null) {
 
 function equipItem(itemId) {
   const item = ITEM_DEFINITIONS[itemId];
-  if (!item?.equippable || !game.player.ownedItems[itemId]) {
+  const result = EquipmentRules.equip(game.player, itemId);
+  if (!result.applied) {
     return;
   }
 
-  const previousItemId = game.player.equippedItems[item.equipmentSlot];
-  game.player.equippedItems[item.equipmentSlot] = itemId;
-  game.player.packedItems = game.player.packedItems.filter((packedItemId) => packedItemId !== itemId);
   showToast({
     title: `Equipped ${item.name}`,
-    message: previousItemId && previousItemId !== itemId
-      ? `Replaced ${ITEM_DEFINITIONS[previousItemId]?.name ?? "previous gear"}.`
+    message: result.previousItemId && result.previousItemId !== itemId
+      ? `Replaced ${ITEM_DEFINITIONS[result.previousItemId]?.name ?? "previous gear"}.`
       : "Ready for the next expedition.",
     type: "success",
   });
@@ -1861,7 +1859,6 @@ function renderTravelPanel(expedition, companions, loadout) {
           <button class="text-button danger-button abandon-button" type="button" data-action="abandon-expedition">Abandon Expedition</button>
         </div>
       </details>
-      ${renderEncounterDebugControls(expedition)}
     </div>`;
 }
 
@@ -2201,33 +2198,6 @@ function renderEncounterChoice(choice, expedition) {
       <strong>${choice.label}</strong>
       ${locked ? `<span>Locked — ${availability.reason}</span>` : ""}
     </button>`;
-}
-
-function renderEncounterDebugControls(expedition) {
-  if (!DEBUG_ENCOUNTERS_ENABLED) {
-    return "";
-  }
-
-  const options = Object.values(ENCOUNTER_DEFINITIONS)
-    .map((encounter) => `<option value="${encounter.id}">${encounter.title}</option>`)
-    .join("");
-  return `
-    <details class="debug-panel">
-      <summary>Encounter Debug</summary>
-      <select id="debug-encounter-select" aria-label="Encounter to trigger">${options}</select>
-      <div class="debug-actions">
-        <button type="button" data-action="debug-trigger-encounter">Trigger Selected</button>
-        <button type="button" data-action="debug-next-encounter">Next Encounter Soon</button>
-      </div>
-      <div class="debug-combat-launcher">
-        <select id="debug-combat-select" aria-label="Combat to start">
-          <option value="wild_boar">Wild Boar</option>
-          <option value="wolves">Three Wolves</option>
-        </select>
-        <button class="debug-combat-button" type="button" data-action="debug-start-combat">Start Combat</button>
-      </div>
-      <pre id="debug-state">${debugExpeditionState(expedition)}</pre>
-    </details>`;
 }
 
 function updateExpedition(deltaSeconds) {
@@ -2598,7 +2568,7 @@ function continueJourney() {
 }
 
 function triggerDebugEncounter() {
-  if (!DEBUG_ENCOUNTERS_ENABLED || !game.expedition || game.expedition.activeEncounter) {
+  if (!DEBUG_TOOLS_ENABLED || !game.expedition || game.expedition.activeEncounter) {
     return;
   }
   const encounterId = document.querySelector("#debug-encounter-select")?.value;
@@ -2608,7 +2578,7 @@ function triggerDebugEncounter() {
 }
 
 function forceNextEncounter() {
-  if (!DEBUG_ENCOUNTERS_ENABLED || !game.expedition || game.expedition.activeEncounter) {
+  if (!DEBUG_TOOLS_ENABLED || !game.expedition || game.expedition.activeEncounter) {
     return;
   }
   EncounterManager.forceNextSoon(game.expedition);
@@ -2617,14 +2587,12 @@ function forceNextEncounter() {
 
 function startDebugCombat() {
   const expedition = game.expedition;
-  if (!DEBUG_ENCOUNTERS_ENABLED || !expedition || expedition.activeEncounter || expedition.combat) {
+  if (!DEBUG_TOOLS_ENABLED || !expedition || expedition.activeEncounter || expedition.combat) {
     return;
   }
   const combatId = document.querySelector("#debug-combat-select")?.value ?? "wild_boar";
-  const encounterId = combatId === "wolves" ? "wolves_in_brush" : "wild_boar";
-  const choiceId = combatId === "wolves" ? "stand_ground" : "fight";
-  if (EncounterManager.force(expedition, encounterId)) {
-    resolveEncounterChoice(choiceId);
+  if (COMBAT_DEFINITIONS[combatId] && startCombat(expedition, combatId)) {
+    renderExpedition();
   }
 }
 
@@ -2924,7 +2892,6 @@ function updateTravelHud() {
   }
   setText("#path-value", pathLabel(expedition.currentPathId));
   setText("#journey-log-preview", journeyLogPreview(expedition));
-  setText("#debug-state", debugExpeditionState(expedition));
 }
 
 function renderItemChip(itemId, quantity = 1, className = "") {
@@ -3139,6 +3106,7 @@ function gameLoop(timestamp) {
       if (game.expedition?.combat) updateCombatHud();
       else if (game.screen === "expedition") updateTravelHud();
       game.hudAccumulator = 0;
+      if (typeof DebugTools !== "undefined") DebugTools.refreshState();
     }
   } else if (game.screen === "expedition") {
     if (typeof ReplayController !== "undefined" && ReplayController.isActive()) {
@@ -3156,6 +3124,7 @@ function gameLoop(timestamp) {
         updateTravelHud();
       }
       game.hudAccumulator = 0;
+      if (typeof DebugTools !== "undefined") DebugTools.refreshState();
     }
   }
 

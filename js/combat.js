@@ -310,6 +310,14 @@ const CombatSystem = Object.freeze({
     state.pendingTargetPrompt = null;
     return true;
   },
+
+  applyStatus(state, targetId, statusId, source = {}) {
+    const target = state?.enemies?.find((enemy) => enemy.id === targetId);
+    if (!state || !target) {
+      return { applied: false, reason: "invalid-target-or-status" };
+    }
+    return applyCombatStatus(state, target, statusId, source);
+  },
 });
 
 function createArthurCombatant(expedition) {

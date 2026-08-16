@@ -40,7 +40,8 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `js/healing-rules.js`, `js/economy-rules.js`, `js/campaign-rules.js`, and `js/campaign-simulation.js` share persistent party health, repeatable flat-cost active-party Inn recovery, trading/restocking, automated Bandage crafting/purchasing, and provision-aware repeated-expedition campaign simulation.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
 - `js/game.js` owns screen flow, input, temporary expedition state, travel/combat presentation, loot resolution, and the shared `requestAnimationFrame` loop.
-- `tests/location_system_test.py`, `tests/simulation_system_test.py`, and `tests/campaign_system_test.py` serve the game and drive headless Chrome through its DevTools protocol to cover the village, shops, loadout, encounters, combat, simulation, campaign, and return flow.
+- `js/debug-tools.js` contains the developer-only `?debug=1` Game Debug panel. It uses the production rule and definition catalogs for item/material grants, equipment, health, injuries, progression, encounters, combat launch/status inspection, expedition state, and safe save utilities.
+- `tests/debug_tools_test.py`, `tests/location_system_test.py`, `tests/simulation_system_test.py`, and `tests/campaign_system_test.py` serve the game and drive headless Chrome through its DevTools protocol to cover the debug panel, village, shops, loadout, encounters, combat, simulation, campaign, and return flow.
 - `assets/` is reserved for future images, audio, fonts, and other game content.
 - `vendor/` is reserved for any third-party browser libraries added later. It is empty for now.
 
@@ -63,14 +64,15 @@ Then visit [http://localhost:8000](http://localhost:8000) in Chrome or Edge. Sto
 Run the current automated browser regression flow with:
 
 ```sh
+python tests/debug_tools_test.py
 python tests/campaign_system_test.py
 python tests/simulation_system_test.py
 python tests/location_system_test.py
 ```
 
-### Encounter debug controls
+### Game Debug panel
 
-During development, visit [http://localhost:8000/?debug=1](http://localhost:8000/?debug=1). Once an expedition begins, an unobtrusive **Encounter Debug** section appears in the lower travel interface. It can trigger any encounter by stable ID, directly start either Wild Boar or three-wolf combat, shorten the wait until the next random encounter, and display the current run state. These controls are absent from the normal URL.
+During development, visit [http://localhost:8000/?debug=1](http://localhost:8000/?debug=1). The compact **Game Debug** overlay is absent from the normal URL and provides data-driven controls for persistent gold, provisions, health, injuries, items, equipment, materials, recipes, knowledge, companions, campaign flags, and expedition selection. While an expedition is active it can trigger any authored encounter, start any catalogued combat, inspect or safely adjust travel state, and inspect carried/unsecured state. Live combat readouts include gauges, intents, statuses, equipment effects, and charges. Debug mutations are disabled during replay playback.
 
 ### Balance simulation tools
 

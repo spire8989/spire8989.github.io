@@ -142,6 +142,17 @@ const ExpeditionRules = Object.freeze({
     return expedition.provisions - previous;
   },
 
+  setDistance(expedition, distance) {
+    if (!expedition || expedition.status !== "active") return false;
+    const value = Number(distance);
+    if (!Number.isFinite(value) || value < 0) return false;
+    expedition.distance = value;
+    if (expedition.direction === "outbound") {
+      expedition.maxDistanceReached = Math.max(Number(expedition.maxDistanceReached) || 0, value);
+    }
+    return true;
+  },
+
   briefRest(expedition) {
     if (!expedition || expedition.status !== "active" || expedition.travelState !== "paused"
       || expedition.activeEncounter || expedition.combat) {

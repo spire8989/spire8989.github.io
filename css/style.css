@@ -59,6 +59,133 @@
   word-break: break-word;
 }
 
+/* Loaded only when ?debug=1 is present. The panel lives outside the portrait
+   game viewport so it can stay open during desktop testing without changing
+   the production layout. */
+.debug-tools,
+.debug-tools-toggle {
+  position: fixed;
+  z-index: 1100;
+  font: 12px/1.35 system-ui, sans-serif;
+}
+
+.debug-tools {
+  top: 0.75rem;
+  right: 0.75rem;
+  width: min(30rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  overflow: auto;
+  padding: 0.7rem;
+  border: 1px solid #9d8b5a;
+  border-radius: 0.55rem;
+  background: #151b16f5;
+  color: #eee6d0;
+  box-shadow: 0 0.8rem 2rem #000b;
+}
+
+.debug-tools.is-collapsed {
+  display: none;
+}
+
+.debug-tools-toggle {
+  top: 0.75rem;
+  right: 0.75rem;
+  min-height: 2.3rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #9d8b5a;
+  border-radius: 0.35rem;
+  background: #29372c;
+  color: #f1e6c5;
+  cursor: pointer;
+}
+
+.debug-tools-header,
+.debug-stat-row,
+.debug-direct-row,
+.debug-actions,
+.debug-health-row,
+.debug-combatant-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.debug-tools-header {
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 0.35rem;
+}
+
+.debug-tools-header h2 { margin: 0.1rem 0; font-size: 1.1rem; }
+.debug-tools-header small,
+.debug-muted { color: #aeb9ac; }
+.debug-tools-status { margin: 0.25rem 0 0.6rem; color: #d9c886; }
+.debug-tools button,
+.debug-tools input,
+.debug-tools select { min-height: 1.9rem; }
+.debug-tools button { padding: 0.25rem 0.45rem; cursor: pointer; }
+.debug-tools button:disabled { cursor: not-allowed; opacity: 0.5; }
+.debug-tools input,
+.debug-tools select {
+  max-width: 100%;
+  border: 1px solid #59675b;
+  border-radius: 0.25rem;
+  background: #202b22;
+  color: #eee6d0;
+}
+.debug-tools label { display: grid; gap: 0.2rem; min-width: 0; }
+.debug-tools code { color: #d9c886; }
+.debug-section {
+  margin: 0.35rem 0;
+  padding: 0.35rem;
+  border: 1px solid #455248;
+  border-radius: 0.3rem;
+}
+.debug-section > summary { cursor: pointer; font-weight: 700; }
+.debug-section > summary span { float: right; color: #b9c7b9; font-weight: 400; }
+.debug-section-content { display: grid; gap: 0.4rem; padding-top: 0.45rem; }
+.debug-stat-row > span { flex: 1 1 8rem; min-width: 0; }
+.debug-stat-row > strong { color: #f1e6c5; }
+.debug-actions button { flex: 1 1 auto; }
+.debug-direct-row { align-items: end; }
+.debug-direct-row label { flex: 1 1 6rem; }
+.debug-catalog-select { width: 100%; padding: 0.15rem; }
+.debug-selected { margin: 0; color: #d5dfd4; overflow-wrap: anywhere; }
+.debug-health-list { display: grid; gap: 0.25rem; }
+.debug-health-list > strong,
+.debug-tools h4 { margin-top: 0.2rem; }
+.debug-health-row > span { flex: 1 1 6rem; }
+.debug-health-row > strong { margin-right: auto; }
+.debug-flag-list { display: grid; gap: 0.25rem; }
+.debug-flag-row { display: block !important; }
+.debug-readout-grid { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 0.2rem 0.45rem; }
+.debug-readout-grid strong { overflow-wrap: anywhere; }
+.debug-tools pre {
+  max-height: 11rem;
+  margin: 0;
+  padding: 0.4rem;
+  overflow: auto;
+  background: #0b100c;
+  color: #c7d4c5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.debug-combatant-list { display: grid; gap: 0.3rem; }
+.debug-combatant-row { align-items: baseline; padding: 0.25rem; background: #202b22; }
+.debug-combatant-row strong { flex: 1 1 7rem; }
+.debug-combatant-row span { color: #b9c7b9; }
+
+@media (max-width: 700px) {
+  .debug-tools {
+    top: 0.35rem;
+    right: 0.35rem;
+    width: calc(100vw - 0.7rem);
+    max-height: calc(100vh - 0.7rem);
+  }
+  .debug-tools-toggle { top: 0.35rem; right: 0.35rem; }
+}
+
 .replay-controls {
   position: fixed;
   z-index: 1100;
