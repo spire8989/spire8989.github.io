@@ -101,7 +101,7 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       {
         type: "item",
         itemId: "glimmering_blade",
-        weight: 10,
+        weight: 1,
         quantity: 1
       }
     ]

@@ -2426,3 +2426,42 @@ The human developer supplied the replay bug guide and requested implementation p
 Campaign Replay now reproduces the production inventory and Material Bag state through Expedition 3 and later expeditions, reports useful checkpoint differences at the first divergence, and can seek beyond action 76 without the prior Rope/material desync.
 
 Verified 45 deterministic simulation assertions, 78 campaign/health/Inn assertions, 15 single-replay assertions, 30 campaign-replay assertions, 429 UI/provision/location browser assertions, clean local-HTTP browser startup, and `git diff --check`. The milestone is ready for a local commit; nothing is pushed.
+
+## 2026-08-15 - Content Editor Phase 4 Paths and Expeditions
+
+### Goal
+
+Extend the standalone Content Editor so authored travel paths and expeditions can be inspected and edited safely without creating a second content source.
+
+### AI-assisted implementation
+
+- Added canonical Expedition editing backed by `Grail/js/expedition-data.js`, including metadata, region/path references, danger, kind, camp-event tables, prerequisites, raw JSON, reverse references, surgical saves, and source-hash conflict checks.
+- Added a derived Paths browser from live encounter `pathIds` and expedition `pathId` relationships. Paths expose linked metadata, encounter counts, filters, sorting, reverse encounter navigation, and membership-only add/remove operations.
+- Connected Encounter, Path, and Expedition navigation and expanded reference validation/deletion protection for path and expedition IDs while preserving unrelated authored fields and definitions.
+- Documented the distributed path architecture and Phase 4 workflow in the standalone `Tools/ContentEditor` README.
+
+### Verification and resulting prototype state
+
+The editor now reports six live derived paths and four canonical expeditions; `fountain_of_barenton` currently has 14 encounter memberships. Path membership edits preserve the encounter and its other path memberships, while Expedition edits remain source-of-truth writes to `expedition-data.js`. No live authored game definitions were changed for this milestone; write tests use temporary Grail copies.
+
+Verified 43 Content Editor unit/regression tests, clean local-HTTP browser startup, Paths/Expeditions navigation, Fountain reverse browsing, in-memory membership add/remove, Expedition editing, and `git diff --check`. The current game has no standalone `PATH_DEFINITIONS` constant, so Paths intentionally remain a derived view rather than an independently editable definition type.
+
+## 2026-08-15 - Content Editor Phase 5 Recipes and Crafting Providers
+
+### Goal
+
+Add schema-aware recipe and crafting authoring while preserving the Phase 4 editor and correcting derived Path counter accumulation.
+
+### AI-assisted implementation
+
+- Added canonical Recipes and Crafting Providers categories backed by `Grail/js/crafting-data.js`, with material-map and item-map ingredient editing, item/provisions outputs, provider assignment, rarity, starter flags, gold cost, add/duplicate/remove controls, and advanced JSON.
+- Added equipment recipe support through generic Item output selectors, Item `Produced By` and `Used As Ingredient In` reverse references, provider recipe grouping, and cross-content Open navigation.
+- Integrated the actual direct loot-table `type: "recipe"` unlock architecture with recipe selectors, validation, Used By references, and Open Recipe links; no recipe-scroll item system was invented.
+- Fixed derived Path rebuilding so repeated navigation resets encounter counts instead of accumulating them.
+- Added recipe/provider/material/output/ingredient validation and reference-safe deletion while retaining surgical, source-preserving writes and stale-file protection.
+
+### Verification and resulting prototype state
+
+The editor currently loads nine recipes and three providers: recipes use material or item ingredient maps, produce an item or provisions, and assign one of the authored providers Apothecary, Blacksmith, or Campfire. New equipment Items can be created and selected as recipe outputs entirely in the editor, including unsaved in-memory reverse relationships. Loot Tables can directly unlock recipes through the existing runtime entry shape.
+
+Verified 52 Content Editor regression tests, repeated Paths navigation with stable Fountain counts, unsaved Recipe-to-Item reverse browsing, recipe-unlock Loot Table navigation, clean local-HTTP startup, and `git diff --check`. Content Editor remains external/local development tooling and no live gameplay or authored content values were changed; the pre-existing `js/loot-data.js` worktree modification was preserved.
