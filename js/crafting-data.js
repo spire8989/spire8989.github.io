@@ -94,7 +94,8 @@ const RECIPE_DEFINITIONS = Object.freeze({
     description: "Polish up ",
     craftingProvider: "blacksmith",
     ingredients: {
-      rusted_sword: 1
+      rusted_sword: 1,
+      green_glass_vial: 1
     },
     output: {
       itemId: "glimmering_sword",

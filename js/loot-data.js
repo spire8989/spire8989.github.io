@@ -11,15 +11,41 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "material", materialId: "wood", quantity: 1, weight: 10 }),
     ]),
   }),
-  uncommon_materials: Object.freeze({
+  uncommon_materials: {
     id: "uncommon_materials",
-    entries: Object.freeze([
-      Object.freeze({ type: "material", materialId: "silver", quantity: 1, weight: 20 }),
-      Object.freeze({ type: "material", materialId: "rare_herbs", quantity: 1, weight: 30 }),
-      Object.freeze({ type: "material", materialId: "alchemical_reagents", quantity: 1, weight: 30 }),
-      Object.freeze({ type: "material", materialId: "sacred_oil", quantity: 1, weight: 20 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "material",
+        materialId: "silver",
+        quantity: 1,
+        weight: 20
+      },
+      {
+        type: "material",
+        materialId: "rare_herbs",
+        quantity: 1,
+        weight: 30
+      },
+      {
+        type: "material",
+        materialId: "alchemical_reagents",
+        quantity: 1,
+        weight: 30
+      },
+      {
+        type: "material",
+        materialId: "sacred_oil",
+        quantity: 1,
+        weight: 20
+      },
+      {
+        type: "item",
+        itemId: "green_glass_vial",
+        weight: 15,
+        quantity: 1
+      }
+    ]
+  },
   rare_materials: Object.freeze({
     id: "rare_materials",
     entries: Object.freeze([

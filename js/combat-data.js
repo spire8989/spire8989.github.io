@@ -106,14 +106,14 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 3,
     actionPattern: ["leader_strike", "leader_command", "leader_strike"],
   }),
-  summoned_guardian: Object.freeze({
+  summoned_guardian: {
     id: "summoned_guardian",
     name: "Morgan's Guardian",
     maxHp: 50,
     speed: 11,
     defense: 3,
-    actionPattern: ["guardian_sweep", "guardian_sweep"],
-  }),
+    actionPattern: ["guardian_sweep", "guardian_sweep"]
+  },
   fountain_knight: Object.freeze({
     id: "fountain_knight",
     name: "Fountain Knight",

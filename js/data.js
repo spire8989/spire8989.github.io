@@ -748,21 +748,21 @@ const ITEM_DEFINITIONS = Object.freeze({
     effects: {
       combatDamage: {
         minimum: 5,
-        maximum: 8,
+        maximum: 8
       },
-      combatSpeed: 5,
+      combatSpeed: 10,
       onHitEffects: [
         {
           type: "applyStatus",
           statusId: "bleeding",
-          chance: 0.35,
-        },
-      ],
+          chance: 0.35
+        }
+      ]
     },
     questItem: false,
     unique: true,
     sellable: false,
-    protected: true,
+    protected: true
   },
   reliquary_of_saint_lazarus: {
     id: "reliquary_of_saint_lazarus",
