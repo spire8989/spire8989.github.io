@@ -2542,3 +2542,28 @@ Make Item and Encounter browsing fast and practical without adding gameplay syst
 ### Verification and resulting prototype state
 
 Verified 55 Content Editor tests (52 existing Python regressions plus 3 local-HTTP Chrome filter flows), including Item and Encounter filtering, search stacking, active/result counts, unsaved updates, and the `Crafting` label. No live gameplay/content values were modified for this phase; existing unrelated Grail worktree changes were preserved. BUILD_LOG is the only Grail file changed by this phase.
+
+## 2026-08-15 - Content Editor Phase 7 Part 1 Authoring Systems
+
+### Goal
+
+Expand the standalone Content Editor for recursive encounter/camp authoring and first-class Injury and Camp Event editing without changing gameplay behavior or authored game values.
+
+### Human prompt and direction
+
+The human developer supplied the Phase 7 Part 1 guide and requested implementation across the sibling Tools and Grail repositories, followed by local add/commit operations in both repositories.
+
+### AI-assisted implementation
+
+- Added recursive schema-aware editing for nested effects, requirements, random chance branches, random-one options, secondary outcomes, and combat Victory/Fled outcomes, with add/remove controls and Advanced JSON retained as an escape hatch.
+- Added canonical Injury editing backed by `js/injury-data.js`, including treatment references, recovery/infection/travel-damage fields, generic effect multipliers, reverse references, validation, and reference-safe deletion.
+- Added canonical Camp Event editing backed by `js/camp-data.js`, linked expedition table entries to editable events, reused staged encounter controls, and extended nested reference validation.
+- Kept the game runtime and authored gameplay content unchanged; the Grail-side change is this milestone record only.
+
+### Manual changes
+
+The human developer supplied the authoring guide and requested local commits. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The editor now loads and safely edits the six live Injuries and six live Camp Events, supports nested conditional requirements/effects and combat branches, and preserves surgical source writes. Verified 56 Content Editor Python tests, focused local-HTTP Chrome coverage for recursive authoring, Injury editing, Camp Event editing, existing Phase 6 flows, clean Python syntax, and `git diff --check`. Both repositories are ready for local commits; nothing is pushed.
