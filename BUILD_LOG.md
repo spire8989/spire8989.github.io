@@ -1,5 +1,53 @@
 # Build Log
 
+## 2026-08-16 - Barenton and Val Encounter Density Pass
+
+### Goal
+
+Expand the two deep expeditions with focused, repeatable content while
+preserving the existing progression milestones, combat framework, camp flow,
+and seeded simulation/replay contract.
+
+### Human prompt and direction
+
+The human developer supplied a Barenton/Val encounter guide and directed a
+rescan of the latest main game repo before implementation. The guide called
+for Barenton wilderness, purification, and moral-ordeal content; Val
+temptation, captivity, memory, and unreality content; reusable combat and
+camp authoring; concise dialogue where useful; no new progression gates; and
+no broad rebalance of existing content.
+
+### AI-assisted implementation
+
+- Added Barenton's white-hart extension, Leper Knight, Serpent at the Spring,
+  Black Boar, Charcoal Burner, Red/White Springs, and Pilgrims at the Wrong
+  Fountain.
+- Added Barenton's Bell Beneath the Earth camp event and registered it through
+  the existing contextual camp tables.
+- Added Val's forgotten-name knight, Morgan's Huntsmen, Briar Knight,
+  Immaculate Sleeping Camp, roadside Feast That Never Cools, Woman at the
+  Ford, and Returning Knight.
+- Added Val's Familiar Voice Beyond the Fire and Knight Who Asks to Join camp
+  events, reusing the existing camp selection and combat resolution systems.
+- Added reusable serpent, black boar, Leper Knight, Morgan's Huntsman, and
+  Briar Knight enemy/action/combat definitions with existing injury types and
+  material/loot tables.
+- Added concise encounter dialogue sequences for the Leper Knight, Charcoal
+  Burner, wrong-fountain pilgrims, forgotten knight, woman at the ford, and
+  familiar voice.
+- Kept simulation dialogue callbacks compatible with encounter and
+  combat-to-dialogue resume paths so seeded progression runs cannot stall.
+
+### Verification and resulting prototype state
+
+Verified 10 existing Barenton/Val browser-content assertions, 53 deterministic
+simulation assertions, focused new-ID/combat/dialogue/camp registration checks,
+replay determinism, clean HTTP startup, and exact 101-league seeded Barenton
+and Val progression reward runs. The broader campaign and location suites
+remain blocked by their documented pre-existing stale glimmering_blade and
+recipe-count fixtures. No new files were staged or committed; the user will
+review and commit the current worktree.
+
 ## 2026-08-16 - Campaign Flask Prerequisite Simulation Fix
 
 ### Goal

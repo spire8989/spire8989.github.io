@@ -731,8 +731,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     title: "The White Hart",
     description: "A white stag stands motionless between the trees ahead. It watches Arthur without fear.",
     regionId: "broceliande",
-    pathIds: ["overgrown_trail"],
-    directions: ["outbound"],
+    pathIds: ["overgrown_trail", "fountain_of_barenton"],
+    directions: ["outbound", "returning"],
     weight: 2,
     minimumDistance: 24,
     maximumDistance: 90,
@@ -786,6 +786,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               }
             ],
             resultText: "The stag's attention fixes upon the medallion. For several silent moments, neither animal nor man moves. The stag turns and disappears between two ancient oaks.",
+            endEncounter: true
+          },
+          {
+            id: "hunt_hart",
+            label: "Hunt the Hart",
+            outcomes: [{ type: "randomChance", chance: 0.8, effects: [{ type: "modifyResource", resource: "health", amount: -1 }], resultText: "The shot goes wide. The hart is gone, and the forest feels less willing to show its path.", elseEffects: [], elseResultText: "The hart passes through the trees without leaving blood, meat, or any other proof that the hunt was wise." }],
+            resultText: "Arthur reaches for the bow before the omen can move.",
             endEncounter: true
           }
         ]
@@ -2034,6 +2041,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                       flag: "banditLeaderDefeated",
                       value: true,
                       message: "The blackthorn band will trouble this road no more this season."
+                    },
+                    {
+                      type: "learnRecipe",
+                      recipeId: "glimmering_sword"
                     }
                   ],
                   resultText: "The bandit captain yields the road. His better-hidden purse confirms the rank he carried."
@@ -2363,7 +2374,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     expeditionIds: ["old_forest_road"],
     directions: ["outbound"],
-    weight: 4,
+    weight: 1,
     minimumDistance: 48,
     maximumDistance: 150,
     tags: ["campaign", "discovery"],
@@ -3892,6 +3903,589 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             resultText: "The search has reached a place the first expedition cannot yet explain.",
             endEncounter: true
           }
+        ]
+      }
+    }
+  },
+  leper_knight: {
+    id: "leper_knight",
+    title: "The Leper Knight",
+    description: "A scarred knight rests beside a broken shrine, asking for neither pity nor trust.",
+    regionId: "broceliande",
+    pathIds: ["fountain_of_barenton"],
+    expeditionIds: ["fountain_of_barenton"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 18,
+    maximumDistance: 86,
+    tags: ["campaign", "barenton", "social", "combat", "moral"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The knight's armor is clean but failing. He warns Arthur not to mistake his distance for contempt, then waits to see what sort of man has found him.",
+        choices: [
+          {
+            id: "offer_aid",
+            label: "Offer Bandages",
+            requirements: [{ type: "availableExpeditionItem", itemId: "bandages", quantity: 1, lockedLabel: "Requires 1 Bandage" }],
+            costs: [{ type: "consumeExpeditionItem", itemId: "bandages", quantity: 1 }],
+            outcomes: [
+              { type: "modifyResource", resource: "health", amount: 1 },
+              { type: "setRunFlag", flag: "leperKnightAided", value: true },
+              { type: "rollLootTable", tableId: "common_materials", chance: 0.5 }
+            ],
+            resultText: "The knight accepts the bandage without touching Arthur's hand. In return he gives a brief warning about a spring guarded by something that does not fear steel.",
+            endEncounter: true
+          },
+          {
+            id: "speak_to_knight",
+            label: "Speak with Him",
+            outcomes: [{ type: "startDialogue", dialogueId: "leper_knight_dialogue" }],
+            resultText: "Arthur speaks without stepping closer.",
+            endEncounter: true
+          },
+          {
+            id: "keep_distance",
+            label: "Keep Your Distance",
+            resultText: "Arthur leaves food beside the shrine and gives the knight room to choose whether to take it.",
+            endEncounter: true
+          },
+          {
+            id: "challenge_knight",
+            label: "Drive Him from the Road",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "leper_knight",
+              victory: {
+                outcomes: [{ type: "setRunFlag", flag: "leperKnightDefeated", value: true }, { type: "rollLootTable", tableId: "forest_materials" }],
+                resultText: "The knight yields and asks Arthur to remember that sickness is not the same thing as guilt."
+              },
+              fled: { outcomes: [], resultText: "The knight lets Arthur pass without pursuing the challenge." }
+            }]
+          }
+        ]
+      }
+    }
+  },
+  serpent_at_spring: {
+    id: "serpent_at_spring",
+    title: "The Serpent at the Spring",
+    description: "A scaled body lies beneath the clear water, bright-eyed and still until Arthur reaches for the bank.",
+    regionId: "broceliande",
+    pathIds: ["fountain_of_barenton"],
+    expeditionIds: ["fountain_of_barenton"],
+    directions: ["outbound", "returning"],
+    weight: 5,
+    minimumDistance: 28,
+    maximumDistance: 88,
+    tags: ["campaign", "barenton", "combat", "alchemical"],
+    repeatable: true,
+    maxOccurrencesPerRun: 2,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The serpent rises between Arthur and the water. Its fangs carry a pale sheen that looks more like resin than venom.",
+        choices: [
+          {
+            id: "fight_serpent",
+            label: "Drive It from the Spring",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "serpent_at_spring",
+              victory: {
+                outcomes: [
+                  { type: "setRunFlag", flag: "serpentDefeated", value: true },
+                  { type: "rollLootTable", tableId: "forest_materials" },
+                  { type: "rollLootTable", tableId: "uncommon_materials", chance: 0.65 }
+                ],
+                resultText: "The serpent dissolves into the reeds. A clear venomous residue remains on the stones, useful to anyone who knows alchemy."
+              },
+              fled: { outcomes: [], resultText: "The company retreats from the spring while the serpent settles back beneath the water." }
+            }]
+          },
+          {
+            id: "leave_serpent",
+            label: "Leave the Water Untouched",
+            resultText: "Arthur leaves the spring to its guardian and continues without testing the water.",
+            endEncounter: true
+          }
+        ]
+      }
+    }
+  },
+  black_boar_of_broceliande: {
+    id: "black_boar_of_broceliande",
+    title: "The Black Boar of Broceliande",
+    description: "A huge black boar tears at the roots beside the road, its bristles shining as though wet with ink.",
+    regionId: "broceliande",
+    pathIds: ["fountain_of_barenton"],
+    expeditionIds: ["fountain_of_barenton"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 38,
+    maximumDistance: 88,
+    tags: ["campaign", "barenton", "combat", "wildlife"],
+    repeatable: true,
+    maxOccurrencesPerRun: 1,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The boar turns. It is too large for an ordinary animal, and the ground shudders before it moves.",
+        choices: [
+          {
+            id: "fight_black_boar",
+            label: "Face the Black Boar",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "black_boar_broceliande",
+              victory: {
+                outcomes: [
+                  { type: "gainUnsecuredItem", itemId: "raw_meat", quantity: 2 },
+                  { type: "rollLootTable", tableId: "forest_materials" }
+                ],
+                resultText: "The enchanted boar falls. Its meat is plentiful, and its hide is thick enough to be worth saving."
+              },
+              fled: { outcomes: [], resultText: "The company gives the boar the road. Its charge leaves the roots torn open behind it." }
+            }]
+          },
+          {
+            id: "avoid_black_boar",
+            label: "Give It the Road",
+            resultText: "Arthur waits behind the trees until the boar's heavy passage fades into the rain.",
+            endEncounter: true
+          }
+        ]
+      }
+    }
+  },
+  charcoal_burner: {
+    id: "charcoal_burner",
+    title: "The Charcoal Burner",
+    description: "A charcoal burner tends a low kiln beneath the older trees and watches the company through a veil of smoke.",
+    regionId: "broceliande",
+    pathIds: ["fountain_of_barenton"],
+    expeditionIds: ["fountain_of_barenton"],
+    directions: ["outbound", "returning"],
+    weight: 5,
+    minimumDistance: 12,
+    maximumDistance: 82,
+    tags: ["campaign", "barenton", "social", "knowledge"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The burner points at the road, then at the company's provisions, as if asking which one Arthur thinks will last longer.",
+        choices: [
+          {
+            id: "speak_with_burner",
+            label: "Speak with Him",
+            outcomes: [{ type: "startDialogue", dialogueId: "charcoal_burner_dialogue" }],
+            resultText: "Arthur asks which trees the road is avoiding.",
+            endEncounter: true
+          },
+          {
+            id: "share_provisions",
+            label: "Offer Provisions",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+            outcomes: [{ type: "rollLootTable", tableId: "forest_materials", chance: 0.7 }, { type: "setRunFlag", flag: "charcoalBurnerKindness", value: true }],
+            resultText: "The burner accepts the food and points out a dry line through the roots where the company can make better time.",
+            endEncounter: true
+          },
+          {
+            id: "examine_kiln",
+            label: "Examine the Kiln",
+            outcomes: [{ type: "randomOne", options: [
+              { weight: 45, resultText: "Arthur finds sound wood stacked beneath the kiln and adds it to the company's stores.", effects: [{ type: "rollLootTable", tableId: "common_materials" }] },
+              { weight: 30, resultText: "The smoke stings Arthur's eyes, but the burner shows him a useful mark on the road.", effects: [{ type: "setRunFlag", flag: "charcoalBurnerMark", value: true }] },
+              { weight: 25, resultText: "The work is too hot to inspect safely. Arthur backs away with nothing gained.", effects: [{ type: "modifyResource", resource: "health", amount: -1 }] }
+            ] }],
+            resultText: "Arthur studies the kiln and the tracks around it.",
+            endEncounter: true
+          },
+          { id: "leave_burner", label: "Leave Him to His Work", resultText: "Arthur thanks the burner and keeps the company moving through the smoke.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  red_spring_white_spring: {
+    id: "red_spring_white_spring",
+    title: "The Red Spring and the White Spring",
+    description: "Two small springs rise side by side: one stained red by the earth, the other pale as milk.",
+    regionId: "broceliande",
+    pathIds: ["fountain_of_barenton"],
+    expeditionIds: ["fountain_of_barenton"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 34,
+    maximumDistance: 86,
+    tags: ["campaign", "barenton", "water", "risk_reward"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "Neither spring smells foul. The red water seems warm; the white water seems to pull heat from the air around it.",
+        choices: [
+          {
+            id: "drink_red_spring",
+            label: "Drink from the Red Spring",
+            outcomes: [{ type: "randomChance", chance: 0.62, effects: [{ type: "modifyResource", resource: "health", amount: 5 }], resultText: "The red water burns cleanly through Arthur's weariness.", elseEffects: [{ type: "applyInjury", target: "arthur", injuryId: "poisoned", source: "red-spring" }], elseResultText: "The red water turns bitter. Arthur staggers away with a sour taste and a tightening stomach." }],
+            resultText: "Arthur cups the warm red water.",
+            endEncounter: true
+          },
+          {
+            id: "drink_white_spring",
+            label: "Drink from the White Spring",
+            outcomes: [{ type: "randomChance", chance: 0.58, effects: [{ type: "modifyResource", resource: "health", amount: 2 }], resultText: "The white water cools Arthur's throat and steadies his breathing.", elseEffects: [{ type: "applyInjury", target: "arthur", injuryId: "exhaustion", source: "white-spring" }], elseResultText: "The white water leaves Arthur cold to the bone. Even standing feels like work." }],
+            resultText: "Arthur tastes the cold white water.",
+            endEncounter: true
+          },
+          {
+            id: "inspect_both_springs",
+            label: "Inspect Both Springs",
+            outcomes: [{ type: "setRunFlag", flag: "barentonTwinSpringsSeen", value: true }, { type: "learnKnowledge", knowledgeId: "woodcraft" }],
+            resultText: "Arthur leaves both springs untouched and learns more from their banks than from their colors.",
+            endEncounter: true
+          },
+          { id: "leave_springs", label: "Leave Them Alone", resultText: "Arthur leaves the two springs to their separate silence.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  pilgrims_wrong_fountain: {
+    id: "pilgrims_wrong_fountain",
+    title: "Pilgrims at the Wrong Fountain",
+    description: "Three tired pilgrims have built a little shrine around an ordinary pool and insist they have found Barenton.",
+    regionId: "broceliande",
+    pathIds: ["fountain_of_barenton"],
+    expeditionIds: ["fountain_of_barenton"],
+    directions: ["outbound", "returning"],
+    weight: 5,
+    minimumDistance: 20,
+    maximumDistance: 90,
+    tags: ["campaign", "barenton", "social", "clue"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The pool is clear, but no rain gathers above it and no old stone bears the marks described by the road's keeper.",
+        choices: [
+          {
+            id: "examine_water",
+            label: "Examine the Water",
+            outcomes: [{ type: "setRunFlag", flag: "wrongFountainRecognized", value: true }],
+            resultText: "Arthur finds nothing sacred in the pool except the pilgrims' need to believe they have arrived.",
+            endEncounter: true
+          },
+          {
+            id: "question_pilgrims",
+            label: "Question the Pilgrims",
+            outcomes: [{ type: "startDialogue", dialogueId: "pilgrims_wrong_fountain_dialogue" }],
+            resultText: "Arthur asks who first named the pool Barenton.",
+            endEncounter: true
+          },
+          {
+            id: "share_with_pilgrims",
+            label: "Share Provisions",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+            outcomes: [{ type: "setRunFlag", flag: "barentonClueHeard", value: true }, { type: "modifyResource", resource: "health", amount: 1 }],
+            resultText: "The pilgrims share a direction in return: find the fountain where the old stones are wet without rain.",
+            endEncounter: true
+          },
+          {
+            id: "follow_their_directions",
+            label: "Follow Their Directions",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+            outcomes: [{ type: "setRunFlag", flag: "wrongFountainFollowed", value: true }, { type: "modifyResource", resource: "health", amount: -1 }],
+            resultText: "The pilgrims' directions lead Arthur in a careful half-circle before the true road appears again.",
+            endEncounter: true
+          },
+          { id: "leave_pilgrims", label: "Leave Them to Their Shrine", resultText: "Arthur leaves the pilgrims with their pool and keeps the true fountain question to himself.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  knight_forgotten_name: {
+    id: "knight_forgotten_name",
+    title: "The Knight Who Forgot His Name",
+    description: "A knight in a clean but ancient harness stands by the road, unable to say who he was before the valley.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 18,
+    maximumDistance: 72,
+    tags: ["campaign", "val", "dialogue", "combat", "memory"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The knight remembers a banner, a battle, and the feeling of having once been expected somewhere. His own name will not come.",
+        choices: [
+          { id: "ask_his_story", label: "Ask What He Remembers", outcomes: [{ type: "startDialogue", dialogueId: "forgotten_knight_dialogue" }], resultText: "Arthur asks the knight to begin with the last thing he knows.", endEncounter: true },
+          {
+            id: "challenge_forgotten_knight",
+            label: "Challenge Him",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "false_knight",
+              victory: {
+                outcomes: [{ type: "setRunFlag", flag: "forgottenKnightDefeated", value: true }, { type: "startDialogue", dialogueId: "forgotten_knight_victory_dialogue" }],
+                resultText: "The knight falls to one knee, still searching for the word that would make him whole."
+              },
+              fled: { outcomes: [], resultText: "The nameless knight watches Arthur leave, as if trying to remember whether they had met before." }
+            }]
+          },
+          { id: "leave_nameless_knight", label: "Leave Him Be", resultText: "Arthur leaves the knight beside the road with his unfinished memory.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  morgans_huntsmen: {
+    id: "morgans_huntsmen",
+    title: "Morgan's Huntsmen",
+    description: "Two retainers in green and black step from opposite sides of the road, bows already drawn.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound", "returning"],
+    weight: 5,
+    minimumDistance: 28,
+    maximumDistance: 92,
+    tags: ["campaign", "val", "combat", "repeatable"],
+    repeatable: true,
+    maxOccurrencesPerRun: 2,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The huntsmen do not announce a quarry. They only say that the road belongs to someone else today.",
+        choices: [
+          {
+            id: "fight_huntsmen",
+            label: "Fight the Huntsmen",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "morgans_huntsmen",
+              victory: {
+                outcomes: [{ type: "rollLootTable", tableId: "bandit_ambush_loot" }, { type: "randomChance", chance: 0.35, effects: [{ type: "modifyResource", resource: "provisions", randomMinimum: 2, randomMaximum: 4 }], resultText: "Their packs contain a small reserve of provisions.", elseEffects: [] }],
+                resultText: "The two retainers retreat into the valley, leaving coins, gear, and a little food behind."
+              },
+              fled: { outcomes: [], resultText: "The huntsmen let the company run, calling after Arthur as if they know exactly where he is going." }
+            }]
+          },
+          { id: "avoid_huntsmen", label: "Slip into the Trees", resultText: "Arthur waits until the huntsmen pass, their green cloaks fading into the valley's deeper green.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  briar_knight: {
+    id: "briar_knight",
+    title: "The Briar Knight",
+    description: "A knight-shaped mass of thorn and rust blocks the road, moving only when the wind moves through it.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 46,
+    maximumDistance: 94,
+    tags: ["campaign", "val", "combat", "enchanted"],
+    repeatable: true,
+    maxOccurrencesPerRun: 1,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The briars have grown through armor, mail, and the place where a face should be. The thing raises a thorned blade as if remembering a drill.",
+        choices: [
+          {
+            id: "fight_briar_knight",
+            label: "Face the Briar Knight",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "briar_knight",
+              victory: {
+                outcomes: [{ type: "rollLootTable", tableId: "uncommon_materials", chance: 0.75 }, { type: "rollLootTable", tableId: "forest_materials" }],
+                resultText: "The briars collapse into a dark heap. Beneath the thorns are rare herbs and a few pieces of old metal."
+              },
+              fled: { outcomes: [], resultText: "Arthur breaks away from the thorned blade before the road closes around him." }
+            }]
+          },
+          { id: "go_around_briar_knight", label: "Go Around It", resultText: "The company searches for a gap while the briar knight waits without turning its head.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  sleeping_camp: {
+    id: "sleeping_camp",
+    title: "The Immaculate Camp",
+    description: "A small camp waits beside the road with a warm fire, clean blankets, and food that has not cooled.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 22,
+    maximumDistance: 88,
+    tags: ["campaign", "val", "resting_place", "temptation"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The camp is not abandoned; it is simply waiting. The blankets smell of sun, and the food is exactly what the company would choose.",
+        choices: [
+          {
+            id: "rest_in_camp",
+            label: "Rest by the Fire",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+            outcomes: [{ type: "modifyResource", resource: "health", amount: 7 }, { type: "randomChance", chance: 0.3, effects: [{ type: "applyInjury", target: "arthur", injuryId: "exhaustion", source: "sleeping-camp" }], resultText: "The rest is deep enough to become difficult to leave.", elseEffects: [{ type: "setRunFlag", flag: "sleepingCampAccepted", value: true }], elseResultText: "Arthur sleeps lightly and wakes before the fire can decide to keep him." }],
+            resultText: "Arthur accepts the immaculate camp's warmth.",
+            endEncounter: true
+          },
+          {
+            id: "eat_at_camp",
+            label: "Eat the Fresh Food",
+            outcomes: [{ type: "modifyResource", resource: "provisions", amount: 4 }, { type: "randomChance", chance: 0.4, effects: [{ type: "applyInjury", target: "arthur", injuryId: "exhaustion", source: "sleeping-camp-food" }], resultText: "The food is nourishing, but it leaves Arthur heavy and reluctant to stand.", elseEffects: [], elseResultText: "The meal restores enough strength to make the next stretch feel easy." }],
+            resultText: "Arthur takes only what the road can carry.",
+            endEncounter: true
+          },
+          {
+            id: "search_sleeping_camp",
+            label: "Search the Camp",
+            outcomes: [{ type: "randomChance", chance: 0.5, effects: [{ type: "rollLootTable", tableId: "common_materials" }, { type: "setRunFlag", flag: "sleepingCampSearched", value: true }], resultText: "Under the clean blanket Arthur finds supplies laid out for someone who never arrived.", elseEffects: [{ type: "modifyResource", resource: "health", amount: -1 }], elseResultText: "The camp's order unsettles Arthur, and the company leaves before finding anything." }],
+            resultText: "Arthur searches the firelit camp without sitting down.",
+            endEncounter: true
+          },
+          { id: "leave_sleeping_camp", label: "Leave the Camp", resultText: "Arthur leaves the perfect fire and keeps the reason for its waiting to himself.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  feast_never_cools: {
+    id: "feast_never_cools",
+    title: "The Feast That Never Cools",
+    description: "A small roadside table holds warm bread and fruit beneath an open sky, with no house or host nearby.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 36,
+    maximumDistance: 90,
+    tags: ["campaign", "val", "risk_reward", "food"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The food is fresh despite the rain. A second glance finds no footprints around the table, and the road remains empty in both directions.",
+        choices: [
+          {
+            id: "take_little_food",
+            label: "Take a Little Food",
+            outcomes: [{ type: "modifyResource", resource: "provisions", amount: 3 }, { type: "setRunFlag", flag: "valRoadsideFoodTaken", value: true }],
+            resultText: "Arthur takes enough for one meal and leaves the rest exactly as he found it.",
+            endEncounter: true
+          },
+          {
+            id: "sit_at_feast",
+            label: "Sit and Eat",
+            outcomes: [{ type: "modifyResource", resource: "provisions", amount: 6 }, { type: "randomChance", chance: 0.45, effects: [{ type: "applyInjury", target: "arthur", injuryId: "exhaustion", source: "feast-never-cools" }, { type: "setRunFlag", flag: "valRoadsideFeastAccepted", value: true }], resultText: "Arthur loses the better part of the day to the table, though the food never stops arriving.", elseEffects: [{ type: "setRunFlag", flag: "valRoadsideFeastAccepted", value: true }], elseResultText: "The meal is brief, generous, and hard to remember once the company stands." }],
+            resultText: "Arthur sits at the roadside table.",
+            endEncounter: true
+          },
+          {
+            id: "inspect_feast",
+            label: "Inspect the Food",
+            outcomes: [{ type: "setRunFlag", flag: "valFeastExamined", value: true }, { type: "learnKnowledge", knowledgeId: "woodcraft" }],
+            resultText: "The food has no source, no preparation site, and no reason to be warm. Arthur leaves it untouched.",
+            endEncounter: true
+          },
+          { id: "refuse_feast", label: "Refuse the Invitation", resultText: "Arthur refuses the table's quiet invitation and keeps walking.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  woman_at_ford: {
+    id: "woman_at_ford",
+    title: "The Woman at the Ford",
+    description: "A woman waits ankle-deep in the ford, asking whether Arthur truly knows where the road is taking him.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["outbound", "returning"],
+    weight: 4,
+    minimumDistance: 42,
+    maximumDistance: 92,
+    tags: ["campaign", "val", "social", "ambiguity"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The water runs around the woman's boots without wetting them. She might be lost, testing Arthur, or waiting for someone who resembles him.",
+        choices: [
+          { id: "speak_carefully", label: "Speak Carefully", outcomes: [{ type: "startDialogue", dialogueId: "woman_at_ford_dialogue" }], resultText: "Arthur answers the question with one of his own.", endEncounter: true },
+          {
+            id: "help_at_ford",
+            label: "Help Her Cross",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+            outcomes: [{ type: "randomChance", chance: 0.6, effects: [{ type: "setRunFlag", flag: "womanAtFordHelped", value: true }, { type: "setRunFlag", flag: "valPathClue", value: true }], resultText: "The woman points to a ford farther upstream where the stones are real.", elseEffects: [{ type: "modifyResource", resource: "health", amount: -1 }], elseResultText: "The woman is gone halfway across. Arthur's boots fill with cold water as he reaches the far bank." }],
+            resultText: "Arthur offers the woman his hand.",
+            endEncounter: true
+          },
+          {
+            id: "cross_elsewhere",
+            label: "Cross Somewhere Else",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+            outcomes: [{ type: "setRunFlag", flag: "valFordAvoided", value: true }],
+            resultText: "Arthur follows the bank until the water is shallow enough to trust.",
+            endEncounter: true
+          },
+          { id: "distrust_woman", label: "Distrust Her", outcomes: [{ type: "setRunFlag", flag: "womanAtFordDistrusted", value: true }], resultText: "Arthur refuses the ford. The woman smiles as if that was the answer she wanted.", endEncounter: true }
+        ]
+      }
+    }
+  },
+  returning_knight: {
+    id: "returning_knight",
+    title: "The Knight Returning from the Val",
+    description: "A mud-streaked knight walks toward Arthur, insisting that the road behind him is the only road that leads out.",
+    regionId: "broceliande",
+    pathIds: ["val_sans_retour"],
+    expeditionIds: ["val_sans_retour"],
+    directions: ["returning"],
+    weight: 5,
+    minimumDistance: 8,
+    maximumDistance: 82,
+    tags: ["campaign", "val", "navigation", "return"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The knight knows several details about Arthur's camp and none about the place he claims to have left. He offers to lead the company back by a shorter route.",
+        choices: [
+          {
+            id: "follow_returning_knight",
+            label: "Follow His Route",
+            costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+            outcomes: [{ type: "randomChance", chance: 0.35, effects: [{ type: "modifyResource", resource: "distance", amount: 8 }, { type: "setRunFlag", flag: "returningKnightLoop", value: true }], resultText: "The knight leads Arthur through a bend that should not exist. When the company emerges, the road is farther from home.", elseEffects: [{ type: "setRunFlag", flag: "returningKnightTrusted", value: true }], elseResultText: "The knight's route reaches the familiar road and saves the company a long search." }],
+            resultText: "Arthur follows the knight's certainty.",
+            endEncounter: true
+          },
+          {
+            id: "question_returning_knight",
+            label: "Question Him",
+            outcomes: [{ type: "setRunFlag", flag: "returningKnightQuestioned", value: true }, { type: "learnKnowledge", knowledgeId: "woodcraft" }],
+            resultText: "The knight cannot name a single tree he passed. Arthur thanks him and chooses the road by its slope instead.",
+            endEncounter: true
+          },
+          {
+            id: "trust_own_route",
+            label: "Trust Your Own Route",
+            outcomes: [{ type: "setRunFlag", flag: "returningKnightRejected", value: true }],
+            resultText: "Arthur declines the offered shortcut. The knight nods, relieved or disappointed, and keeps walking toward the valley.",
+            endEncounter: true
+          },
+          { id: "challenge_returning_knight", label: "Challenge His Certainty", resultText: "Arthur asks the knight to prove the road is real. The knight has already vanished between two turns.", endEncounter: true }
         ]
       }
     }

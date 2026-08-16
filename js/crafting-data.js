@@ -28,11 +28,22 @@ const CRAFTING_PROVIDER_DEFINITIONS = Object.freeze({
 });
 
 const RECIPE_DEFINITIONS = Object.freeze({
-  bandages: Object.freeze({
-    id: "bandages", name: "Bandages", description: "Cut and prepare clean cloth for dressing wounds.",
-    craftingProvider: "apothecary", ingredients: Object.freeze({ cloth: 2 }),
-    output: Object.freeze({ itemId: "bandages", quantity: 1 }), goldCost: 0, rarity: "common",
-  }),
+  bandages: {
+    id: "bandages",
+    name: "Bandages",
+    description: "Cut and prepare clean cloth for dressing wounds.",
+    craftingProvider: "apothecary",
+    ingredients: {
+      cloth: 2
+    },
+    output: {
+      itemId: "bandages",
+      quantity: 1
+    },
+    goldCost: 0,
+    rarity: "common",
+    craftingDurationMs: 1000
+  },
   healing_poultice: Object.freeze({
     id: "healing_poultice", name: "Healing Poultice", description: "Bind crushed medicinal herbs into a restorative dressing.",
     craftingProvider: "apothecary", ingredients: Object.freeze({ medicinal_herbs: 2, cloth: 1 }),

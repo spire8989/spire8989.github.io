@@ -1153,6 +1153,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     const result = EncounterManager.resolveChoice(expedition, player, choice.id, {
       failExpedition: fail,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
+      startDialogue: () => true,
       skipPresentationDelay: true,
     });
     checkEncounterSurvival(expedition, fail);
@@ -1415,7 +1416,10 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
   if (combat.result === "victory" && encounterId === "bandit_leader") {
     telemetry.banditLeaderVictories += 1;
   }
-  EncounterManager.completeCombat(expedition, player, combat.result, { failExpedition: fail });
+  EncounterManager.completeCombat(expedition, player, combat.result, {
+    failExpedition: fail,
+    startDialogue: () => true,
+  });
 }
 
 function checkEncounterSurvival(expedition, fail) {

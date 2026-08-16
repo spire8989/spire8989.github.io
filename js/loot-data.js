@@ -135,11 +135,6 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         type: "item",
         itemId: "silver_reliquary",
         weight: 1
-      },
-      {
-        type: "recipe",
-        recipeId: "glimmering_sword",
-        weight: 8
       }
     ]
   },
