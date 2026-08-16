@@ -1025,6 +1025,28 @@ const CampaignReplayData = Object.freeze({
       return {
         expeditionNumber: Number(entry?.expeditionNumber) || index + 1,
         expeditionSeed: entry?.expeditionSeed ?? replayInput.seed,
+        expeditionId: entry?.expeditionId ?? campaign?.expeditions?.[index]?.expeditionId ?? null,
+        routeId: entry?.routeId ?? campaign?.expeditions?.[index]?.routeId ?? null,
+        campaignStageAtDeparture: entry?.campaignStageAtDeparture
+          ?? campaign?.expeditions?.[index]?.campaignStageAtDeparture ?? null,
+        runKind: entry?.runKind ?? campaign?.expeditions?.[index]?.runKind ?? null,
+        isPrerequisiteRun: Boolean(
+          entry?.isPrerequisiteRun ?? campaign?.expeditions?.[index]?.isPrerequisiteRun,
+        ),
+        prerequisiteForRoute: entry?.prerequisiteForRoute
+          ?? campaign?.expeditions?.[index]?.prerequisiteForRoute ?? null,
+        prerequisiteItemId: entry?.prerequisiteItemId
+          ?? campaign?.expeditions?.[index]?.prerequisiteItemId ?? null,
+        prerequisiteReason: entry?.prerequisiteReason
+          ?? campaign?.expeditions?.[index]?.prerequisiteReason ?? null,
+        prerequisiteStatus: entry?.prerequisiteStatus
+          ?? campaign?.expeditions?.[index]?.prerequisiteStatus ?? null,
+        prerequisiteAcquired: Boolean(
+          entry?.prerequisiteAcquired ?? campaign?.expeditions?.[index]?.prerequisiteAcquired,
+        ),
+        isSupplyRun: Boolean(entry?.isSupplyRun ?? campaign?.expeditions?.[index]?.isSupplyRun),
+        supplyRunForRoute: entry?.supplyRunForRoute
+          ?? campaign?.expeditions?.[index]?.supplyRunForRoute ?? null,
         replay: ReplayData.normalize({
           ...(entry ?? {}),
           replay: replayInput,

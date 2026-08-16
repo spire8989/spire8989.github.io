@@ -25,6 +25,14 @@ const CAMPAIGN_PROGRESSION_ROUTES = Object.freeze([
   "val_sans_retour",
 ]);
 
+const CAMPAIGN_PROGRESSION_PREREQUISITES = Object.freeze({
+  fountain_of_barenton: Object.freeze({
+    searchRouteId: "old_forest_road",
+    itemId: "flask",
+    reason: "missing_flask",
+  }),
+});
+
 const CampaignSimulationRunner = Object.freeze({
   run(configuration = {}) {
     const config = normalizeCampaignConfiguration(configuration);
@@ -45,7 +53,14 @@ const CampaignSimulationRunner = Object.freeze({
     for (let index = 0; index < config.maxExpeditions; index += 1) {
       const expeditionNumber = index + 1;
       const progressionRouteId = progression?.currentRouteId ?? null;
-      let routeId = progressionRouteId ?? player.selectedExpeditionId ?? "old_forest_road";
+      const progressionSelection = progression
+        ? selectCampaignProgressionExpedition(progressionRouteId, player)
+        : null;
+      const selectedProgressionRouteId = progressionSelection?.routeId ?? progressionRouteId;
+      const selectedRunKind = progressionSelection?.runKind
+        ?? (progression ? "progression" : "repeated");
+      const isPrerequisiteRun = selectedRunKind === "prerequisite";
+      let routeId = selectedProgressionRouteId ?? player.selectedExpeditionId ?? "old_forest_road";
       if (!routeId) {
         stopReason = "current-content-completed";
         break;
@@ -55,16 +70,17 @@ const CampaignSimulationRunner = Object.freeze({
         : config.expeditionPlan[index % config.expeditionPlan.length];
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
-      if (progression && player.selectedExpeditionId !== progressionRouteId) {
-        player.selectedExpeditionId = progressionRouteId;
+      if (progression && player.selectedExpeditionId !== routeId) {
+        player.selectedExpeditionId = routeId;
       }
       const townEntry = CampaignRules.enterLocation(player, shopStocks);
-      const supplyRunForRoute = progression && shouldRunProgressionSupplyRun(
+      const supplyRunForRoute = progression && !isPrerequisiteRun && shouldRunProgressionSupplyRun(
         progressionRouteId, desiredTargetDistance, player, shopStocks, policy, config.strategy,
       ) ? progressionRouteId : null;
       const isSupplyRun = Boolean(supplyRunForRoute);
       if (isSupplyRun) routeId = "old_forest_road";
       if (player.selectedExpeditionId !== routeId) player.selectedExpeditionId = routeId;
+      const runKind = isSupplyRun ? "supply" : selectedRunKind;
       const plannedTargetDistance = isSupplyRun
         ? progressionSupplyRunDistance(config.strategy)
         : desiredTargetDistance;
@@ -100,6 +116,14 @@ const CampaignSimulationRunner = Object.freeze({
       decision.expeditionNumber = expeditionNumber;
       decision.expeditionId = routeId;
       decision.progressionRouteId = progressionRouteId;
+      decision.runKind = runKind;
+      decision.isPrerequisiteRun = isPrerequisiteRun;
+      decision.prerequisiteForRoute = isPrerequisiteRun
+        ? progressionSelection.prerequisiteForRoute : null;
+      decision.prerequisiteItemId = isPrerequisiteRun
+        ? progressionSelection.itemId : null;
+      decision.prerequisiteReason = isPrerequisiteRun
+        ? progressionSelection.reason : null;
       decision.isSupplyRun = isSupplyRun;
       decision.supplyRunForRoute = supplyRunForRoute;
       decision.supplyRunTargetDistance = isSupplyRun ? plannedTargetDistance : null;
@@ -178,9 +202,18 @@ const CampaignSimulationRunner = Object.freeze({
           ? "expedition-resource-exhaustion" : null;
       const progressionAttempt = progression
         && !isSupplyRun
+        && !isPrerequisiteRun
         ? evaluateCampaignProgressionAttempt(
           progressionRouteId, desiredTargetDistance, decision, run, stateBeforeDecisions, endingState,
         )
+        : null;
+      const prerequisiteAcquired = isPrerequisiteRun
+        && Boolean(run.returnedSafely)
+        && hasCampaignItem(endingState, progressionSelection.itemId);
+      const prerequisiteStatus = isPrerequisiteRun
+        ? !run.returnedSafely
+          ? "failed"
+          : prerequisiteAcquired ? "acquired" : "not-acquired"
         : null;
       const expeditionEntry = {
         expeditionNumber,
@@ -189,7 +222,16 @@ const CampaignSimulationRunner = Object.freeze({
         routeId,
         campaignStageAtDeparture: progression ? progressionRouteId ?? routeId : null,
         routeAttemptNumber: progression && !isSupplyRun
+          && !isPrerequisiteRun
           ? progression.attemptsByRoute[progressionRouteId] + 1 : null,
+        runKind,
+        isPrerequisiteRun,
+        prerequisiteForRoute: isPrerequisiteRun
+          ? progressionSelection.prerequisiteForRoute : null,
+        prerequisiteItemId: isPrerequisiteRun ? progressionSelection.itemId : null,
+        prerequisiteReason: isPrerequisiteRun ? progressionSelection.reason : null,
+        prerequisiteStatus,
+        prerequisiteAcquired,
         isSupplyRun,
         supplyRunForRoute,
         supplyRunTargetDistance: isSupplyRun ? actualTargetDistance : null,
@@ -336,6 +378,11 @@ const CampaignSimulationRunner = Object.freeze({
 
       if (progression && isSupplyRun) {
         progression.supplyRunsByRoute[supplyRunForRoute] += 1;
+      } else if (progression && isPrerequisiteRun) {
+        progression.prerequisiteRunCount += 1;
+        progression.prerequisiteRunsByRoute[progressionSelection.prerequisiteForRoute] += 1;
+        progression.lastRoute = routeId;
+        progression.lastAttemptReason = prerequisiteStatus;
       } else if (progression) {
         progression.attemptsByRoute[progressionRouteId] += 1;
         if (progressionAttempt.completed) {
@@ -474,6 +521,7 @@ const CampaignSimulationTelemetry = Object.freeze({
     const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "campaignProgressionMode",
       "currentRoute", "lastRoute", "progressionRouteSequence", "routesCompleted", "attemptsByRoute",
       "routeCompletionAttempt", "routeCompletionStatus", "waterOfBarentonSecured", "morgansTokenSecured",
+      "prerequisiteRunCount", "prerequisiteRunsByRoute",
       "currentContentCompleted", "finalProgressionStage", "expeditionsAttempted",
       "expeditionsReturned", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
       "strategyConstraintCount", "strategyConstraintTypes", "startingGold", "endingGold", "endingArthurHealth",
@@ -519,6 +567,8 @@ const CampaignSimulationTelemetry = Object.freeze({
     const fields = ["campaignId", "seed", "strategy", "policy", "expeditionNumber", "expeditionId", "routeId",
       "campaignStageAtDeparture", "routeAttemptNumber", "routeAttemptStatus", "routeAttemptCompleted",
       "routeCompletionReason", "routeCompletionItem", "isSupplyRun", "supplyRunForRoute", "supplyRunTargetDistance", "supplyRunObjectiveDistance", "success",
+      "runKind", "isPrerequisiteRun", "prerequisiteForRoute", "prerequisiteItemId", "prerequisiteReason",
+      "prerequisiteStatus", "prerequisiteAcquired",
       "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "totalEstimatedProvisionRequirement",
@@ -719,6 +769,8 @@ function compactCampaignSummary(campaign, expeditions) {
       attemptsByRoute: compactClone(campaign.attemptsByRoute ?? {}),
       supplyRunCount: Number(campaign.supplyRunCount) || 0,
       supplyRunsByRoute: compactClone(campaign.supplyRunsByRoute ?? {}),
+      prerequisiteRunCount: Number(campaign.prerequisiteRunCount) || 0,
+      prerequisiteRunsByRoute: compactClone(campaign.prerequisiteRunsByRoute ?? {}),
       routeCompletionAttempt: compactClone(campaign.routeCompletionAttempt ?? {}),
       routeCompletionStatus: compactClone(campaign.routeCompletionStatus ?? {}),
       waterOfBarentonSecured: Boolean(campaign.waterOfBarentonSecured),
@@ -819,6 +871,13 @@ function compactExpedition(entry, campaign) {
     routeAttemptCompleted: Boolean(entry.routeAttemptCompleted),
     routeCompletionReason: entry.routeCompletionReason ?? null,
     routeCompletionItem: entry.routeCompletionItem ?? null,
+    runKind: entry.runKind ?? null,
+    isPrerequisiteRun: Boolean(entry.isPrerequisiteRun),
+    prerequisiteForRoute: entry.prerequisiteForRoute ?? null,
+    prerequisiteItemId: entry.prerequisiteItemId ?? null,
+    prerequisiteReason: entry.prerequisiteReason ?? null,
+    prerequisiteStatus: entry.prerequisiteStatus ?? null,
+    prerequisiteAcquired: Boolean(entry.prerequisiteAcquired),
     isSupplyRun: Boolean(entry.isSupplyRun),
     supplyRunForRoute: entry.supplyRunForRoute ?? null,
     supplyRunTargetDistance: entry.supplyRunTargetDistance ?? null,
@@ -1307,6 +1366,18 @@ function compactNotableEvents(campaign) {
   const previousEquipment = compactClone(campaign.startingState?.equippedItems ?? {});
   (campaign.expeditions ?? []).forEach((entry) => {
     const run = entry.expeditionTelemetry ?? {};
+    if (entry.isPrerequisiteRun) {
+      events.push({
+        type: "prerequisite-run",
+        expeditionNumber: entry.expeditionNumber,
+        routeId: entry.routeId ?? null,
+        prerequisiteForRoute: entry.prerequisiteForRoute ?? null,
+        prerequisiteItemId: entry.prerequisiteItemId ?? null,
+        reason: entry.prerequisiteReason ?? null,
+        status: entry.prerequisiteStatus ?? null,
+        acquired: Boolean(entry.prerequisiteAcquired),
+      });
+    }
     (entry.equipmentPurchases ?? []).forEach((purchase) => events.push({
       type: "equipment-purchased",
       expeditionNumber: entry.expeditionNumber,
@@ -2243,10 +2314,35 @@ function createCampaignProgressionState() {
     lastAttemptReason: null,
     routesCompleted: [],
     supplyRunsByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, 0])),
+    prerequisiteRunCount: 0,
+    prerequisiteRunsByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, 0])),
     attemptsByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, 0])),
     routeCompletionAttempt: {},
     routeCompletionStatus: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, "pending"])),
     currentContentCompleted: false,
+  };
+}
+
+function hasCampaignItem(state, itemId) {
+  return Number(state?.ownedItems?.[itemId]) > 0;
+}
+
+function selectCampaignProgressionExpedition(routeId, player) {
+  const prerequisite = CAMPAIGN_PROGRESSION_PREREQUISITES[routeId];
+  if (!prerequisite
+    || hasCampaignItem(player, prerequisite.itemId)
+    || hasCampaignItem(player, "water_of_barenton")) {
+    return {
+      routeId,
+      runKind: "progression",
+    };
+  }
+  return {
+    routeId: prerequisite.searchRouteId,
+    runKind: "prerequisite",
+    prerequisiteForRoute: routeId,
+    itemId: prerequisite.itemId,
+    reason: prerequisite.reason,
   };
 }
 
@@ -2505,7 +2601,8 @@ function finalizeCampaignTelemetry(
   const routeCompletionStatus = progression?.routeCompletionStatus
     ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
       routeId,
-      expeditions.some((entry) => !entry.isSupplyRun && entry.routeId === routeId && entry.routeAttemptCompleted)
+      expeditions.some((entry) => !entry.isSupplyRun && !entry.isPrerequisiteRun
+        && entry.routeId === routeId && entry.routeAttemptCompleted)
         ? "completed" : "not-attempted",
     ]));
   const attemptsByRoute = progression?.attemptsByRoute
@@ -2514,7 +2611,7 @@ function finalizeCampaignTelemetry(
     ]));
   const routeSequence = expeditions.map((entry) => entry.routeId ?? entry.expeditionId);
   const routeAttemptSequence = expeditions
-    .filter((entry) => !entry.isSupplyRun)
+    .filter((entry) => !entry.isSupplyRun && !entry.isPrerequisiteRun)
     .map((entry) => entry.routeId ?? entry.expeditionId);
   const supplyRunsByRoute = progression?.supplyRunsByRoute
     ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
@@ -2575,6 +2672,15 @@ function finalizeCampaignTelemetry(
     routeAttemptSequence,
     supplyRunCount: expeditions.filter((entry) => entry.isSupplyRun).length,
     supplyRunsByRoute: deepCampaignClone(supplyRunsByRoute),
+    prerequisiteRunCount: expeditions.filter((entry) => entry.isPrerequisiteRun).length,
+    prerequisiteRunsByRoute: deepCampaignClone(
+      progression?.prerequisiteRunsByRoute
+        ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+          routeId,
+          expeditions.filter((entry) => entry.isPrerequisiteRun
+            && entry.prerequisiteForRoute === routeId).length,
+        ])),
+    ),
     waterOfBarentonSecured,
     morgansTokenSecured,
     currentContentCompleted,
@@ -2724,6 +2830,18 @@ function finalizeCampaignTelemetry(
       expeditions: expeditions.map((entry) => ({
         expeditionNumber: entry.expeditionNumber,
         expeditionSeed: entry.expeditionSeed,
+        expeditionId: entry.expeditionId,
+        routeId: entry.routeId,
+        campaignStageAtDeparture: entry.campaignStageAtDeparture,
+        runKind: entry.runKind,
+        isPrerequisiteRun: entry.isPrerequisiteRun,
+        prerequisiteForRoute: entry.prerequisiteForRoute,
+        prerequisiteItemId: entry.prerequisiteItemId,
+        prerequisiteReason: entry.prerequisiteReason,
+        prerequisiteStatus: entry.prerequisiteStatus,
+        prerequisiteAcquired: entry.prerequisiteAcquired,
+        isSupplyRun: entry.isSupplyRun,
+        supplyRunForRoute: entry.supplyRunForRoute,
         replay: entry.replay,
         stateBefore: entry.stateBefore,
         stateAfter: entry.stateAfter,
@@ -2750,7 +2868,8 @@ function summarizeCampaigns(results) {
   const expeditions = results.flatMap((entry) => entry.expeditions);
   const routeAttempts = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId, results.flatMap((campaign) => campaign.expeditions
-      .filter((entry) => !entry.isSupplyRun && (entry.routeId ?? entry.expeditionId) === routeId)),
+      .filter((entry) => !entry.isSupplyRun && !entry.isPrerequisiteRun
+        && (entry.routeId ?? entry.expeditionId) === routeId)),
   ]));
   const routeRate = (routeId, predicate) => results.length
     ? results.filter((campaign) => predicate(campaign, routeId)).length / results.length : 0;

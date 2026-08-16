@@ -1,5 +1,39 @@
 # Build Log
 
+## 2026-08-16 - Campaign Flask Prerequisite Simulation Fix
+
+### Goal
+
+Keep current-campaign progression truthful when Old Forest Road completes
+before Merlin's Flask has been secured.
+
+### Human prompt and direction
+
+The human developer supplied a focused simulation guide requesting an
+Old Forest prerequisite/search run before Fountain of Barenton, without
+changing encounter content, Flask odds, rewards, combat, economy, or the
+player-facing unlock state. The change was limited to the Grail game repo.
+
+### AI-assisted implementation
+
+- Added prerequisite-aware progression selection for the Fountain objective:
+  missing Flask selects Old Forest Road while the progression objective stays
+  Fountain; secured Water bypasses the Flask search rule.
+- Kept prerequisite runs separate from normal progression attempts and supply
+  runs, while counting each real expedition toward the campaign cap.
+- Added prerequisite status, reason, objective, route, acquisition, summary,
+  compact-export, CSV, notable-event, and replay telemetry.
+- Added deterministic progression coverage for repeated searches, safe Flask
+  recovery, existing Flask/Water cases, hard failure, cap accounting, and
+  compact export separation.
+
+### Verification and resulting prototype state
+
+Verified 28 current-campaign progression assertions, 53 deterministic
+simulation assertions, and `git diff --check`. The broader campaign suite
+remains blocked by its pre-existing stale `glimmering_blade` equipment fixture;
+no content files were changed for this fix.
+
 ## 2026-08-15 - Phase 6 Content Authoring and Travel Injury Systems
 
 ### Goal
