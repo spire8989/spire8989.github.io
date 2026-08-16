@@ -2567,3 +2567,30 @@ The human developer supplied the authoring guide and requested local commits. No
 ### Verification and resulting prototype state
 
 The editor now loads and safely edits the six live Injuries and six live Camp Events, supports nested conditional requirements/effects and combat branches, and preserves surgical source writes. Verified 56 Content Editor Python tests, focused local-HTTP Chrome coverage for recursive authoring, Injury editing, Camp Event editing, existing Phase 6 flows, clean Python syntax, and `git diff --check`. Both repositories are ready for local commits; nothing is pushed.
+
+## 2026-08-15 - Content Editor Phase 7 Part 2 Enemy Authoring
+
+### Goal
+
+Make combat enemy definitions and enemy actions first-class, reusable Content Editor data while keeping Combat definitions focused on roster composition and preserving gameplay behavior.
+
+### Human prompt and direction
+
+The human developer supplied the Phase 7 Part 2 guide and requested implementation across the sibling Tools and Grail repositories, followed by local add/commit operations in both repositories.
+
+### AI-assisted implementation
+
+- Added first-class Enemies and Enemy Actions categories backed by the existing `COMBAT_ENEMY_DEFINITIONS` and `COMBAT_ENEMY_ACTION_DEFINITIONS` catalogs, including CRUD, duplication, schema-aware fields, action-pattern references, injury selectors, reverse references, Open navigation, Advanced JSON, and reference-safe deletion.
+- Simplified Combat editing to metadata plus reusable enemy roster IDs with add/remove/reorder controls and Open Enemy navigation; shared enemy stats and action definitions are no longer edited through inline Combat copies.
+- Preserved the existing combat data shapes and values. No game runtime, combat balance, enemy stats, action damage, encounter content, or simulation strategy changes were required.
+- Added focused editor write/reload, surgical-save, reference-validation, safe-deletion, reverse-navigation, and composition UI coverage, and documented the new authoring workflow in `Tools/ContentEditor/README.md`.
+
+### Manual changes
+
+The human developer supplied the authoring guide and requested local commits. No manual code edits were reported.
+
+### Verification and resulting prototype state
+
+The editor now exposes the seven live enemy definitions and eleven live enemy actions as reusable authoring catalogs. Combat rosters reference enemy IDs, enemy action patterns reference action IDs, and enemy actions reference live injuries. No game-side data normalization or migration is needed; the existing canonical definitions remain the source of truth. Uncommon future enemy/action fields remain available through Advanced JSON.
+
+Verified 58 Content Editor Python tests, 15 local-HTTP Chrome browser tests including first-class enemy/action and Combat composition flows, clean Python syntax, and `git diff --check`. The Grail runtime/content values remain unchanged; this log entry is the only Grail-side change for the milestone. Both repositories are ready for local commits; nothing is pushed.
