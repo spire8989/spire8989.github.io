@@ -50,6 +50,10 @@ def run() -> None:
         time.sleep(0.45)
         check("Boolean(document.querySelector('.debug-tools'))&&Boolean(document.querySelector('.simulation-tools'))", "Debug and simulation tools did not initialize together")
         check("document.querySelectorAll('#debug-combat-select option').length===Object.keys(COMBAT_DEFINITIONS).length&&Boolean(document.querySelector('#debug-combat-select option[value=bandit_ambush]'))", "Combat launcher is not data-driven")
+        check(
+            "(() => { const items=document.querySelector('details[data-debug-details=items]'); const materials=document.querySelector('details[data-debug-details=materials]'); const gold=document.querySelector('#debug-gold-set'); const select=document.querySelector('#debug-item-select'); items.open=false; materials.open=true; gold.focus(); select.value='glimmering_sword'; select.dispatchEvent(new Event('change',{bubbles:true})); return !document.querySelector('details[data-debug-details=items]').open&&document.querySelector('details[data-debug-details=materials]').open&&document.activeElement?.id==='debug-gold-set'; })()",
+            "Debug panel rebuild did not preserve section state and focused control",
+        )
 
         check(
             "(() => { const s=document.querySelector('#debug-item-select'); s.value='glimmering_sword'; s.dispatchEvent(new Event('change',{bubbles:true})); document.querySelector('#debug-item-quantity').value='2'; document.querySelector('[data-debug-action=give-item]').click(); return game.player.ownedItems.glimmering_sword===2&&SaveSystem.load().ownedItems.glimmering_sword===2; })()",

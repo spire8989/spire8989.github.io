@@ -1,5 +1,26 @@
 # Build Log
 
+## 2026-08-16 - Debug Panel View-State Persistence
+
+### Goal
+
+Keep the developer debug panel stable while its data refreshes after control
+changes and mutations.
+
+### AI-assisted implementation
+
+- Preserved open/closed state for all debug sections, nested expedition and
+  combat readouts, panel scroll position, and the active control across panel
+  rebuilds.
+- Preserved the same view state when the live combat readout refreshes, so
+  runtime updates do not unexpectedly reopen or collapse its details.
+- Added focused browser coverage for section-state and focus persistence.
+
+### Verification and resulting prototype state
+
+The focused debug browser suite passed 16 assertions, including the new
+view-state regression check. `git diff --check` passed.
+
 ## 2026-08-16 - Extensible Combat Equipment and Status Effects
 
 ### Goal

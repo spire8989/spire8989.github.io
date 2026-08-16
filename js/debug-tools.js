@@ -48,7 +48,11 @@ const DebugTools = Object.freeze({
     const expeditionState = debugToolsPanel.querySelector("#debug-expedition-state");
     if (expeditionState) expeditionState.textContent = debugExpeditionSnapshot(game.expedition);
     const combatState = debugToolsPanel.querySelector("#debug-combat-state");
-    if (combatState) combatState.innerHTML = renderCombatDebugReadout(game.expedition?.combat);
+    if (combatState) {
+      const viewState = captureDebugPanelViewState();
+      combatState.innerHTML = renderCombatDebugReadout(game.expedition?.combat);
+      restoreDebugPanelViewState(viewState);
+    }
     updateDebugAvailability();
   },
 
@@ -285,6 +289,7 @@ async function handleDebugAction(action, control) {
 
 function renderDebugTools() {
   if (!debugToolsPanel) return;
+  const viewState = captureDebugPanelViewState();
   debugToolsPanel.classList.toggle("is-open", debugToolsState.open);
   debugToolsPanel.classList.toggle("is-collapsed", !debugToolsState.open);
   debugToolsToggle.hidden = debugToolsState.open;
@@ -301,12 +306,65 @@ function renderDebugTools() {
     ${renderDebugExpeditionSection()}
     ${renderDebugCombatSection()}
     ${renderDebugSaveSection()}`;
+  restoreDebugPanelViewState(viewState);
   debugToolsPanel.dataset.expeditionActive = String(Boolean(game.expedition?.status === "active"));
   debugToolsPanel.dataset.combatActive = String(Boolean(game.expedition?.combat));
   debugToolsPanel.querySelectorAll("[data-debug-action]").forEach((control) => {
     control.dataset.baseDisabled = String(control.disabled);
   });
   updateDebugAvailability();
+}
+
+function captureDebugPanelViewState() {
+  if (!debugToolsPanel) return null;
+  const activeElement = document.activeElement;
+  const activeControl = debugToolsPanel.contains(activeElement) ? activeElement : null;
+  const focusDataKeys = ["amount", "characterId", "companionId", "flag", "expeditionId"];
+  const viewState = {
+    scrollTop: debugToolsPanel.scrollTop,
+    details: {},
+    focusId: activeControl?.id ?? "",
+    focusAction: activeControl?.dataset.debugAction ?? "",
+    focusData: Object.fromEntries(focusDataKeys
+      .filter((key) => activeControl?.dataset[key] != null)
+      .map((key) => [key, activeControl.dataset[key]])),
+    selectionStart: null,
+    selectionEnd: null,
+  };
+  debugToolsPanel.querySelectorAll("details[data-debug-details]").forEach((details) => {
+    viewState.details[details.dataset.debugDetails] = details.open;
+  });
+  if (viewState.focusId && "selectionStart" in activeElement) {
+    viewState.selectionStart = activeElement.selectionStart;
+    viewState.selectionEnd = activeElement.selectionEnd;
+  }
+  return viewState;
+}
+
+function restoreDebugPanelViewState(viewState) {
+  if (!viewState || !debugToolsPanel) return;
+  debugToolsPanel.querySelectorAll("details[data-debug-details]").forEach((details) => {
+    const key = details.dataset.debugDetails;
+    if (Object.prototype.hasOwnProperty.call(viewState.details, key)) details.open = viewState.details[key];
+  });
+  debugToolsPanel.scrollTop = viewState.scrollTop;
+  if (!debugToolsState.open) return;
+  let focusTarget = viewState.focusId ? document.getElementById(viewState.focusId) : null;
+  if (!focusTarget && viewState.focusAction) {
+    focusTarget = [...debugToolsPanel.querySelectorAll("[data-debug-action]")].find((control) => (
+      control.dataset.debugAction === viewState.focusAction
+      && Object.entries(viewState.focusData).every(([key, value]) => control.dataset[key] === value)
+    ));
+  }
+  if (!focusTarget || !debugToolsPanel.contains(focusTarget)) return;
+  focusTarget.focus();
+  if (viewState.selectionStart != null && "setSelectionRange" in focusTarget) {
+    try {
+      focusTarget.setSelectionRange(viewState.selectionStart, viewState.selectionEnd);
+    } catch (error) {
+      // Some input types do not support selection ranges.
+    }
+  }
 }
 
 function renderDebugPlayerSection() {
@@ -323,7 +381,7 @@ function renderDebugPlayerSection() {
     .map((instance) => `${characterNameForDebug(characterId)}: ${INJURY_DEFINITIONS[InjuryRules.idOf(instance)]?.name ?? InjuryRules.idOf(instance)}`));
   const injuryTargets = debugHealthCharacterIds().map((characterId) => `<option value="${escapeDebugText(characterId)}" ${debugToolsState.injuryTarget === characterId ? "selected" : ""}>${escapeDebugText(characterNameForDebug(characterId))}</option>`).join("");
   const injuryOptions = Object.values(INJURY_DEFINITIONS).map((injury) => `<option value="${escapeDebugText(injury.id)}">${escapeDebugText(injury.name)} [${escapeDebugText(injury.id)}]</option>`).join("");
-  return `<details class="debug-section" open>
+  return `<details class="debug-section" data-debug-details="player" open>
     <summary>Player <span id="debug-player-summary">${escapeDebugText(debugPlayerSummary())}</span></summary>
     <div class="debug-section-content">
       <div class="debug-stat-row"><span>Gold</span><strong>${Math.floor(player.currentGold ?? 0)}</strong><button type="button" data-debug-action="adjust-gold" data-amount="10">+10</button><button type="button" data-debug-action="adjust-gold" data-amount="100">+100</button><button type="button" data-debug-action="adjust-gold" data-amount="1000">+1000</button><button type="button" data-debug-action="adjust-gold" data-amount="-10">−10</button></div>
@@ -342,7 +400,7 @@ function renderDebugItemsSection() {
   const items = filteredDebugItems();
   const selected = ITEM_DEFINITIONS[selectedItemId()];
   const options = items.map((item) => `<option value="${escapeDebugText(item.id)}" ${item.id === selected?.id ? "selected" : ""}>${escapeDebugText(item.name)} [${escapeDebugText(item.id)}] · owned ${Number(game.player.ownedItems?.[item.id]) || 0}</option>`).join("");
-  return `<details class="debug-section" open>
+  return `<details class="debug-section" data-debug-details="items" open>
     <summary>Items</summary><div class="debug-section-content">
       <label>Search <input id="debug-item-filter" type="search" value="${escapeDebugText(debugToolsState.itemFilter)}" placeholder="Name or stable ID"></label>
       <select id="debug-item-select" class="debug-catalog-select" size="5" aria-label="Debug item selector">${options || '<option disabled>No matching items</option>'}</select>
@@ -359,7 +417,7 @@ function renderDebugMaterialsSection() {
   const options = materials.map((material) => `<option value="${escapeDebugText(material.id)}" ${material.id === selected?.id ? "selected" : ""}>${escapeDebugText(material.name)} [${escapeDebugText(material.id)}] · stored ${Number(game.player.materials?.[material.id]) || 0}</option>`).join("");
   const expedition = game.expedition;
   const bag = expedition ? MaterialRules.expeditionContents(expedition) : {};
-  return `<details class="debug-section">
+  return `<details class="debug-section" data-debug-details="materials">
     <summary>Materials</summary><div class="debug-section-content">
       <label>Search <input id="debug-material-filter" type="search" value="${escapeDebugText(debugToolsState.materialFilter)}" placeholder="Name or stable ID"></label>
       <select id="debug-material-select" class="debug-catalog-select" size="4" aria-label="Debug material selector">${options || '<option disabled>No matching materials</option>'}</select>
@@ -386,7 +444,7 @@ function renderDebugProgressionSection() {
     const missing = ExpeditionCatalog.missingPrerequisites(game.player, expedition.id);
     return `<div class="debug-stat-row"><span>${escapeDebugText(expedition.name)} <code>${escapeDebugText(expedition.id)}</code></span><strong>${unlocked ? "unlocked" : `needs ${missing.join(", ")}`}</strong><button type="button" data-debug-action="${unlocked ? "select-expedition" : "unlock-expedition"}" data-expedition-id="${escapeDebugText(expedition.id)}">${unlocked ? (selectedExpedition ? "Selected" : "Select") : "Grant needs"}</button></div>`;
   }).join("");
-  return `<details class="debug-section">
+  return `<details class="debug-section" data-debug-details="progression">
     <summary>Recipes / Knowledge / Progression</summary><div class="debug-section-content">
       <label>Recipe search <input id="debug-recipe-filter" type="search" value="${escapeDebugText(debugToolsState.recipeFilter)}" placeholder="Name or stable ID"></label>
       <select id="debug-recipe-select" class="debug-catalog-select" size="3" aria-label="Debug recipe selector">${recipeOptions || '<option disabled>No matching recipes</option>'}</select>
@@ -413,7 +471,7 @@ function renderDebugExpeditionSection() {
   }).join("");
   const expeditionReadout = active ? `<div class="debug-readout-grid"><span>Distance</span><strong>${Number(expedition.distance).toFixed(1)}</strong><span>Direction</span><strong>${escapeDebugText(expedition.direction)}</strong><span>Path</span><strong>${escapeDebugText(expedition.currentPathId)}</strong><span>Provisions</span><strong>${Number(expedition.provisions).toFixed(1)}</strong></div>
     <pre id="debug-expedition-state">${escapeDebugText(debugExpeditionSnapshot(expedition))}</pre>` : '<p class="debug-muted">No active expedition. Start one through normal preparation.</p>';
-  return `<details class="debug-section" open>
+  return `<details class="debug-section" data-debug-details="expedition" open>
     <summary>Encounters / Expedition</summary><div class="debug-section-content">
       <select id="debug-encounter-select" aria-label="Encounter to trigger">${encounterOptions}</select>
       <div class="debug-actions"><button type="button" data-debug-action="trigger-encounter" ${active ? "" : "disabled"}>Trigger Selected</button><button type="button" data-debug-action="next-encounter" ${active ? "" : "disabled"}>Next Encounter Soon</button></div>
@@ -422,7 +480,7 @@ function renderDebugExpeditionSection() {
       ${active ? `<div class="debug-direct-row"><label>Set distance <input id="debug-distance-set" type="number" min="0" step="0.1" value="${Number(expedition.distance).toFixed(1)}"></label><button type="button" data-debug-action="set-distance">Set</button><button type="button" data-debug-action="add-distance" data-amount="10">+10</button><button type="button" data-debug-action="add-distance" data-amount="50">+50</button></div>
         <div class="debug-actions"><button type="button" data-debug-action="force-return">Begin Return</button>${expedition.travelState === "paused" ? '<button type="button" data-debug-action="resume-travel">Resume</button>' : '<button type="button" data-debug-action="pause-travel">Pause</button>'}</div>` : ""}
       ${expeditionReadout}
-      ${active ? `<details><summary>Equipment / carried state</summary><pre>${escapeDebugText(JSON.stringify({ equipment: expedition.selectedEquipment, carriedItems: expedition.carriedItems, materialBag: MaterialRules.expeditionContents(expedition), unsecuredLoot: expedition.unsecuredLoot, unsecuredMaterials: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials }, null, 2))}</pre></details>` : ""}
+      ${active ? `<details data-debug-details="expedition-equipment"><summary>Equipment / carried state</summary><pre>${escapeDebugText(JSON.stringify({ equipment: expedition.selectedEquipment, carriedItems: expedition.carriedItems, materialBag: MaterialRules.expeditionContents(expedition), unsecuredLoot: expedition.unsecuredLoot, unsecuredMaterials: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials }, null, 2))}</pre></details>` : ""}
     </div>
   </details>`;
 }
@@ -432,7 +490,7 @@ function renderDebugCombatSection() {
   const enemies = combat?.enemies ?? [];
   const enemyOptions = enemies.filter((enemy) => enemy.hp > 0).map((enemy) => `<option value="${escapeDebugText(enemy.id)}" ${enemy.id === debugToolsState.combatEnemyId ? "selected" : ""}>${escapeDebugText(enemy.name)}</option>`).join("");
   const statusOptions = Object.values(COMBAT_STATUS_DEFINITIONS).map((status) => `<option value="${escapeDebugText(status.id)}" ${status.id === debugToolsState.combatStatusId ? "selected" : ""}>${escapeDebugText(status.name)} [${escapeDebugText(status.id)}]</option>`).join("");
-  return `<details class="debug-section" open>
+  return `<details class="debug-section" data-debug-details="combat" open>
     <summary>Combat Debug</summary><div class="debug-section-content">
       <div id="debug-combat-state">${renderCombatDebugReadout(combat)}</div>
       ${combat ? `<div class="debug-direct-row"><label>Enemy <select id="debug-combat-enemy">${enemyOptions || '<option disabled>No living enemies</option>'}</select></label><label>Status <select id="debug-combat-status">${statusOptions}</select></label><button type="button" data-debug-action="apply-combat-status">Apply</button></div>` : ""}
@@ -441,7 +499,7 @@ function renderDebugCombatSection() {
 }
 
 function renderDebugSaveSection() {
-  return `<details class="debug-section">
+  return `<details class="debug-section" data-debug-details="save">
     <summary>Save / State</summary><div class="debug-section-content">
       <div class="debug-actions"><button type="button" data-debug-action="save-now">Save Now</button><button type="button" data-debug-action="reset-save">Reset Save</button></div>
       <div class="debug-actions"><button type="button" data-debug-action="copy-player">Copy Player State JSON</button><button type="button" data-debug-action="copy-expedition" ${game.expedition ? "" : "disabled"}>Copy Active Expedition JSON</button></div>
@@ -797,7 +855,7 @@ function renderCombatDebugReadout(combat) {
   }).join("");
   const arthur = combat.allies?.find((ally) => ally.id === "arthur");
   const effects = arthur?.equippedCombatEffects ?? {};
-  return `<p class="debug-muted">${escapeDebugText(combat.id)} · ${escapeDebugText(combat.status)} · active actor ${escapeDebugText(combat.activeActorId ?? "none")}</p><div class="debug-combatant-list">${rows}</div><details><summary>Arthur equipment effects / charges</summary><pre>${escapeDebugText(JSON.stringify({ equipment: combat.expedition?.selectedEquipment ?? {}, sourceItems: arthur?.sourceItemIds ?? [], effects, charges: arthur?.combatCharges ?? {} }, null, 2))}</pre></details>`;
+  return `<p class="debug-muted">${escapeDebugText(combat.id)} · ${escapeDebugText(combat.status)} · active actor ${escapeDebugText(combat.activeActorId ?? "none")}</p><div class="debug-combatant-list">${rows}</div><details data-debug-details="combat-effects"><summary>Arthur equipment effects / charges</summary><pre>${escapeDebugText(JSON.stringify({ equipment: combat.expedition?.selectedEquipment ?? {}, sourceItems: arthur?.sourceItemIds ?? [], effects, charges: arthur?.combatCharges ?? {} }, null, 2))}</pre></details>`;
 }
 
 function debugQuantityFrom(inputId) {
