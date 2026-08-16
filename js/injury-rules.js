@@ -192,6 +192,53 @@ const InjuryRules = Object.freeze({
     return results;
   },
 
+  advanceTravelDamage(expedition, characterId, instance, distance) {
+    const definition = this.definition(this.idOf(instance));
+    const amount = Number(definition?.travelDamageAmount);
+    const interval = Number(definition?.travelDamageInterval);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(interval) || interval <= 0) return [];
+    if (characterId !== "arthur" && expedition.companionCombatHp?.[characterId] === undefined) return [];
+
+    const traveled = Math.max(0, Number(distance) || 0);
+    if (traveled <= 0) return [];
+    const accumulated = Number(instance.travelDamageDistance) || 0;
+    const total = accumulated + traveled;
+    const ticks = Math.floor((total + Number.EPSILON) / interval);
+    instance.travelDamageDistance = roundInjuryDistance(total - (ticks * interval));
+    if (ticks <= 0) return [];
+
+    const events = [];
+    for (let tick = 0; tick < ticks; tick += 1) {
+      const healthBefore = characterId === "arthur"
+        ? Math.max(0, Number(expedition.health) || 0)
+        : Math.max(0, Number(expedition.companionCombatHp[characterId]) || 0);
+      const damage = Math.min(amount, healthBefore);
+      const healthAfter = Math.max(0, healthBefore - amount);
+      if (characterId === "arthur") expedition.health = healthAfter;
+      else expedition.companionCombatHp[characterId] = healthAfter;
+      const event = {
+        type: "injury-travel-damage",
+        injuryId: this.idOf(instance),
+        characterId,
+        amount,
+        damage,
+        interval,
+        tick: tick + 1,
+        distance: Number(expedition.distance) || 0,
+        healthBefore,
+        healthAfter,
+      };
+      expedition.injuryEvents ??= [];
+      expedition.injuryEvents.push(event);
+      if (typeof JourneyLog !== "undefined") {
+        const injury = this.definition(event.injuryId);
+        JourneyLog.add(expedition, `${characterName(characterId)} takes ${damage} travel damage from ${injury?.shortName ?? event.injuryId}.`, { category: "injury" });
+      }
+      events.push(event);
+    }
+    return events;
+  },
+
   treatmentItemFor(injuryId) {
     return this.definition(injuryId)?.treatmentItemId ?? null;
   },
@@ -290,7 +337,7 @@ const InjuryRules = Object.freeze({
   advanceNaturalRecovery(expedition, distanceTraveled, characterIds = null) {
     const distance = Math.max(0, Number(distanceTraveled) || 0);
     if (!expedition || distance <= 0) return [];
-    const recovered = [];
+    const events = [];
     const partyIds = characterIds ?? ["arthur", ...selectedCompanionIds(expedition)];
     partyIds.forEach((characterId) => {
       const current = this.forCharacter(expedition, characterId);
@@ -298,6 +345,7 @@ const InjuryRules = Object.freeze({
         const instance = current[index];
         const injuryId = this.idOf(instance);
         const definition = this.definition(injuryId);
+        events.push(...this.advanceTravelDamage(expedition, characterId, instance, distance));
         if (!definition?.recoveryDistanceRange || !(Number(instance.remainingRecoveryDistance) > 0)) continue;
         const before = Number(instance.remainingRecoveryDistance);
         instance.remainingRecoveryDistance = Math.max(0, before - distance);
@@ -313,7 +361,7 @@ const InjuryRules = Object.freeze({
             const infection = this.applyToExpedition(expedition, characterId, "infection", {
               source: "deep-cut-infection",
             });
-            if (infection.applied) recovered.push({ ...infection, infection: true });
+            if (infection.applied) events.push({ ...infection, infection: true });
             continue;
           }
         }
@@ -329,11 +377,11 @@ const InjuryRules = Object.freeze({
             instance: copyInjuryInstance(instance),
           };
           this.recordRecovery(expedition, result);
-          recovered.push(result);
+          events.push(result);
         }
       }
     });
-    return recovered;
+    return events;
   },
 
   checkTravelRisk(expedition, player, distanceTraveled) {
@@ -403,6 +451,12 @@ function createInjuryInstance(injuryId, metadata = {}, random = null) {
       ? clampInjuryDistance(metadata.originalRecoveryDistance ?? rolledDistance)
       : null,
   };
+  const travelDamageInterval = Number(definition?.travelDamageInterval);
+  const travelDamageAmount = Number(definition?.travelDamageAmount);
+  if (Number.isFinite(travelDamageAmount) && travelDamageAmount > 0
+    && Number.isFinite(travelDamageInterval) && travelDamageInterval > 0) {
+    instance.travelDamageDistance = clampInjuryDistance(metadata.travelDamageDistance ?? 0);
+  }
   if (injuryId === "deep_cut") {
     instance.stabilized = Boolean(metadata.stabilized);
     instance.infectionChecked = Boolean(metadata.infectionChecked);

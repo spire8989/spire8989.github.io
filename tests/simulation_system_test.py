@@ -203,6 +203,14 @@ def run():
             "Injury application did not enforce authored effects, duplicate protection, or the two-injury cap",
         )
         check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); EncounterManager.force(expedition,'bandit_ambush'); expedition.activeEncounter.phase='combat'; expedition.activeEncounter.combatResolution={victory:{resultText:'Victory',outcomes:[{type:'learnRecipe',recipeId:'glimmering_sword'},{type:'learnRecipe',recipeId:'glimmering_sword'}]},fled:{outcomes:[]}}; const result=EncounterManager.completeCombat(expedition,player,'victory'); return result.awaitingContinue&&expedition.unsecuredRecipes.length===1&&expedition.unsecuredRecipes[0]==='glimmering_sword'&&expedition.activeEncounter.rewards.filter(reward=>reward.type==='recipe').length===1; })()",
+            "Direct recipe rewards did not work through combat victory or deduplicate staged recipes",
+        )
+        check(
+            "(() => { const authored={id:'timed_fixture',craftingDurationMs:4321}; return CraftingRules.durationMs('blacksmith',authored)===4321&&CraftingRules.durationMs('blacksmith',{id:'default_fixture'})===CRAFTING_TUNING.providerDurations.blacksmith&&CraftingRules.durationMs('missing',{id:'fallback_fixture'})===CRAFTING_TUNING.defaultDurationMs; })()",
+            "Recipe-specific crafting durations did not override provider defaults safely",
+        )
+        check(
             "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); InjuryRules.applyToExpedition(expedition,'arthur','deep_cut',{source:'persistence'}); ExpeditionRules.settle(player,expedition,true); const next=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); return InjuryRules.has(player,'arthur','deep_cut')&&InjuryRules.has(next,'arthur','deep_cut')&&next.health<=38; })()",
             "Injuries did not persist through settlement and the next expedition",
         )
@@ -245,6 +253,14 @@ def run():
         check(
             "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:50,random:()=>0}); e.nextEncounterAt=999; InjuryRules.applyToExpedition(e,'arthur','bruised_ribs',{source:'test'}); ExpeditionRules.travel(e,player,35); return !InjuryRules.has(e,'arthur','bruised_ribs')&&e.injuryEvents.some(event=>event.type==='injury-recovered'&&event.injuryId==='bruised_ribs'); })()",
             "Bruised Ribs did not naturally clear after its authored recovery range",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:40,health:20,random:()=>0}); e.nextEncounterAt=999; const applied=InjuryRules.applyToExpedition(e,'arthur','poisoned',{source:'test'}); const before=e.health; ExpeditionRules.travel(e,player,4); const afterFour=e.health; ExpeditionRules.travel(e,player,12); const afterSixteen=e.health; const ticks=e.injuryEvents.filter(event=>event.type==='injury-travel-damage'&&event.injuryId==='poisoned'); const treated=InjuryRules.remove(e,'arthur','poisoned',{method:'antidote'}); const afterTreatment=e.health; ExpeditionRules.travel(e,player,20); return applied.applied&&before===20&&afterFour===20&&afterSixteen===17&&ticks.length===3&&treated.applied&&afterTreatment===17&&!InjuryRules.has(e,'arthur','poisoned')&&!e.injuryEvents.some((event,index)=>index>e.injuryEvents.indexOf(ticks.at(-1))&&event.type==='injury-travel-damage'&&event.injuryId==='poisoned'); })()",
+            "Poison did not tick exactly every five leagues, cross multiple intervals, or stop after Antidote",
+        )
+        check(
+            "(() => { const make=seed=>{ const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=['sir_kay']; player.selectedCompanion='sir_kay'; const e=ExpeditionRules.createExpedition(player,{companions:['sir_kay'],provisions:20,random:GameRandom.create(seed).random}); e.nextEncounterAt=999; InjuryRules.applyToExpedition(e,'sir_kay','poisoned',{source:'test'}); const before=e.companionCombatHp.sir_kay; ExpeditionRules.travel(e,player,10); return {before,after:e.companionCombatHp.sir_kay,events:e.injuryEvents.filter(event=>event.type==='injury-travel-damage').map(event=>({characterId:event.characterId,amount:event.amount,healthAfter:event.healthAfter}))}; }; const first=make('poison-companion'); const second=make('poison-companion'); return first.before===second.before&&first.after===first.before-2&&JSON.stringify(first)===JSON.stringify(second)&&first.events.every(event=>event.characterId==='sir_kay'); })()",
+            "Generic travel damage did not support companions deterministically",
         )
         check(
             "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const e=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); InjuryRules.applyToExpedition(e,'arthur','sprained_ankle',{source:'test'}); e.travelState='paused'; ExpeditionRules.enterCamp(e); const rest=ExpeditionRules.restAtCamp(e,player); return rest.applied&&rest.recoveryAccelerated[0]?.distanceReduced===8&&InjuryRules.forCharacter(e,'arthur')[0]?.remainingRecoveryDistance===17; })()",

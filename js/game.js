@@ -863,7 +863,7 @@ function beginCraftingAction(recipeId, providerId, context = {}) {
     screen: context.screen ?? game.screen,
     destinationId: context.destinationId ?? game.activeDestinationId,
     startedAt: performance.now(),
-    durationMs: CraftingRules.durationMs(providerId),
+    durationMs: CraftingRules.durationMs(providerId, quote.recipe),
     progress: 0,
   };
   if (game.screen === "destination") refreshDestination();

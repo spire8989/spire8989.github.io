@@ -196,6 +196,19 @@ const EncounterOutcomes = Object.freeze({
           .map((reward) => ({ ...reward, unsecured: true }));
         break;
       }
+      case "learnRecipe": {
+        player.learnedRecipes ??= [];
+        expedition.unsecuredRecipes ??= [];
+        if (!RECIPE_DEFINITIONS[effect.recipeId]
+          || player.learnedRecipes.includes(effect.recipeId)
+          || expedition.unsecuredRecipes.includes(effect.recipeId)) {
+          break;
+        }
+        expedition.unsecuredRecipes.push(effect.recipeId);
+        rewards = [{ type: "recipe", recipeId: effect.recipeId, quantity: 1, unsecured: true }];
+        messages = [`Discovered the ${RECIPE_DEFINITIONS[effect.recipeId].name} recipe.`];
+        break;
+      }
       case "applyInjury": {
         const targets = effect.target === "selected_companion"
           ? [selectedCompanionIds(expedition)[0]].filter(Boolean)

@@ -1,5 +1,65 @@
 # Build Log
 
+## 2026-08-15 - Phase 6 Content Authoring and Travel Injury Systems
+
+### Goal
+
+Extend the live game and separate Content Editor with narrow, data-driven
+authoring support for direct recipe rewards, recipe-specific crafting timing,
+generic travel-damage injuries, and the material catalog.
+
+### Human prompt and direction
+
+The human developer requested a focused Phase 6 pass across the actual Grail
+game and `Tools/ContentEditor`, using the latest `main` content. The guide
+required direct recipe rewards without disturbing loot-table recipe rewards,
+optional per-recipe crafting duration with compatibility defaults, generic
+periodic injury damage based on distance, a Poisoned-only authoring pass, and
+Materials CRUD/reference editing. It explicitly prohibited combat or existing
+recipe balance changes and Infection retuning.
+
+### AI-assisted implementation
+
+- Added the generic `learnRecipe` encounter outcome. It validates the recipe,
+  stages an unsecured recipe reward, works through nested combat Victory/Fled
+  outcomes, and deduplicates recipes already known or already staged during
+  the expedition.
+- Added optional `craftingDurationMs` recipe support. Crafting and cooking
+  progress actions use the authored duration when present and retain the
+  existing provider/default timing when absent or invalid.
+- Added generic injury `travelDamageAmount` and `travelDamageInterval`
+  processing with remainder accumulation, multiple-interval handling,
+  Arthur/companion health updates, journey-log entries, and deterministic
+  `injury-travel-damage` telemetry. Poisoned is authored as one damage every
+  five leagues; Infection remains unchanged.
+- Added the Content Editor Materials category backed by
+  `MATERIAL_DEFINITIONS`, including add/edit/delete, identity/name/
+  description/rarity fields, reference-aware deletion protection, and live
+  material selectors for recipe ingredients and loot entries.
+- Added schema-aware recipe duration and `learnRecipe` editor controls plus
+  focused game, core-editor, and browser regressions.
+
+### Verification and resulting prototype state
+
+Verified 51 deterministic game simulation assertions, 54 Content Editor unit
+tests, and 11 headless browser regression tests. Coverage includes nested
+combat recipe rewards and deduplication, provider/default duration fallback,
+multi-interval Poisoned ticks, cure/removal stopping future ticks, companion
+damage determinism, Materials add/edit/delete/reference validation, direct
+recipe outcome editing, and recipe duration editing.
+
+No combat balance, encounter balance, existing recipe costs/outputs, or
+Infection behavior was changed. Existing saves remain compatible because the
+new recipe duration and injury travel-distance fields are optional and
+default on read.
+
+The broader legacy location/campaign smoke suites still contain unrelated
+pre-existing assumptions from an older content snapshot: one expects nine
+recipes while current `main` has ten, and several campaign checks reference
+the removed `glimmering_blade` ID while current content uses
+`glimmering_sword`. Those stale assertions were not changed in this focused
+pass.
+
 ## 2026-08-15 - Generalized Campaign Equipment Automation
 
 ### Goal

@@ -44,6 +44,8 @@ const INJURY_DEFINITIONS = Object.freeze({
     shortName: "Poisoned",
     description: "A lingering venom makes incoming harm more dangerous.",
     effects: Object.freeze({ incomingDamageMultiplier: 1.1 }),
+    travelDamageAmount: 1,
+    travelDamageInterval: 5,
     treatmentItemId: "antidote",
   }),
   infection: Object.freeze({

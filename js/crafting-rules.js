@@ -1,7 +1,10 @@
 "use strict";
 
 const CraftingRules = Object.freeze({
-  durationMs(providerId) {
+  durationMs(providerId, recipeOrId = null) {
+    const recipe = typeof recipeOrId === "string" ? RECIPE_DEFINITIONS[recipeOrId] : recipeOrId;
+    const authoredDuration = Number(recipe?.craftingDurationMs);
+    if (Number.isFinite(authoredDuration) && authoredDuration > 0) return authoredDuration;
     return CRAFTING_TUNING.providerDurations[providerId] ?? CRAFTING_TUNING.defaultDurationMs;
   },
 
