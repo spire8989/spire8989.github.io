@@ -318,6 +318,7 @@ const CampaignSimulationRunner = Object.freeze({
         bandagesPurchased: decision.bandagesPurchased,
         bandagesCrafted: decision.bandagesCrafted,
         craftingActions: decision.craftingActions,
+        equipmentCraftingActions: decision.equipmentCraftingActions,
         bandagesPacked: decision.bandagesPacked,
         itemsPackedById: run.itemsPackedById,
         itemsConsumedById: run.itemsConsumedById,
@@ -540,9 +541,9 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
-      "equipmentPurchases", "equipmentPurchaseGoldSpent",
+      "equipmentPurchases", "equipmentPurchaseGoldSpent", "equipmentCraftingActions", "equipmentChanges",
       "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
-      "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend", "supplyRunCount"];
+      "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalCraftingGoldSpent", "totalEquipmentCrafts", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend", "supplyRunCount"];
     return campaignCsv(fields, results.map((campaign) => ({
       ...campaign,
       strategyConstraintTypes: campaign.strategyConstraints.map((constraint) => constraint.type).join("|"),
@@ -580,7 +581,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "naturalRecoveriesByType", "infectionOccurrences", "deepCutsStabilized", "averageRecoveryDistanceByType",
       "activeInjuriesAtEnd", "exhaustionOccurrences",
       "cookingActionCount", "cookingProvisionsGained", "innCookingActions", "innCookingProvisionsGained", "innIngredientsConsumedById",
-      "campEvents", "recipesCooked", "ingredientsConsumedById",
+      "campEvents", "recipesCooked", "ingredientsConsumedById", "craftingActions", "equipmentCraftingActions", "equipmentChanges", "equipmentPurchases",
       "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered", "banditLeaderEncounters", "banditLeaderVictories",
       "banditGoldRecovered", "banditLootValueRecovered",
       "startingMaterialBag", "materialBagCapacity", "materialBagAtEnd", "materialsFoundDuringExpedition",
@@ -721,6 +722,15 @@ function compactCampaignSummary(campaign, expeditions) {
       value: entry.expeditionNumber,
     }))),
   );
+  const equipmentCraftsByRecipeId = compactCountById(
+    expeditions.flatMap((entry) => entry.equipment.crafts), "recipeId",
+  );
+  const equipmentCraftExpeditionsByRecipeId = compactValuesById(
+    expeditions.flatMap((entry) => entry.equipment.crafts.map((craft) => ({
+      recipeId: craft.recipeId,
+      value: entry.expeditionNumber,
+    }))), "recipeId",
+  );
   const encounterCounts = compactMergeMaps(
     ...expeditions.map((entry) => entry.encounters.encountersById),
   );
@@ -782,6 +792,8 @@ function compactCampaignSummary(campaign, expeditions) {
     endingStateSummary: compactCampaignState(campaign.endingState),
     equipmentPurchasesById,
     equipmentPurchaseExpeditionsById,
+    equipmentCraftsByRecipeId,
+    equipmentCraftExpeditionsByRecipeId,
     encountersById: encounterCounts,
     encounterOutcomesById: encounterOutcomes,
     encounterChoicesById: encounterChoices,
@@ -1341,6 +1353,26 @@ function compactEquipmentSummary(entry, run, endingState) {
     quantity: Number(purchase.quantity) || 1,
     goldCost: Number(purchase.goldCost) || 0,
   }));
+  const crafts = (entry.equipmentCraftingActions ?? []).map((craft) => ({
+    recipeId: craft.recipeId,
+    itemId: craft.itemId ?? RECIPE_DEFINITIONS[craft.recipeId]?.output?.itemId ?? null,
+    providerId: craft.providerId ?? RECIPE_DEFINITIONS[craft.recipeId]?.craftingProvider ?? null,
+    equipmentSlot: craft.equipmentSlot
+      ?? ITEM_DEFINITIONS[craft.itemId]?.equipmentSlot
+      ?? null,
+    quantity: Number(craft.quantity) || 1,
+    goldCost: Number(craft.goldCost) || 0,
+    materialsConsumed: compactClone(craft.materialsConsumed ?? craft.materialBagConsumed ?? {}),
+    itemsConsumed: compactClone(craft.itemsConsumed ?? {}),
+  }));
+  const equipActions = (entry.equipmentChanges ?? []).map((change) => ({
+    itemId: change.itemId,
+    equipmentSlot: change.equipmentSlot,
+    previousItemId: change.previousItemId ?? null,
+    source: change.source ?? "owned-inventory",
+    strategy: change.strategy ?? null,
+    score: Number(change.score),
+  }));
   const equippedAtDeparture = compactClone(run.loadout ?? {});
   const equippedAtReturn = compactClone(endingState.equippedItems ?? {});
   const changes = {};
@@ -1356,6 +1388,8 @@ function compactEquipmentSummary(entry, run, endingState) {
   return {
     equippedAtDeparture,
     purchases,
+    crafts,
+    equipActions,
     changes,
     equippedAtReturn,
   };
@@ -1385,14 +1419,30 @@ function compactNotableEvents(campaign) {
       equipmentSlot: purchase.equipmentSlot ?? null,
       goldCost: Number(purchase.goldCost) || 0,
     }));
+    (entry.equipmentCraftingActions ?? []).forEach((craft) => events.push({
+      type: "equipment-crafted",
+      expeditionNumber: entry.expeditionNumber,
+      recipeId: craft.recipeId,
+      itemId: craft.itemId ?? RECIPE_DEFINITIONS[craft.recipeId]?.output?.itemId ?? null,
+      providerId: craft.providerId ?? RECIPE_DEFINITIONS[craft.recipeId]?.craftingProvider ?? null,
+      equipmentSlot: craft.equipmentSlot
+        ?? ITEM_DEFINITIONS[craft.itemId]?.equipmentSlot
+        ?? null,
+      quantity: Number(craft.quantity) || 1,
+      goldCost: Number(craft.goldCost) || 0,
+    }));
     const equippedAtDeparture = run.loadout ?? {};
     Object.entries(equippedAtDeparture).forEach(([slot, itemId]) => {
       if (itemId && previousEquipment[slot] !== itemId) {
+        const equipChange = [...(entry.equipmentChanges ?? [])]
+          .reverse()
+          .find((change) => change.equipmentSlot === slot && change.itemId === itemId);
         events.push({
           type: "equipment-equipped",
           expeditionNumber: entry.expeditionNumber,
           equipmentSlot: slot,
           itemId,
+          previousItemId: equipChange?.previousItemId ?? previousEquipment[slot] ?? null,
         });
       }
     });
@@ -1511,11 +1561,12 @@ function compactCountById(entries, idField) {
   return counts;
 }
 
-function compactValuesById(entries) {
+function compactValuesById(entries, idField = "itemId") {
   const values = {};
-  (entries ?? []).forEach(({ itemId, value }) => {
-    if (!itemId) return;
-    (values[itemId] ??= []).push(value);
+  (entries ?? []).forEach((entry) => {
+    const id = entry?.[idField];
+    if (!id) return;
+    (values[id] ??= []).push(entry.value);
   });
   return values;
 }
@@ -1818,7 +1869,12 @@ function applyBetweenExpeditionPolicy(
       goldCost: bandagePurchaseBeforeEquipment.goldCost,
     });
   }
+  const equipmentCraftingActions = provisionPurchase.shortfall > 0
+    || bandagePurchaseBeforeEquipment.shortfall > 0
+    ? [] : craftUsefulCampaignEquipment(player, planningStrategy, townActions);
+  craftingActions.push(...equipmentCraftingActions);
   const equipmentPurchases = provisionPurchase.shortfall > 0
+    || bandagePurchaseBeforeEquipment.shortfall > 0
     ? [] : buyCampaignEquipment(player, shopStocks, planningStrategy, townActions);
   const bandagePurchaseAfterEquipment = planningStrategy === "aggressive"
     && provisionPurchase.shortfall <= 0
@@ -1834,6 +1890,18 @@ function applyBetweenExpeditionPolicy(
       goldCost: bandagePurchaseAfterEquipment.goldCost,
     });
   }
+  const finalEquipmentChanges = EquipmentRules.equipBestOwned(player, planningStrategy);
+  equipmentChanges.push(...finalEquipmentChanges);
+  finalEquipmentChanges.forEach((change) => {
+    townActions.push({
+      type: "equip-item",
+      itemId: change.itemId,
+      equipmentSlot: change.equipmentSlot,
+      previousItemId: change.previousItemId,
+      source: change.source,
+      strategy: change.strategy,
+    });
+  });
   const bandagePurchase = {
     ...bandagePurchaseBeforeEquipment,
     applied: bandagePurchaseBeforeEquipment.applied || bandagePurchaseAfterEquipment.applied,
@@ -2027,6 +2095,7 @@ function applyBetweenExpeditionPolicy(
     innCookingProvisionsGained: innCooking.provisionsGained,
     innIngredientsConsumedById: innCooking.ingredientsConsumedById,
     equipmentChanges,
+    equipmentCraftingActions,
     equipmentPurchases,
     equipmentPurchaseGoldSpent,
     itemsPurchasedById,
@@ -2113,6 +2182,94 @@ function estimateCampaignPassiveProvisionCost(distance, companionId, travelSetti
   return SimulationProvisionPlanning.passiveRoundTripCost(distance, multiplier);
 }
 
+function campaignCraftingProviderAvailable(player, providerId) {
+  if (!CRAFTING_PROVIDER_DEFINITIONS[providerId]) return false;
+  const location = LOCATION_DEFINITIONS[player?.currentLocationId];
+  return Boolean(location?.destinations?.some((destinationId) => (
+    DESTINATION_DEFINITIONS[destinationId]?.craftingProviderId === providerId
+  )));
+}
+
+function craftUsefulCampaignEquipment(
+  player, strategyName, townActions = [], options = {},
+) {
+  const recipeDefinitions = options.recipeDefinitions ?? RECIPE_DEFINITIONS;
+  const itemDefinitions = options.itemDefinitions ?? ITEM_DEFINITIONS;
+  const blockedRecipeIds = new Set();
+  const crafted = [];
+
+  while (true) {
+    const candidates = Object.values(CRAFTING_PROVIDER_DEFINITIONS)
+      .filter((provider) => campaignCraftingProviderAvailable(player, provider.id))
+      .flatMap((provider) => CraftingRules.knownRecipesForProvider(
+        player, provider.id, recipeDefinitions,
+      ).map((recipe) => {
+        const itemId = recipe.output?.itemId;
+        const item = itemId ? itemDefinitions[itemId] : null;
+        const quote = CraftingRules.quote(player, recipe.id, provider.id, {
+          context: "town",
+          recipeDefinitions,
+          itemDefinitions,
+        });
+        const bestOwned = item?.equipmentSlot
+          ? EquipmentRules.bestOwnedForSlot(player, item.equipmentSlot, strategyName, itemDefinitions)
+          : null;
+        const bestOwnedScore = bestOwned
+          ? EquipmentRules.scoreItem(bestOwned.item, strategyName) : Number.NEGATIVE_INFINITY;
+        return {
+          provider,
+          recipe,
+          item,
+          quote,
+          score: EquipmentRules.scoreItem(item, strategyName),
+          bestOwnedScore,
+        };
+      }))
+      .filter((candidate) => candidate.item?.equippable
+        && candidate.item.equipmentSlot
+        && !blockedRecipeIds.has(candidate.recipe.id)
+        && candidate.quote.available
+        && candidate.score > candidate.bestOwnedScore)
+      .sort((left, right) => right.score - left.score
+        || left.item.equipmentSlot.localeCompare(right.item.equipmentSlot)
+        || left.recipe.id.localeCompare(right.recipe.id));
+
+    const candidate = candidates[0];
+    if (!candidate) break;
+    const result = CraftingRules.craft(player, candidate.recipe.id, candidate.provider.id, {
+      context: "town",
+      recipeDefinitions,
+      itemDefinitions,
+    });
+    if (!result.applied) {
+      blockedRecipeIds.add(candidate.recipe.id);
+      continue;
+    }
+    const action = {
+      ...result,
+      providerId: candidate.provider.id,
+      equipmentSlot: candidate.item.equipmentSlot,
+      ingredientsConsumed: {
+        ...(result.materialsConsumed ?? {}),
+        ...(result.itemsConsumed ?? {}),
+      },
+    };
+    crafted.push(action);
+    townActions.push({
+      type: "craft-item",
+      providerId: candidate.provider.id,
+      recipeId: result.recipeId,
+      itemId: result.itemId ?? candidate.recipe.output?.itemId,
+      quantity: result.quantity ?? candidate.recipe.output?.quantity ?? 1,
+      equipmentSlot: candidate.item.equipmentSlot,
+      goldCost: result.goldCost ?? 0,
+      ingredientsConsumed: deepCampaignClone(action.ingredientsConsumed),
+      result: deepCampaignClone(result),
+    });
+  }
+  return crafted;
+}
+
 function buyCampaignEquipment(player, shopStocks, strategyName, townActions = []) {
   const shop = SHOP_DEFINITIONS.village_smithy;
   const candidates = Object.entries(shop.itemsForSale ?? {})
@@ -2136,19 +2293,12 @@ function buyCampaignEquipment(player, shopStocks, strategyName, townActions = []
     const previousItemId = player.equippedItems?.[candidate.item.equipmentSlot] ?? null;
     const result = EconomyRules.buyItem(player, shop, shopStocks, candidate.itemId, 1);
     if (!result.applied) continue;
-    player.equippedItems[candidate.item.equipmentSlot] = candidate.itemId;
     townActions.push({
       type: "buy-item",
       shopId: shop.id,
       itemId: candidate.itemId,
       quantity: result.quantity,
       goldCost: result.goldCost,
-    });
-    townActions.push({
-      type: "equip-item",
-      itemId: candidate.itemId,
-      equipmentSlot: candidate.item.equipmentSlot,
-      previousItemId,
     });
     return [{
       ...result,
@@ -2573,8 +2723,11 @@ function finalizeCampaignTelemetry(
   const averageRecoveryDistanceByType = Object.fromEntries(Object.entries(recoveryDistanceTotals)
     .map(([injuryId, values]) => [injuryId, values.total / values.count]));
   const totalItemPurchaseGoldSpent = totals((entry) => entry.itemPurchaseGoldSpent);
+  const totalCraftingGoldSpent = totals((entry) => (entry.craftingActions ?? [])
+    .reduce((sum, action) => sum + (Number(action.goldCost) || 0), 0));
   const totalGoldEarned = totals((entry) => entry.goldEarnedFromSales + entry.goldEarnedDirect);
-  const totalGoldSpent = totalHealingCost + totalProvisionCost + totalItemPurchaseGoldSpent;
+  const totalGoldSpent = totalHealingCost + totalProvisionCost
+    + totalItemPurchaseGoldSpent + totalCraftingGoldSpent;
   const abilityUsesById = campaignCombatTotals(expeditions, "abilityUsesById");
   const itemUsesById = campaignCombatTotals(expeditions, "itemUsesById");
   const netGold = endingState.gold - startingState.gold;
@@ -2691,7 +2844,9 @@ function finalizeCampaignTelemetry(
     totalHealingCost,
     totalProvisionCost,
     totalItemPurchaseGoldSpent,
+    totalCraftingGoldSpent,
     totalGearSpending: totals((entry) => entry.equipmentPurchaseGoldSpent),
+    totalEquipmentCrafts: totals((entry) => (entry.equipmentCraftingActions ?? []).length),
     itemsPurchasedById,
     itemPurchaseGoldSpentById,
     itemsPackedById,

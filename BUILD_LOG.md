@@ -1,5 +1,61 @@
 # Build Log
 
+## 2026-08-16 - Generic Town Equipment Crafting Simulation
+
+### Goal
+
+Teach between-expedition campaign preparation to recognize, craft, and equip
+useful learned equipment recipes without special-casing Glimmering Sword or
+changing authored equipment stats, recipes, loot odds, or combat balance.
+
+### Human prompt and direction
+
+The human developer supplied a town-preparation guide requiring generic
+crafted-equipment candidates, score-based upgrade selection, survival-first
+economics, final equipment reconciliation, deterministic telemetry, focused
+Glimmering Sword coverage, and a compatibility audit of the sibling Tools
+content editor. The requested workspace scope included local add/commit work
+for each repository that actually changed.
+
+### AI-assisted implementation
+
+- Added `craftUsefulCampaignEquipment` to campaign preparation. It enumerates
+  learned recipes from providers available in the current town, quotes each
+  recipe through `CraftingRules`, filters to valid equippable outputs, compares
+  `EquipmentRules.scoreItem` against `bestOwnedForSlot`, and ranks candidates
+  deterministically by score, slot, and recipe ID.
+- Placed discretionary equipment crafting after healing, injury treatment,
+  Inn cooking, provisioning, and minimum Bandage readiness. Smithy purchases
+  follow crafting, and a final `equipBestOwned` pass records only actual
+  changes before packing and departure.
+- Preserved the existing crafting result shape while exposing equipment craft
+  actions with recipe, output, provider, slot, cost, and consumed material/item
+  details. Compact campaign summaries now include equipment craft counts,
+  preparation numbers, crafted equipment records, replacement-aware equip
+  actions, and notable craft/equip events.
+- Added narrowly scoped recipe/item-definition injection to `CraftingRules`
+  so deterministic tests can exercise future authored equipment shapes without
+  adding gameplay content. Updated stale campaign recipe-count and equipment
+  fixtures to the current `glimmering_sword` content ID.
+
+### Manual changes
+
+The human developer supplied the implementation guide and requested local
+verification plus repository commits. No manual gameplay or content-value
+changes were reported.
+
+### Verification and resulting prototype state
+
+Verified 92 campaign/health/Inn assertions, 53 deterministic expedition
+assertions, four focused Tools recipe/provider/reference tests, focused
+campaign replay of craft/equip through completion, clean browser startup, and
+`git diff --check` in both repositories. The full legacy Campaign 40 replay,
+single-run replay, location, and Tools suites still contain pre-existing
+content-era fixture failures; baseline `HEAD` reproduces the Campaign 40 and
+single-run replay failures. Tools required no compatibility code changes: its
+current recipe output, item reference, provider, and equipment validation
+already cover this runtime-only telemetry addition.
+
 ## 2026-08-16 - Barenton and Val Encounter Density Pass
 
 ### Goal

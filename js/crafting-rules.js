@@ -8,12 +8,12 @@ const CraftingRules = Object.freeze({
     return CRAFTING_TUNING.providerDurations[providerId] ?? CRAFTING_TUNING.defaultDurationMs;
   },
 
-  knownRecipesForProvider(player, providerId) {
+  knownRecipesForProvider(player, providerId, definitions = RECIPE_DEFINITIONS) {
     return (player.learnedRecipes ?? [])
-      .map((recipeId) => RECIPE_DEFINITIONS[recipeId])
+      .map((recipeId) => definitions[recipeId])
       .filter((recipe) => recipe?.craftingProvider === providerId)
       .concat(providerId === "campfire"
-        ? Object.values(RECIPE_DEFINITIONS).filter((recipe) => (
+        ? Object.values(definitions).filter((recipe) => (
           recipe.craftingProvider === providerId
           && recipe.starter
           && !(player.learnedRecipes ?? []).includes(recipe.id)
@@ -23,11 +23,13 @@ const CraftingRules = Object.freeze({
   },
 
   quote(player, recipeId, providerId, context = {}) {
-    const recipe = RECIPE_DEFINITIONS[recipeId];
+    const recipeDefinitions = context.recipeDefinitions ?? RECIPE_DEFINITIONS;
+    const itemDefinitions = context.itemDefinitions ?? ITEM_DEFINITIONS;
+    const recipe = recipeDefinitions[recipeId];
     const expedition = context.expedition ?? null;
     const productionContext = context.context
       ?? (expedition ? "camp" : providerId === "campfire" ? "inn" : "town");
-    const item = recipe?.output?.itemId ? ITEM_DEFINITIONS[recipe.output.itemId] : null;
+    const item = recipe?.output?.itemId ? itemDefinitions[recipe.output.itemId] : null;
     const known = Boolean(recipe && (
       player.learnedRecipes?.includes(recipeId)
       || (providerId === "campfire" && recipe.starter === true)
