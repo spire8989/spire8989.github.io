@@ -699,7 +699,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     id: "rusted_sword",
     name: "Rusted Sword",
     description: "A rusted sword. Maybe this could be polished into a functional weapon.",
-    category: "ingredient",
+    category: "gear",
     rarity: "rare",
     tags: [],
     equippable: false,
