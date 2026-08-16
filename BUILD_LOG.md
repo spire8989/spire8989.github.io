@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-16 - Campaign Simulation Default Configuration
+
+### Goal
+
+Make the Campaign Simulation panel open with the requested current-campaign
+progression configuration.
+
+### AI-assisted implementation
+
+- Set the defaults to 100 campaigns, current campaign progression, 20 maximum
+  attempts, aggressive strategy, aggressive-reinvestor policy, and a 105-league
+  turnaround distance.
+- Added a browser regression assertion for the visible default controls.
+
+### Verification and resulting prototype state
+
+The new default-control assertion passed in the focused progression browser
+suite, which then stopped at the existing hard-failed Flask prerequisite
+expectation. `git diff --check` passed.
+
 ## 2026-08-16 - Debug Panel View-State Persistence
 
 ### Goal

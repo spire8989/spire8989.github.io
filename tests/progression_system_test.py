@@ -44,6 +44,10 @@ def run() -> None:
             checks += 1
 
         check(
+            "(() => { const p=document.querySelector('.simulation-tools'); return p.querySelector('#campaign-count').value==='100'&&p.querySelector('#campaign-type').value==='progression'&&p.querySelector('#campaign-expeditions').value==='20'&&p.querySelector('#campaign-strategy').value==='aggressive'&&p.querySelector('#campaign-policy').value==='aggressive-reinvestor'&&p.querySelector('#campaign-distance').value==='105'&&p.querySelector('#campaign-healing').checked; })()",
+            "Campaign Simulation defaults did not match the requested configuration",
+        )
+        check(
             "(() => { const select=document.querySelector('#campaign-type'); if(!select) return false; select.value='progression'; return currentCampaignScenario(document.querySelector('.simulation-tools')).campaignMode==='progression'; })()",
             "Campaign progression mode was not exposed through the simulation UI",
         )

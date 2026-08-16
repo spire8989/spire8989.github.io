@@ -37,16 +37,16 @@ function initializeSimulationTools() {
       <label>Campaigns <input id="campaign-count" type="number" min="1" max="1000" value="100"></label>
       <label>Campaign type <select id="campaign-type">
         <option value="repeated">Repeated route</option>
-        <option value="progression">Current campaign progression</option>
+        <option value="progression" selected>Current campaign progression</option>
       </select></label>
-      <label>Max attempts <input id="campaign-expeditions" type="number" min="1" max="100" value="10"></label>
+      <label>Max attempts <input id="campaign-expeditions" type="number" min="1" max="100" value="20"></label>
       <label>Strategy <select id="campaign-strategy">
-        ${Object.keys(SimulationStrategies).map((name) => `<option value="${name}">${name}</option>`).join("")}
+        ${Object.keys(SimulationStrategies).map((name) => `<option value="${name}" ${name === "aggressive" ? "selected" : ""}>${name}</option>`).join("")}
       </select></label>
       <label>Between runs <select id="campaign-policy">
-        ${Object.keys(BetweenExpeditionPolicies).map((name) => `<option value="${name}">${name}</option>`).join("")}
+        ${Object.keys(BetweenExpeditionPolicies).map((name) => `<option value="${name}" ${name === "aggressive-reinvestor" ? "selected" : ""}>${name}</option>`).join("")}
       </select></label>
-      <label>Turn at <input id="campaign-distance" type="number" min="1" value="50"></label>
+      <label>Turn at <input id="campaign-distance" type="number" min="1" value="105"></label>
       <label>Starting gold <input id="campaign-gold" type="number" min="0" value="${Math.floor(game.player.currentGold)}"></label>
       <label>Starting food <input id="campaign-provisions" type="number" min="0" value="${game.player.provisions}"></label>
       <label>Starting health <input id="campaign-health" type="number" min="1" max="${HealingRules.arthurMaxHealth(game.player)}" value="${HealingRules.arthurMaxHealth(game.player)}"></label>
