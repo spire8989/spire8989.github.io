@@ -554,6 +554,10 @@ function createStrategy(name, chooseEncounter) {
       const authoredChoice = authoredStrategyChoice(name, choices, context);
       return authoredChoice ?? chooseEncounter(choices, context);
     },
+    chooseDialogue(choices, context) {
+      if (name === "random" || name === "normal") return context.random.pick(choices);
+      return choices[0];
+    },
     chooseCombatAction(combat, expedition, context) {
       const actions = CombatSystem.availableActions(combat, expedition);
       const maxHealth = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
@@ -1092,6 +1096,10 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     if (definition.id === "bandit_ambush") telemetry.banditAmbushEncounters += 1;
     if (definition.id === "bandit_leader") telemetry.banditLeaderEncounters += 1;
   }
+  if (active.phase === "dialogue") {
+    resolveDialogueInstantly(expedition, player, strategy, random, telemetry, history, fail);
+    return;
+  }
   if (active.phase === "pending") {
     const result = EncounterManager.completePendingAction(expedition, player, active.pendingToken, {
       failExpedition: fail,
@@ -1173,6 +1181,90 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     });
     EncounterManager.continueJourney(expedition);
   }
+}
+
+function resolveDialogueInstantly(expedition, player, strategy, random, telemetry, history, fail) {
+  const active = expedition.activeEncounter;
+  const dialogueId = active.dialogueResolution?.dialogueId;
+  const session = DialogueSystem.start(dialogueId, { player, expedition });
+  const dialogueHistory = {
+    dialogueId,
+    encounterId: active.encounterId,
+    eventKind: active.eventKind ?? "travel",
+    nodes: [],
+    choices: [],
+    completed: false,
+  };
+  telemetry.dialogues ??= [];
+  telemetry.dialogues.push(dialogueHistory);
+  if (!session) {
+    fail(`Dialogue ${dialogueId} could not start.`);
+    return;
+  }
+  telemetry.events.push({
+    type: "dialogue-start",
+    dialogueId,
+    encounterId: active.encounterId,
+    distance: rounded(expedition.distance),
+  });
+
+  let current = session;
+  let steps = 0;
+  let finalResult = null;
+  while (current && steps < 100) {
+    steps += 1;
+    const node = DialogueSystem.currentNode(current);
+    if (!node) break;
+    dialogueHistory.nodes.push({ nodeId: current.nodeId, speakerId: node.speakerId });
+    const context = { player, expedition };
+    const choices = DialogueSystem.availableChoices(current, context);
+    let result;
+    if (choices.length > 0) {
+      const choice = strategy.chooseDialogue?.(choices, {
+        player, expedition, dialogue: DialogueSystem.sequence(current),
+        node, nodeId: current.nodeId, random,
+      }) ?? choices[0];
+      dialogueHistory.choices.push({ nodeId: current.nodeId, choiceId: choice.id });
+      const decision = {
+        type: "dialogue-choice",
+        dialogueId,
+        nodeId: current.nodeId,
+        choiceId: choice.id,
+      };
+      telemetry.decisions.push(decision);
+      telemetry.events.push({ ...decision, distance: rounded(expedition.distance) });
+      result = DialogueSystem.choose(current, choice.id, context);
+    } else {
+      result = DialogueSystem.advance(current, context);
+    }
+    if (!result.session && !result.ended) break;
+    finalResult = result;
+    current = result.session;
+  }
+
+  if (!finalResult?.ended) {
+    fail(`Dialogue ${dialogueId} exceeded its safe step limit.`);
+    return;
+  }
+  dialogueHistory.completed = true;
+  telemetry.events.push({
+    type: "dialogue-complete",
+    dialogueId,
+    encounterId: active.encounterId,
+    distance: rounded(expedition.distance),
+  });
+  const completed = EncounterManager.completeDialogue(
+    expedition,
+    player,
+    finalResult,
+    {
+      failExpedition: fail,
+      startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
+      startDialogue: () => true,
+    },
+  );
+  if (!completed.resolved) fail(`Dialogue ${dialogueId} could not resume its parent flow.`);
+  checkEncounterSurvival(expedition, fail);
 }
 
 function startSimulationCombat(expedition, combatId, encounterHistory, telemetry) {
@@ -1363,6 +1455,7 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     campsEntered: 0,
     campRests: [],
     campEvents: [],
+    dialogues: [],
     recipesCooked: [],
     ingredientsConsumedById: {},
     banditAmbushEncounters: 0,

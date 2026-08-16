@@ -170,6 +170,7 @@ const ReplayController = Object.freeze({
       player: null,
       expedition: null,
       random: null,
+      dialogueSession: null,
       decisionIndex: 0,
       preparedCampCycle: null,
       encounterCount: 0,
@@ -214,6 +215,7 @@ const ReplayController = Object.freeze({
     replayState.player = player;
     replayState.expedition = expedition;
     replayState.random = random;
+    replayState.dialogueSession = null;
     replayState.decisionIndex = 0;
     replayState.preparedCampCycle = null;
     replayState.encounterCount = 0;
@@ -489,6 +491,9 @@ const ReplayController = Object.freeze({
     const active = expedition.activeEncounter;
     const definition = EncounterManager.definitionFor(expedition, active);
     if (!definition) return this.desync("The active encounter definition is missing.", this.nextDecision());
+    if (active.phase === "dialogue") {
+      return this.advanceEncounterDialogue();
+    }
     if (active.phase === "pending") {
       const result = EncounterManager.completePendingAction(
         expedition,
@@ -540,6 +545,56 @@ const ReplayController = Object.freeze({
     this.holdPresentation(result.pending ? 0.35 : result.combatStarted ? 0.8 : 0.65);
     this.renderReplayGame();
     return { meaningful: true, decision: true };
+  },
+
+  advanceEncounterDialogue() {
+    const expedition = replayState.expedition;
+    const active = expedition.activeEncounter;
+    const dialogueId = active.dialogueResolution?.dialogueId;
+    if (!replayState.dialogueSession
+      || replayState.dialogueSession.sequenceId !== dialogueId) {
+      replayState.dialogueSession = DialogueSystem.start(dialogueId, {
+        player: replayState.player,
+        expedition,
+      });
+    }
+    const session = replayState.dialogueSession;
+    if (!session) return this.desync("The active dialogue definition is missing.", this.nextDecision());
+    const context = { player: replayState.player, expedition };
+    const node = DialogueSystem.currentNode(session);
+    const choices = DialogueSystem.availableChoices(session, context);
+    let result;
+    if (choices.length > 0) {
+      const decision = this.nextDecision();
+      if (!decision || decision.type !== "dialogue-choice"
+        || decision.dialogueId !== dialogueId
+        || decision.nodeId !== session.nodeId) {
+        return this.desync("The next recorded decision is not the active dialogue choice.", decision);
+      }
+      const choice = choices.find((entry) => entry.id === decision.choiceId);
+      if (!choice) return this.desync("The recorded dialogue choice is unavailable.", decision);
+      result = DialogueSystem.choose(session, choice.id, context);
+      this.consumeDecision();
+    } else {
+      result = DialogueSystem.advance(session, context);
+    }
+    if (!result.session && !result.ended) {
+      return this.desync("The active dialogue could not advance.", this.nextDecision());
+    }
+    replayState.dialogueSession = result.session;
+    if (result.ended) {
+      replayState.dialogueSession = null;
+      const completed = EncounterManager.completeDialogue(
+        expedition,
+        replayState.player,
+        result,
+        this.encounterCallbacks(),
+      );
+      if (!completed.resolved) return this.desync("The dialogue could not resume its parent flow.", this.nextDecision());
+    }
+    this.holdPresentation(choices.length > 0 ? 0.45 : 0.3);
+    this.renderReplayGame();
+    return { meaningful: true, decision: choices.length > 0 };
   },
 
   advanceCamp() {
@@ -648,6 +703,7 @@ const ReplayController = Object.freeze({
     return {
       failExpedition: (reason) => this.fail(reason),
       startCombat: (combatId) => this.startCombat(combatId),
+      startDialogue: () => true,
       skipPresentationDelay: true,
     };
   },

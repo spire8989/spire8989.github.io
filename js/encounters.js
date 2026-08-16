@@ -5,44 +5,54 @@ const EncounterRequirements = Object.freeze({
     return requirements.every((requirement) => this.meets(requirement, context));
   },
 
-  meets(requirement, context) {
+  meets(requirement, context = {}) {
     const { expedition, player } = context;
+    if (!requirement?.type) return false;
 
     switch (requirement.type) {
       case "availableExpeditionItem":
-        return expeditionItemQuantity(expedition, requirement.itemId) >= (requirement.quantity ?? 1);
+        return Boolean(expedition)
+          && expeditionItemQuantity(expedition, requirement.itemId) >= (requirement.quantity ?? 1);
       case "carriedItem":
-        return (expedition.carriedItems?.[requirement.itemId] ?? 0) >= (requirement.quantity ?? 1);
+        return Boolean(expedition)
+          && (expedition.carriedItems?.[requirement.itemId] ?? 0) >= (requirement.quantity ?? 1);
       case "equippedItem":
-        return Object.values(expedition.selectedEquipment).includes(requirement.itemId);
+        return Boolean(expedition)
+          && Object.values(expedition.selectedEquipment ?? {}).includes(requirement.itemId);
       case "ownsItem":
-        return Boolean(player.ownedItems[requirement.itemId]);
+        return Boolean(player?.ownedItems?.[requirement.itemId]);
       case "notOwnsItem":
-        return !player.ownedItems[requirement.itemId];
+        return !player?.ownedItems?.[requirement.itemId];
       case "companion":
-        return (expedition.selectedCompanions ?? [expedition.selectedCompanion]).includes(requirement.companionId);
+        return Boolean(expedition)
+          && (expedition.selectedCompanions ?? [expedition.selectedCompanion]).includes(requirement.companionId);
       case "unlockedCompanion":
-        return player.unlockedCompanions?.includes(requirement.companionId) === true;
+        return player?.unlockedCompanions?.includes(requirement.companionId) === true;
       case "notUnlockedCompanion":
-        return player.unlockedCompanions?.includes(requirement.companionId) !== true;
+        return player?.unlockedCompanions?.includes(requirement.companionId) !== true;
       case "knowledge":
-        return player.learnedKnowledge.includes(requirement.knowledgeId);
+        return player?.learnedKnowledge?.includes(requirement.knowledgeId) === true;
+      case "notKnowledge":
+        return player?.learnedKnowledge?.includes(requirement.knowledgeId) !== true;
       case "minimumResource":
-        return Number(expedition[requirement.resource]) >= requirement.amount;
+        return Boolean(expedition)
+          && Number(expedition[requirement.resource]) >= requirement.amount;
       case "minimumHealth":
-        return expedition.health >= requirement.amount;
+        return Boolean(expedition) && expedition.health >= requirement.amount;
       case "maximumHealth":
-        return expedition.health <= requirement.amount;
+        return Boolean(expedition) && expedition.health <= requirement.amount;
       case "minimumDistance":
-        return expedition.distance >= requirement.amount;
+        return Boolean(expedition) && expedition.distance >= requirement.amount;
       case "currentPath":
-        return expedition.currentPathId === requirement.pathId;
+        return Boolean(expedition) && expedition.currentPathId === requirement.pathId;
       case "runFlag":
-        return expedition.runFlags[requirement.flag] === (requirement.value ?? true);
+        return Boolean(expedition)
+          && expedition.runFlags?.[requirement.flag] === (requirement.value ?? true);
       case "notRunFlag":
-        return expedition.runFlags[requirement.flag] !== (requirement.value ?? true);
+        return Boolean(expedition)
+          && expedition.runFlags?.[requirement.flag] !== (requirement.value ?? true);
       case "campaignFlag":
-        return player.campaignFlags?.[requirement.flag] === (requirement.value ?? true);
+        return player?.campaignFlags?.[requirement.flag] === (requirement.value ?? true);
       default:
         console.warn(`Unknown encounter requirement type: ${requirement.type}`);
         return false;
@@ -66,7 +76,8 @@ const EncounterRequirements = Object.freeze({
       if (cost.type !== "modifyResource" || cost.amount >= 0) {
         return false;
       }
-      return Number(context.expedition[cost.resource]) < Math.abs(cost.amount);
+      return !context.expedition
+        || Number(context.expedition[cost.resource]) < Math.abs(cost.amount);
     });
 
     if (unaffordableCost) {
@@ -82,8 +93,10 @@ const EncounterRequirements = Object.freeze({
 });
 
 const EncounterOutcomes = Object.freeze({
-  resolveAll(effects = [], context) {
-    return effects.reduce((combined, effect) => {
+  resolveAll(effects = [], context = {}) {
+    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null };
+    for (let index = 0; index < effects.length; index += 1) {
+      const effect = effects[index];
       const resolved = this.resolve(effect, context);
       combined.messages.push(...resolved.messages);
       if (resolved.resultText) {
@@ -93,8 +106,18 @@ const EncounterOutcomes = Object.freeze({
         combined.combat = resolved.combat;
       }
       combined.rewards.push(...(resolved.rewards ?? []));
-      return combined;
-    }, { messages: [], rewards: [], resultText: "", combat: null });
+      if (resolved.dialogue) {
+        combined.dialogue = {
+          ...resolved.dialogue,
+          remainingEffects: [
+            ...(resolved.dialogue.remainingEffects ?? []),
+            ...effects.slice(index + 1),
+          ],
+        };
+        break;
+      }
+    }
+    return combined;
   },
 
   applyAll(effects = [], context) {
@@ -281,6 +304,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "";
         break;
       }
@@ -291,6 +315,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (succeeded ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText
           || (succeeded ? effect.resultText : effect.elseResultText)
           || "";
@@ -304,6 +329,7 @@ const EncounterOutcomes = Object.freeze({
           messages.push(...secondaryResolved.messages);
           rewards.push(...secondaryResolved.rewards);
           combat = secondaryResolved.combat ?? combat;
+          if (secondaryResolved.dialogue) return { ...secondaryResolved, messages, rewards, combat };
           resultText = secondaryResolved.resultText
             || (secondarySucceeded ? secondary.resultText : secondary.elseResultText)
             || resultText;
@@ -325,6 +351,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || selected.resultText || "" };
         resultText = resolved.resultText || selected.resultText || "";
         break;
       }
@@ -334,12 +361,23 @@ const EncounterOutcomes = Object.freeze({
       case "startCombat":
         combat = effect;
         break;
+      case "startDialogue":
+        if (DIALOGUE_DEFINITIONS[effect.dialogueId]) {
+          return {
+            messages,
+            rewards,
+            resultText,
+            combat,
+            dialogue: { dialogueId: effect.dialogueId, remainingEffects: [] },
+          };
+        }
+        break;
       default:
         console.warn(`Unknown encounter outcome type: ${effect.type}`);
         break;
     }
 
-    return { messages, rewards, resultText, combat };
+    return { messages, rewards, resultText, combat, dialogue: null };
   },
 });
 
@@ -375,6 +413,103 @@ function recordActiveJourney(expedition, active) {
       category: active.eventKind === "camp" ? "camp" : "encounter",
     });
   }
+}
+
+function appendEncounterOutcome(active, resolved) {
+  active.outcomeMessages.push(...(resolved.messages ?? []));
+  active.rewards ??= [];
+  active.rewards.push(...(resolved.rewards ?? []));
+}
+
+function queueEncounterDialogue(expedition, player, dialogue, resume, callbacks = {}) {
+  const active = expedition.activeEncounter;
+  if (!active || !dialogue?.dialogueId) {
+    return { resolved: false, ended: false, message: "" };
+  }
+  active.phase = "dialogue";
+  active.dialogueResolution = {
+    dialogueId: dialogue.dialogueId,
+    remainingEffects: [...(dialogue.remainingEffects ?? [])],
+    resume,
+  };
+  const started = callbacks.startDialogue?.(dialogue.dialogueId) === true;
+  if (!started) {
+    delete active.dialogueResolution;
+    active.phase = resume.fallbackPhase ?? "choice";
+    return { resolved: false, ended: false, message: "" };
+  }
+  return { resolved: true, ended: false, dialogueStarted: true, message: "" };
+}
+
+function beginEncounterCombat(expedition, combat, resume, callbacks = {}) {
+  const active = expedition.activeEncounter;
+  if (!active || !combat) return { resolved: false, ended: false, message: "" };
+  active.phase = "combat";
+  active.combatResolution = combat;
+  if (resume) active.combatResume = resume;
+  const started = callbacks.startCombat?.(combat.combatId) === true;
+  if (!started) {
+    active.phase = "choice";
+    delete active.combatResolution;
+    delete active.combatResume;
+    return { resolved: false, ended: false, message: "" };
+  }
+  return { resolved: true, ended: false, combatStarted: true, message: "" };
+}
+
+function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
+  const active = expedition.activeEncounter;
+  const encounter = EncounterManager.definitionFor(expedition, active);
+  const context = { expedition, player, ...callbacks };
+  if (!active || !encounter) return { resolved: false, ended: false, message: "" };
+
+  if (route.nextStageId) {
+    const nextStage = encounter.stages[route.nextStageId];
+    if (!nextStage) {
+      console.warn(`Encounter ${encounter.id} is missing stage ${route.nextStageId}.`);
+      return { resolved: false, ended: false, message: "" };
+    }
+
+    active.stageId = route.nextStageId;
+    if (nextStage.resultStage) {
+      const resolvedStage = EncounterOutcomes.resolveAll(nextStage.outcomes, context);
+      appendEncounterOutcome(active, resolvedStage);
+      const resultText = resolvedStage.resultText || nextStage.text;
+      if (resolvedStage.dialogue) {
+        return queueEncounterDialogue(expedition, player, resolvedStage.dialogue, {
+          type: "result",
+          resultText,
+          fallbackPhase: "choice",
+        }, callbacks);
+      }
+      if (resolvedStage.combat) {
+        return beginEncounterCombat(expedition, resolvedStage.combat, {
+          type: "result",
+          resultText,
+          fallbackPhase: "choice",
+        }, callbacks);
+      }
+      active.phase = "result";
+      active.resultText = resultText;
+      recordActiveJourney(expedition, active);
+      return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
+    }
+
+    active.phase = "choice";
+    active.stageText = route.authoredResultText || nextStage.text;
+    return { resolved: true, ended: false, message: active.stageText };
+  }
+
+  if (route.endEncounter) {
+    const stage = encounter.stages[active.stageId];
+    const message = route.resultText || route.authoredResultText || stage?.text || `${encounter.title} resolved.`;
+    active.phase = "result";
+    active.resultText = message;
+    recordActiveJourney(expedition, active);
+    return { resolved: true, ended: false, awaitingContinue: true, message };
+  }
+
+  return { resolved: true, ended: false, message: "" };
 }
 
 const EncounterManager = Object.freeze({
@@ -609,56 +744,52 @@ const EncounterManager = Object.freeze({
     outcomeMessages.push(...resolvedOutcomes.messages);
     active.outcomeMessages.push(...outcomeMessages);
     active.rewards.push(...resolvedOutcomes.rewards);
-    if (resolvedOutcomes.combat) {
-      active.phase = "combat";
-      active.combatResolution = resolvedOutcomes.combat;
-      const started = callbacks.startCombat?.(resolvedOutcomes.combat.combatId) === true;
-      if (!started) {
-        active.phase = "choice";
-        delete active.combatResolution;
-        return { resolved: false, ended: false, message: "" };
-      }
-      return { resolved: true, ended: false, combatStarted: true, message: "" };
-    }
     const nextStageId = branch?.nextStage ?? choice.nextStage;
     const endEncounter = branch ? branch.endEncounter === true : choice.endEncounter;
     const authoredResultText = branch?.resultText || choice.resultText;
-
-    if (nextStageId) {
-      const nextStage = encounter.stages[nextStageId];
-      if (!nextStage) {
-        console.warn(`Encounter ${encounter.id} is missing stage ${nextStageId}.`);
-        return { resolved: false, ended: false, message: "" };
-      }
-
-      active.stageId = nextStageId;
-      if (nextStage.resultStage) {
-        const resolvedStage = EncounterOutcomes.resolveAll(nextStage.outcomes, context);
-        active.outcomeMessages.push(...resolvedStage.messages);
-        active.rewards.push(...resolvedStage.rewards);
-        active.phase = "result";
-        active.resultText = resolvedStage.resultText || nextStage.text;
-        recordActiveJourney(expedition, active);
-        return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
-      }
-
-      active.phase = "choice";
-      active.stageText = authoredResultText || nextStage.text;
-      return { resolved: true, ended: false, message: active.stageText };
+    const route = {
+      type: "choice",
+      nextStageId,
+      endEncounter,
+      authoredResultText,
+      resultText: resolvedOutcomes.resultText,
+      fallbackPhase: "choice",
+    };
+    if (resolvedOutcomes.dialogue) {
+      return queueEncounterDialogue(expedition, player, resolvedOutcomes.dialogue, route, callbacks);
     }
-
-    if (endEncounter) {
-      const message = resolvedOutcomes.resultText
-        || authoredResultText
-        || stage.text
-        || `${encounter.title} resolved.`;
-      active.phase = "result";
-      active.resultText = message;
-      recordActiveJourney(expedition, active);
-      return { resolved: true, ended: false, awaitingContinue: true, message };
+    if (resolvedOutcomes.combat) {
+      return beginEncounterCombat(expedition, resolvedOutcomes.combat, null, callbacks);
     }
+    return finishEncounterChoiceRoute(expedition, player, route, callbacks);
+  },
 
-    return { resolved: true, ended: false, message: "" };
+  completeDialogue(expedition, player, dialogueResult = {}, callbacks = {}) {
+    const active = expedition.activeEncounter;
+    if (!active || active.phase !== "dialogue" || !active.dialogueResolution) {
+      return { resolved: false, ended: false, message: "" };
+    }
+    const resolution = active.dialogueResolution;
+    delete active.dialogueResolution;
+    active.outcomeMessages.push(...(dialogueResult.messages ?? []));
+    active.rewards ??= [];
+    active.rewards.push(...(dialogueResult.rewards ?? []));
+    const context = { expedition, player, ...callbacks };
+    const resolved = EncounterOutcomes.resolveAll(resolution.remainingEffects, context);
+    appendEncounterOutcome(active, resolved);
+    if (resolved.dialogue) {
+      return queueEncounterDialogue(expedition, player, resolved.dialogue, resolution.resume, callbacks);
+    }
+    if (resolved.combat) {
+      return beginEncounterCombat(expedition, resolved.combat, resolution.resume, callbacks);
+    }
+    if (resolution.resume.type === "choice") {
+      return finishEncounterChoiceRoute(expedition, player, resolution.resume, callbacks);
+    }
+    active.phase = "result";
+    active.resultText = resolution.resume.resultText || resolved.resultText || "The dialogue concludes.";
+    recordActiveJourney(expedition, active);
+    return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
   },
 
   continueJourney(expedition) {
@@ -700,15 +831,21 @@ const EncounterManager = Object.freeze({
     }
     const context = { expedition, player, ...callbacks };
     const resolved = EncounterOutcomes.resolveAll(resolution.outcomes, context);
-    active.outcomeMessages.push(...resolved.messages);
-    active.rewards ??= [];
-    active.rewards.push(...resolved.rewards);
-    active.phase = "result";
-    active.resultText = resolved.resultText
+    appendEncounterOutcome(active, resolved);
+    const resultText = resolved.resultText
       || resolution.resultText
       || (result === "victory" ? "The enemy is defeated." : "The company escapes.");
-    recordActiveJourney(expedition, active);
     delete active.combatResolution;
+    if (resolved.dialogue) {
+      return queueEncounterDialogue(expedition, player, resolved.dialogue, {
+        type: "combatResult",
+        resultText,
+        fallbackPhase: "choice",
+      }, callbacks);
+    }
+    active.phase = "result";
+    active.resultText = resultText;
+    recordActiveJourney(expedition, active);
     return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
   },
 

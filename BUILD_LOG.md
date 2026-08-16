@@ -2594,3 +2594,29 @@ The human developer supplied the authoring guide and requested local commits. No
 The editor now exposes the seven live enemy definitions and eleven live enemy actions as reusable authoring catalogs. Combat rosters reference enemy IDs, enemy action patterns reference action IDs, and enemy actions reference live injuries. No game-side data normalization or migration is needed; the existing canonical definitions remain the source of truth. Uncommon future enemy/action fields remain available through Advanced JSON.
 
 Verified 58 Content Editor Python tests, 15 local-HTTP Chrome browser tests including first-class enemy/action and Combat composition flows, clean Python syntax, and `git diff --check`. The Grail runtime/content values remain unchanged; this log entry is the only Grail-side change for the milestone. Both repositories are ready for local commits; nothing is pushed.
+
+## 2026-08-15 - Dialogue, NPC, Destination, and Location Authoring Pass
+
+### Goal
+
+Make reusable dialogue and the existing village content definitions first-class authoring systems while preserving current story text, IDs, gameplay balance, and the separate GrailTools/game repository boundary.
+
+### Human prompt and direction
+
+The human developer supplied the dialogue/NPC/location pass guide and requested a thorough implementation across both repositories, followed by local add/commit operations without pushing.
+
+### AI-assisted implementation
+
+- Added first-class GrailTools categories for Dialogue, NPCs, Destinations, and Locations, backed directly by the live `DIALOGUE_DEFINITIONS`, `NPC_DEFINITIONS`, `DESTINATION_DEFINITIONS`, and `LOCATION_DEFINITIONS` catalogs.
+- Added schema-aware dialogue node/choice editing, speaker and link selectors, portrait fields, shared recursive requirements/effects, reorder controls, reverse references, Open navigation, surgical writes, and reference-safe deletion validation.
+- Exposed all current NPC, destination, and location fields, including simple dialogue/rumors, sequence hooks, location membership, scene positions, shops/providers, visual keys, quest lists, and shared location requirements.
+- Adapted DialogueSystem to the shared encounter requirement/effect vocabulary with safe town-versus-expedition context handling, and added generic `startDialogue` suspension/resume across encounter, camp, and combat-resolution routes. Renamed the internal encounter queue helper to avoid a global collision with the game UI helper.
+- Added deterministic simulation dialogue choice handling and dialogue telemetry, plus replay decision consumption and parent-flow resume support. Existing Reeve and simple NPC dialogue behavior remains intact; no new authored story content was added.
+
+### Manual changes
+
+The human developer supplied the pass guide and requested local commits. The existing unrelated `Grail/js/crafting-data.js` worktree change adding the Glimmering Sword recipe and duration was preserved and is not part of the dialogue implementation.
+
+### Verification and resulting prototype state
+
+Verified the full current dialogue/NPC/destination/location catalogs load with zero editor validation errors; focused editor CRUD, surgical round-trip, link validation, and safe-deletion tests; a local-HTTP Chrome authoring flow; 53 deterministic simulation assertions including combat-victory dialogue suspension/resume and town-context requirement safety; and clean Python syntax plus `git diff --check`. The existing location suite remains blocked by its stale expectation of nine recipes while the preserved worktree contains ten, and the existing campaign suite still expects the older `glimmering_blade` ID; neither failure is caused by this pass. Nothing was pushed.

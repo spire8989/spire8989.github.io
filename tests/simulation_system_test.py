@@ -207,6 +207,14 @@ def run():
             "Direct recipe rewards did not work through combat victory or deduplicate staged recipes",
         )
         check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); const before=expedition.provisions; EncounterManager.force(expedition,'bandit_ambush'); expedition.activeEncounter.phase='combat'; expedition.activeEncounter.combatResolution={victory:{resultText:'Victory',outcomes:[{type:'startDialogue',dialogueId:'reeve_after_intro'},{type:'modifyResource',resource:'provisions',amount:-1}]},fled:{outcomes:[]}}; const started=EncounterManager.completeCombat(expedition,player,'victory',{startDialogue:()=>true}); const paused=expedition.activeEncounter.phase==='dialogue'&&expedition.provisions===before; let session=DialogueSystem.start('reeve_after_intro',{player,expedition}); let result=null; let steps=0; while(session&&steps++<20){ const choices=DialogueSystem.availableChoices(session,{player,expedition}); result=choices.length?DialogueSystem.choose(session,choices[0].id,{player,expedition}):DialogueSystem.advance(session,{player,expedition}); session=result.session; if(result.ended) break; } const completed=EncounterManager.completeDialogue(expedition,player,result,{startDialogue:()=>true}); return started.dialogueStarted&&paused&&result?.ended&&completed.awaitingContinue&&expedition.activeEncounter.phase==='result'&&expedition.provisions===before-1; })()",
+            "Combat victory dialogue did not suspend and resume its encounter flow exactly once",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.campaignFlags.dialogue_test=true; player.ownedItems.rope=1; return DialogueSystem.conditionsMet([{type:'campaignFlag',flag:'dialogue_test'},{type:'ownsItem',itemId:'rope'}],{player})&&!DialogueSystem.conditionsMet([{type:'carriedItem',itemId:'rope'}],{player})&&DialogueSystem.conditionsMet([{type:'notKnowledge',knowledgeId:'forest_road_lore'}],{player}); })()",
+            "Dialogue requirements did not reuse shared player context or safely reject expedition-only requirements in town",
+        )
+        check(
             "(() => { const authored={id:'timed_fixture',craftingDurationMs:4321}; return CraftingRules.durationMs('blacksmith',authored)===4321&&CraftingRules.durationMs('blacksmith',{id:'default_fixture'})===CRAFTING_TUNING.providerDurations.blacksmith&&CraftingRules.durationMs('missing',{id:'fallback_fixture'})===CRAFTING_TUNING.defaultDurationMs; })()",
             "Recipe-specific crafting durations did not override provider defaults safely",
         )

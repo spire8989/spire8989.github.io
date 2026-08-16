@@ -399,7 +399,10 @@ function openDestination(destinationId) {
   game.dialogueSession = null;
   const npc = NPC_DEFINITIONS[destination.npcIds[0]];
   if (destination.type === "story" && !isVillageUnlocked()) {
-    game.dialogueSession = DialogueSystem.start(npc?.introDialogueSequenceId, { player: game.player });
+    game.dialogueSession = DialogueSystem.start(npc?.introDialogueSequenceId, {
+      player: game.player,
+      returnContext: { type: "destination", destinationId },
+    });
   }
   showScreen("destination");
 }
@@ -952,7 +955,10 @@ function craftingFailureMessage(result) {
 function showNpcDialogue(npcId, field) {
   const npc = NPC_DEFINITIONS[npcId];
   if (field === "dialogue" && npc?.dialogueSequenceId) {
-    game.dialogueSession = DialogueSystem.start(npc.dialogueSequenceId, { player: game.player });
+    game.dialogueSession = DialogueSystem.start(npc.dialogueSequenceId, {
+      player: game.player,
+      returnContext: { type: "destination", destinationId: game.activeDestinationId },
+    });
     renderDestination();
     return;
   }
@@ -967,6 +973,7 @@ function showNpcDialogue(npcId, field) {
     npc?.id ?? npcId ?? "village_reeve",
     text,
     npc?.portraitKey ?? npc?.id ?? "placeholder",
+    { returnContext: { type: "destination", destinationId: game.activeDestinationId } },
   );
   renderDestination();
 }
@@ -976,27 +983,55 @@ function isVillageUnlocked() {
 }
 
 function advanceDialogue() {
-  const result = DialogueSystem.advance(game.dialogueSession, { player: game.player });
+  const previousSession = game.dialogueSession;
+  const result = DialogueSystem.advance(previousSession, dialogueRuntimeContext(previousSession));
   if (!result.session && !result.ended) return;
   game.dialogueSession = result.session;
-  applyDialogueResult(result);
+  applyDialogueResult(result, previousSession?.context);
 }
 
 function chooseDialogue(choiceId) {
-  const result = DialogueSystem.choose(game.dialogueSession, choiceId, { player: game.player });
+  const previousSession = game.dialogueSession;
+  const result = DialogueSystem.choose(previousSession, choiceId, dialogueRuntimeContext(previousSession));
   if (!result.session && !result.ended) return;
   game.dialogueSession = result.session;
-  applyDialogueResult(result);
+  applyDialogueResult(result, previousSession?.context);
 }
 
-function applyDialogueResult(result) {
+function dialogueRuntimeContext(session = game.dialogueSession) {
+  return {
+    player: game.player,
+    ...(session?.context?.type === "encounter" ? { expedition: game.expedition } : {}),
+  };
+}
+
+function applyDialogueResult(result, returnContext = null) {
   (result.toasts ?? []).forEach((toast) => showToast({
     title: toast.title ?? "Story Updated",
     message: toast.message ?? "",
     type: toast.toastType ?? "normal",
   }));
+  if (returnContext?.type === "encounter" && result.ended && game.expedition?.activeEncounter) {
+    const completed = EncounterManager.completeDialogue(
+      game.expedition,
+      game.player,
+      result,
+      {
+        failExpedition,
+        startCombat: (combatId) => startCombat(game.expedition, combatId),
+        startDialogue: (dialogueId) => startEncounterDialogue(game.expedition, dialogueId),
+      },
+    );
+    game.dialogueSession = null;
+    if ((result.effects ?? []).length > 0) savePlayer();
+    if (completed.resolved && game.expedition.status === "active") {
+      renderExpedition();
+    }
+    return;
+  }
   if ((result.effects ?? []).length > 0) savePlayer();
   if (game.screen === "destination") renderDestination();
+  else if (game.screen === "expedition") renderExpedition();
 }
 
 function renderDialogueOverlay(session) {
@@ -1005,7 +1040,7 @@ function renderDialogueOverlay(session) {
   const speaker = node.speakerId === PLAYER_CHARACTER_DEFINITION.id
     ? PLAYER_CHARACTER_DEFINITION
     : NPC_DEFINITIONS[node.speakerId] ?? { name: "Unknown Speaker" };
-  const choices = DialogueSystem.availableChoices(session, { player: game.player });
+  const choices = DialogueSystem.availableChoices(session, dialogueRuntimeContext(session));
   const initials = (speaker.name ?? "?")
     .split(/\s+/)
     .map((part) => part[0])
@@ -1866,6 +1901,19 @@ function renderTravelSettings(expedition) {
 
 function renderEncounterPanel(expedition, encounter) {
   const active = expedition.activeEncounter;
+  if (active.phase === "dialogue") {
+    return `
+      <div class="travel-panel encounter-panel encounter-dialogue-panel" aria-live="polite">
+        ${renderExpeditionResources(expedition)}
+        <div class="encounter-heading">
+          <p class="eyebrow">Travel Paused · Dialogue</p>
+          <h1>${encounter.title}</h1>
+          <p class="encounter-description">The company pauses to listen before the encounter continues.</p>
+        </div>
+        ${game.dialogueSession ? renderDialogueOverlay(game.dialogueSession) : ""}
+        ${renderJourneyLog(expedition)}
+      </div>`;
+  }
   if (active.phase === "result") {
     return renderEncounterResultPanel(expedition, encounter, active);
   }
@@ -2335,6 +2383,7 @@ function resolveEncounterChoice(choiceId) {
   const result = EncounterManager.resolveChoice(expedition, game.player, choiceId, {
     failExpedition,
     startCombat: (combatId) => startCombat(expedition, combatId),
+    startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
   });
   if (!result.resolved) {
     return;
@@ -2352,7 +2401,11 @@ function resolveEncounterChoice(choiceId) {
         pendingExpedition,
         game.player,
         result.pendingToken,
-        { failExpedition, startCombat: (combatId) => startCombat(pendingExpedition, combatId) },
+        {
+          failExpedition,
+          startCombat: (combatId) => startCombat(pendingExpedition, combatId),
+          startDialogue: (dialogueId) => startEncounterDialogue(pendingExpedition, dialogueId),
+        },
       );
       finishEncounterResolution(completed, pendingExpedition);
     }, result.delayMs);
@@ -2416,6 +2469,18 @@ function chooseCombatTarget(targetId) {
   if (CombatSystem.selectEnemyTarget(combat, targetId).selected) {
     refreshCombat(expedition, combat);
   }
+}
+
+function startEncounterDialogue(expedition, dialogueId) {
+  if (!expedition || expedition.status !== "active") return false;
+  const session = DialogueSystem.start(dialogueId, {
+    player: game.player,
+    expedition,
+    returnContext: { type: "encounter" },
+  });
+  if (!session) return false;
+  game.dialogueSession = session;
+  return true;
 }
 
 function chooseCombatAbility(abilityId) {
@@ -2499,7 +2564,10 @@ function finishCombatResolution(expedition) {
   combat.resultHandled = true;
   const result = combat.result;
   expedition.combat = null;
-  EncounterManager.completeCombat(expedition, game.player, result, { failExpedition });
+  EncounterManager.completeCombat(expedition, game.player, result, {
+    failExpedition,
+    startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
+  });
   if (expedition.status === "active") {
     renderExpedition();
   }
