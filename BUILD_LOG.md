@@ -1,5 +1,61 @@
 # Build Log
 
+## 2026-08-16 - Extensible Combat Equipment and Status Effects
+
+### Goal
+
+Extend the combat simulation with reusable equipment passives, canonical
+enemy statuses, deterministic charge triggers, and three rare expedition
+rewards while keeping the existing relic slot, combat balance, and item-driven
+runtime architecture intact.
+
+### Human prompt and direction
+
+The human developer supplied a combat/equipment extension guide covering
+equipment speed, on-hit status effects, Bleeding and Poisoned activation ticks,
+generic Defend charge triggers, Thorn of the Dolorous Vale, Reliquary of Saint
+Lazarus, Shard of the Perron, deterministic simulation scoring and telemetry,
+and schema-aware GrailTools editing/validation. The requested workspace scope
+included coordinated changes to Grail and GrailTools, BUILD_LOG maintenance,
+and local commits for both repositories.
+
+### AI-assisted implementation
+
+- Added canonical `bleeding` and `poisoned` combat status definitions with
+  authored periodic damage, activation duration, refresh behavior, status
+  ticks/expiry events, deterministic logs, and pre-action enemy death checks.
+- Added a shared equipped-combat-effects aggregator for speed, on-hit status
+  effects, and combat triggers; Arthur normal attacks now apply successful
+  on-hit effects from weapon, armor, and relic slots.
+- Added generic equipment trigger/charge handling for actually prevented
+  Defend damage and next-normal-attack spending, including the Shard of the
+  Perron Resolve cap and ability non-consumption behavior.
+- Added the three unique, non-shop, protected rare items and their 30% reward
+  hooks on the Briar Knight, Leper Knight, and Barenton ritual paths.
+- Extended simulation and campaign telemetry with status applications/damage,
+  passive trigger records, Resolve stored/spent totals, and equipment
+  acquisition/equip summaries/events. Updated score-based equipment selection
+  to value the new passive effects without item-ID branches.
+- Added GrailTools combat-status catalog editing, status dropdown references,
+  item speed/on-hit/trigger controls, schema validation, and reference-safe
+  status deletion behavior.
+
+### Manual changes
+
+The human developer supplied the implementation guide and requested local
+verification plus repository commits. No manual gameplay or content-value
+changes were reported.
+
+### Verification and resulting prototype state
+
+Verified 59 deterministic browser simulation assertions covering speed,
+on-hit effects, status durations/refresh, pre-action status death, Resolve
+storage/cap/spend behavior, reward wiring, scoring, and telemetry export. The
+focused GrailTools schema test passed, and the real catalog reported no
+validation errors. The full Tools suite ran 61 tests with five existing
+content-era count/path fixture failures unrelated to this pass; those failures
+remain documented for handoff. Both repositories passed `git diff --check`.
+
 ## 2026-08-16 - Generic Town Equipment Crafting Simulation
 
 ### Goal

@@ -733,6 +733,92 @@ const ITEM_DEFINITIONS = Object.freeze({
     },
     questItem: false,
     unique: true
+  },
+  thorn_of_the_dolorous_vale: {
+    id: "thorn_of_the_dolorous_vale",
+    name: "Thorn of the Dolorous Vale",
+    description: "A thin black thorn-blade that strikes quickly and leaves wounds that will not close.",
+    category: "weapon",
+    rarity: "rare",
+    tags: ["martial", "thorn", "vale"],
+    equippable: true,
+    equipmentSlot: "weapon",
+    carriable: false,
+    consumable: false,
+    effects: {
+      combatDamage: {
+        minimum: 5,
+        maximum: 8,
+      },
+      combatSpeed: 5,
+      onHitEffects: [
+        {
+          type: "applyStatus",
+          statusId: "bleeding",
+          chance: 0.35,
+        },
+      ],
+    },
+    questItem: false,
+    unique: true,
+    sellable: false,
+    protected: true,
+  },
+  reliquary_of_saint_lazarus: {
+    id: "reliquary_of_saint_lazarus",
+    name: "Reliquary of Saint Lazarus",
+    description: "A small reliquary whose blessing turns a clean strike into a lingering affliction.",
+    category: "relic",
+    rarity: "rare",
+    tags: ["relic", "mercy", "lazarus"],
+    equippable: true,
+    equipmentSlot: "relic",
+    carriable: false,
+    consumable: false,
+    effects: {
+      onHitEffects: [
+        {
+          type: "applyStatus",
+          statusId: "poisoned",
+          chance: 0.2,
+        },
+      ],
+    },
+    questItem: false,
+    unique: true,
+    sellable: false,
+    protected: true,
+  },
+  shard_of_the_perron: {
+    id: "shard_of_the_perron",
+    name: "Shard of the Perron",
+    description: "A dark fragment of the Barenton stone that stores the force Arthur refuses to yield.",
+    category: "relic",
+    rarity: "rare",
+    tags: ["relic", "barenton", "resolve"],
+    equippable: true,
+    equipmentSlot: "relic",
+    carriable: false,
+    consumable: false,
+    effects: {
+      combatTriggers: [
+        {
+          trigger: "defendDamagePrevented",
+          effect: "storeCharge",
+          chargeId: "resolve",
+          cap: 10,
+        },
+        {
+          trigger: "beforeNormalAttack",
+          effect: "consumeChargeForBonusDamage",
+          chargeId: "resolve",
+        },
+      ],
+    },
+    questItem: false,
+    unique: true,
+    sellable: false,
+    protected: true,
   }
 });
 

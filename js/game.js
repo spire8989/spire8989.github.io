@@ -2045,7 +2045,12 @@ function renderCombatant(combatant, combat) {
   const intent = combatant.side === "enemy" && !defeated
     ? `<div class="combat-intent">${COMBAT_ENEMY_ACTION_DEFINITIONS[combatant.intentId]?.name ?? "Attack"}</div>`
     : "";
-  const effects = [combatant.defending ? "DEFENDING" : "", combatant.interceding ? "INTERCEDING" : ""]
+  const statuses = combatant.side === "enemy"
+    ? Object.values(combatant.statuses ?? {}).map((status) => (
+      `${COMBAT_STATUS_DEFINITIONS[status.statusId]?.name ?? status.statusId} ${status.remainingActivations}`
+    ))
+    : [];
+  const effects = [combatant.defending ? "DEFENDING" : "", combatant.interceding ? "INTERCEDING" : "", ...statuses]
     .filter(Boolean).join(" · ");
   const tag = selectable ? "button" : "article";
   const targetAttributes = selectable

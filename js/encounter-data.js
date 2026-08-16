@@ -2897,6 +2897,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                       resultText: "The water settles in Merlin's Flask and remains there. The ordeal is complete.",
                       elseEffects: [],
                       elseResultText: "The knight acknowledges the trial, but Arthur has no vessel in which to carry the water."
+                    },
+                    {
+                      type: "randomChance",
+                      chance: 0.3,
+                      effects: [{ type: "gainUniqueUnsecuredItem", itemId: "shard_of_the_perron" }],
+                      resultText: "A dark splinter breaks from the Perron and settles at Arthur's feet, warm with the force of the storm.",
+                      elseEffects: [],
                     }
                   ],
                   resultText: "The Fountain Knight lowers his blade. \"You came to ask a question,\" he says. \"Now carry its answer carefully.\""
@@ -3933,7 +3940,14 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             outcomes: [
               { type: "modifyResource", resource: "health", amount: 1 },
               { type: "setRunFlag", flag: "leperKnightAided", value: true },
-              { type: "rollLootTable", tableId: "common_materials", chance: 0.5 }
+              { type: "rollLootTable", tableId: "common_materials", chance: 0.5 },
+              {
+                type: "randomChance",
+                chance: 0.3,
+                effects: [{ type: "gainUniqueUnsecuredItem", itemId: "reliquary_of_saint_lazarus" }],
+                resultText: "The knight presses a small reliquary into Arthur's palm. Saint Lazarus, he says, knew that mercy can be a kind of courage.",
+                elseEffects: [],
+              }
             ],
             resultText: "The knight accepts the bandage without touching Arthur's hand. In return he gives a brief warning about a spring guarded by something that does not fear steel.",
             endEncounter: true
@@ -4305,7 +4319,17 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "startCombat",
               combatId: "briar_knight",
               victory: {
-                outcomes: [{ type: "rollLootTable", tableId: "uncommon_materials", chance: 0.75 }, { type: "rollLootTable", tableId: "forest_materials" }],
+                outcomes: [
+                  { type: "rollLootTable", tableId: "uncommon_materials", chance: 0.75 },
+                  { type: "rollLootTable", tableId: "forest_materials" },
+                  {
+                    type: "randomChance",
+                    chance: 0.3,
+                    effects: [{ type: "gainUniqueUnsecuredItem", itemId: "thorn_of_the_dolorous_vale" }],
+                    resultText: "The briars part around a thin black blade. It is light in Arthur's hand, but eager to draw blood.",
+                    elseEffects: [],
+                  },
+                ],
                 resultText: "The briars collapse into a dark heap. Beneath the thorns are rare herbs and a few pieces of old metal."
               },
               fled: { outcomes: [], resultText: "Arthur breaks away from the thorned blade before the road closes around him." }

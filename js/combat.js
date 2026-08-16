@@ -94,6 +94,13 @@ const CombatSystem = Object.freeze({
       if (state.status !== "running") {
         return;
       }
+      if (!processEnemyActivationStatuses(state, enemy)) {
+        enemy.gauge = 0;
+        enemy.intentId = null;
+        refreshSelectedEnemy(state);
+        if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
+        return;
+      }
       resolveEnemyAction(state, expedition, enemy);
       changed = true;
     });
@@ -309,6 +316,7 @@ function createArthurCombatant(expedition) {
   const weapon = ITEM_DEFINITIONS[expedition.selectedEquipment.weapon];
   const armor = ITEM_DEFINITIONS[expedition.selectedEquipment.armor];
   const relic = ITEM_DEFINITIONS[expedition.selectedEquipment.relic];
+  const equippedCombatEffects = EquipmentRules.aggregateEquippedCombatEffects(expedition);
   return {
     id: "arthur",
     definitionId: "arthur",
@@ -316,7 +324,7 @@ function createArthurCombatant(expedition) {
     name: PLAYER_CHARACTER_DEFINITION.name,
     maxHp: InjuryRules.effectiveMaxHealth(expedition, "arthur"),
     hp: clampCombatNumber(expedition.health, 0, InjuryRules.effectiveMaxHealth(expedition, "arthur")),
-    speed: PLAYER_CHARACTER_DEFINITION.combat.speed,
+    speed: Math.max(1, PLAYER_CHARACTER_DEFINITION.combat.speed + equippedCombatEffects.combatSpeed),
     defense: Math.max(0, Math.floor((Number(armor?.effects?.combatDefense) || 0)
       * InjuryRules.combatDefenseMultiplier(expedition, "arthur"))),
     damage: weapon?.effects?.combatDamage ?? { minimum: 4, maximum: 6 },
@@ -330,6 +338,8 @@ function createArthurCombatant(expedition) {
       relic,
     ),
     sourceItemIds: [weapon?.id, armor?.id, relic?.id].filter(Boolean),
+    equippedCombatEffects,
+    combatCharges: {},
     canUseItems: true,
     canDefend: true,
     canFlee: true,
@@ -384,6 +394,7 @@ function createEnemyCombatant(enemyId, index, occurrence) {
     intentId: null,
     patternIndex: 0,
     actionPattern: [...enemy.actionPattern],
+    statuses: {},
   };
 }
 
@@ -406,10 +417,27 @@ function activateNextAlly(state) {
 }
 
 function resolveAttack(state, actor, target) {
-  const damage = calculateCombatDamage(rollCombatDamage(actor.damage, state.random), target.defense);
+  const triggerResult = actor.id === "arthur"
+    ? applyEquipmentCombatTriggers(state, actor, "beforeNormalAttack")
+    : { bonusDamage: 0 };
+  const baseDamage = rollCombatDamage(actor.damage, state.random);
+  const damage = calculateCombatDamage(baseDamage + triggerResult.bonusDamage, target.defense);
   applyCombatDamage(state, target, damage);
-  recordCombatEvent(state, { actor: actor.id, action: "attack", target: target.id, damage });
+  recordCombatEvent(state, {
+    actor: actor.id,
+    action: "attack",
+    target: target.id,
+    damage,
+    baseDamage,
+    bonusDamage: triggerResult.bonusDamage,
+  });
   addCombatLog(state, `${actor.name} attacks ${target.name} for ${damage} damage.`);
+  if (triggerResult.bonusDamage > 0) {
+    addCombatLog(state, `${actor.name}'s stored Resolve adds ${triggerResult.bonusDamage} bonus damage.`);
+  }
+  if (actor.id === "arthur" && isLivingCombatant(target)) {
+    applyEquippedOnHitEffects(state, actor, target);
+  }
   if (!isLivingCombatant(target)) {
     addCombatLog(state, `${target.name} is defeated.`);
   }
@@ -443,6 +471,7 @@ function resolvePommelStrike(state, actor, target, ability) {
 }
 
 function resolveEnemyAction(state, expedition, enemy) {
+  if (!isLivingCombatant(enemy)) return;
   const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
   let target = chooseEnemyTarget(state, action);
   const selectedTargetId = target?.id ?? null;
@@ -457,13 +486,23 @@ function resolveEnemyAction(state, expedition, enemy) {
   if (target) {
     const rolled = rollCombatDamage(action.damage, state.random);
     const mitigated = calculateCombatDamage(rolled, target.defense);
+    const unguardedDamage = Math.max(1, Math.floor(
+      mitigated * InjuryRules.incomingDamageMultiplier(expedition, target.id),
+    ));
     const damageBeforeInjury = target.defending
       ? Math.max(1, Math.floor(mitigated * COMBAT_TUNING.defendDamageMultiplier))
       : mitigated;
     const damage = Math.max(1, Math.floor(
       damageBeforeInjury * InjuryRules.incomingDamageMultiplier(expedition, target.id),
     ));
+    const damagePrevented = target.defending
+      ? Math.max(0, unguardedDamage - damage) : 0;
     applyCombatDamage(state, target, damage);
+    if (damagePrevented > 0) {
+      applyEquipmentCombatTriggers(state, target, "defendDamagePrevented", {
+        amount: damagePrevented,
+      });
+    }
     let injury = null;
     const injuryThreshold = Number(action.injuryChance) || 0;
     const injuryRoll = action.damage.maximum > action.damage.minimum
@@ -640,6 +679,139 @@ function finishCombat(state, result) {
   state.pendingTargetPrompt = null;
   state.readyQueue.length = 0;
   state.selectedEnemyId = null;
+}
+
+function processEnemyActivationStatuses(state, enemy) {
+  const statusIds = Object.keys(enemy.statuses ?? {}).sort();
+  for (const statusId of statusIds) {
+    const status = COMBAT_STATUS_DEFINITIONS[statusId];
+    const entry = enemy.statuses?.[statusId];
+    if (!status || !entry) {
+      delete enemy.statuses[statusId];
+      continue;
+    }
+    const damage = Math.max(0, Number(status.periodicDamage) || 0);
+    applyCombatDamage(state, enemy, damage);
+    entry.remainingActivations = Math.max(0, (Number(entry.remainingActivations) || 0) - 1);
+    recordCombatEvent(state, {
+      type: "status-tick",
+      target: enemy.id,
+      statusId,
+      damage,
+      remainingActivations: entry.remainingActivations,
+    });
+    addCombatLog(state, `${enemy.name} suffers ${damage} damage from ${status.name}.`);
+    if (entry.remainingActivations <= 0) {
+      delete enemy.statuses[statusId];
+      recordCombatEvent(state, { type: "status-expired", target: enemy.id, statusId });
+      addCombatLog(state, `${enemy.name} is no longer ${status.name.toLowerCase()}.`);
+    }
+    if (!isLivingCombatant(enemy)) {
+      addCombatLog(state, `${enemy.name} is defeated by ${status.name}.`);
+      return false;
+    }
+  }
+  return true;
+}
+
+function applyEquippedOnHitEffects(state, actor, target) {
+  (actor.equippedCombatEffects?.onHitEffects ?? []).forEach((effect) => {
+    if (effect.type !== "applyStatus") return;
+    const statusId = effect.statusId;
+    const chance = Math.max(0, Math.min(1, Number(effect.chance) || 0));
+    const applied = Boolean(COMBAT_STATUS_DEFINITIONS[statusId]) && state.random() < chance;
+    recordCombatEvent(state, {
+      type: "equipment-trigger",
+      trigger: "onHit",
+      effect: effect.type,
+      sourceItemId: effect.sourceItemId,
+      equipmentSlot: effect.equipmentSlot,
+      statusId,
+      chance,
+      applied,
+      target: target.id,
+    });
+    if (applied) applyCombatStatus(state, target, statusId, effect);
+  });
+}
+
+function applyCombatStatus(state, target, statusId, source = {}) {
+  const definition = COMBAT_STATUS_DEFINITIONS[statusId];
+  if (!definition || !isLivingCombatant(target) || target.side !== "enemy") {
+    return { applied: false, statusId, reason: "invalid-target-or-status" };
+  }
+  target.statuses ??= {};
+  const previous = target.statuses[statusId];
+  const remainingActivations = Math.max(1, Math.floor(
+    Number(definition.durationActivations) || 1,
+  ));
+  target.statuses[statusId] = {
+    statusId,
+    remainingActivations,
+  };
+  const refreshed = Boolean(previous);
+  recordCombatEvent(state, {
+    type: "status-applied",
+    target: target.id,
+    statusId,
+    sourceItemId: source.sourceItemId ?? null,
+    equipmentSlot: source.equipmentSlot ?? null,
+    refreshed,
+    remainingActivations,
+  });
+  addCombatLog(state, `${target.name} is ${definition.name.toLowerCase()}${refreshed ? " again" : ""}.`);
+  return { applied: true, statusId, refreshed, remainingActivations };
+}
+
+function applyEquipmentCombatTriggers(state, actor, triggerName, context = {}) {
+  const result = { bonusDamage: 0 };
+  if (!actor || actor.id !== "arthur") return result;
+  actor.combatCharges ??= {};
+  (actor.equippedCombatEffects?.combatTriggers ?? [])
+    .filter((trigger) => trigger.trigger === triggerName)
+    .forEach((trigger) => {
+      const chargeId = String(trigger.chargeId ?? "");
+      if (!chargeId) return;
+      if (trigger.effect === "storeCharge") {
+        const amount = Math.max(0, Number(context.amount) || 0);
+        const cap = Math.max(0, Number(trigger.cap) || 0);
+        const current = Math.max(0, Number(actor.combatCharges[chargeId]) || 0);
+        const next = Math.min(cap, current + amount);
+        const storedAmount = Math.max(0, next - current);
+        actor.combatCharges[chargeId] = next;
+        recordCombatEvent(state, {
+          type: "equipment-trigger",
+          trigger: triggerName,
+          effect: trigger.effect,
+          sourceItemId: trigger.sourceItemId,
+          equipmentSlot: trigger.equipmentSlot,
+          chargeId,
+          amount,
+          storedAmount,
+          chargeTotal: next,
+        });
+        if (storedAmount > 0) {
+          addCombatLog(state, `${actor.name} stores ${storedAmount} Resolve (${next}/${cap}).`);
+        }
+      } else if (trigger.effect === "consumeChargeForBonusDamage") {
+        const spent = Math.max(0, Number(actor.combatCharges[chargeId]) || 0);
+        actor.combatCharges[chargeId] = 0;
+        if (spent > 0) {
+          result.bonusDamage += spent;
+          recordCombatEvent(state, {
+            type: "equipment-trigger",
+            trigger: triggerName,
+            effect: trigger.effect,
+            sourceItemId: trigger.sourceItemId,
+            equipmentSlot: trigger.equipmentSlot,
+            chargeId,
+            spentAmount: spent,
+            chargeTotal: 0,
+          });
+        }
+      }
+    });
+  return result;
 }
 
 function addCombatLog(state, message) {

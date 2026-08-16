@@ -54,6 +54,25 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
   flee: Object.freeze({ id: "flee", name: "Flee", target: "none", category: "action" }),
 });
 
+const COMBAT_STATUS_DEFINITIONS = Object.freeze({
+  bleeding: Object.freeze({
+    id: "bleeding",
+    name: "Bleeding",
+    description: "Lose 2 HP when ready to act. Lasts for three enemy activations.",
+    periodicDamage: 2,
+    durationActivations: 3,
+    refreshBehavior: "refresh",
+  }),
+  poisoned: Object.freeze({
+    id: "poisoned",
+    name: "Poisoned",
+    description: "Lose 2 HP when ready to act. Lasts for four enemy activations.",
+    periodicDamage: 2,
+    durationActivations: 4,
+    refreshBehavior: "refresh",
+  }),
+});
+
 const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   wild_boar: Object.freeze({
     id: "wild_boar",

@@ -10,19 +10,45 @@ const EquipmentRules = Object.freeze({
       .map((item) => item.equipmentSlot))].sort();
   },
 
+  aggregateEquippedCombatEffects(source, definitions = ITEM_DEFINITIONS) {
+    const selectedEquipment = source?.selectedEquipment ?? source?.equippedItems ?? {};
+    const items = ["weapon", "armor", "relic"]
+      .map((equipmentSlot) => ({
+        equipmentSlot,
+        itemId: selectedEquipment[equipmentSlot] ?? null,
+        item: definitions?.[selectedEquipment[equipmentSlot]],
+      }))
+      .filter((entry) => entry.item);
+    return {
+      items,
+      combatSpeed: items.reduce(
+        (total, entry) => total + (Number(entry.item.effects?.combatSpeed) || 0), 0,
+      ),
+      onHitEffects: items.flatMap((entry) => (entry.item.effects?.onHitEffects ?? [])
+        .map((effect) => ({ ...effect, sourceItemId: entry.itemId, equipmentSlot: entry.equipmentSlot }))),
+      combatTriggers: items.flatMap((entry) => (entry.item.effects?.combatTriggers ?? [])
+        .map((trigger) => ({ ...trigger, sourceItemId: entry.itemId, equipmentSlot: entry.equipmentSlot }))),
+    };
+  },
+
+  equippedCombatEffects(source, definitions = ITEM_DEFINITIONS) {
+    return this.aggregateEquippedCombatEffects(source, definitions);
+  },
+
   scoreItem(item, strategyName = "aggressive") {
     if (!item?.equippable || !item.equipmentSlot) return Number.NEGATIVE_INFINITY;
     const abilityValue = combatAbilityValue(item);
+    const passiveValue = combatPassiveValue(item, strategyName);
     if (item.equipmentSlot === "weapon") {
-      return weaponValue(item, strategyName) + abilityValue;
+      return weaponValue(item, strategyName) + abilityValue + passiveValue;
     }
     if (item.equipmentSlot === "armor") {
-      return armorValue(item, strategyName) + abilityValue;
+      return armorValue(item, strategyName) + abilityValue + passiveValue;
     }
-    // Relics and future slots may grant abilities even when they do not have
-    // a direct stat supported by the current combat runtime. Equal-value
-    // items retain the current equipment through the deterministic tie-break.
-    return abilityValue;
+    // Relics and future slots may grant passive effects without a direct stat.
+    // Equal-value items retain the current equipment through the deterministic
+    // tie-break in bestOwnedForSlot.
+    return abilityValue + passiveValue;
   },
 
   bestOwnedForSlot(player, slot, strategyName = "aggressive", definitions = ITEM_DEFINITIONS) {
@@ -118,4 +144,23 @@ function combatAbilityValue(item) {
     if (ability.effectType === "intercede") return total + 1;
     return total + 0.25;
   }, 0);
+}
+
+function combatPassiveValue(item, strategyName) {
+  const speed = Number(item.effects?.combatSpeed) || 0;
+  const strategyMultiplier = strategyName === "cautious" ? 0.9 : 1;
+  const speedValue = speed * strategyMultiplier;
+  const onHitValue = (item.effects?.onHitEffects ?? []).reduce((total, effect) => {
+    const chance = Math.max(0, Math.min(1, Number(effect.chance) || 0));
+    const status = COMBAT_STATUS_DEFINITIONS?.[effect.statusId];
+    const damage = Number(status?.periodicDamage) || 0;
+    const duration = Number(status?.durationActivations) || 1;
+    return total + chance * (damage * duration * 0.8 || 1);
+  }, 0);
+  const triggerValue = (item.effects?.combatTriggers ?? []).reduce((total, trigger) => {
+    if (trigger.effect === "storeCharge") return total + Math.max(0, Number(trigger.cap) || 0) * 0.2;
+    if (trigger.effect === "consumeChargeForBonusDamage") return total + 0.25;
+    return total;
+  }, 0);
+  return speedValue + onHitValue + triggerValue;
 }

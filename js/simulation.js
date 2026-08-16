@@ -492,6 +492,11 @@ const SimulationTelemetry = Object.freeze({
       damageReceivedByPartyMember: run.damageReceivedByPartyMember,
       abilityUsesById: run.abilityUsesById,
       itemUsesById: run.itemUsesById,
+      statusesAppliedById: run.statusesAppliedById,
+      statusDamageById: run.statusDamageById,
+      equipmentPassiveTriggers: run.equipmentPassiveTriggers,
+      resolveStored: run.resolveStored,
+      resolveSpent: run.resolveSpent,
       totalHealingPerformed: run.totalHealingPerformed,
       totalGaugeControl: run.totalGaugeControl,
       turnaroundDistance: run.turnaroundDistance,
@@ -540,6 +545,7 @@ const SimulationTelemetry = Object.freeze({
       "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
+      "statusesAppliedById", "statusDamageById", "equipmentPassiveTriggers", "resolveStored", "resolveSpent",
       "itemsPackedById", "itemsConsumedById", "itemsReturnedById", "bandagesPacked", "bandagesUsed",
       "bandagesReturned", "bandageHealingPerformed",
     ];
@@ -1560,6 +1566,17 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
   );
   const abilityUsesById = aggregateRunCombatField(telemetry, "abilityUsesById");
   const itemUsesById = aggregateRunCombatField(telemetry, "itemUsesById");
+  const statusesAppliedById = aggregateRunCombatField(telemetry, "statusesAppliedById");
+  const statusDamageById = aggregateRunCombatField(telemetry, "statusDamageById");
+  const equipmentPassiveTriggers = telemetry.combats.flatMap(
+    (combat) => combat.equipmentPassiveTriggers ?? [],
+  );
+  const resolveStored = telemetry.combats.reduce(
+    (sum, combat) => sum + (Number(combat.resolveStored) || 0), 0,
+  );
+  const resolveSpent = telemetry.combats.reduce(
+    (sum, combat) => sum + (Number(combat.resolveSpent) || 0), 0,
+  );
   const injuryEvents = expedition.injuryEvents ?? [];
   const naturalRecoveryEvents = injuryEvents.filter((event) => (
     event.type === "injury-recovered" && event.recoveryType === "natural"
@@ -1654,6 +1671,11 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     damageReceivedByPartyMember,
     abilityUsesById,
     itemUsesById,
+    statusesAppliedById,
+    statusDamageById,
+    equipmentPassiveTriggers,
+    resolveStored,
+    resolveSpent,
     itemsConsumedById: deepClone(expedition.consumedItems ?? {}),
     itemsReturnedById: deepClone(expedition.carriedItems ?? {}),
     bandagesPacked: telemetry.itemsPackedById?.bandages ?? 0,
@@ -1868,6 +1890,11 @@ function combatActionTelemetry(history) {
   const itemHealingById = {};
   let healingPerformed = 0;
   let gaugeControl = 0;
+  const statusesAppliedById = {};
+  const statusDamageById = {};
+  const equipmentPassiveTriggers = [];
+  let resolveStored = 0;
+  let resolveSpent = 0;
   history.actionEvents.forEach((event) => {
     if (event.action === "ability" && event.abilityId) {
       abilityUsesById[event.abilityId] = (abilityUsesById[event.abilityId] ?? 0) + 1;
@@ -1879,8 +1906,42 @@ function combatActionTelemetry(history) {
       itemHealingById[event.itemId] = (itemHealingById[event.itemId] ?? 0) + healing;
       healingPerformed += healing;
     }
+    if (event.type === "status-applied" && event.statusId) {
+      statusesAppliedById[event.statusId] = (statusesAppliedById[event.statusId] ?? 0) + 1;
+    }
+    if (event.type === "status-tick" && event.statusId) {
+      statusDamageById[event.statusId] = (statusDamageById[event.statusId] ?? 0)
+        + (Number(event.damage) || 0);
+    }
+    if (event.type === "equipment-trigger") {
+      equipmentPassiveTriggers.push({
+        trigger: event.trigger,
+        effect: event.effect,
+        sourceItemId: event.sourceItemId ?? null,
+        equipmentSlot: event.equipmentSlot ?? null,
+        statusId: event.statusId ?? null,
+        chargeId: event.chargeId ?? null,
+        amount: Number(event.amount) || 0,
+        storedAmount: Number(event.storedAmount) || 0,
+        spentAmount: Number(event.spentAmount) || 0,
+        applied: event.applied,
+      });
+      resolveStored += Number(event.storedAmount) || 0;
+      resolveSpent += Number(event.spentAmount) || 0;
+    }
   });
-  return { abilityUsesById, itemUsesById, itemHealingById, healingPerformed, gaugeControl };
+  return {
+    abilityUsesById,
+    itemUsesById,
+    itemHealingById,
+    healingPerformed,
+    gaugeControl,
+    statusesAppliedById,
+    statusDamageById,
+    equipmentPassiveTriggers,
+    resolveStored,
+    resolveSpent,
+  };
 }
 
 function aggregateRunPartyCombatField(telemetry, field) {

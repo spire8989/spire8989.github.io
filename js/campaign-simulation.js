@@ -360,6 +360,11 @@ const CampaignSimulationRunner = Object.freeze({
         companionCombatDamageReceived: run.companionCombatDamageReceived,
         abilityUsesById: run.abilityUsesById,
         itemUsesById: run.itemUsesById,
+        statusesAppliedById: run.statusesAppliedById,
+        statusDamageById: run.statusDamageById,
+        equipmentPassiveTriggers: run.equipmentPassiveTriggers,
+        resolveStored: run.resolveStored,
+        resolveSpent: run.resolveSpent,
         totalHealingPerformed: run.totalHealingPerformed,
         totalGaugeControl: run.totalGaugeControl,
         encounters: run.encounterCount,
@@ -540,6 +545,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
+      "statusesAppliedById", "statusDamageById", "equipmentPassiveTriggers", "totalResolveStored", "totalResolveSpent",
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
       "equipmentPurchases", "equipmentPurchaseGoldSpent", "equipmentCraftingActions", "equipmentChanges",
       "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
@@ -593,6 +599,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "arthurCombatAttacksReceived", "companionCombatAttacksReceived",
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
+      "statusesAppliedById", "statusDamageById", "equipmentPassiveTriggers", "resolveStored", "resolveSpent",
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
       "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
       "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "provisionsPacked", "lootValueRecovered",
@@ -1138,6 +1145,11 @@ function compactCombatSummary(entry, run, encounters) {
   let damageReceived = 0;
   let healingPerformed = 0;
   let gaugeControl = 0;
+  let resolveStored = 0;
+  let resolveSpent = 0;
+  const statusesAppliedById = {};
+  const statusDamageById = {};
+  const equipmentPassiveTriggers = [];
   combats.forEach((combat) => {
     const result = combat.result ?? "incomplete";
     outcomesById[result] = (outcomesById[result] ?? 0) + 1;
@@ -1149,6 +1161,15 @@ function compactCombatSummary(entry, run, encounters) {
     damageReceived += Number(combat.damageReceived) || 0;
     healingPerformed += Number(combat.healingPerformed) || 0;
     gaugeControl += Number(combat.gaugeControl) || 0;
+    resolveStored += Number(combat.resolveStored) || 0;
+    resolveSpent += Number(combat.resolveSpent) || 0;
+    Object.entries(combat.statusesAppliedById ?? {}).forEach(([statusId, count]) => {
+      statusesAppliedById[statusId] = (statusesAppliedById[statusId] ?? 0) + (Number(count) || 0);
+    });
+    Object.entries(combat.statusDamageById ?? {}).forEach(([statusId, amount]) => {
+      statusDamageById[statusId] = (statusDamageById[statusId] ?? 0) + (Number(amount) || 0);
+    });
+    equipmentPassiveTriggers.push(...(combat.equipmentPassiveTriggers ?? []));
   });
   return compactOmitZeroNumbers({
     count: Number(entry.combats) || combats.length,
@@ -1165,6 +1186,11 @@ function compactCombatSummary(entry, run, encounters) {
     gaugeControl: Number(entry.totalGaugeControl) || gaugeControl,
     abilitiesUsedById: compactClone(entry.abilityUsesById ?? {}),
     itemsUsedById: compactClone(entry.itemUsesById ?? {}),
+    statusesAppliedById,
+    statusDamageById,
+    equipmentPassiveTriggers,
+    resolveStored,
+    resolveSpent,
     aggressiveEmergencyActions: Number(entry.aggressiveEmergencyActions) || 0,
   });
 }
@@ -1373,6 +1399,14 @@ function compactEquipmentSummary(entry, run, endingState) {
     strategy: change.strategy ?? null,
     score: Number(change.score),
   }));
+  const acquired = (run.lootRecovered ?? [])
+    .filter((loot) => ITEM_DEFINITIONS[loot.itemId]?.equippable)
+    .map((loot) => ({
+      itemId: loot.itemId,
+      equipmentSlot: ITEM_DEFINITIONS[loot.itemId]?.equipmentSlot ?? null,
+      quantity: Number(loot.quantity) || 1,
+      source: "loot",
+    }));
   const equippedAtDeparture = compactClone(run.loadout ?? {});
   const equippedAtReturn = compactClone(endingState.equippedItems ?? {});
   const changes = {};
@@ -1389,6 +1423,7 @@ function compactEquipmentSummary(entry, run, endingState) {
     equippedAtDeparture,
     purchases,
     crafts,
+    acquired,
     equipActions,
     changes,
     equippedAtReturn,
@@ -1431,6 +1466,16 @@ function compactNotableEvents(campaign) {
       quantity: Number(craft.quantity) || 1,
       goldCost: Number(craft.goldCost) || 0,
     }));
+    (run.lootRecovered ?? [])
+      .filter((loot) => ITEM_DEFINITIONS[loot.itemId]?.equippable)
+      .forEach((loot) => events.push({
+        type: "equipment-acquired",
+        expeditionNumber: entry.expeditionNumber,
+        itemId: loot.itemId,
+        equipmentSlot: ITEM_DEFINITIONS[loot.itemId]?.equipmentSlot ?? null,
+        quantity: Number(loot.quantity) || 1,
+        source: "loot",
+      }));
     const equippedAtDeparture = run.loadout ?? {};
     Object.entries(equippedAtDeparture).forEach(([slot, itemId]) => {
       if (itemId && previousEquipment[slot] !== itemId) {
@@ -2730,6 +2775,13 @@ function finalizeCampaignTelemetry(
     + totalItemPurchaseGoldSpent + totalCraftingGoldSpent;
   const abilityUsesById = campaignCombatTotals(expeditions, "abilityUsesById");
   const itemUsesById = campaignCombatTotals(expeditions, "itemUsesById");
+  const statusesAppliedById = campaignCombatTotals(expeditions, "statusesAppliedById");
+  const statusDamageById = campaignCombatTotals(expeditions, "statusDamageById");
+  const equipmentPassiveTriggers = expeditions.flatMap(
+    (entry) => entry.equipmentPassiveTriggers ?? [],
+  );
+  const totalResolveStored = totals((entry) => entry.resolveStored);
+  const totalResolveSpent = totals((entry) => entry.resolveSpent);
   const netGold = endingState.gold - startingState.gold;
   const successful = expeditions.filter((entry) => entry.success);
   const failed = expeditions.filter((entry) => !entry.success);
@@ -2919,6 +2971,11 @@ function finalizeCampaignTelemetry(
     totalCompanionCombatDamageReceived: totals((entry) => entry.companionCombatDamageReceived),
     abilityUsesById,
     itemUsesById,
+    statusesAppliedById,
+    statusDamageById,
+    equipmentPassiveTriggers,
+    totalResolveStored,
+    totalResolveSpent,
     totalHealingPerformed: totals((entry) => entry.totalHealingPerformed),
     totalGaugeControl: totals((entry) => entry.totalGaugeControl),
     totalEncounters: totals((entry) => entry.encounters),
