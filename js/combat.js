@@ -94,7 +94,16 @@ const CombatSystem = Object.freeze({
       if (state.status !== "running") {
         return;
       }
+      const activeStatusIds = Object.keys(enemy.statuses ?? {}).sort();
       if (!processEnemyActivationStatuses(state, enemy)) {
+        enemy.gauge = 0;
+        enemy.intentId = null;
+        refreshSelectedEnemy(state);
+        if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
+        return;
+      }
+      applyEnemyActivationTraits(state, enemy, activeStatusIds);
+      if (!isLivingCombatant(enemy)) {
         enemy.gauge = 0;
         enemy.intentId = null;
         refreshSelectedEnemy(state);
@@ -403,6 +412,10 @@ function createEnemyCombatant(enemyId, index, occurrence) {
     patternIndex: 0,
     actionPattern: [...enemy.actionPattern],
     statuses: {},
+    traits: (enemy.traits ?? []).map((trait) => ({
+      ...trait,
+      suppressedByStatuses: [...(trait.suppressedByStatuses ?? [])],
+    })),
   };
 }
 
@@ -720,6 +733,42 @@ function processEnemyActivationStatuses(state, enemy) {
     }
   }
   return true;
+}
+
+function applyEnemyActivationTraits(state, enemy, activeStatusIds = []) {
+  (enemy.traits ?? []).forEach((trait) => {
+    if (!trait || trait.trigger !== "activation") return;
+    if (trait.type === "regeneration") {
+      const amount = Math.max(0, Number(trait.amount) || 0);
+      const suppressedByStatuses = (trait.suppressedByStatuses ?? [])
+        .filter((statusId) => activeStatusIds.includes(statusId));
+      const healed = suppressedByStatuses.length > 0
+        ? 0
+        : Math.min(amount, Math.max(0, enemy.maxHp - enemy.hp));
+      enemy.hp += healed;
+      recordCombatEvent(state, {
+        type: "enemy-trait",
+        trait: trait.type,
+        traitType: trait.type,
+        trigger: trait.trigger,
+        target: enemy.id,
+        amount,
+        healed,
+        appliedAmount: healed,
+        suppressedByStatuses,
+      });
+      if (suppressedByStatuses.length > 0) {
+        const names = suppressedByStatuses.map((statusId) => (
+          COMBAT_STATUS_DEFINITIONS[statusId]?.name ?? statusId
+        )).join(" and ");
+        addCombatLog(state, `${enemy.name}'s regeneration is suppressed by ${names}.`);
+      } else if (healed > 0) {
+        addCombatLog(state, `${enemy.name} regenerates ${healed} HP.`);
+      } else {
+        addCombatLog(state, `${enemy.name}'s regeneration cannot exceed its maximum HP.`);
+      }
+    }
+  });
 }
 
 function applyEquippedOnHitEffects(state, actor, target) {

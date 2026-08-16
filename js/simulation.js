@@ -497,6 +497,11 @@ const SimulationTelemetry = Object.freeze({
       equipmentPassiveTriggers: run.equipmentPassiveTriggers,
       resolveStored: run.resolveStored,
       resolveSpent: run.resolveSpent,
+      regenerationPerformed: run.regenerationPerformed,
+      regenerationSuppressedActivations: run.regenerationSuppressedActivations,
+      regenerationSuppressedByStatus: run.regenerationSuppressedByStatus,
+      heavyAttackUses: run.heavyAttackUses,
+      defendActions: run.defendActions,
       totalHealingPerformed: run.totalHealingPerformed,
       totalGaugeControl: run.totalGaugeControl,
       turnaroundDistance: run.turnaroundDistance,
@@ -546,6 +551,8 @@ const SimulationTelemetry = Object.freeze({
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
       "statusesAppliedById", "statusDamageById", "equipmentPassiveTriggers", "resolveStored", "resolveSpent",
+      "regenerationPerformed", "regenerationSuppressedActivations", "regenerationSuppressedByStatus",
+      "heavyAttackUses", "defendActions",
       "itemsPackedById", "itemsConsumedById", "itemsReturnedById", "bandagesPacked", "bandagesUsed",
       "bandagesReturned", "bandageHealingPerformed",
     ];
@@ -569,6 +576,10 @@ function createStrategy(name, chooseEncounter) {
       const maxHealth = PLAYER_CHARACTER_DEFINITION.combat.maxHp;
       if (name === "cautious" && expedition.health < maxHealth * 0.3 && actions.includes("flee")) return "flee";
       if (name === "random" || name === "normal") return context.random.pick(actions);
+      if (name === "cautious" || name === "aggressive") {
+        const defendDecision = equippedDefendTriggerDecision(combat, actions);
+        if (defendDecision) return defendDecision.actionId;
+      }
       if (name === "aggressive") {
         const emergency = aggressiveEmergencyCombatDecision(combat, expedition, actions);
         if (emergency) {
@@ -648,6 +659,33 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
   if (encounterId === "val_morgans_offer") {
     return choiceById("refuse_morgans_offer") ?? choiceById("ask_what_it_costs") ?? null;
   }
+  if (encounterId === "road_that_remembers") {
+    if (strategyName === "cautious" && context.player?.ownedItems?.water_of_barenton > 0) {
+      return choiceById("use_water_of_barenton") ?? choiceById("study_the_road") ?? null;
+    }
+    return strategyName === "aggressive"
+      ? choiceById("trust_memory") ?? choiceById("study_the_road") ?? null
+      : choiceById("study_the_road") ?? choiceById("trust_memory") ?? null;
+  }
+  if (encounterId === "hollow_crown") {
+    if (context.player?.ownedItems?.morgans_token > 0) {
+      return choiceById("present_morgans_token") ?? null;
+    }
+    return strategyName === "aggressive"
+      ? choiceById("force_a_passage") ?? choiceById("investigate_stones") ?? null
+      : choiceById("investigate_stones") ?? choiceById("turn_back_from_crown") ?? null;
+  }
+  if (encounterId === "black_hound_of_the_hunt") {
+    return strategyName === "aggressive"
+      ? choiceById("fight_black_hound") ?? choiceById("slip_past_hound") ?? null
+      : choiceById("slip_past_hound") ?? choiceById("fight_black_hound") ?? null;
+  }
+  if (encounterId === "bound_warden") {
+    return choiceById("fight_bound_warden") ?? choiceById("turn_back_from_warden") ?? null;
+  }
+  if (encounterId === "merlin_found") {
+    return choiceById("meet_merlin") ?? null;
+  }
   return null;
 }
 
@@ -713,6 +751,33 @@ function aggressiveChoiceScore(choice) {
   return (startsCombat ? 50 : 0)
     + (/fight|combat|attack|stand_ground|confront|force|cross|push/.test(text) ? 20 : 0)
     - (/flee|avoid|leave|wait|return/.test(text) ? 10 : 0);
+}
+
+function equippedDefendTriggerDecision(combat, actions) {
+  if (!actions.includes("defend") || combat.activeActorId !== "arthur") return null;
+  const arthur = combat.allies.find((ally) => ally.id === "arthur");
+  const storeTriggers = (arthur?.equippedCombatEffects?.combatTriggers ?? [])
+    .filter((trigger) => trigger.trigger === "defendDamagePrevented" && trigger.effect === "storeCharge")
+    .filter((trigger) => Number(trigger.cap) > (Number(arthur.combatCharges?.[trigger.chargeId]) || 0));
+  if (!storeTriggers.length) return null;
+  const secondsUntilArthurActs = COMBAT_TUNING.actionGaugeMaximum
+    / (arthur.speed * COMBAT_TUNING.actionGaugeRate);
+  const threats = combat.enemies.filter((enemy) => {
+    if (enemy.hp <= 0) return false;
+    const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
+    if (!action || action.target !== "arthur") return false;
+    const secondsUntilEnemyActs = (COMBAT_TUNING.actionGaugeMaximum - enemy.gauge)
+      / (enemy.speed * COMBAT_TUNING.actionGaugeRate);
+    return secondsUntilEnemyActs <= secondsUntilArthurActs;
+  });
+  if (!threats.length) return null;
+  return {
+    triggered: true,
+    reason: "equipped-defend-trigger",
+    actionId: "defend",
+    chargeIds: storeTriggers.map((trigger) => trigger.chargeId),
+    threats: threats.map((enemy) => ({ enemyId: enemy.id, intentId: enemy.intentId })),
+  };
 }
 
 function greedyChoiceScore(choice) {
@@ -1577,6 +1642,21 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
   const resolveSpent = telemetry.combats.reduce(
     (sum, combat) => sum + (Number(combat.resolveSpent) || 0), 0,
   );
+  const regenerationPerformed = telemetry.combats.reduce(
+    (sum, combat) => sum + (Number(combat.regenerationPerformed) || 0), 0,
+  );
+  const regenerationSuppressedActivations = telemetry.combats.reduce(
+    (sum, combat) => sum + (Number(combat.regenerationSuppressedActivations) || 0), 0,
+  );
+  const regenerationSuppressedByStatus = aggregateRunCombatField(
+    telemetry, "regenerationSuppressedByStatus",
+  );
+  const heavyAttackUses = telemetry.combats.reduce(
+    (sum, combat) => sum + (Number(combat.heavyAttackUses) || 0), 0,
+  );
+  const defendActions = telemetry.combats.reduce(
+    (sum, combat) => sum + (Number(combat.defendActions) || 0), 0,
+  );
   const injuryEvents = expedition.injuryEvents ?? [];
   const naturalRecoveryEvents = injuryEvents.filter((event) => (
     event.type === "injury-recovered" && event.recoveryType === "natural"
@@ -1676,6 +1756,11 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     equipmentPassiveTriggers,
     resolveStored,
     resolveSpent,
+    regenerationPerformed,
+    regenerationSuppressedActivations,
+    regenerationSuppressedByStatus,
+    heavyAttackUses,
+    defendActions,
     itemsConsumedById: deepClone(expedition.consumedItems ?? {}),
     itemsReturnedById: deepClone(expedition.carriedItems ?? {}),
     bandagesPacked: telemetry.itemsPackedById?.bandages ?? 0,
@@ -1895,7 +1980,25 @@ function combatActionTelemetry(history) {
   const equipmentPassiveTriggers = [];
   let resolveStored = 0;
   let resolveSpent = 0;
+  let regenerationPerformed = 0;
+  let regenerationSuppressedActivations = 0;
+  const regenerationSuppressedByStatus = {};
+  let heavyAttackUses = 0;
+  let defendActions = 0;
   history.actionEvents.forEach((event) => {
+    if (event.action === "defend") defendActions += 1;
+    if (event.type === "enemy-trait" && event.traitType === "regeneration") {
+      regenerationPerformed += Number(event.appliedAmount ?? event.healed) || 0;
+      if ((event.suppressedByStatuses ?? []).length > 0) {
+        regenerationSuppressedActivations += 1;
+        (event.suppressedByStatuses ?? []).forEach((statusId) => {
+          regenerationSuppressedByStatus[statusId] = (regenerationSuppressedByStatus[statusId] ?? 0) + 1;
+        });
+      }
+    }
+    if (event.actor && event.target && COMBAT_ENEMY_ACTION_DEFINITIONS[event.action]?.telegraphed) {
+      heavyAttackUses += 1;
+    }
     if (event.action === "ability" && event.abilityId) {
       abilityUsesById[event.abilityId] = (abilityUsesById[event.abilityId] ?? 0) + 1;
       gaugeControl += Number(event.gaugeReduction) || 0;
@@ -1941,6 +2044,11 @@ function combatActionTelemetry(history) {
     equipmentPassiveTriggers,
     resolveStored,
     resolveSpent,
+    regenerationPerformed,
+    regenerationSuppressedActivations,
+    regenerationSuppressedByStatus,
+    heavyAttackUses,
+    defendActions,
   };
 }
 

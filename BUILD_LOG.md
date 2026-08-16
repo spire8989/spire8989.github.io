@@ -2880,3 +2880,23 @@ The human developer supplied the debug-panel guide and requested local commits. 
 ### Verification and resulting prototype state
 
 Added `tests/debug_tools_test.py` covering normal/debug URL gating, combined debug/simulation startup, item grant/remove/equip, materials, recipe and knowledge progression, healing, encounter forcing, data-driven combat launch, canonical status application, and replay protection. The focused debug suite passed 15 assertions and the deterministic simulation suite passed 59 assertions; existing location/campaign/replay suites still stop on their pre-existing stale content expectations. The panel remains absent unless `?debug=1` is present and all persistent mutations save through the existing save path.
+## 2026-08-16 - Search for Merlin Final Campaign Expedition
+
+### Goal
+
+Complete the final story, campaign, and expedition route for the vertical-slice prototype.
+
+### Human prompt and direction
+
+The human developer supplied the final expedition guide and requested coordinated implementation across the Grail runtime/content project and GrailTools, including this build-log update.
+
+### AI-assisted implementation
+
+- Added the four-route Search for Merlin expedition with Water of Barenton and Morgan's Token prerequisites, objective-distance gating, authored route encounters, the Black Hound, the Bound Warden, and the Merlin finale.
+- Added the unique protected Merlin's Seal reward and campaign completion state, including campaign summaries, replay data, compact output, CSV telemetry, and progression UI support.
+- Added reusable Bound Warden regeneration and status-based suppression traits, telegraphed heavy attacks, generic equipment-aware Defend strategy handling, and campaign combat telemetry for regeneration, suppression, heavy attacks, and Defend actions.
+- Extended GrailTools expedition/enemy/enemy-action authoring and validation for objective distances, enemy traits, suppression statuses, and telegraphed actions.
+
+### Verification and resulting prototype state
+
+Verified the location suite (429 assertions), deterministic simulation suite (62 assertions), campaign suite (92 assertions), current-campaign progression suite (31 assertions), and GrailTools content-editor suite (61 tests). Strong aggressive and cautious campaign seeds both reach Merlin and secure Merlin's Seal. `git diff --check` passed in both repositories; no commits or pushes were made.

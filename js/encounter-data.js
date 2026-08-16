@@ -3886,28 +3886,248 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       }
     }
   },
-  merlins_prison: {
-    id: "merlins_prison",
-    title: "Voice in the Wood",
-    description: "At the edge of the deepest wood, a voice answers from somewhere beyond sight.",
+  road_that_remembers: {
+    id: "road_that_remembers",
+    title: "The Road That Remembers",
+    description: "The road repeats pieces of Arthur's earlier journeys, but each familiar detail is subtly wrong.",
     regionId: "broceliande",
     pathIds: ["search_for_merlin"],
     expeditionIds: ["search_for_merlin"],
     directions: ["outbound"],
     weight: 20,
-    minimumDistance: 100,
-    maximumDistance: 125,
-    tags: ["campaign", "merlin", "milestone"],
+    minimumDistance: 34,
+    maximumDistance: 48,
+    milestone: true,
+    milestoneOrder: 34,
+    tags: ["campaign", "merlin", "supernatural", "navigation"],
     repeatable: false,
     requirements: [],
     stages: {
       start: {
-        text: "The wood closes around the road. Somewhere ahead, a familiar voice speaks Arthur's name.",
+        text: "A bridge from the Old Forest Road crosses the stream ahead, though Arthur remembers it standing somewhere else. The trees repeat the same crooked branch three times.",
         choices: [
           {
-            id: "follow_voice",
-            label: "Follow the Voice",
-            resultText: "The search has reached a place the first expedition cannot yet explain.",
+            id: "study_the_road",
+            label: "Study the Road Normally",
+            outcomes: [
+              { type: "modifyResource", resource: "health", amount: -1 },
+              { type: "setRunFlag", flag: "roadMemoryStudied", value: true }
+            ],
+            resultText: "Arthur studies the signs until the repeated road slips out of alignment. The company loses time, but finds the true track.",
+            endEncounter: true
+          },
+          {
+            id: "trust_memory",
+            label: "Trust Arthur's Memory",
+            outcomes: [
+              { type: "modifyResource", resource: "distance", amount: 3 },
+              { type: "setRunFlag", flag: "roadMemoryTrusted", value: true }
+            ],
+            resultText: "Arthur chooses the path he remembers. For a few steps the forest follows his recollection, then lets him pass at a cost in certainty.",
+            endEncounter: true
+          },
+          {
+            id: "use_water_of_barenton",
+            label: "Consult the Water of Barenton",
+            requirements: [
+              { type: "ownsItem", itemId: "water_of_barenton", lockedLabel: "Requires the Water of Barenton" }
+            ],
+            outcomes: [
+              { type: "learnKnowledge", knowledgeId: "woodcraft" },
+              { type: "setRunFlag", flag: "roadMemoryRevealed", value: true }
+            ],
+            resultText: "Arthur holds the Water of Barenton up to the false trees. Their reflections point toward the one road that has no memory of him. The Water remains untouched.",
+            endEncounter: true
+          }
+        ]
+      }
+    }
+  },
+  hollow_crown: {
+    id: "hollow_crown",
+    title: "The Hollow Crown",
+    description: "A ruined ring of standing stones forms a crown without a king and blocks the deeper road.",
+    regionId: "broceliande",
+    pathIds: ["search_for_merlin"],
+    expeditionIds: ["search_for_merlin"],
+    directions: ["outbound"],
+    weight: 20,
+    minimumDistance: 68,
+    maximumDistance: 78,
+    milestone: true,
+    milestoneOrder: 68,
+    tags: ["campaign", "merlin", "threshold", "morgan"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The stones lean inward over the road. Morgan's Token warms in Arthur's hand, and the empty crown seems to notice.",
+        choices: [
+          {
+            id: "present_morgans_token",
+            label: "Present Morgan's Token",
+            requirements: [
+              { type: "ownsItem", itemId: "morgans_token", lockedLabel: "Requires Morgan's Token" }
+            ],
+            outcomes: [
+              { type: "setRunFlag", flag: "hollowCrownPassed", value: true }
+            ],
+            resultText: "Arthur presents Morgan's Token. The stones part without touching him. The token is not consumed; it was a sign, not a toll.",
+            endEncounter: true
+          },
+          {
+            id: "investigate_stones",
+            label: "Investigate the Stones",
+            outcomes: [
+              { type: "modifyResource", resource: "health", amount: -2 },
+              { type: "setRunFlag", flag: "hollowCrownInvestigated", value: true }
+            ],
+            resultText: "The stones whisper names that are not Arthur's. He finds a narrow gap and squeezes through, leaving blood on the old rock.",
+            endEncounter: true
+          },
+          {
+            id: "force_a_passage",
+            label: "Force a Passage",
+            outcomes: [
+              { type: "modifyResource", resource: "health", amount: -5 },
+              { type: "modifyResource", resource: "distance", amount: 4 }
+            ],
+            resultText: "Arthur forces the company through the leaning stones. The crown resists, then releases them with a violent shudder.",
+            endEncounter: true
+          },
+          {
+            id: "turn_back_from_crown",
+            label: "Turn Back",
+            resultText: "Arthur refuses to cross the hollow crown. The company keeps the road behind them open for another attempt.",
+            endEncounter: true
+          }
+        ]
+      }
+    }
+  },
+  black_hound_of_the_hunt: {
+    id: "black_hound_of_the_hunt",
+    title: "The Black Hound of the Hunt",
+    description: "A black hound watches from the ferns, too large for any mortal kennel and too patient to be mistaken for a wolf.",
+    regionId: "broceliande",
+    pathIds: ["search_for_merlin"],
+    expeditionIds: ["search_for_merlin"],
+    directions: ["outbound"],
+    weight: 8,
+    minimumDistance: 84,
+    maximumDistance: 98,
+    tags: ["campaign", "merlin", "combat", "hunt"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The hound's eyes remain fixed on Arthur. Behind it, something has dragged a line through the moss as if the forest itself were being hunted.",
+        choices: [
+          {
+            id: "fight_black_hound",
+            label: "Face the Black Hound",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "black_hound_of_the_hunt",
+              victory: {
+                outcomes: [
+                  { type: "rollLootTable", tableId: "uncommon_materials", chance: 0.8 },
+                  { type: "rollLootTable", tableId: "forest_materials", chance: 0.8 }
+                ],
+                resultText: "The hound dissolves into black mist. The road is quiet, but the Hunt has learned Arthur's scent."
+              },
+              fled: { outcomes: [], resultText: "The hound lets the company run. Its paws never sound on the road behind them." }
+            }]
+          },
+          {
+            id: "slip_past_hound",
+            label: "Slip into the Trees",
+            resultText: "Arthur leads the company through the undergrowth. The hound watches them go, waiting for a more costly mistake.",
+            endEncounter: true
+          }
+        ]
+      }
+    }
+  },
+  bound_warden: {
+    id: "bound_warden",
+    title: "The Bound Warden",
+    description: "An ancient knight bound in old enchantment bars the last road to Merlin.",
+    regionId: "broceliande",
+    pathIds: ["search_for_merlin"],
+    expeditionIds: ["search_for_merlin"],
+    directions: ["outbound"],
+    weight: 25,
+    minimumDistance: 108,
+    maximumDistance: 114,
+    milestone: true,
+    milestoneOrder: 110,
+    ignoreEncounterSpacing: true,
+    tags: ["campaign", "merlin", "combat", "guardian", "milestone"],
+    repeatable: false,
+    requirements: [
+      { type: "notCampaignFlag", flag: "bound_warden_defeated" }
+    ],
+    stages: {
+      start: {
+        text: "The knight's armor is fused to its bones by a pale enchantment. It raises a heavy blade and takes the road as its oath.",
+        choices: [
+          {
+            id: "fight_bound_warden",
+            label: "Face the Bound Warden",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "bound_warden",
+              victory: {
+                outcomes: [
+                  { type: "setCampaignFlag", flag: "bound_warden_defeated", value: true }
+                ],
+                resultText: "The Bound Warden falls to one knee. The enchantment breaks, but whatever it guarded remains beyond the next rise."
+              },
+              fled: { outcomes: [], resultText: "The Bound Warden does not pursue. It simply returns to the road and waits." }
+            }]
+          },
+          {
+            id: "turn_back_from_warden",
+            label: "Turn Back",
+            resultText: "Arthur turns back from the guardian. Merlin remains unreachable, but the road home is still open.",
+            endEncounter: true
+          }
+        ]
+      }
+    }
+  },
+  merlin_found: {
+    id: "merlin_found",
+    title: "Merlin Found",
+    description: "Beyond the guardian, a small clearing opens around a man who has been waiting beneath an ancient tree.",
+    regionId: "broceliande",
+    pathIds: ["search_for_merlin"],
+    expeditionIds: ["search_for_merlin"],
+    directions: ["outbound"],
+    weight: 25,
+    minimumDistance: 116,
+    maximumDistance: 122,
+    milestone: true,
+    milestoneOrder: 118,
+    ignoreEncounterSpacing: true,
+    tags: ["campaign", "merlin", "milestone", "destination", "quest"],
+    repeatable: false,
+    requirements: [
+      { type: "campaignFlag", flag: "bound_warden_defeated" }
+    ],
+    stages: {
+      start: {
+        text: "The man beneath the tree looks up before Arthur speaks. His eyes are tired, amused, and entirely unsurprised.",
+        choices: [
+          {
+            id: "meet_merlin",
+            label: "Meet Merlin",
+            outcomes: [
+              { type: "setCampaignFlag", flag: "merlin_found", value: true },
+              { type: "gainUniqueUnsecuredItem", itemId: "merlins_seal" }
+            ],
+            resultText: "Arthur has finally found Merlin. Merlin says he knew Arthur would come, and that the Flask, the Water of Barenton, and Morgan's Token were the steps that made the meeting possible. The Grail quest lies beyond this unfinished chapter.",
             endEncounter: true
           }
         ]

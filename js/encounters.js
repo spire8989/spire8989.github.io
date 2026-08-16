@@ -53,6 +53,8 @@ const EncounterRequirements = Object.freeze({
           && expedition.runFlags?.[requirement.flag] !== (requirement.value ?? true);
       case "campaignFlag":
         return player?.campaignFlags?.[requirement.flag] === (requirement.value ?? true);
+      case "notCampaignFlag":
+        return player?.campaignFlags?.[requirement.flag] !== (requirement.value ?? true);
       default:
         console.warn(`Unknown encounter requirement type: ${requirement.type}`);
         return false;

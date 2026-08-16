@@ -170,6 +170,30 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 3,
     actionPattern: ["briar_cut", "briar_thrust", "briar_surge"],
   }),
+  black_hound_of_the_hunt: Object.freeze({
+    id: "black_hound_of_the_hunt",
+    name: "Black Hound of the Hunt",
+    maxHp: 58,
+    speed: 15,
+    defense: 2,
+    actionPattern: ["hound_bite", "hound_pounce", "hound_bite"],
+  }),
+  bound_warden: Object.freeze({
+    id: "bound_warden",
+    name: "Bound Warden",
+    maxHp: 100,
+    speed: 10,
+    defense: 3,
+    actionPattern: ["warden_strike", "warden_heavy_slam", "warden_strike", "warden_strike"],
+    traits: [
+      Object.freeze({
+        type: "regeneration",
+        amount: 4,
+        trigger: "activation",
+        suppressedByStatuses: ["bleeding", "poisoned"],
+      }),
+    ],
+  }),
 });
 
 const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
@@ -356,6 +380,39 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "bruised_ribs",
     injuryChance: 0.16,
   }),
+  hound_bite: Object.freeze({
+    id: "hound_bite",
+    name: "Black Bite",
+    damage: Object.freeze({ minimum: 6, maximum: 10 }),
+    target: "arthur",
+    injuryId: "deep_cut",
+    injuryChance: 0.1,
+  }),
+  hound_pounce: Object.freeze({
+    id: "hound_pounce",
+    name: "Pouncing Rush",
+    damage: Object.freeze({ minimum: 9, maximum: 14 }),
+    target: "arthur",
+    injuryId: "sprained_ankle",
+    injuryChance: 0.15,
+  }),
+  warden_strike: Object.freeze({
+    id: "warden_strike",
+    name: "Bound Strike",
+    damage: Object.freeze({ minimum: 7, maximum: 11 }),
+    target: "arthur",
+    injuryId: "deep_cut",
+    injuryChance: 0.1,
+  }),
+  warden_heavy_slam: Object.freeze({
+    id: "warden_heavy_slam",
+    name: "Grave-Splitting Slam",
+    damage: Object.freeze({ minimum: 16, maximum: 22 }),
+    target: "arthur",
+    injuryId: "bruised_ribs",
+    injuryChance: 0.2,
+    telegraphed: true,
+  }),
 });
 
 const COMBAT_DEFINITIONS = Object.freeze({
@@ -406,5 +463,13 @@ const COMBAT_DEFINITIONS = Object.freeze({
   briar_knight: Object.freeze({
     id: "briar_knight",
     enemyIds: ["briar_knight"],
+  }),
+  black_hound_of_the_hunt: Object.freeze({
+    id: "black_hound_of_the_hunt",
+    enemyIds: ["black_hound_of_the_hunt"],
+  }),
+  bound_warden: Object.freeze({
+    id: "bound_warden",
+    enemyIds: ["bound_warden"],
   }),
 });

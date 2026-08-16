@@ -23,6 +23,7 @@ const CAMPAIGN_PROGRESSION_ROUTES = Object.freeze([
   "old_forest_road",
   "fountain_of_barenton",
   "val_sans_retour",
+  "search_for_merlin",
 ]);
 
 const CAMPAIGN_PROGRESSION_PREREQUISITES = Object.freeze({
@@ -65,9 +66,14 @@ const CampaignSimulationRunner = Object.freeze({
         stopReason = "current-content-completed";
         break;
       }
-      const desiredTargetDistance = progression
+      const configuredTargetDistance = progression
         ? config.expeditionPlan[Math.min(progression.routeIndex, config.expeditionPlan.length - 1)]
         : config.expeditionPlan[index % config.expeditionPlan.length];
+      const progressionRoute = progression ? ExpeditionCatalog.get(progressionRouteId) : null;
+      const routeObjectiveDistance = Number(progressionRoute?.minimumObjectiveDistance) || 0;
+      const desiredTargetDistance = progression
+        ? Math.max(configuredTargetDistance, routeObjectiveDistance)
+        : configuredTargetDistance;
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       if (progression && player.selectedExpeditionId !== routeId) {
@@ -237,6 +243,8 @@ const CampaignSimulationRunner = Object.freeze({
         supplyRunTargetDistance: isSupplyRun ? actualTargetDistance : null,
         supplyRunObjectiveDistance: isSupplyRun ? desiredTargetDistance : null,
         targetDistance: actualTargetDistance,
+        configuredTargetDistance,
+        routeObjectiveDistance,
         desiredTargetDistance,
         actualTargetDistance,
         targetDistanceReduced: decision.targetDistanceReduced,
@@ -365,6 +373,11 @@ const CampaignSimulationRunner = Object.freeze({
         equipmentPassiveTriggers: run.equipmentPassiveTriggers,
         resolveStored: run.resolveStored,
         resolveSpent: run.resolveSpent,
+        regenerationPerformed: run.regenerationPerformed,
+        regenerationSuppressedActivations: run.regenerationSuppressedActivations,
+        regenerationSuppressedByStatus: run.regenerationSuppressedByStatus,
+        heavyAttackUses: run.heavyAttackUses,
+        defendActions: run.defendActions,
         totalHealingPerformed: run.totalHealingPerformed,
         totalGaugeControl: run.totalGaugeControl,
         encounters: run.encounterCount,
@@ -527,6 +540,7 @@ const CampaignSimulationTelemetry = Object.freeze({
     const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "campaignProgressionMode",
       "currentRoute", "lastRoute", "progressionRouteSequence", "routesCompleted", "attemptsByRoute",
       "routeCompletionAttempt", "routeCompletionStatus", "waterOfBarentonSecured", "morgansTokenSecured",
+      "merlinFound", "boundWardenEncountered", "boundWardenVictories",
       "prerequisiteRunCount", "prerequisiteRunsByRoute",
       "currentContentCompleted", "finalProgressionStage", "expeditionsAttempted",
       "expeditionsReturned", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
@@ -546,6 +560,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
       "statusesAppliedById", "statusDamageById", "equipmentPassiveTriggers", "totalResolveStored", "totalResolveSpent",
+      "totalRegenerationPerformed", "totalRegenerationSuppressedActivations", "regenerationSuppressedByStatus",
+      "totalHeavyAttackUses", "totalDefendActions",
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
       "equipmentPurchases", "equipmentPurchaseGoldSpent", "equipmentCraftingActions", "equipmentChanges",
       "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
@@ -576,7 +592,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "routeCompletionReason", "routeCompletionItem", "isSupplyRun", "supplyRunForRoute", "supplyRunTargetDistance", "supplyRunObjectiveDistance", "success",
       "runKind", "isPrerequisiteRun", "prerequisiteForRoute", "prerequisiteItemId", "prerequisiteReason",
       "prerequisiteStatus", "prerequisiteAcquired",
-      "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
+      "configuredTargetDistance", "routeObjectiveDistance", "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "totalEstimatedProvisionRequirement",
       "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance",
@@ -600,6 +616,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "arthurCombatDamageReceived", "companionCombatDamageReceived",
       "totalHealingPerformed", "totalGaugeControl", "abilityUsesById", "itemUsesById",
       "statusesAppliedById", "statusDamageById", "equipmentPassiveTriggers", "resolveStored", "resolveSpent",
+      "regenerationPerformed", "regenerationSuppressedActivations", "regenerationSuppressedByStatus", "heavyAttackUses", "defendActions",
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
       "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
       "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "provisionsPacked", "lootValueRecovered",
@@ -792,6 +809,9 @@ function compactCampaignSummary(campaign, expeditions) {
       routeCompletionStatus: compactClone(campaign.routeCompletionStatus ?? {}),
       waterOfBarentonSecured: Boolean(campaign.waterOfBarentonSecured),
       morgansTokenSecured: Boolean(campaign.morgansTokenSecured),
+      merlinFound: Boolean(campaign.merlinFound),
+      boundWardenEncountered: Number(campaign.boundWardenEncountered) || 0,
+      boundWardenVictories: Number(campaign.boundWardenVictories) || 0,
       finalProgressionStage: campaign.finalProgressionStage ?? null,
       currentContentCompleted: Boolean(campaign.currentContentCompleted),
     },
@@ -922,6 +942,8 @@ function compactExpedition(entry, campaign) {
       strategy: campaign.strategy,
       economicPolicy: campaign.betweenExpeditionPolicy,
       desiredTurnaroundDistance: Number(entry.desiredTargetDistance) || null,
+      configuredTargetDistance: Number(entry.configuredTargetDistance) || null,
+      routeObjectiveDistance: Number(entry.routeObjectiveDistance) || null,
       plannedTargetDistance,
       actualTargetDistance: Number(entry.actualTargetDistance) || plannedTargetDistance,
       targetDistanceReduction: Number(entry.targetDistanceReduction) || 0,
@@ -1147,6 +1169,11 @@ function compactCombatSummary(entry, run, encounters) {
   let gaugeControl = 0;
   let resolveStored = 0;
   let resolveSpent = 0;
+  let regenerationPerformed = 0;
+  let regenerationSuppressedActivations = 0;
+  let heavyAttackUses = 0;
+  let defendActions = 0;
+  const regenerationSuppressedByStatus = {};
   const statusesAppliedById = {};
   const statusDamageById = {};
   const equipmentPassiveTriggers = [];
@@ -1163,6 +1190,13 @@ function compactCombatSummary(entry, run, encounters) {
     gaugeControl += Number(combat.gaugeControl) || 0;
     resolveStored += Number(combat.resolveStored) || 0;
     resolveSpent += Number(combat.resolveSpent) || 0;
+    regenerationPerformed += Number(combat.regenerationPerformed) || 0;
+    regenerationSuppressedActivations += Number(combat.regenerationSuppressedActivations) || 0;
+    heavyAttackUses += Number(combat.heavyAttackUses) || 0;
+    defendActions += Number(combat.defendActions) || 0;
+    Object.entries(combat.regenerationSuppressedByStatus ?? {}).forEach(([statusId, count]) => {
+      regenerationSuppressedByStatus[statusId] = (regenerationSuppressedByStatus[statusId] ?? 0) + (Number(count) || 0);
+    });
     Object.entries(combat.statusesAppliedById ?? {}).forEach(([statusId, count]) => {
       statusesAppliedById[statusId] = (statusesAppliedById[statusId] ?? 0) + (Number(count) || 0);
     });
@@ -1191,6 +1225,11 @@ function compactCombatSummary(entry, run, encounters) {
     equipmentPassiveTriggers,
     resolveStored,
     resolveSpent,
+    regenerationPerformed,
+    regenerationSuppressedActivations,
+    regenerationSuppressedByStatus,
+    heavyAttackUses,
+    defendActions,
     aggressiveEmergencyActions: Number(entry.aggressiveEmergencyActions) || 0,
   });
 }
@@ -2648,6 +2687,25 @@ function evaluateCampaignProgressionAttempt(
           : "returned-without-meaningful-route-progress",
     };
   }
+  if (routeId === "search_for_merlin") {
+    const merlinFound = endingState.campaignFlags?.merlin_found === true;
+    if (returnedSafely && merlinFound) {
+      return {
+        completed: true,
+        status: "completed",
+        reason: "found-merlin",
+        securedItemId: "merlins_seal",
+      };
+    }
+    return {
+      completed: false,
+      status: hardFailure ? "hard-failure" : "returned-not-completed",
+      reason: !returnedSafely
+        ? (run.failureReason ?? "search-for-merlin-lost-before-safe-return")
+        : "returned-without-merlin",
+      securedItemId: merlinFound ? "merlins_seal" : null,
+    };
+  }
   const questItem = routeId === "fountain_of_barenton" ? "water_of_barenton" : "morgans_token";
   const secured = securedQuantity(questItem) > 0;
   const acquiredThisAttempt = securedQuantity(questItem) > hadQuantity(questItem);
@@ -2782,6 +2840,11 @@ function finalizeCampaignTelemetry(
   );
   const totalResolveStored = totals((entry) => entry.resolveStored);
   const totalResolveSpent = totals((entry) => entry.resolveSpent);
+  const totalRegenerationPerformed = totals((entry) => entry.regenerationPerformed);
+  const totalRegenerationSuppressedActivations = totals((entry) => entry.regenerationSuppressedActivations);
+  const regenerationSuppressedByStatus = campaignCombatTotals(expeditions, "regenerationSuppressedByStatus");
+  const totalHeavyAttackUses = totals((entry) => entry.heavyAttackUses);
+  const totalDefendActions = totals((entry) => entry.defendActions);
   const netGold = endingState.gold - startingState.gold;
   const successful = expeditions.filter((entry) => entry.success);
   const failed = expeditions.filter((entry) => !entry.success);
@@ -2824,6 +2887,15 @@ function finalizeCampaignTelemetry(
     ]));
   const waterOfBarentonSecured = Boolean(endingState.ownedItems?.water_of_barenton);
   const morgansTokenSecured = Boolean(endingState.ownedItems?.morgans_token);
+  const boundWardenEncountered = expeditions.reduce((count, entry) => count + (
+    entry.expeditionTelemetry?.encounters?.filter((encounter) => encounter.encounterId === "bound_warden").length ?? 0
+  ), 0);
+  const boundWardenVictories = expeditions.reduce((count, entry) => count + (
+    entry.expeditionTelemetry?.combats?.filter((combat) => (
+      combat.combatId === "bound_warden" && combat.result === "victory"
+    )).length ?? 0
+  ), 0);
+  const merlinFound = endingState.campaignFlags?.merlin_found === true;
   const currentContentCompleted = Boolean(progression?.currentContentCompleted);
   const finalProgressionStage = config.campaignMode === "progression"
     ? currentContentCompleted ? "current-content-completed" : progression?.currentRouteId ?? null
@@ -2888,6 +2960,9 @@ function finalizeCampaignTelemetry(
     ),
     waterOfBarentonSecured,
     morgansTokenSecured,
+    merlinFound,
+    boundWardenEncountered,
+    boundWardenVictories,
     currentContentCompleted,
     finalProgressionStage,
     progressionTransitions: deepCampaignClone(progressionTransitions),
@@ -2976,6 +3051,11 @@ function finalizeCampaignTelemetry(
     equipmentPassiveTriggers,
     totalResolveStored,
     totalResolveSpent,
+    totalRegenerationPerformed,
+    totalRegenerationSuppressedActivations,
+    regenerationSuppressedByStatus,
+    totalHeavyAttackUses,
+    totalDefendActions,
     totalHealingPerformed: totals((entry) => entry.totalHealingPerformed),
     totalGaugeControl: totals((entry) => entry.totalGaugeControl),
     totalEncounters: totals((entry) => entry.encounters),
@@ -3099,6 +3179,16 @@ function summarizeCampaigns(results) {
     routeAttempts[routeId].filter((entry) => entry.hardFailureReason === "expedition-resource-exhaustion"
       || Boolean(entry.provisionExhaustionFailure)).length,
   ]));
+  const otherFailuresByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+    routeId,
+    routeAttempts[routeId].filter((entry) => {
+      const death = entry.hardFailureReason === "arthur-died"
+        || (!entry.success && Number(entry.endingHealth) <= 0);
+      const resource = entry.hardFailureReason === "expedition-resource-exhaustion"
+        || Boolean(entry.provisionExhaustionFailure);
+      return !entry.routeAttemptCompleted && !death && !resource;
+    }).length,
+  ]));
   return {
     totalCampaigns: results.length,
     campaignCompletionRate: results.length ? results.filter((entry) => entry.completedPlan).length / results.length : 0,
@@ -3179,16 +3269,32 @@ function summarizeCampaigns(results) {
       campaign.routesCompleted?.includes("val_sans_retour")
       ?? campaign.expeditions.some((entry) => entry.routeId === "val_sans_retour" && entry.routeAttemptCompleted)
     )),
+    searchForMerlinReachedRate: routeRate("search_for_merlin", (campaign) => (
+      (campaign.attemptsByRoute?.search_for_merlin ?? campaign.expeditions
+        .some((entry) => (entry.routeId ?? entry.expeditionId) === "search_for_merlin")) > 0
+    )),
+    searchForMerlinCompletionRate: routeRate("search_for_merlin", (campaign) => (
+      campaign.routesCompleted?.includes("search_for_merlin")
+      ?? campaign.expeditions.some((entry) => entry.routeId === "search_for_merlin" && entry.routeAttemptCompleted)
+    )),
+    merlinFoundRate: results.length
+      ? results.filter((campaign) => campaign.merlinFound).length / results.length : 0,
     fullCurrentCampaignCompletionRate: results.length
       ? results.filter((entry) => entry.currentContentCompleted).length / results.length : 0,
     averageTotalAttempts: averageField("expeditionsAttempted"),
     averageAttemptsOldForest: campaignAverage(results.map((entry) => entry.attemptsByRoute?.old_forest_road ?? 0)),
     averageAttemptsBarenton: campaignAverage(results.map((entry) => entry.attemptsByRoute?.fountain_of_barenton ?? 0)),
     averageAttemptsVal: campaignAverage(results.map((entry) => entry.attemptsByRoute?.val_sans_retour ?? 0)),
+    averageAttemptsSearchForMerlin: campaignAverage(results.map((entry) => entry.attemptsByRoute?.search_for_merlin ?? 0)),
+    averageEndingHealthSearchForMerlin: routeAverages("search_for_merlin", "endingHealth"),
+    averageDamageSearchForMerlin: routeAverages("search_for_merlin", "damageTaken"),
+    averageCombatsSearchForMerlin: routeAverages("search_for_merlin", "combats"),
+    averageEncounterCountSearchForMerlin: routeAverages("search_for_merlin", "encounters"),
     attemptCapFailureRate: results.length
       ? results.filter((entry) => entry.stopReason === "progression-attempt-cap").length / results.length : 0,
     deathsByRoute,
     resourceFailuresByRoute,
+    otherFailuresByRoute,
     averageEndingHealthByRoute: Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
       routeId, routeAverages(routeId, "endingHealth"),
     ])),

@@ -45,6 +45,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathId: "search_for_merlin",
     kind: "campaign",
+    minimumObjectiveDistance: 120,
     campEventTableIds: ["deep_forest"],
     prerequisites: ["water_of_barenton", "morgans_token"],
   }),

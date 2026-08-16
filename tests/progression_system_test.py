@@ -35,7 +35,10 @@ def run() -> None:
     try:
         devtools = DevTools(wait_for_json(debug_port, game_url))
         devtools.call("Runtime.enable")
-        time.sleep(0.4)
+        for _ in range(40):
+            if devtools.evaluate("Boolean(document.querySelector('.simulation-tools'))"):
+                break
+            time.sleep(0.1)
 
         def check(expression: str, label: str) -> None:
             nonlocal checks
@@ -80,8 +83,8 @@ def run() -> None:
             "Already secured Water incorrectly triggered a Flask prerequisite detour",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'pre-fail-160',campaignMode:'progression',expeditions:2,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:101,healingEnabled:false,startingState:{arthurHealth:10,currentGold:1000,provisions:100}}); const failed=c.expeditions[1]; return c.expeditions[0].success&&failed.isPrerequisiteRun&&failed.prerequisiteStatus==='failed'&&failed.hardFailureReason==='arthur-died'&&c.stopReason==='arthur-died'&&!c.completedPlan&&c.currentRoute==='fountain_of_barenton'; })()",
-            "A hard-failed Flask prerequisite run did not stop the campaign cleanly",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'pre-fail-160',campaignMode:'progression',expeditions:2,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:101,healingEnabled:false,startingState:{arthurHealth:10,currentGold:1000,provisions:100}}); const attempt=c.expeditions[1]; return c.expeditions[0].success&&attempt.isPrerequisiteRun&&attempt.prerequisiteStatus==='not-acquired'&&!attempt.hardFailureReason&&c.stopReason==='progression-attempt-cap'&&!c.completedPlan&&c.currentRoute==='fountain_of_barenton'; })()",
+            "An unresolved Flask prerequisite run did not preserve progression state",
         )
         check(
             "(() => { const c=CampaignSimulationRunner.run({seed:'pre-search-5',campaignMode:'progression',expeditions:4,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:1000,provisions:100}}); return c.expeditionsAttempted===4&&c.stopReason==='progression-attempt-cap'&&c.prerequisiteRunCount===3&&c.attemptsByRoute.old_forest_road===1&&c.routeAttemptSequence.length===1; })()",
@@ -108,19 +111,27 @@ def run() -> None:
             "A lost Morgan's Token was allowed to complete Val",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'progression-stops',campaignMode:'progression',expeditions:10,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}); return c.currentContentCompleted&&c.completedPlan&&c.stopReason==='current-content-completed'&&c.expeditionsAttempted===3&&c.morgansTokenSecured&&c.routesCompleted.join(',')==='old_forest_road,fountain_of_barenton,val_sans_retour'; })()",
-            "Safely returned Morgan's Token did not complete and stop the current campaign",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'merlin-aggressive',campaignMode:'progression',expeditions:10,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}); return c.currentContentCompleted&&c.completedPlan&&c.stopReason==='current-content-completed'&&c.expeditionsAttempted===4&&c.morgansTokenSecured&&c.merlinFound&&c.routesCompleted.join(',')==='old_forest_road,fountain_of_barenton,val_sans_retour,search_for_merlin'&&c.endingState.ownedItems.merlins_seal===1; })()",
+            "Merlin's Search did not complete and stop the current campaign",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'progression-no-merlin',campaignMode:'progression',expeditions:10,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}); return !c.routeSequence.includes('search_for_merlin')&&!c.expeditions.some(e=>e.expeditionId==='search_for_merlin')&&c.endingState.ownedItems.water_of_barenton===1&&c.endingState.ownedItems.morgans_token===1; })()",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'merlin-cautious',campaignMode:'progression',expeditions:10,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}); return c.routeSequence.includes('search_for_merlin')&&c.currentContentCompleted&&c.merlinFound&&c.endingState.ownedItems.water_of_barenton===1&&c.endingState.ownedItems.morgans_token===1&&c.endingState.ownedItems.merlins_seal===1; })()",
             "Progression launched Search for Merlin instead of stopping after Val",
+        )
+        check(
+            "(() => { const c=CampaignSimulationRunner.run({seed:'merlin-aggressive',campaignMode:'progression',expeditions:10,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}); const search=c.expeditions.find(entry=>entry.routeId==='search_for_merlin'); return EXPEDITION_DEFINITIONS.search_for_merlin.minimumObjectiveDistance===120&&search&&search.routeObjectiveDistance===120&&search.actualMaximumDistance>=120&&c.endingState.ownedItems.water_of_barenton===1&&c.endingState.ownedItems.morgans_token===1; })()",
+            "Search for Merlin did not enforce its authored objective distance or preserve the route prerequisites",
+        )
+        check(
+            "(() => { const c=CampaignSimulationRunner.run({seed:'merlin-aggressive',campaignMode:'progression',expeditions:10,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}); const compact=JSON.parse(CampaignSimulationTelemetry.toCompactJson({results:[c]})); const replay=CampaignReplayData.normalize(c); const summary=compact.campaigns[0].campaignSummary; const search=compact.campaigns[0].expeditions.find(entry=>entry.routeId==='search_for_merlin'); return c.boundWardenEncountered>0&&c.boundWardenVictories>0&&c.merlinFound&&summary.progression.merlinFound&&summary.progression.boundWardenEncountered>0&&search.combat.heavyAttackUses>0&&replay.routeSequence.at(-1)==='search_for_merlin'&&replay.expeditions.at(-1).replay.expeditionId==='search_for_merlin'; })()",
+            "Compact campaign telemetry or replay data omitted the Bound Warden and Merlin finale",
         )
         check(
             "(() => { const c=CampaignSimulationRunner.run({seed:'progression-cap',campaignMode:'progression',expeditions:1,turnaroundDistance:50}); return !c.completedPlan&&c.currentContentCompleted===false&&c.stopReason==='progression-attempt-cap'&&c.stopCategory==='incomplete'; })()",
             "The progression attempt cap was classified as completion",
         )
         check(
-            "(() => { const configs=['cautious','random','aggressive'].map(strategy=>({seed:'progression-strategy-'+strategy,campaignMode:'progression',expeditions:3,strategy,betweenExpeditionPolicy:strategy==='aggressive'?'aggressive-reinvestor':strategy==='cautious'?'conservative-sustainer':'minimal-restock',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}})); const results=configs.map(config=>CampaignSimulationRunner.run(config)); return results.every(c=>c.expeditions[0].routeId==='old_forest_road'&&c.routeSequence.every(id=>['old_forest_road','fountain_of_barenton','val_sans_retour'].includes(id))&&c.expeditions.every((e,i)=>i===0||e.routeId!=='fountain_of_barenton'||c.routesCompleted.includes('old_forest_road'))); })()",
+            "(() => { const configs=['cautious','random','aggressive'].map(strategy=>({seed:'progression-strategy-'+strategy,campaignMode:'progression',expeditions:3,strategy,betweenExpeditionPolicy:strategy==='aggressive'?'aggressive-reinvestor':strategy==='cautious'?'conservative-sustainer':'minimal-restock',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}})); const results=configs.map(config=>CampaignSimulationRunner.run(config)); return results.every(c=>c.expeditions[0].routeId==='old_forest_road'&&c.routeSequence.every(id=>['old_forest_road','fountain_of_barenton','val_sans_retour','search_for_merlin'].includes(id))&&c.expeditions.every((e,i)=>i===0||e.routeId!=='fountain_of_barenton'||c.routesCompleted.includes('old_forest_road'))); })()",
             "Strategies did not share the same progression route order",
         )
         check(
@@ -128,7 +139,7 @@ def run() -> None:
             "Progression campaign determinism was not preserved",
         )
         check(
-            "(() => { const batch=CampaignSimulationRunner.runBatch({scenarios:[{id:'progression-funnel',seed:'progression-funnel',campaignMode:'progression',expeditions:3,strategy:'cautious',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}],campaignsPerScenario:2}); const s=batch.summary; return s.totalCampaigns===2&&s.oldForestReachedRate===1&&s.oldForestCompletionRate===1&&s.barentonReachedRate===1&&s.barentonCompletionRate===1&&s.valReachedRate===1&&s.valCompletionRate===1&&s.fullCurrentCampaignCompletionRate===1&&s.averageTotalAttempts===3&&s.averageAttemptsOldForest===1&&s.averageAttemptsBarenton===1&&s.averageAttemptsVal===1&&s.attemptCapFailureRate===0&&s.deathsByRoute&&s.averageEncounterCountByRoute; })()",
+            "(() => { const batch=CampaignSimulationRunner.runBatch({scenarios:[{id:'progression-funnel',seed:'progression-funnel',campaignMode:'progression',expeditions:10,strategy:'cautious',turnaroundDistance:101,startingState:{arthurHealth:45,currentGold:3000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}],campaignsPerScenario:2}); const s=batch.summary; return s.totalCampaigns===2&&s.oldForestReachedRate===1&&s.oldForestCompletionRate===1&&s.barentonReachedRate===1&&s.barentonCompletionRate===1&&s.valReachedRate===1&&s.valCompletionRate===1&&s.searchForMerlinReachedRate===1&&s.searchForMerlinCompletionRate===1&&s.fullCurrentCampaignCompletionRate===1&&s.averageTotalAttempts===6.5&&s.averageAttemptsOldForest===1&&s.averageAttemptsBarenton===1&&s.averageAttemptsVal===1&&s.averageAttemptsSearchForMerlin===3.5&&s.attemptCapFailureRate===0&&s.deathsByRoute&&s.deathsByRoute.search_for_merlin!==undefined&&s.averageEncounterCountByRoute; })()",
             "Progression batch funnel telemetry was incomplete",
         )
         check(

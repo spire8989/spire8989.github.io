@@ -1446,6 +1446,7 @@ function renderExpeditionOption(expeditionId) {
       <span class="expedition-option-heading"><strong>${expedition.name}</strong><span class="danger-rating" aria-label="${expedition.danger} skull danger">${skulls}</span></span>
       <span>${expedition.description}</span>
       ${expedition.kind === "campaign" ? "<small class=\"expedition-kind\">Campaign Expedition</small>" : ""}
+      ${Number.isFinite(expedition.minimumObjectiveDistance) ? `<small class="expedition-objective-distance">Required objective · ${formatDistance(expedition.minimumObjectiveDistance)}</small>` : ""}
       ${requirements}
       ${locked ? "<small class=\"expedition-lock-label\">Locked until the required discoveries are secured.</small>" : ""}
     </button>`;
