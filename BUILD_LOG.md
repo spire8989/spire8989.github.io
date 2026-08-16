@@ -2465,3 +2465,20 @@ Add schema-aware recipe and crafting authoring while preserving the Phase 4 edit
 The editor currently loads nine recipes and three providers: recipes use material or item ingredient maps, produce an item or provisions, and assign one of the authored providers Apothecary, Blacksmith, or Campfire. New equipment Items can be created and selected as recipe outputs entirely in the editor, including unsaved in-memory reverse relationships. Loot Tables can directly unlock recipes through the existing runtime entry shape.
 
 Verified 52 Content Editor regression tests, repeated Paths navigation with stable Fountain counts, unsaved Recipe-to-Item reverse browsing, recipe-unlock Loot Table navigation, clean local-HTTP startup, and `git diff --check`. Content Editor remains external/local development tooling and no live gameplay or authored content values were changed; the pre-existing `js/loot-data.js` worktree modification was preserved.
+
+## 2026-08-15 - Content Editor Phase 6 List Filtering and Navigation Polish
+
+### Goal
+
+Make Item and Encounter browsing fast and practical without adding gameplay systems or changing authored content.
+
+### AI-assisted implementation
+
+- Added combinable, in-memory Item filters for live categories, rarity, equippable state, equipment slot, tri-state inventory flags, and all/any tag matching.
+- Added Encounter path, region, direction, overlap-distance, repeatable, tag, combat, and requirement-presence filters, with text search and result/active-filter counts.
+- Preserved filter/search state through selection and cross-content navigation, including unsaved draft fields and path memberships; added the compact `Crafting` left-nav label.
+- Added focused browser regression coverage for filter combinations, no-results behavior, navigation persistence, unsaved filtering, and the existing Phase 1–5 test suite. The editor remains local/external tooling and is not runtime/submission code.
+
+### Verification and resulting prototype state
+
+Verified 55 Content Editor tests (52 existing Python regressions plus 3 local-HTTP Chrome filter flows), including Item and Encounter filtering, search stacking, active/result counts, unsaved updates, and the `Crafting` label. No live gameplay/content values were modified for this phase; existing unrelated Grail worktree changes were preserved. BUILD_LOG is the only Grail file changed by this phase.

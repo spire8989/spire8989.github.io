@@ -2363,9 +2363,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     expeditionIds: ["old_forest_road"],
     directions: ["outbound"],
-    weight: 0.8,
+    weight: 2,
     minimumDistance: 28,
-    maximumDistance: 95,
+    maximumDistance: 150,
     tags: ["campaign", "discovery"],
     repeatable: false,
     requirements: [
