@@ -533,7 +533,7 @@ const ITEM_DEFINITIONS = Object.freeze({
   green_glass_vial: {
     id: "green_glass_vial",
     name: "Green Glass Vial",
-    description: "A tiny green glass vial sealed with black wax.",
+    description: "A tiny green glass vial sealed tightly. It appears to have some sort of lubricating oil inside.",
     category: "curiosity",
     rarity: "rare",
     tags: ["vial", "sealed", "unknown"],
@@ -542,7 +542,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     carriable: true,
     consumable: false,
     effects: {},
-    questItem: false,
+    questItem: false
   },
   antidote: {
     id: "antidote",
@@ -678,9 +678,44 @@ const ITEM_DEFINITIONS = Object.freeze({
     sellable: false,
     protected: true,
   },
-  glimmering_blade: {
-    id: "glimmering_blade",
-    name: "Glimmering Blade",
+  godly_armor: {
+    id: "godly_armor",
+    name: "Godly Armor",
+    description: "Armor of the gods!",
+    category: "armor",
+    rarity: "epic",
+    tags: ["armor", "steel", "knightly"],
+    equippable: true,
+    equipmentSlot: "armor",
+    carriable: false,
+    consumable: false,
+    effects: {
+      combatDefense: 20
+    },
+    questItem: false,
+    unique: true
+  },
+  rusted_sword: {
+    id: "rusted_sword",
+    name: "Rusted Sword",
+    description: "A rusted sword. Maybe this could be polished into a functional weapon.",
+    category: "ingredient",
+    rarity: "rare",
+    tags: [],
+    equippable: false,
+    equipmentSlot: null,
+    carriable: true,
+    consumable: false,
+    effects: {},
+    questItem: true,
+    campaignItem: true,
+    unique: true,
+    sellable: false,
+    protected: true
+  },
+  glimmering_sword: {
+    id: "glimmering_sword",
+    name: "Glimmering Sword",
     description: "The blade glimmers brightly in the moonlight.",
     category: "weapon",
     rarity: "rare",

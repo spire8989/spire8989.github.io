@@ -46,19 +46,57 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "item", itemId: "honey", quantity: 1, weight: 8 }),
     ]),
   }),
-  bandit_ambush_loot: Object.freeze({
+  bandit_ambush_loot: {
     id: "bandit_ambush_loot",
-    entries: Object.freeze([
-      Object.freeze({ type: "gold", minimum: 2, maximum: 5, weight: 7 }),
-      Object.freeze({ type: "item", itemId: "old_coin", weight: 5 }),
-      Object.freeze({ type: "item", itemId: "coin_purse", weight: 3 }),
-      Object.freeze({ type: "item", itemId: "decorated_buckle", weight: 3 }),
-      Object.freeze({ type: "item", itemId: "silver_brooch", weight: 2 }),
-      Object.freeze({ type: "item", itemId: "bandages", weight: 1 }),
-      Object.freeze({ type: "item", itemId: "dried_herbs", weight: 2 }),
-      Object.freeze({ type: "item", itemId: "rope", weight: 1 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "gold",
+        minimum: 2,
+        maximum: 5,
+        weight: 7
+      },
+      {
+        type: "item",
+        itemId: "old_coin",
+        weight: 5
+      },
+      {
+        type: "item",
+        itemId: "coin_purse",
+        weight: 3
+      },
+      {
+        type: "item",
+        itemId: "decorated_buckle",
+        weight: 3
+      },
+      {
+        type: "item",
+        itemId: "silver_brooch",
+        weight: 2
+      },
+      {
+        type: "item",
+        itemId: "bandages",
+        weight: 1
+      },
+      {
+        type: "item",
+        itemId: "dried_herbs",
+        weight: 2
+      },
+      {
+        type: "item",
+        itemId: "rope",
+        weight: 1
+      },
+      {
+        type: "item",
+        itemId: "rusted_sword",
+        weight: 2
+      }
+    ]
+  },
   bandit_leader_loot: {
     id: "bandit_leader_loot",
     entries: [
@@ -99,10 +137,9 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         weight: 1
       },
       {
-        type: "item",
-        itemId: "glimmering_blade",
-        weight: 1,
-        quantity: 1
+        type: "recipe",
+        recipeId: "glimmering_sword",
+        weight: 8
       }
     ]
   },

@@ -77,4 +77,21 @@ const RECIPE_DEFINITIONS = Object.freeze({
     ingredients: Object.freeze({ wild_berries: 1, honey: 1 }),
     output: Object.freeze({ provisions: 6 }), goldCost: 0, rarity: "common",
   }),
+  glimmering_sword: {
+    id: "glimmering_sword",
+    name: "Glimmering Sword",
+    description: "Polish up ",
+    craftingProvider: "blacksmith",
+    ingredients: {
+      rusted_sword: 1,
+      green_glass_vial: 1
+    },
+    output: {
+      itemId: "glimmering_sword",
+      quantity: 1
+    },
+    goldCost: 5,
+    rarity: "rare",
+    ingredientType: "item"
+  }
 });

@@ -71,14 +71,14 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 0,
     actionPattern: ["wolf_bite", "wolf_lunge", "wolf_bite"],
   }),
-  bandit: Object.freeze({
+  bandit: {
     id: "bandit",
     name: "Bandit",
     maxHp: 20,
     speed: 12,
     defense: 1,
-    actionPattern: ["bandit_slash", "bandit_feint", "bandit_slash"],
-  }),
+    actionPattern: ["bandit_slash", "bandit_feint", "bandit_slash"]
+  },
   bandit_leader: Object.freeze({
     id: "bandit_leader",
     name: "Bandit Leader",
@@ -140,12 +140,15 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "sprained_ankle",
     injuryChance: 0.2,
   }),
-  bandit_slash: Object.freeze({
+  bandit_slash: {
     id: "bandit_slash",
     name: "Slash",
-    damage: Object.freeze({ minimum: 4, maximum: 7 }),
-    target: "arthur",
-  }),
+    damage: {
+      maximum: 8,
+      minimum: 4
+    },
+    target: "arthur"
+  },
   bandit_feint: Object.freeze({
     id: "bandit_feint",
     name: "Feint",

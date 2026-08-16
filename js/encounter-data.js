@@ -2363,8 +2363,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     expeditionIds: ["old_forest_road"],
     directions: ["outbound"],
-    weight: 2,
-    minimumDistance: 28,
+    weight: 4,
+    minimumDistance: 48,
     maximumDistance: 150,
     tags: ["campaign", "discovery"],
     repeatable: false,
@@ -2826,7 +2826,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 elseResultText: "Arthur braces against the Perron until the worst of the wind passes."
               }
             ],
-            nextStage: "aftermath"
+            nextStage: "aftermath",
+            label: "Hold Fast to the Perron",
+            resultText: "Arthur braces himself against the Perron and refuses to yield to the storm."
           },
           {
             id: "wait_out_storm",
@@ -2845,7 +2847,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               }
             ],
             resultText: "The company waits beneath the roots. When the rain stops, every leaf in the hollow is turned toward the fountain.",
-            nextStage: "aftermath"
+            nextStage: "aftermath",
+            label: "Take Shelter and Wait Out the Storm"
           }
         ]
       },
