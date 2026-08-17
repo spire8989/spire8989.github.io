@@ -2900,3 +2900,28 @@ The human developer supplied the final expedition guide and requested coordinate
 ### Verification and resulting prototype state
 
 Verified the location suite (429 assertions), deterministic simulation suite (62 assertions), campaign suite (92 assertions), current-campaign progression suite (31 assertions), and GrailTools content-editor suite (61 tests). Strong aggressive and cautious campaign seeds both reach Merlin and secure Merlin's Seal. `git diff --check` passed in both repositories; no commits or pushes were made.
+## 2026-08-17 - Progression Objective Readiness and Supply Runs
+
+### Goal
+
+Prevent progression simulations from knowingly launching below an authored route objective distance while preserving adaptive target reduction for ordinary expeditions and supply runs.
+
+### Human prompt and direction
+
+The human developer supplied a focused simulation-planning guide after observing Cautious Search for Merlin runs repeatedly departing below the route's 120-league objective. The guide required a generic metadata-driven fix, deterministic preparation behavior, compact telemetry, focused tests, and local commits in the affected repositories.
+
+### AI-assisted implementation
+
+- Added a generic progression-readiness assessment that uses `minimumObjectiveDistance` as the progression floor after the configured target is raised with `max(configuredTargetDistance, routeObjectiveDistance)`.
+- Changed underprepared progression routes to select the existing marked Old Forest supply-run path instead of launching a shortened progression attempt. Supply runs remain shorter, do not increment route attempts, and continue to use existing preparation/economy rules.
+- Added a final safety check for preparation drift so a true progression expedition cannot depart below its positive objective floor.
+- Added compact, planning, CSV, campaign-summary, and notable-event telemetry for readiness, deferral reasons, required/supported distances, supply-run separation, and objective-floor violations.
+- Added deterministic progression coverage for generic objective routes, 105-to-120 target flooring, Cautious deferral and supply behavior, Aggressive floor enforcement, Merlin completion, compact export, and replay preservation.
+
+### Manual changes
+
+The human developer supplied the simulation-planning guide and explicitly authorized adding and committing the finished files. `Tools/` was intentionally left untouched because the existing editor already supports `minimumObjectiveDistance`.
+
+### Verification and resulting prototype state
+
+The focused progression suite passed 36 assertions; the deterministic simulation suite passed 62 assertions; and the campaign/health/Inn suite passed 92 assertions. Cautious Merlin campaigns now record preparation runs before a committed 120-league attempt, Aggressive may proceed sooner but also never targets below 120, and validated campaigns recorded zero objective-floor violations. `git diff --check` passed. The standalone replay suite still has its unrelated camp/combat decision-coverage fixture failure, and the campaign replay suite still has its unrelated Campaign 40 loadout fixture failure; both are documented for handoff. No Tools files were changed.

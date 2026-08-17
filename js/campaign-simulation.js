@@ -80,13 +80,18 @@ const CampaignSimulationRunner = Object.freeze({
         player.selectedExpeditionId = routeId;
       }
       const townEntry = CampaignRules.enterLocation(player, shopStocks);
-      const supplyRunForRoute = progression && !isPrerequisiteRun && shouldRunProgressionSupplyRun(
-        progressionRouteId, desiredTargetDistance, player, shopStocks, policy, config.strategy,
-      ) ? progressionRouteId : null;
-      const isSupplyRun = Boolean(supplyRunForRoute);
+      const progressionReadinessPlan = progression && !isPrerequisiteRun
+        ? assessProgressionReadiness(
+          progressionRouteId, desiredTargetDistance, routeObjectiveDistance,
+          player, shopStocks, policy, config.strategy,
+        ) : null;
+      let supplyRunForRoute = progressionReadinessPlan
+        && progressionReadinessPlan.status !== "ready"
+        ? progressionRouteId : null;
+      let isSupplyRun = Boolean(supplyRunForRoute);
       if (isSupplyRun) routeId = "old_forest_road";
       if (player.selectedExpeditionId !== routeId) player.selectedExpeditionId = routeId;
-      const runKind = isSupplyRun ? "supply" : selectedRunKind;
+      let runKind = isSupplyRun ? "supply" : selectedRunKind;
       const plannedTargetDistance = isSupplyRun
         ? progressionSupplyRunDistance(config.strategy)
         : desiredTargetDistance;
@@ -133,6 +138,11 @@ const CampaignSimulationRunner = Object.freeze({
       decision.isSupplyRun = isSupplyRun;
       decision.supplyRunForRoute = supplyRunForRoute;
       decision.supplyRunTargetDistance = isSupplyRun ? plannedTargetDistance : null;
+      decision.progressionReadiness = progressionReadinessPlan?.status ?? null;
+      decision.progressionDeferredReason = progressionReadinessPlan?.reason ?? null;
+      decision.progressionRequiredDistance = progressionReadinessPlan?.requiredDistance ?? 0;
+      decision.progressionSupportedDistance = progressionReadinessPlan?.supportedDistance ?? null;
+      decision.objectiveDistanceFloorApplied = false;
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
 
@@ -141,6 +151,48 @@ const CampaignSimulationRunner = Object.freeze({
         stopReason = decision.stopReason;
         break;
       }
+
+      // The preflight quote and the full preparation policy intentionally share
+      // the same planning rules, but a dead companion or another preparation
+      // mutation can still reduce the final supported distance. Never let that
+      // drift turn a known objective floor into a false progression attempt.
+      let progressionReadiness = progressionReadinessPlan;
+      if (progression && !isSupplyRun && !isPrerequisiteRun
+        && routeObjectiveDistance > 0
+        && decision.actualTargetDistance < routeObjectiveDistance) {
+        progressionReadiness = {
+          status: "deferred",
+          reason: "objective-distance-floor-after-preparation",
+          requiredDistance: routeObjectiveDistance,
+          supportedDistance: decision.safeAffordableDistance,
+        };
+        isSupplyRun = true;
+        supplyRunForRoute = progressionRouteId;
+        runKind = "supply";
+        const previousExpeditionId = player.selectedExpeditionId;
+        routeId = "old_forest_road";
+        player.selectedExpeditionId = routeId;
+        if (previousExpeditionId !== routeId) {
+          preparationActions.push({
+            type: "select-expedition",
+            expeditionNumber,
+            expeditionId: routeId,
+            previousExpeditionId,
+          });
+        }
+        decision.expeditionId = routeId;
+        decision.runKind = runKind;
+        decision.isSupplyRun = true;
+        decision.supplyRunForRoute = supplyRunForRoute;
+        decision.supplyRunTargetDistance = decision.actualTargetDistance;
+        decision.progressionReadiness = progressionReadiness.status;
+        decision.progressionDeferredReason = progressionReadiness.reason;
+        decision.progressionRequiredDistance = progressionReadiness.requiredDistance;
+        decision.progressionSupportedDistance = progressionReadiness.supportedDistance;
+      }
+      decision.objectiveDistanceFloorApplied = Boolean(
+        progression && !isSupplyRun && !isPrerequisiteRun && routeObjectiveDistance > 0,
+      );
 
       const actualTargetDistance = decision.actualTargetDistance;
       const capacity = ExpeditionRules.partyProvisionCapacity(selectedCompanionIds(player));
@@ -242,6 +294,11 @@ const CampaignSimulationRunner = Object.freeze({
         supplyRunForRoute,
         supplyRunTargetDistance: isSupplyRun ? actualTargetDistance : null,
         supplyRunObjectiveDistance: isSupplyRun ? desiredTargetDistance : null,
+        progressionReadiness: progressionReadiness?.status ?? null,
+        progressionDeferredReason: progressionReadiness?.reason ?? null,
+        progressionRequiredDistance: progressionReadiness?.requiredDistance ?? 0,
+        progressionSupportedDistance: progressionReadiness?.supportedDistance ?? null,
+        objectiveDistanceFloorApplied: Boolean(decision.objectiveDistanceFloorApplied),
         targetDistance: actualTargetDistance,
         configuredTargetDistance,
         routeObjectiveDistance,
@@ -541,7 +598,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "currentRoute", "lastRoute", "progressionRouteSequence", "routesCompleted", "attemptsByRoute",
       "routeCompletionAttempt", "routeCompletionStatus", "waterOfBarentonSecured", "morgansTokenSecured",
       "merlinFound", "boundWardenEncountered", "boundWardenVictories",
-      "prerequisiteRunCount", "prerequisiteRunsByRoute",
+      "prerequisiteRunCount", "prerequisiteRunsByRoute", "progressionDeferredCount",
+      "progressionDeferralsByRoute", "objectiveDistanceFloorViolations",
       "currentContentCompleted", "finalProgressionStage", "expeditionsAttempted",
       "expeditionsReturned", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
       "strategyConstraintCount", "strategyConstraintTypes", "startingGold", "endingGold", "endingArthurHealth",
@@ -593,7 +651,8 @@ const CampaignSimulationTelemetry = Object.freeze({
       "runKind", "isPrerequisiteRun", "prerequisiteForRoute", "prerequisiteItemId", "prerequisiteReason",
       "prerequisiteStatus", "prerequisiteAcquired",
       "configuredTargetDistance", "routeObjectiveDistance", "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
-      "targetDistanceReductionReason", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
+      "targetDistanceReductionReason", "progressionReadiness", "progressionDeferredReason", "progressionRequiredDistance",
+      "progressionSupportedDistance", "objectiveDistanceFloorApplied", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "totalEstimatedProvisionRequirement",
       "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance",
       "originalTargetDistance", "departureTargetDistance", "actualTurnaroundDistance",
@@ -803,6 +862,9 @@ function compactCampaignSummary(campaign, expeditions) {
       attemptsByRoute: compactClone(campaign.attemptsByRoute ?? {}),
       supplyRunCount: Number(campaign.supplyRunCount) || 0,
       supplyRunsByRoute: compactClone(campaign.supplyRunsByRoute ?? {}),
+      progressionDeferredCount: Number(campaign.progressionDeferredCount) || 0,
+      progressionDeferralsByRoute: compactClone(campaign.progressionDeferralsByRoute ?? {}),
+      objectiveDistanceFloorViolations: Number(campaign.objectiveDistanceFloorViolations) || 0,
       prerequisiteRunCount: Number(campaign.prerequisiteRunCount) || 0,
       prerequisiteRunsByRoute: compactClone(campaign.prerequisiteRunsByRoute ?? {}),
       routeCompletionAttempt: compactClone(campaign.routeCompletionAttempt ?? {}),
@@ -921,6 +983,11 @@ function compactExpedition(entry, campaign) {
     supplyRunForRoute: entry.supplyRunForRoute ?? null,
     supplyRunTargetDistance: entry.supplyRunTargetDistance ?? null,
     supplyRunObjectiveDistance: entry.supplyRunObjectiveDistance ?? null,
+    progressionReadiness: entry.progressionReadiness ?? null,
+    progressionDeferredReason: entry.progressionDeferredReason ?? null,
+    progressionRequiredDistance: Number(entry.progressionRequiredDistance) || 0,
+    progressionSupportedDistance: entry.progressionSupportedDistance ?? null,
+    objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
     campaignId: campaign.campaignId,
     campaignSeed: campaign.seed,
     expeditionSeed: entry.expeditionSeed ?? run.seed,
@@ -948,6 +1015,11 @@ function compactExpedition(entry, campaign) {
       actualTargetDistance: Number(entry.actualTargetDistance) || plannedTargetDistance,
       targetDistanceReduction: Number(entry.targetDistanceReduction) || 0,
       targetDistanceReductionReason: entry.targetDistanceReductionReason ?? null,
+      progressionReadiness: entry.progressionReadiness ?? null,
+      progressionDeferredReason: entry.progressionDeferredReason ?? null,
+      progressionRequiredDistance: Number(entry.progressionRequiredDistance) || 0,
+      progressionSupportedDistance: entry.progressionSupportedDistance ?? null,
+      objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
       strategyConstraints: compactClone(entry.strategyConstraints ?? []),
       selectedPace: entry.paceSelectedAtDeparture ?? run.paceSelectedAtDeparture ?? null,
       selectedRations: entry.rationSelectedAtDeparture ?? run.rationSelectedAtDeparture ?? null,
@@ -1484,6 +1556,17 @@ function compactNotableEvents(campaign) {
         reason: entry.prerequisiteReason ?? null,
         status: entry.prerequisiteStatus ?? null,
         acquired: Boolean(entry.prerequisiteAcquired),
+      });
+    }
+    if (entry.progressionReadiness === "deferred") {
+      events.push({
+        type: "progression-deferred",
+        expeditionNumber: entry.expeditionNumber,
+        routeId: entry.campaignStageAtDeparture ?? null,
+        reason: entry.progressionDeferredReason ?? null,
+        requiredDistance: Number(entry.progressionRequiredDistance) || 0,
+        supportedDistance: entry.progressionSupportedDistance ?? null,
+        supplyRun: Boolean(entry.isSupplyRun),
       });
     }
     (entry.equipmentPurchases ?? []).forEach((purchase) => events.push({
@@ -2580,20 +2663,47 @@ function selectCampaignProgressionExpedition(routeId, player) {
   };
 }
 
-function shouldRunProgressionSupplyRun(
-  routeId, desiredTargetDistance, player, shopStocks, policy, strategyName,
+function assessProgressionReadiness(
+  routeId, desiredTargetDistance, routeObjectiveDistance,
+  player, shopStocks, policy, strategyName,
 ) {
   const preparation = CAMPAIGN_TUNING.provisionPreparation;
-  if (!routeId || routeId === "old_forest_road"
-    || Number(desiredTargetDistance) < preparation.deepObjectiveMinimumDistance) {
-    return false;
+  const objectiveDistance = Number(routeObjectiveDistance) || 0;
+  const requiredDistance = objectiveDistance > 0
+    ? objectiveDistance : preparation.deepObjectiveMinimumDistance;
+  if (!routeId
+    || (objectiveDistance <= 0 && routeId === "old_forest_road")
+    || Number(desiredTargetDistance) < requiredDistance) {
+    return {
+      status: "ready",
+      reason: null,
+      requiredDistance: objectiveDistance,
+      supportedDistance: null,
+    };
   }
   const quote = quoteCampaignProvisionAvailability(
     player, shopStocks, policy, desiredTargetDistance, strategyName,
   );
-  return quote.preferredSafeDistance < Math.min(
-    Number(desiredTargetDistance), preparation.deepObjectiveMinimumDistance,
+  const progressionReady = quote.preferredSafeDistance >= Math.min(
+    Number(desiredTargetDistance), requiredDistance,
   );
+  return {
+    status: progressionReady ? "ready" : objectiveDistance > 0 ? "deferred" : "preparation",
+    reason: progressionReady ? null : objectiveDistance > 0
+      ? "objective-distance-floor" : "deep-objective-preparation",
+    requiredDistance: objectiveDistance,
+    supportedDistance: quote.preferredSafeDistance,
+  };
+}
+
+function shouldRunProgressionSupplyRun(
+  routeId, desiredTargetDistance, routeObjectiveDistance,
+  player, shopStocks, policy, strategyName,
+) {
+  return assessProgressionReadiness(
+    routeId, desiredTargetDistance, routeObjectiveDistance,
+    player, shopStocks, policy, strategyName,
+  ).status !== "ready";
 }
 
 function progressionSupplyRunDistance(strategyName) {
@@ -2885,6 +2995,19 @@ function finalizeCampaignTelemetry(
     ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
       routeId, expeditions.filter((entry) => entry.isSupplyRun && entry.supplyRunForRoute === routeId).length,
     ]));
+  const progressionDeferralsByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
+    routeId,
+    expeditions.filter((entry) => entry.progressionReadiness === "deferred"
+      && Number(entry.progressionRequiredDistance) > 0
+      && entry.campaignStageAtDeparture === routeId).length,
+  ]));
+  const progressionDeferredCount = Object.values(progressionDeferralsByRoute)
+    .reduce((sum, count) => sum + count, 0);
+  const objectiveDistanceFloorViolations = expeditions.filter((entry) => (
+    !entry.isSupplyRun && !entry.isPrerequisiteRun
+      && Number(entry.routeObjectiveDistance) > 0
+      && Number(entry.actualTargetDistance) < Number(entry.routeObjectiveDistance)
+  )).length;
   const waterOfBarentonSecured = Boolean(endingState.ownedItems?.water_of_barenton);
   const morgansTokenSecured = Boolean(endingState.ownedItems?.morgans_token);
   const boundWardenEncountered = expeditions.reduce((count, entry) => count + (
@@ -2949,6 +3072,9 @@ function finalizeCampaignTelemetry(
     routeAttemptSequence,
     supplyRunCount: expeditions.filter((entry) => entry.isSupplyRun).length,
     supplyRunsByRoute: deepCampaignClone(supplyRunsByRoute),
+    progressionDeferredCount,
+    progressionDeferralsByRoute,
+    objectiveDistanceFloorViolations,
     prerequisiteRunCount: expeditions.filter((entry) => entry.isPrerequisiteRun).length,
     prerequisiteRunsByRoute: deepCampaignClone(
       progression?.prerequisiteRunsByRoute
@@ -3282,6 +3408,8 @@ function summarizeCampaigns(results) {
     fullCurrentCampaignCompletionRate: results.length
       ? results.filter((entry) => entry.currentContentCompleted).length / results.length : 0,
     averageTotalAttempts: averageField("expeditionsAttempted"),
+    averageProgressionDeferredCount: averageField("progressionDeferredCount"),
+    averageObjectiveDistanceFloorViolations: averageField("objectiveDistanceFloorViolations"),
     averageAttemptsOldForest: campaignAverage(results.map((entry) => entry.attemptsByRoute?.old_forest_road ?? 0)),
     averageAttemptsBarenton: campaignAverage(results.map((entry) => entry.attemptsByRoute?.fountain_of_barenton ?? 0)),
     averageAttemptsVal: campaignAverage(results.map((entry) => entry.attemptsByRoute?.val_sans_retour ?? 0)),
