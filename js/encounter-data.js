@@ -2490,6 +2490,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "barentonClueHeard",
                 value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "barentonRitualUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "barenton_ritual_understood",
+                value: true
               }
             ],
             resultText: "Arthur keeps the useful part of the warning: water, stone, and weather belong to the same question.",
@@ -2546,6 +2556,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "barentonKeeperWarned",
                 value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "barentonRitualUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "barenton_ritual_understood",
+                value: true
               }
             ],
             resultText: "The keeper gives no name. He says only: \"Pour upon the stone, and do not mistake the storm for an answer.\"",
@@ -2571,6 +2591,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "setRunFlag",
                 flag: "barentonClueHeard",
+                value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "barentonRitualUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "barenton_ritual_understood",
                 value: true
               }
             ],
@@ -2620,6 +2650,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "barentonApproachSeen",
                 value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "barentonApproachKnown",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "barenton_approach_known",
+                value: true
               }
             ],
             resultText: "Arthur marks the silent grove. Far ahead, water runs briefly uphill over a bed of black stones.",
@@ -2661,6 +2701,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "barentonApproachSeen",
                 value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "barentonApproachKnown",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "barenton_approach_known",
+                value: true
               }
             ],
             resultText: "The markers bring Arthur to a rise from which the forest falls away toward the fountain hollow.",
@@ -2695,6 +2745,37 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       {
         type: "notRunFlag",
         flag: "barentonOrdealComplete"
+      },
+      {
+        type: "allOf",
+        requirements: [
+          {
+            type: "anyOf",
+            requirements: [
+              {
+                type: "runFlag",
+                flag: "barentonRitualUnderstood"
+              },
+              {
+                type: "campaignFlag",
+                flag: "barenton_ritual_understood"
+              }
+            ]
+          },
+          {
+            type: "anyOf",
+            requirements: [
+              {
+                type: "runFlag",
+                flag: "barentonApproachKnown"
+              },
+              {
+                type: "campaignFlag",
+                flag: "barenton_approach_known"
+              }
+            ]
+          }
+        ]
       }
     ],
     stages: {
@@ -3282,6 +3363,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "valLoopConfirmed",
                 value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "valWayUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "val_way_understood",
+                value: true
               }
             ],
             resultText: "Arthur cuts a mark into the birch. When he looks back, the mark is on the tree ahead instead.",
@@ -3319,6 +3410,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "setRunFlag",
                 flag: "valLoopConfirmed",
+                value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "valWayUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "val_way_understood",
                 value: true
               }
             ],
@@ -3423,6 +3524,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "valLoopConfirmed",
                 value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "valWayUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "val_way_understood",
+                value: true
               }
             ],
             resultText: "Arthur tells her that a charge is not proof. The unseen voice falls quiet, displeased but unable to answer.",
@@ -3482,6 +3593,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "chapelCounsel",
                 value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "valWayUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "val_way_understood",
+                value: true
               }
             ],
             resultText: "Arthur repeats the line once and feels the valley's explanations lose some of their weight.",
@@ -3506,6 +3627,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "setRunFlag",
                 flag: "chapelCounsel",
+                value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "valWayUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "val_way_understood",
                 value: true
               }
             ],
@@ -3584,6 +3715,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "setRunFlag",
                 flag: "valLoopConfirmed",
+                value: true
+              },
+              {
+                type: "setRunFlag",
+                flag: "valWayUnderstood",
+                value: true
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "val_way_understood",
                 value: true
               }
             ],
@@ -3672,7 +3813,29 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     milestoneOrder: 90,
     tags: ["campaign", "val", "milestone", "morgan", "temptation"],
     repeatable: false,
-    requirements: [],
+    requirements: [
+      {
+        type: "runFlag",
+        flag: "valBoundaryRevealed"
+      },
+      {
+        type: "anyOf",
+        requirements: [
+          {
+            type: "runFlag",
+            flag: "valWayUnderstood"
+          },
+          {
+            type: "runFlag",
+            flag: "valLoopConfirmed"
+          },
+          {
+            type: "campaignFlag",
+            flag: "val_way_understood"
+          }
+        ]
+      }
+    ],
     stages: {
       start: {
         text: "Morgan does not threaten Arthur. She asks why he keeps giving his strength to a search that consumes knights and calls the consumption duty.",
@@ -3845,8 +4008,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     repeatable: false,
     requirements: [
       {
-        type: "notRunFlag",
-        flag: "acceptedMorgansGift"
+        type: "runFlag",
+        flag: "morganOfferRefused"
       }
     ],
     stages: {

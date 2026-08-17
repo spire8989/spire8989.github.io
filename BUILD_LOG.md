@@ -1,5 +1,69 @@
 # Build Log
 
+## 2026-08-17 - Discovery-Gated Barenton and Val Progression
+
+### Goal
+
+Rebalance the Barenton and Val expeditions so their story knowledge gates make
+them meaningful progression attempts without changing the existing combat,
+loot, food, or authored objective balance.
+
+### Human prompt and direction
+
+The human developer supplied a campaign rebalancing guide requiring persistent
+knowledge to settle only on safe return, same-run discovery support, nested
+requirements, explicit Morgan/Guardian gating, deterministic simulation choices,
+campaign discovery telemetry, focused regression coverage, and local commits.
+
+### AI-assisted implementation
+
+- Added reusable recursive `anyOf`/`allOf` requirements and a generic
+  `setCampaignFlagOnSafeReturn` effect. The new Barenton flags are
+  `barenton_ritual_understood` and `barenton_approach_known`; the new Val flag
+  is `val_way_understood`. Run-local flags allow discoveries made earlier in
+  the same expedition, while failed expeditions discard their staged flags.
+- Barenton ritual access now requires both ritual understanding and approach
+  knowledge, each satisfied by the current run or a safely settled campaign
+  flag. Sources are the meaningful rumor/Keeper choices and the still-forest or
+  stone-marker approach choices.
+- Val's Morgan offer now requires the revealed boundary plus current-run or
+  persistent understanding. The Guardian now requires an actual current-run
+  refused/asked Morgan offer, so no offer produces no Guardian and accepting
+  the gift still prevents it. Guardian victory remains the unsecured Token
+  path.
+- Updated cautious/aggressive authored simulation choices to make the new
+  discoveries, reject Val comforts, refuse Morgan, and challenge the Guardian
+  when available. Random/normal strategies remain seed-driven.
+- Added per-expedition staged/settled discovery telemetry, first-discovery and
+  discovery-return campaign metrics, Morgan Offer/Guardian counts, completion
+  attempt distributions, and compact notable events distinguishing secured
+  discoveries from staged-and-lost discoveries.
+- Exposed the new effect and nested requirement groups in GrailTools and added
+  validation for encounter-level nested requirements and safe-return flag
+  effects.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- `python tests/discovery_progression_test.py` — 10 assertions.
+- `python tests/progression_system_test.py` — 36 assertions, updated for
+  multi-attempt Barenton/Val progression and replay route preservation.
+- `python tests/simulation_system_test.py` — 62 assertions.
+- `python tests/campaign_system_test.py` — 92 assertions.
+- `python tests/debug_tools_test.py` — 16 assertions.
+- GrailTools unittest suite — 77 tests passed.
+- `git diff --check` in both repositories.
+
+The existing standalone `expedition_content_test.py`, `location_system_test.py`,
+`replay_system_test.py`, and `campaign_replay_system_test.py` also encountered
+pre-existing/headless fixture issues in this environment (missing runtime
+globals or inaccessible local storage); no unrelated replay fixture was
+changed. Existing Flask odds, Green Vial odds, Glimmering Sword behavior,
+Thorn/Lazarus rewards, Fountain Knight/Guardian/Warden stats, food tuning,
+attempt limits, Search objective distance, and combat getaway behavior remain
+unchanged.
+
 ## 2026-08-16 - Campaign Simulation Default Configuration
 
 ### Goal

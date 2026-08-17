@@ -364,6 +364,8 @@ const ExpeditionRules = Object.freeze({
       materialsLost: {},
       materialsSettled: false,
       unsecuredRecipes: [],
+      pendingCampaignFlags: {},
+      campaignFlagsSettled: false,
       lootDebugLog: [],
       returnRewardsRolled: false,
       returnRewardContents: createRewardBucket(),
@@ -475,6 +477,17 @@ const ExpeditionRules = Object.freeze({
     this.settleConsumedItems(player, expedition);
     this.settleProvisions(player, expedition, returnedSafely);
     MaterialRules.settle(player, expedition, returnedSafely);
+    if (!expedition.campaignFlagsSettled) {
+      if (returnedSafely) {
+        player.campaignFlags ??= {};
+        Object.entries(expedition.pendingCampaignFlags ?? {}).forEach(([flag, value]) => {
+          player.campaignFlags[flag] = value;
+        });
+      } else {
+        expedition.pendingCampaignFlags = {};
+      }
+      expedition.campaignFlagsSettled = true;
+    }
     player.injuries = InjuryRules.snapshot(expedition);
     if (returnedSafely && !expedition.rewardsSettled) {
       LootRules.awardExpeditionReturn(player, expedition);

@@ -874,6 +874,18 @@ function compactCampaignSummary(campaign, expeditions) {
       merlinFound: Boolean(campaign.merlinFound),
       boundWardenEncountered: Number(campaign.boundWardenEncountered) || 0,
       boundWardenVictories: Number(campaign.boundWardenVictories) || 0,
+      barentonFirstExpedition: campaign.barentonFirstExpedition ?? null,
+      barentonRitualKnowledgeSecuredOn: campaign.barentonRitualKnowledgeSecuredOn ?? null,
+      barentonApproachKnowledgeSecuredOn: campaign.barentonApproachKnowledgeSecuredOn ?? null,
+      barentonDiscoveryReturnCount: Number(campaign.barentonDiscoveryReturnCount) || 0,
+      barentonDiscoveryReturnRate: Number(campaign.barentonDiscoveryReturnRate) || 0,
+      valFirstExpedition: campaign.valFirstExpedition ?? null,
+      valUnderstandingSecuredOn: campaign.valUnderstandingSecuredOn ?? null,
+      valDiscoveryReturnCount: Number(campaign.valDiscoveryReturnCount) || 0,
+      valDiscoveryReturnRate: Number(campaign.valDiscoveryReturnRate) || 0,
+      morganOfferReached: Number(campaign.morganOfferReached) || 0,
+      guardianReached: Number(campaign.guardianReached) || 0,
+      guardianVictories: Number(campaign.guardianVictories) || 0,
       finalProgressionStage: campaign.finalProgressionStage ?? null,
       currentContentCompleted: Boolean(campaign.currentContentCompleted),
     },
@@ -1090,6 +1102,8 @@ function compactExpedition(entry, campaign) {
     },
     equipment,
     progression,
+    campaignFlagsStaged: compactClone(run.campaignFlagsStaged ?? {}),
+    campaignFlagsSettled: Boolean(run.campaignFlagsSettled),
     diagnostics: {
       healingTriggeredByLowHp: Boolean(entry.healingTriggeredByLowHp),
       healingTriggerReason: entry.healingTriggerReason ?? null,
@@ -1480,6 +1494,8 @@ function compactProgressionSummary(entry, startingState, endingState) {
     campaignFlagsChanged: compactChangedMap(
       startingState.campaignFlags ?? {}, endingState.campaignFlags ?? {},
     ),
+    campaignFlagsStaged: compactClone(entry.expeditionTelemetry?.campaignFlagsStaged ?? {}),
+    campaignFlagsSettled: Boolean(entry.expeditionTelemetry?.campaignFlagsSettled),
   };
 }
 
@@ -1635,6 +1651,12 @@ function compactNotableEvents(campaign) {
     }));
     Object.entries(progression.campaignFlagsChanged).forEach(([flag, value]) => events.push({
       type: "campaign-flag-changed", expeditionNumber: entry.expeditionNumber, flag, value,
+    }));
+    Object.entries(progression.campaignFlagsStaged).forEach(([flag, value]) => events.push({
+      type: progression.campaignFlagsSettled ? "campaign-flag-secured" : "campaign-flag-staged-lost",
+      expeditionNumber: entry.expeditionNumber,
+      flag,
+      value,
     }));
     (run.encounters ?? []).filter((encounter) => compactEncounterIsNotable(encounter.encounterId))
       .forEach((encounter) => events.push({
@@ -1922,7 +1944,7 @@ function applyBetweenExpeditionPolicy(
       if (!action.applied) break;
     } while (HealingRules.activeParty(player).some(
       (member) => member.maxHealth > 0
-        && member.health / member.maxHealth < policy.healingThreshold,
+      && member.health / member.maxHealth < policy.healingThreshold,
     ));
     const result = summarizePolicyHealing(player, restQuote, restActions);
     healing = {
@@ -3018,6 +3040,40 @@ function finalizeCampaignTelemetry(
       combat.combatId === "bound_warden" && combat.result === "victory"
     )).length ?? 0
   ), 0);
+  const encounterCountFor = (encounterId) => expeditions.reduce((count, entry) => count + (
+    entry.expeditionTelemetry?.encounters?.filter((encounter) => encounter.encounterId === encounterId).length ?? 0
+  ), 0);
+  const combatVictoryCountFor = (combatId) => expeditions.reduce((count, entry) => count + (
+    entry.expeditionTelemetry?.combats?.filter((combat) => (
+      combat.combatId === combatId && combat.result === "victory"
+    )).length ?? 0
+  ), 0);
+  const discoveryFlagsFor = (entry, flags) => flags.filter((flag) => (
+    entry.expeditionTelemetry?.campaignFlagsStaged?.[flag] === true
+    && entry.success
+  ));
+  const barentonEntries = expeditions.filter((entry) => (
+    !entry.isSupplyRun && !entry.isPrerequisiteRun
+      && (entry.routeId ?? entry.expeditionId) === "fountain_of_barenton"
+  ));
+  const valEntries = expeditions.filter((entry) => (
+    !entry.isSupplyRun && !entry.isPrerequisiteRun
+      && (entry.routeId ?? entry.expeditionId) === "val_sans_retour"
+  ));
+  const barentonDiscoveryReturns = barentonEntries.filter((entry) => discoveryFlagsFor(
+    entry, ["barenton_ritual_understood", "barenton_approach_known"],
+  ).length > 0).length;
+  const valDiscoveryReturns = valEntries.filter((entry) => discoveryFlagsFor(
+    entry, ["val_way_understood"],
+  ).length > 0).length;
+  const firstExpeditionWithFlag = (flag) => expeditions.find((entry) => (
+    entry.expeditionTelemetry?.campaignFlagsStaged?.[flag] === true && entry.success
+  ))?.expeditionNumber ?? null;
+  const firstBarentonExpedition = barentonEntries[0]?.expeditionNumber ?? null;
+  const firstValExpedition = valEntries[0]?.expeditionNumber ?? null;
+  const morganOfferReached = encounterCountFor("val_morgans_offer");
+  const guardianReached = encounterCountFor("summoned_guardian");
+  const guardianVictories = combatVictoryCountFor("summoned_guardian");
   const merlinFound = endingState.campaignFlags?.merlin_found === true;
   const currentContentCompleted = Boolean(progression?.currentContentCompleted);
   const finalProgressionStage = config.campaignMode === "progression"
@@ -3089,6 +3145,18 @@ function finalizeCampaignTelemetry(
     merlinFound,
     boundWardenEncountered,
     boundWardenVictories,
+    barentonFirstExpedition: firstBarentonExpedition,
+    barentonRitualKnowledgeSecuredOn: firstExpeditionWithFlag("barenton_ritual_understood"),
+    barentonApproachKnowledgeSecuredOn: firstExpeditionWithFlag("barenton_approach_known"),
+    barentonDiscoveryReturnCount: barentonDiscoveryReturns,
+    barentonDiscoveryReturnRate: barentonEntries.length ? barentonDiscoveryReturns / barentonEntries.length : 0,
+    valFirstExpedition: firstValExpedition,
+    valUnderstandingSecuredOn: firstExpeditionWithFlag("val_way_understood"),
+    valDiscoveryReturnCount: valDiscoveryReturns,
+    valDiscoveryReturnRate: valEntries.length ? valDiscoveryReturns / valEntries.length : 0,
+    morganOfferReached,
+    guardianReached,
+    guardianVictories,
     currentContentCompleted,
     finalProgressionStage,
     progressionTransitions: deepCampaignClone(progressionTransitions),
@@ -3295,6 +3363,28 @@ function summarizeCampaigns(results) {
     const entries = routeAttempts[routeId];
     return entries.length ? campaignAverage(entries.map((entry) => entry[field])) : 0;
   };
+  const completionAttemptDistribution = (routeId) => {
+    const counts = { attempt1: 0, attempt2: 0, attempt3Plus: 0 };
+    results.forEach((campaign) => {
+      if (!campaign.routesCompleted?.includes(routeId)) return;
+      const completedEntry = campaign.expeditions.find((entry) => (
+        !entry.isSupplyRun && !entry.isPrerequisiteRun
+          && (entry.routeId ?? entry.expeditionId) === routeId
+          && entry.routeAttemptCompleted
+      ));
+      const attempt = Number(completedEntry?.routeAttemptNumber)
+        || Number(campaign.routeCompletionAttempt?.[routeId]) || 0;
+      if (attempt === 1) counts.attempt1 += 1;
+      else if (attempt === 2) counts.attempt2 += 1;
+      else if (attempt >= 3) counts.attempt3Plus += 1;
+    });
+    return {
+      ...counts,
+      attempt1Rate: results.length ? counts.attempt1 / results.length : 0,
+      attempt2Rate: results.length ? counts.attempt2 / results.length : 0,
+      attempt3PlusRate: results.length ? counts.attempt3Plus / results.length : 0,
+    };
+  };
   const deathsByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId,
     routeAttempts[routeId].filter((entry) => entry.hardFailureReason === "arthur-died"
@@ -3414,6 +3504,13 @@ function summarizeCampaigns(results) {
     averageAttemptsBarenton: campaignAverage(results.map((entry) => entry.attemptsByRoute?.fountain_of_barenton ?? 0)),
     averageAttemptsVal: campaignAverage(results.map((entry) => entry.attemptsByRoute?.val_sans_retour ?? 0)),
     averageAttemptsSearchForMerlin: campaignAverage(results.map((entry) => entry.attemptsByRoute?.search_for_merlin ?? 0)),
+    barentonCompletionAttemptDistribution: completionAttemptDistribution("fountain_of_barenton"),
+    valCompletionAttemptDistribution: completionAttemptDistribution("val_sans_retour"),
+    averageBarentonDiscoveryReturnRate: averageField("barentonDiscoveryReturnRate"),
+    averageValDiscoveryReturnRate: averageField("valDiscoveryReturnRate"),
+    averageMorganOfferReached: averageField("morganOfferReached"),
+    averageGuardianReached: averageField("guardianReached"),
+    averageGuardianVictories: averageField("guardianVictories"),
     averageEndingHealthSearchForMerlin: routeAverages("search_for_merlin", "endingHealth"),
     averageDamageSearchForMerlin: routeAverages("search_for_merlin", "damageTaken"),
     averageCombatsSearchForMerlin: routeAverages("search_for_merlin", "combats"),

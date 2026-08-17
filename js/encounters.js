@@ -10,6 +10,12 @@ const EncounterRequirements = Object.freeze({
     if (!requirement?.type) return false;
 
     switch (requirement.type) {
+      case "anyOf":
+        return Array.isArray(requirement.requirements)
+          && requirement.requirements.some((nestedRequirement) => this.meets(nestedRequirement, context));
+      case "allOf":
+        return Array.isArray(requirement.requirements)
+          && requirement.requirements.every((nestedRequirement) => this.meets(nestedRequirement, context));
       case "availableExpeditionItem":
         return Boolean(expedition)
           && expeditionItemQuantity(expedition, requirement.itemId) >= (requirement.quantity ?? 1);
@@ -270,6 +276,11 @@ const EncounterOutcomes = Object.freeze({
         player.campaignFlags[effect.flag] = effect.value ?? true;
         messages = effect.message ? [effect.message] : [];
         break;
+      case "setCampaignFlagOnSafeReturn":
+        expedition.pendingCampaignFlags ??= {};
+        expedition.pendingCampaignFlags[effect.flag] = effect.value ?? true;
+        messages = effect.message ? [effect.message] : [];
+        break;
       case "unlockCompanion":
         if (COMPANION_DEFINITIONS[effect.companionId]
           && !player.unlockedCompanions.includes(effect.companionId)) {
@@ -527,6 +538,7 @@ const EncounterManager = Object.freeze({
     expedition.seenEncounterIds = [];
     expedition.encounterOccurrences = {};
     expedition.runFlags = {};
+    expedition.pendingCampaignFlags = {};
     expedition.activeEncounter = null;
     expedition.lastEncounterId = null;
     expedition.lastEncounterResult = "";

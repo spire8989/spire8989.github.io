@@ -314,7 +314,10 @@ const SimulationRunner = Object.freeze({
       fail(`Maximum simulation step count (${normalized.maxSimulationSteps}) reached.`);
     }
     const returnedSafely = expedition.status === "returned";
+    const stagedCampaignFlags = deepClone(expedition.pendingCampaignFlags ?? {});
     ExpeditionRules.settle(player, expedition, returnedSafely);
+    telemetry.campaignFlagsStaged = stagedCampaignFlags;
+    telemetry.campaignFlagsSettled = returnedSafely;
     finalizeTelemetry(
       telemetry,
       normalized,
@@ -647,6 +650,20 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
           : ["fill_flask", "study_perron", "leave_fountain"];
     return priorities.map(choiceById).find(Boolean) ?? null;
   }
+  if (encounterId === "barenton_rumors") {
+    return choiceById("compare_accounts") ?? choiceById("ask_for_directions") ?? null;
+  }
+  if (encounterId === "keeper_of_bulls") {
+    return strategyName === "aggressive"
+      ? choiceById("use_woodcraft") ?? choiceById("question_keeper") ?? choiceById("challenge_keeper") ?? null
+      : choiceById("question_keeper") ?? choiceById("use_woodcraft") ?? null;
+  }
+  if (encounterId === "barenton_still_forest") {
+    return choiceById("listen_to_silence") ?? choiceById("move_quickly") ?? null;
+  }
+  if (encounterId === "barenton_stone_markers") {
+    return choiceById("follow_markers") ?? choiceById("leave_markers") ?? null;
+  }
   if (encounterId === "summoned_guardian") {
     if (strategyName === "aggressive") return choiceById("fight_guardian") ?? null;
     if (strategyName === "cautious" && Number(context.expedition?.health) >= PLAYER_CHARACTER_DEFINITION.combat.maxHp * 0.45) {
@@ -655,6 +672,32 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
   }
   if (encounterId === "val_false_knight" && strategyName === "cautious") {
     return choiceById("question_false_knight") ?? choiceById("leave_false_knight") ?? null;
+  }
+  if (encounterId === "val_pleasant_clearing") {
+    return choiceById("leave_clearing") ?? choiceById("accept_clearing_comfort") ?? null;
+  }
+  if (encounterId === "val_knight_who_will_not_leave") {
+    return choiceById("leave_knight") ?? choiceById("argue_for_departure") ?? choiceById("inspire_him") ?? null;
+  }
+  if (encounterId === "val_repeated_road") {
+    return strategyName === "aggressive"
+      ? choiceById("trust_woodcraft") ?? choiceById("mark_the_road") ?? choiceById("continue_confidently") ?? null
+      : choiceById("mark_the_road") ?? choiceById("trust_woodcraft") ?? choiceById("continue_confidently") ?? null;
+  }
+  if (encounterId === "val_impossible_boundary") {
+    return choiceById("step_through_boundary") ?? choiceById("test_boundary") ?? choiceById("wait_for_opening") ?? null;
+  }
+  if (encounterId === "val_faithful_lady") {
+    return choiceById("believe_lady") ?? choiceById("ask_what_she_knows") ?? choiceById("leave_lady") ?? null;
+  }
+  if (encounterId === "val_chapel") {
+    return choiceById("take_chapel_counsel") ?? choiceById("rest_in_chapel") ?? choiceById("leave_chapel") ?? null;
+  }
+  if (encounterId === "val_miroir_aux_fees") {
+    return choiceById("examine_inconsistencies") ?? choiceById("reject_reflection") ?? choiceById("trust_reflection") ?? null;
+  }
+  if (encounterId === "val_great_hall") {
+    return choiceById("thank_and_leave_hall") ?? choiceById("leave_hall") ?? null;
   }
   if (encounterId === "val_morgans_offer") {
     return choiceById("refuse_morgans_offer") ?? choiceById("ask_what_it_costs") ?? null;
