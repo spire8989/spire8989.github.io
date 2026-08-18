@@ -10,7 +10,7 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     kind: "active",
     tags: ["martial", "basic"],
     effects: Object.freeze([
-      Object.freeze({ type: "weaponDamage", multiplier: 1, onHit: true }),
+      Object.freeze({ type: "weaponDamage", multiplier: 1 }),
     ]),
     selectionPrompt: "Choose an enemy target",
     category: "action",
@@ -100,6 +100,32 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     kind: "active",
     effects: Object.freeze([{ type: "attemptFlee" }]),
     category: "action",
+  }),
+  healing_prayer: Object.freeze({
+    id: "healing_prayer",
+    name: "Healing Prayer",
+    description: "Restore 10 HP to an ally through focused Faith.",
+    target: "ally",
+    targetMode: "singleAlly",
+    kind: "active",
+    tags: ["faith", "healing"],
+    cost: Object.freeze({ resource: "faith", amount: 3 }),
+    cooldownActivations: 1,
+    chargesPerCombat: 2,
+    effects: Object.freeze([{ type: "heal", amount: 10 }]),
+    selectionPrompt: "Choose an ally to heal",
+  }),
+  steady_heart: Object.freeze({
+    id: "steady_heart",
+    name: "Steady Heart",
+    description: "Begin each combat with a little action gauge already gathered.",
+    kind: "passive",
+    tags: ["faith", "discipline"],
+    trigger: Object.freeze({
+      event: "combatStart",
+      effects: Object.freeze([{ type: "modifyGauge", target: "self", amount: 15 }]),
+    }),
+    effects: Object.freeze([{ type: "modifyGauge", target: "self", amount: 15 }]),
   }),
 });
 

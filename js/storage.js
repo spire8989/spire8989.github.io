@@ -5,9 +5,12 @@ const SAVE_KEY = "questForTheHolyGrail.save.v1";
 const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
-      saveVersion: 11,
+      saveVersion: 12,
       faith: 10,
       maxFaith: 10,
+      learnedAbilityIds: [],
+      selectedActiveAbilityIds: [],
+      selectedPassiveAbilityIds: [],
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -158,11 +161,28 @@ function sanitizePlayerState(savedState, defaults) {
     ? savedState.selectedExpeditionId
     : defaults.selectedExpeditionId;
   const maxFaith = sanitizeMaximumResource(savedState.maxFaith, defaults.maxFaith);
+  const learnedAbilityIds = AbilityRules.sanitizeLearned(
+    savedState.learnedAbilityIds,
+    defaults.learnedAbilityIds,
+  );
+  const selectedActiveAbilityIds = AbilityRules.sanitizeLoadout(
+    savedState.selectedActiveAbilityIds,
+    learnedAbilityIds,
+    "active",
+  );
+  const selectedPassiveAbilityIds = AbilityRules.sanitizeLoadout(
+    savedState.selectedPassiveAbilityIds,
+    learnedAbilityIds,
+    "passive",
+  );
 
   return {
-    saveVersion: 11,
+    saveVersion: 12,
     faith: sanitizeResource(savedState.faith, defaults.faith, maxFaith),
     maxFaith,
+    learnedAbilityIds,
+    selectedActiveAbilityIds,
+    selectedPassiveAbilityIds,
     ownedItems,
     equippedItems,
     packedItems,

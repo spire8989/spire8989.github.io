@@ -1209,6 +1209,50 @@ button:active:not(:disabled) {
 
 .party-slot-heading span { color: var(--gold); }
 
+.ability-loadout-section {
+  padding: 0.65rem;
+  border: 1px solid rgb(217 189 114 / 20%);
+  border-radius: 0.4rem;
+  background: rgb(6 12 7 / 24%);
+}
+
+.ability-loadout-group {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+}
+
+.ability-loadout-group > strong {
+  color: var(--gold);
+  font-family: system-ui, sans-serif;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ability-loadout-list { display: grid; gap: 0.35rem; }
+
+.ability-loadout-entry {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.5rem;
+  border: 1px solid rgb(217 189 114 / 20%);
+  border-radius: 0.35rem;
+  background: rgb(11 17 12 / 62%);
+  color: #c3baa7;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ability-loadout-entry.is-selected {
+  border-color: var(--gold);
+  background: linear-gradient(90deg, rgb(125 47 39 / 25%), rgb(34 54 39 / 75%));
+}
+
+.ability-loadout-entry:disabled { opacity: 0.5; cursor: not-allowed; }
+.ability-loadout-entry-heading { display: flex; justify-content: space-between; gap: 0.4rem; color: #f2e5c2; }
+.ability-loadout-entry small { color: #98a498; font-family: system-ui, sans-serif; font-size: 0.58rem; }
+
 .choice-card.is-unavailable {
   opacity: 0.46;
   cursor: default;
@@ -3144,6 +3188,13 @@ button.combatant {
   justify-content: flex-start;
   gap: clamp(1rem, 3.2cqh, 1.8rem);
   padding: clamp(1.2rem, 6cqw, 2rem);
+}
+
+.combat-action-grid button .combat-ability-meta {
+  color: var(--gold);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.42rem, 1.75cqw, 0.54rem);
+  text-transform: capitalize;
 }
 
 .summary-screen.is-failure {

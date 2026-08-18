@@ -2108,6 +2108,7 @@ function createCampaignReplayPlayer(snapshot = {}) {
   player.selectedCompanions = [...(snapshot.selectedCompanions ?? (snapshot.selectedCompanion ? [snapshot.selectedCompanion] : player.selectedCompanions))];
   player.selectedCompanion = snapshot.selectedCompanion ?? player.selectedCompanions[0] ?? null;
   player.unlockedCompanions = [...new Set([...(player.unlockedCompanions ?? []), ...player.selectedCompanions])];
+  AbilityRules.sanitizePlayerState(player, defaults);
   return player;
 }
 
@@ -2249,6 +2250,9 @@ function campaignReplayPlayerSnapshot(player) {
     provisionStock: player.provisions,
     faith: player.faith,
     maxFaith: player.maxFaith,
+    learnedAbilityIds: deepClone(player.learnedAbilityIds),
+    selectedActiveAbilityIds: deepClone(player.selectedActiveAbilityIds),
+    selectedPassiveAbilityIds: deepClone(player.selectedPassiveAbilityIds),
     ownedItems: deepClone(player.ownedItems),
     equippedItems: deepClone(player.equippedItems),
     packedItems: deepClone(player.packedItems),
@@ -2324,6 +2328,9 @@ function campaignReplayStateDifferences(actual = {}, expected = {}) {
   compareArray("packedItems", "packedItems");
   compareArray("learnedKnowledge", "learnedKnowledge");
   compareArray("learnedRecipes", "learnedRecipes");
+  compareArray("learnedAbilityIds", "learnedAbilityIds");
+  compareArray("selectedActiveAbilityIds", "selectedActiveAbilityIds");
+  compareArray("selectedPassiveAbilityIds", "selectedPassiveAbilityIds");
   compareArray("unlockedCompanions", "unlockedCompanions");
   compareArray("selectedCompanions", "selectedCompanions");
   compareObject("campaignFlags", "campaignFlags");

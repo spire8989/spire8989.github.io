@@ -53,7 +53,7 @@ function handleAction(event) {
     return;
   }
 
-  const { action, itemId, materialId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId } = control.dataset;
+  const { action, itemId, materialId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId, abilityId } = control.dataset;
 
   // Replay playback owns an isolated game state. Keep the real gameplay
   // controls visible for faithful rendering, but do not let them mutate the
@@ -145,6 +145,9 @@ function handleAction(event) {
       break;
     case "select-companion":
       selectCompanion(companionId, Number(slotIndex) || 0);
+      break;
+    case "toggle-ability-loadout":
+      toggleAbilityLoadout(abilityId);
       break;
     case "select-expedition":
       selectExpedition(expeditionId);
@@ -375,6 +378,7 @@ function renderLocation() {
       <div class="hub-status">
           <span><strong>${Math.floor(game.player.currentGold)}g</strong> Gold</span>
           <span><strong>${game.player.provisions}</strong> Provisions</span>
+          <span><strong>${game.player.faith}/${game.player.maxFaith}</strong> Faith</span>
           <span><strong>${Math.ceil(HealingRules.arthurHealth(game.player))}/${HealingRules.arthurMaxHealth(game.player)}</strong> Health</span>
         </div>
         <div class="hub-actions">
@@ -1298,6 +1302,8 @@ function renderPreparationCompany() {
       <div class="party-slot-list">${companionSlots}</div>
     </section>
 
+    ${renderCombatLoadout()}
+
     <section class="preparation-section supplies-section" aria-labelledby="supplies-title">
       <div>
         <h2 id="supplies-title">Provisions</h2>
@@ -1312,6 +1318,30 @@ function renderPreparationCompany() {
         <button type="button" data-action="change-supplies" data-amount="5" aria-label="Add five provisions">+5</button>
       </div>
     </section>`;
+}
+
+function renderCombatLoadout() {
+  const learned = AbilityRules.sanitizeLearned(game.player.learnedAbilityIds);
+  const active = learned.filter((abilityId) => AbilityRules.kind(abilityId) === "active");
+  const passive = learned.filter((abilityId) => AbilityRules.kind(abilityId) === "passive");
+  const renderEntry = (abilityId, kind) => {
+    const ability = AbilityRules.definition(abilityId);
+    const selected = AbilityRules.isSelected(game.player, abilityId);
+    const list = kind === "passive" ? game.player.selectedPassiveAbilityIds : game.player.selectedActiveAbilityIds;
+    const full = !selected && list.length >= AbilityRules.capacity(kind);
+    const cost = ability.cost?.resource === "faith" ? `Faith ${ability.cost.amount}` : "No Faith cost";
+    const limit = kind === "active" ? `Active ${list.length}/${AbilityRules.capacity(kind)}` : `Passive ${list.length}/${AbilityRules.capacity(kind)}`;
+    return `<button class="ability-loadout-entry ${selected ? "is-selected" : ""}" type="button" data-action="toggle-ability-loadout" data-ability-id="${abilityId}" ${full ? "disabled" : ""}>
+      <span class="ability-loadout-entry-heading"><strong>${ability.name}</strong><small>${selected ? limit : "Unequipped"}</small></span>
+      <span>${ability.description ?? ""}</span><small>${cost}${ability.cooldownActivations ? ` Â· Cooldown ${ability.cooldownActivations}` : ""}${ability.chargesPerCombat ? ` Â· ${ability.chargesPerCombat}/combat` : ""}</small>
+    </button>`;
+  };
+  return `<section class="preparation-section ability-loadout-section" aria-labelledby="ability-loadout-title">
+    <div class="section-title-row"><h2 id="ability-loadout-title">Combat Loadout</h2><span>Faith ${game.player.faith}/${game.player.maxFaith}</span></div>
+    <p class="section-help">Learned actives use the ${ABILITY_TUNING.activeLoadoutCapacity}-slot bar. Learned passives use ${ABILITY_TUNING.passiveLoadoutCapacity} slots. Equipment and companions grant their own abilities.</p>
+    <div class="ability-loadout-group"><strong>Actives</strong><div class="ability-loadout-list">${active.map((id) => renderEntry(id, "active")).join("") || '<p class="empty-loot">No learned active abilities.</p>'}</div></div>
+    <div class="ability-loadout-group"><strong>Passives</strong><div class="ability-loadout-list">${passive.map((id) => renderEntry(id, "passive")).join("") || '<p class="empty-loot">No learned passive abilities.</p>'}</div></div>
+  </section>`;
 }
 
 function renderPreparationReview() {
@@ -1552,6 +1582,18 @@ function selectCompanion(companionId, slotIndex = 0) {
         : "This companion slot is open.",
       type: "success",
     });
+  }
+  savePlayer();
+  refreshPreparation();
+}
+
+function toggleAbilityLoadout(abilityId) {
+  const result = AbilityRules.toggleLoadout(game.player, abilityId);
+  if (!result.applied) {
+    if (result.reason === "loadout-full") {
+      showToast({ title: "Loadout Full", message: `The ${result.kind} loadout has no open slots.`, type: "warning" });
+    }
+    return;
   }
   savePlayer();
   refreshPreparation();
@@ -2016,7 +2058,7 @@ function renderCombat(expedition, combat) {
             <p class="eyebrow">${awaitingAction ? "Current Turn" : "Battle in Progress"}</p>
             <strong>${activeActor ? `${activeActor.name}'s turn` : "Action gauges are filling"}</strong>
           </div>
-          <span class="combat-target-summary">${selectedEnemy ? `${selectedEnemy.name} selected` : choosingTarget ? "Choose a target" : "No target selected"}</span>
+          <span class="combat-target-summary">Faith ${game.player.faith}/${game.player.maxFaith} Â· ${selectedEnemy ? `${selectedEnemy.name} selected` : choosingTarget ? "Choose a target" : "No target selected"}</span>
         </div>
         <div class="combat-controls">
           ${renderCombatControls(combat, activeActor)}
@@ -2080,9 +2122,19 @@ function renderCombatControls(combat, activeActor) {
     return `<div class="combat-target-prompt"><p>${combat.pendingTargetPrompt ?? "Choose an ally target"}</p><button type="button" data-action="combat-cancel-target">Cancel</button></div>`;
   }
   if (combat.interactionMode === "abilities") {
-    const abilities = CombatSystem.availableAbilities(combat, game.expedition);
+    const abilities = CombatSystem.abilityEntries(combat, game.expedition);
     const entries = abilities.length > 0
-      ? abilities.map((ability) => `<button type="button" data-action="combat-ability" data-ability-id="${ability.id}"><strong>${ability.name}</strong><span>${ability.description ?? ""}</span></button>`).join("")
+      ? abilities.map((ability) => {
+        const availability = ability.availability;
+        const cost = ability.cost?.resource === "faith" ? `Faith ${availability.cost.amount}` : "No Faith cost";
+        const limits = [
+          cost,
+          availability.cooldownRemaining > 0 ? `Cooldown ${availability.cooldownRemaining}` : "",
+          availability.chargesRemaining !== null ? `${availability.chargesRemaining} charge${availability.chargesRemaining === 1 ? "" : "s"}` : "",
+          availability.reason ? availability.reason.replaceAll("-", " ") : "Ready",
+        ].filter(Boolean).join(" Â· ");
+        return `<button type="button" data-action="combat-ability" data-ability-id="${ability.id}" ${availability.usable ? "" : "disabled"}><strong>${ability.name}</strong><span>${ability.description ?? ""}</span><small class="combat-ability-meta">${limits}</small></button>`;
+      }).join("")
       : '<p class="combat-empty-menu">No usable abilities.</p>';
     return `<div class="combat-submenu-heading"><p>${activeActor.name}'s Abilities</p><button type="button" data-action="combat-menu-back">Back</button></div><div class="combat-action-grid combat-submenu-list">${entries}</div>`;
   }
@@ -2159,6 +2211,7 @@ function renderExpeditionResources(expedition) {
         <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
       </div>
       <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}</strong></div>
+      <div class="resource-card"><span>Faith</span><strong id="faith-value">${game.player.faith} / ${game.player.maxFaith}</strong></div>
       <div class="resource-card material-bag-card"><span>Material Bag</span><strong id="material-bag-count">${materialBagUsed} / ${MaterialRules.capacity()}</strong></div>
       <div class="resource-card"><span>Unsecured Loot</span><strong id="loot-count">${unsecuredLootDisplayValue(expedition)}</strong></div>
     </div>`;
@@ -2481,6 +2534,7 @@ function handleCombatInteractionResult(expedition, combat, result) {
     return;
   }
   if (result?.resolved) {
+    savePlayer();
     if (result.action === "item") {
       const item = ITEM_DEFINITIONS[result.itemId];
       const event = combat.events.at(-1);
@@ -2674,7 +2728,8 @@ function rewardBucketEntries(bucket = {}, statusLabel = "") {
 function rewardDefinition(reward) {
   return reward.type === "item" ? ITEM_DEFINITIONS[reward.itemId]
     : reward.type === "material" ? MaterialRules.definition(reward.materialId)
-      : reward.type === "recipe" ? RECIPE_DEFINITIONS[reward.recipeId] : null;
+      : reward.type === "recipe" ? RECIPE_DEFINITIONS[reward.recipeId]
+        : reward.type === "ability" ? AbilityRules.definition(reward.abilityId) : null;
 }
 
 function rewardIconKind(reward) {
@@ -2684,6 +2739,7 @@ function rewardIconKind(reward) {
     return itemIconKind("material", { ...definition, id: reward.materialId, category: "material" });
   }
   if (reward.type === "recipe") return "recipe";
+  if (reward.type === "ability") return "ability";
   const definition = rewardDefinition(reward);
   return itemIconKind(definition?.category, definition);
 }
@@ -2715,7 +2771,9 @@ function rewardCategoryLabel(reward) {
   const definition = rewardDefinition(reward);
   return reward.type === "gold" ? "Currency"
     : reward.type === "material" ? "Crafting Material"
-      : reward.type === "recipe" ? "Recipe" : capitalize(definition?.category ?? "Item");
+      : reward.type === "recipe" ? "Recipe"
+        : reward.type === "ability" ? `${capitalize(definition?.kind ?? "")} Ability`
+          : capitalize(definition?.category ?? "Item");
 }
 
 function renderRewardCard(reward, options = {}) {
@@ -2785,6 +2843,7 @@ function renderSummaryRewardCollection(rewards = [], options = {}) {
     ["Items", routineAndNotable.filter((reward) => reward.type === "item")],
     ["Materials", routineAndNotable.filter((reward) => reward.type === "material")],
     ["Gold", routineAndNotable.filter((reward) => reward.type === "gold")],
+    ["Combat Abilities", routineAndNotable.filter((reward) => reward.type === "ability")],
   ].filter(([, group]) => group.length > 0);
   return `<div class="summary-reward-collection">${groups.map(([label, group]) => `<div class="summary-reward-group"><h3>${label}</h3><ul class="summary-reward-list">${group.map(renderCompactRewardRow).join("")}</ul></div>`).join("")}
     ${major.length > 0 ? `<div class="summary-major-rewards"><h3>Highlighted Discoveries</h3>${renderRewardCards(major, { variant: "summary" })}</div>` : ""}</div>`;
@@ -2981,6 +3040,7 @@ const CATEGORY_ICON_MARKUP = Object.freeze({
   gem: '<path d="m4 9 3.5-5h9L20 9l-8 10L4 9Z"/><path d="M4 9h16M8 4l4 15 4-15M7.5 9h9"/>',
   relic: '<circle cx="12" cy="12" r="8"/><path d="M12 7v10M8.5 10.5h7M8.5 13.5h7"/>',
   recipe: '<path d="M6 4h11a2 2 0 0 1 2 2v13H8a2 2 0 0 1-2-2V4Z"/><path d="M6 17a2 2 0 0 0 2 2M9 8h7M9 11h7M9 14h4"/>',
+  ability: '<path d="M12 3.5 14.2 9l5.3 2.2-5.3 2.3L12 19l-2.2-5.5-5.3-2.3L9.8 9 12 3.5Z"/><path d="M17.5 4v3m-1.5-1.5h3"/>',
   rope: '<path d="M7 5c-2.5 0-3.5 2.8-1.5 4.3l7.2 5.4c2 1.5 1 4.3-1.5 4.3-1.8 0-3.1-1.1-3.1-2.7 0-1.1.6-1.9 1.3-2.4"/><path d="M17 19c2.5 0 3.5-2.8 1.5-4.3l-7.2-5.4c-2-1.5-1-4.3 1.5-4.3 1.8 0 3.1 1.1 3.1 2.7 0 1.1-.6 1.9-1.3 2.4"/>',
   torch: '<path d="M10 12.5h4l1.2 7H8.8l1.2-7Z"/><path d="M12 3c2.8 2.3 3.4 4.2 1.7 6.2-.8.9-1.8 1.4-1.7 3.3-2.8-1.4-3.1-4-.9-6.4.4-.5.8-1.4.9-3.1Z"/>',
   tool: '<path d="m14.5 5.5 4 4M13 7l4-4 2 2-4 4M4 20l7.8-7.8 2 2L6 22H4v-2Z"/>',

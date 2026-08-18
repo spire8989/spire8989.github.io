@@ -591,16 +591,17 @@ function createStrategy(name, chooseEncounter) {
         }
       }
       const abilities = CombatSystem.availableAbilities(combat, expedition);
-      if (name === "aggressive" && actions.includes("abilities")
-        && abilities.some((ability) => ability.id === "pommel_strike")
-        && expedition.health < maxHealth
-        && combat.enemies.some((enemy) => enemy.hp > 0 && enemy.gauge >= 75)) {
-        return "abilities";
-      }
-      if (name === "cautious" && actions.includes("abilities")
-        && abilities.some((ability) => ability.id === "intercede")
-        && expedition.health < maxHealth * 0.55) {
-        return "abilities";
+      if (actions.includes("abilities") && abilities.length > 0) {
+        const effectTypes = (ability) => new Set((ability.effects ?? []).map((effect) => effect.type));
+        const hasGaugeControl = abilities.some((ability) => effectTypes(ability).has("modifyGauge"));
+        const hasProtection = abilities.some((ability) => effectTypes(ability).has("setFlag")
+          || effectTypes(ability).has("setDefending"));
+        const hasHealing = abilities.some((ability) => effectTypes(ability).has("heal"));
+        const enemyThreat = combat.enemies.some((enemy) => enemy.hp > 0 && enemy.gauge >= 75);
+        if ((name === "aggressive" && hasGaugeControl && enemyThreat && expedition.health < maxHealth)
+          || (name === "cautious" && (hasProtection || hasHealing) && expedition.health < maxHealth * 0.55)) {
+          return "abilities";
+        }
       }
       if (name !== "random" && actions.includes("items")
         && expedition.health < maxHealth * 0.55
@@ -612,9 +613,13 @@ function createStrategy(name, chooseEncounter) {
     chooseCombatAbility(combat, _expedition, context) {
       const abilities = CombatSystem.availableAbilities(combat, _expedition);
       if (name === "random" || name === "normal") return context.random.pick(abilities)?.id;
-      return abilities.find((ability) => ability.id === "pommel_strike")?.id
-        ?? abilities.find((ability) => ability.id === "intercede")?.id
-        ?? abilities[0]?.id;
+      const effectTypes = (ability) => new Set((ability.effects ?? []).map((effect) => effect.type));
+      const preferred = abilities.find((ability) => effectTypes(ability).has("weaponDamage")
+        || effectTypes(ability).has("modifyGauge"))
+        ?? (name === "cautious"
+          ? abilities.find((ability) => effectTypes(ability).has("heal") || effectTypes(ability).has("setFlag"))
+          : null);
+      return preferred?.id ?? abilities[0]?.id;
     },
     chooseCombatItem(combat, _expedition, context) {
       const items = CombatSystem.availableItems(combat, _expedition);
@@ -950,6 +955,7 @@ function createSimulationPlayer(scenario) {
     ...scenario.companions,
   ])];
   player.provisions = Math.max(Number(player.provisions) || 0, scenario.provisions);
+  AbilityRules.sanitizePlayerState(player, defaults);
   return player;
 }
 
@@ -1920,6 +1926,11 @@ function replayPlayerSnapshot(player) {
     materials: player.materials,
     packedMaterials: player.packedMaterials,
     learnedRecipes: player.learnedRecipes,
+    faith: player.faith,
+    maxFaith: player.maxFaith,
+    learnedAbilityIds: player.learnedAbilityIds,
+    selectedActiveAbilityIds: player.selectedActiveAbilityIds,
+    selectedPassiveAbilityIds: player.selectedPassiveAbilityIds,
     campaignFlags: player.campaignFlags ?? {},
     provisions: player.provisions,
     currentGold: player.currentGold,

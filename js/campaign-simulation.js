@@ -2877,6 +2877,10 @@ function createCampaignPlayer(overrides) {
   merged.packedItems = merged.packedItems.filter((itemId) => !MaterialRules.isMaterialId(itemId));
   merged.learnedRecipes = [...(overrides.learnedRecipes ?? defaults.learnedRecipes)];
   merged.learnedKnowledge = [...(overrides.learnedKnowledge ?? defaults.learnedKnowledge)];
+  merged.learnedAbilityIds = [...(overrides.learnedAbilityIds ?? defaults.learnedAbilityIds)];
+  merged.selectedActiveAbilityIds = [...(overrides.selectedActiveAbilityIds ?? defaults.selectedActiveAbilityIds)];
+  merged.selectedPassiveAbilityIds = [...(overrides.selectedPassiveAbilityIds ?? defaults.selectedPassiveAbilityIds)];
+  AbilityRules.sanitizePlayerState(merged, defaults);
   merged.unlockedCompanions = [...(overrides.unlockedCompanions ?? defaults.unlockedCompanions)];
   merged.selectedCompanions = [...(overrides.selectedCompanions ?? selectedCompanionIds(merged))];
   merged.selectedCompanion = merged.selectedCompanions[0] ?? null;
@@ -2909,6 +2913,9 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
     provisionStock: player.provisions,
     faith: player.faith,
     maxFaith: player.maxFaith,
+    learnedAbilityIds: player.learnedAbilityIds,
+    selectedActiveAbilityIds: player.selectedActiveAbilityIds,
+    selectedPassiveAbilityIds: player.selectedPassiveAbilityIds,
     ownedItems: player.ownedItems,
     equippedItems: player.equippedItems,
     packedItems: player.packedItems,

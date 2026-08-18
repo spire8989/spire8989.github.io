@@ -20,6 +20,38 @@ the shared effect vocabulary rather than add an actor-specific branch.
   resolution, and event dispatch.
 - combat.js advances gauges, opens player menus, normalizes legacy enemy
   actions/equipment traits, and records combat results.
+- ability-rules.js owns persistent learned abilities, the selected 3-active /
+  2-passive loadout, duplicate/unknown-ID filtering, and persistent Faith
+  mutation used by encounters, camp production, and combat.
+
+## Abilities, loadouts, and grants
+
+Player learned abilities are saved as canonical IDs in `learnedAbilityIds`.
+Selected learned actives and passives are saved separately in
+`selectedActiveAbilityIds` and `selectedPassiveAbilityIds`, with capacities of
+three and two. The shared AbilityRules layer validates these arrays, removes
+duplicates and unknown IDs, prevents cross-kind selection, and auto-equips a
+newly learned ability when a compatible slot is open.
+
+Equipment, companions, and statuses provide temporary combat grants through
+`grantedAbilityIds`. They do not consume player loadout slots. Companion
+abilities use the same active/passive definition model, while companion
+passives never appear in the player's loadout UI. The combat menu is built
+from selected learned actives plus current grants; passive abilities register
+through the normal event listener path and are never rendered as buttons.
+
+All active actions pass through `abilityAvailability`, which is the canonical
+validation path for resource cost, cooldown, charges, target validity, and
+actor readiness. UI, simulation, and action resolution consume the same
+availability result.
+
+Faith is persistent, capped by `maxFaith`, and never refills automatically.
+The generic `modifyResource` effect bridges Faith to the owning player even
+when an encounter, camp production, or active combat resolves it. Combat-only
+cooldowns and `chargesPerCombat` are transient: successful uses consume them,
+cooldowns are measured in the owning actor's completed activations, and both
+reset for the next combat. Resolve's existing `combatCharges` remains a
+separate legacy combat resource.
 
 ## Event lifecycle
 
@@ -30,6 +62,9 @@ Every action follows the same high-level sequence:
 3. Resolve the definition's effects for each resolved target.
 4. Damage effects dispatch beforeDamage, damageDealt, damageTaken,
    damagePrevented when applicable, and afterDamage.
+   Positive `weaponDamage` also dispatches `attackHit` here, including on a
+   lethal hit, before defeat events. Authored effects can opt out with
+   `triggersOnHit: false`; legacy `onHit: false` remains supported.
 5. Dispatch actionUsed.
 6. Record the compact action event and dispatch the actor's turnEnd.
 7. Check victory/defeat and emit combatVictory or combatDefeat, followed by
@@ -98,6 +133,12 @@ Damage rolls, target selection, status chances, flee rolls, and effect chances
 all use that injected source. Combat state keeps a non-enumerable player
 reference only while active so Faith mutations persist without polluting
 expedition snapshots or replay payloads.
+
+Learned abilities and selected loadouts are included in save migration,
+simulation setup, replay snapshots, and campaign-state comparisons. Unknown
+IDs are ignored during migration. Replay payloads record the ability ID, actor,
+target, Faith spent, and remaining cooldown/charges for compact action events;
+transient cooldown state itself is not persisted between combats.
 
 ## Verification
 

@@ -47,7 +47,8 @@ const CraftingRules = Object.freeze({
     }));
     const uniqueAlreadyOwned = Boolean(item?.unique && player.ownedItems[item.id]);
     const affordable = Boolean(recipe && player.currentGold >= recipe.goldCost);
-    const validOutput = Boolean(recipe && (item || Number(recipe.output?.provisions) > 0));
+    const validOutput = Boolean(recipe && (item || Number(recipe.output?.provisions) > 0
+      || (typeof recipe.output?.resource === "string" && Number(recipe.output?.amount) > 0)));
     const contextValid = productionContext === "camp" ? Boolean(expedition) : productionContext === "inn" ? !expedition : true;
     const available = Boolean(recipe && validOutput && known && correctProvider && contextValid && affordable
       && !uniqueAlreadyOwned && ingredientStatus.every((entry) => entry.sufficient));
@@ -86,9 +87,11 @@ const CraftingRules = Object.freeze({
       }
     });
     player.currentGold -= quote.recipe.goldCost;
-    const { itemId, quantity, provisions = 0 } = quote.recipe.output;
+    const { itemId, quantity, provisions = 0, resource = null, amount = 0 } = quote.recipe.output;
     if (quote.expedition && provisions > 0) {
       ExpeditionRules.adjustProvisions(quote.expedition, provisions);
+    } else if (resource) {
+      AbilityRules.modifyPersistentResource(player, quote.expedition, resource, amount);
     } else if (quote.expedition && itemId) {
       addExpeditionItem(quote.expedition, itemId, quantity);
     } else if (provisions > 0) {
@@ -104,6 +107,8 @@ const CraftingRules = Object.freeze({
       itemId,
       quantity: quantity ?? 0,
       provisions,
+      resource,
+      amount: Number(amount) || 0,
       goldCost: quote.recipe.goldCost,
       materialsConsumed: materialBagConsumed,
       materialBagConsumed,

@@ -1,5 +1,73 @@
 # Build Log
 
+## 2026-08-17 - Combat Ability Loadouts and Resource Pass 2
+
+### Goal
+
+Finish the next combat-system pass by making learned abilities, temporary
+grants, Faith costs, cooldowns, charges, passives, UI loadouts, simulation,
+replay, and authoring validation share one extensible runtime contract.
+
+### Human prompt and direction
+
+The human developer supplied the Pass 2 guide, requested one small follow-up
+fix from the prior combat pass before entering Pass 2, required all AGENTS.md
+instructions to remain authoritative, and requested local add/commit work in
+both repositories when finished.
+
+### AI-assisted implementation
+
+- Made successful `weaponDamage` emit `attackHit` by default, including lethal
+  hits, before defeat events. Added the documented `triggersOnHit: false`
+  opt-out while preserving the legacy `onHit: false` alias; dead targets no
+  longer receive newly applied statuses.
+- Added persistent learned abilities, validated 3-active/2-passive loadouts,
+  duplicate-safe learning with compatible-slot auto-equip, and separate
+  temporary grants from equipment, companions, and statuses.
+- Added real Faith abilities (Healing Prayer and Steady Heart), generic
+  resource ownership/mutation, persistent Faith display and saving, generic
+  actor-activation cooldowns, per-combat charges, canonical availability
+  checks, and action-event telemetry for Faith/cooldown/charge results.
+- Kept Attack, Defend, Flee, Pommel Strike, Intercede, and Charge behavior
+  intact while moving ability menu construction, passive registration,
+  companion support, and simulation choice logic onto shared definition/effect
+  inspection. Added ability reward presentation for encounter learning.
+- Preserved learned/loadout state through save migration, campaign simulation,
+  replay snapshots, and state comparisons. Extended GrailTools validation for
+  ability cooldowns, charges, on-hit controls, resource outcomes, and
+  `learnAbility` outcomes.
+- Updated focused combat, simulation, campaign, progression, replay, UI, and
+  content-editor coverage plus the combat architecture documentation.
+
+### Manual changes
+
+No manual code edits were reported. The supplied guide and repository
+AGENTS.md files were used as the implementation constraints.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- `python tests/combat_system_test.py` — 28 Tier 1 combat assertions.
+- `python tests/simulation_system_test.py` — 62 deterministic simulation
+  assertions.
+- `python tests/campaign_system_test.py` — 92 campaign/health/Inn assertions.
+- `python tests/progression_system_test.py` — 36 current-campaign progression
+  assertions; `discovery_progression_test.py` — 10 assertions; and
+  `expedition_content_test.py` — 10 assertions.
+- `python tests/replay_system_test.py` — 15 replay assertions;
+  `campaign_replay_system_test.py` — 27 focused assertions; and
+  `soak_regression_test.py` — simulation, campaign, and 30-run campaign-replay
+  soak suites.
+- `python tests/location_system_test.py` — 429 UI/provision/location
+  assertions; `debug_tools_test.py` — 16 debug-tools assertions.
+- GrailTools ContentEditor unittest suite — 79 tests passed.
+- `git diff --check` in both repositories.
+
+The prototype remains dependency-free and portrait/mobile-compatible. No new
+large ability catalog, skill tree, XP system, elemental system, or replacement
+ContentEditor UX was introduced. No changes were pushed to a remote.
+
 ## 2026-08-17 - Shared Combat Runtime Overhaul
 
 ### Goal

@@ -41,8 +41,10 @@ const EncounterRequirements = Object.freeze({
       case "notKnowledge":
         return player?.learnedKnowledge?.includes(requirement.knowledgeId) !== true;
       case "minimumResource":
-        return Boolean(expedition)
-          && Number(expedition[requirement.resource]) >= requirement.amount;
+        {
+          const owner = AbilityRules.persistentResourceOwner(player, expedition, requirement.resource);
+          return Boolean(owner) && Number(owner[requirement.resource]) >= requirement.amount;
+        }
       case "minimumHealth":
         return Boolean(expedition) && expedition.health >= requirement.amount;
       case "maximumHealth":
@@ -84,8 +86,8 @@ const EncounterRequirements = Object.freeze({
       if (cost.type !== "modifyResource" || cost.amount >= 0) {
         return false;
       }
-      return !context.expedition
-        || Number(context.expedition[cost.resource]) < Math.abs(cost.amount);
+      const owner = AbilityRules.persistentResourceOwner(context.player, context.expedition, cost.resource);
+      return !owner || Number(owner[cost.resource]) < Math.abs(cost.amount);
     });
 
     if (unaffordableCost) {
@@ -148,7 +150,9 @@ const EncounterOutcomes = Object.freeze({
         const amount = Number.isFinite(effect.amount)
           ? effect.amount
           : randomInteger(effect.randomMinimum, effect.randomMaximum, expedition.random);
-        if (effect.resource === "provisions" && Number.isFinite(expedition.committedProvisionsRemaining)) {
+        if (effect.resource === "faith") {
+          AbilityRules.modifyPersistentResource(player, expedition, effect.resource, amount);
+        } else if (effect.resource === "provisions" && Number.isFinite(expedition.committedProvisionsRemaining)) {
           adjustExpeditionProvisions(expedition, amount);
         } else {
           const previousValue = Number(expedition[effect.resource]) || 0;
@@ -238,6 +242,15 @@ const EncounterOutcomes = Object.freeze({
         expedition.unsecuredRecipes.push(effect.recipeId);
         rewards = [{ type: "recipe", recipeId: effect.recipeId, quantity: 1, unsecured: true }];
         messages = [`Discovered the ${RECIPE_DEFINITIONS[effect.recipeId].name} recipe.`];
+        break;
+      }
+      case "learnAbility": {
+        const learned = AbilityRules.learn(player, effect.abilityId);
+        if (learned.applied) {
+          const ability = AbilityRules.definition(effect.abilityId);
+          rewards = [{ type: "ability", abilityId: effect.abilityId, quantity: 1, unsecured: true }];
+          messages = [`Learned ${ability?.name ?? effect.abilityId}.`];
+        }
         break;
       }
       case "applyInjury": {
@@ -1059,7 +1072,7 @@ function adjustExpeditionProvisions(expedition, amount) {
 }
 
 function resourceLabel(resource) {
-  return ({ provisions: "provisions", health: "health", goldCarried: "gold" })[resource] ?? resource;
+  return ({ provisions: "provisions", health: "health", goldCarried: "gold", faith: "Faith" })[resource] ?? resource;
 }
 
 function pathLabel(pathId) {

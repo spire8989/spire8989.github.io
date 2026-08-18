@@ -109,6 +109,9 @@ const CombatEventSystem = Object.freeze({
     const listeners = [];
     if (source) {
       listeners.push(...statusListeners(source, eventType, "actor-status"));
+      listeners.push(...collectAbilityPassives(collectStatusAbilityIds(source))
+        .filter((passive) => passive.trigger?.event === eventType)
+        .map((passive) => normalizePassive(passive, source, "actor-status")));
       listeners.push(...(source.equippedPassives ?? [])
         .filter((passive) => passive.trigger?.event === eventType)
         .map((passive) => normalizePassive(passive, source, "equipped-effects")));
@@ -121,8 +124,15 @@ const CombatEventSystem = Object.freeze({
     }
     if (target && target !== source) {
       listeners.push(...statusListeners(target, eventType, "target-status"));
-      listeners.push(...(target.equippedPassives ?? [])
+      listeners.push(...collectAbilityPassives(collectStatusAbilityIds(target))
         .filter((passive) => passive.trigger?.event === eventType)
+        .map((passive) => normalizePassive(passive, target, "target-status")));
+      listeners.push(...(target.equippedPassives ?? [])
+        // Equipment on-hit effects belong to the striking item owner. They
+        // must not run as a target reaction when an enemy weapon emits the
+        // same shared attackHit lifecycle event.
+        .filter((passive) => passive.trigger?.event === eventType
+          && !(eventType === "attackHit" && passive.sourceItemId))
         .map((passive) => normalizePassive(passive, target, "target-passives")));
       listeners.push(...(target.learnedPassives ?? [])
         .filter((passive) => passive.trigger?.event === eventType)

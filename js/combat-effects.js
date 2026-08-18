@@ -189,6 +189,14 @@ const CombatEffectResolver = Object.freeze({
       });
     }
     CombatEventSystem.dispatch(state, "afterDamage", damageEvent);
+    // A weapon hit is successful whenever damage resolves. attackHit is
+    // intentionally emitted before defeat events so on-hit reactions can
+    // observe the final hit, including a killing blow. Authored effects may
+    // opt out with triggersOnHit:false; onHit:false remains a legacy alias.
+    const triggersOnHit = effect.triggersOnHit !== false && effect.onHit !== false;
+    if (triggersOnHit && finalDamage > 0) {
+      CombatEventSystem.dispatch(state, "attackHit", damageEvent);
+    }
     if (target.hp <= 0) {
       target.interceding = false;
       CombatEventSystem.dispatch(state, "actorDefeated", damageEvent);
@@ -197,9 +205,6 @@ const CombatEffectResolver = Object.freeze({
         target.side === "enemy" ? "enemyDefeated" : "allyDefeated",
         damageEvent,
       );
-    }
-    if (effect.onHit && target.hp > 0) {
-      CombatEventSystem.dispatch(state, "attackHit", damageEvent);
     }
     context.baseDamage = rolled;
     context.modifiedDamage = modified;
@@ -236,7 +241,7 @@ const CombatEffectResolver = Object.freeze({
 
   applyStatus(state, context, effect) {
     const target = context.targetCombatant ?? context.target;
-    if (!target) return { applied: false };
+    if (!target || !isLivingCombatant(target)) return { applied: false, statusId: effect.statusId };
     const chance = effect.chance === undefined
       ? null : Math.max(0, Math.min(1, Number(effect.chance) || 0));
     const passed = chance === null || state.random() < chance;
