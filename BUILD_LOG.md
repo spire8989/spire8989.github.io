@@ -52,6 +52,8 @@ Passed:
   assertions; `debug_tools_test.py` — 16; `replay_system_test.py` — 15;
   `campaign_replay_system_test.py` — 27; `progression_system_test.py` — 36;
   `discovery_progression_test.py` — 10; and `expedition_content_test.py` — 10.
+- `python tests/soak_regression_test.py` — all 3 deterministic soak suites:
+  simulation (62), campaign (92), and campaign replay (30).
 - `python -m unittest Tools.ContentEditor.tests.test_content_editor` — 65
   tests; `python -m unittest Tools.ContentEditor.tests.test_phase6_filters` —
   16 tests.
