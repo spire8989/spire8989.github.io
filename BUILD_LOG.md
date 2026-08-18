@@ -1,5 +1,82 @@
 # Build Log
 
+## 2026-08-17 - Progression Planner Regression Fix
+
+### Goal
+
+Restore current-campaign progression after the aggressive provisioning pass
+without changing combat, player/enemy stats, route distances, Faith,
+equipment, encounter frequency, or economy values.
+
+### Human prompt and direction
+
+The human developer supplied a focused regression guide after the previous
+planner patch caused shortened Old Forest progression attempts and repeated
+Cautious supply runs. The guide required local simulation/project changes and
+an add/commit when complete.
+
+### AI-assisted implementation
+
+- Made `progressionRequiredDistance` a hard departure floor for every
+  progression route. Ordinary expeditions retain adaptive target reduction,
+  while a progression plan either reaches its floor or defers before departure.
+- Split the hard `minimumViableProvisionRequirement` from the optional
+  `preferredProvisionTarget`. Carry capacity now caps the preferred buffer
+  first; a viable route can depart with a recorded
+  `preferred-provision-buffer-unavailable` constraint and a
+  `ready-with-constraints` readiness state.
+- Re-quoted readiness using the stock and ration mode preparation can actually
+  reach, preventing threshold-crossing cooking/purchases from creating a false
+  preflight result.
+- Added material-benefit checks and per-route supply-run history. Capacity
+  blockers and repeated supply runs without improved provisions, gold, shop
+  stock, capacity, or supported distance become incomplete blocked states and
+  emit `supply-run-suppressed-no-benefit` telemetry.
+- Extended campaign entry, compact, CSV, and decision diagnostics with the
+  progression floor, minimum/preferred requirements, capacity, packed stock,
+  shortfall, readiness, blocker, and supply-run benefit fields. Added focused
+  deterministic coverage for aggressive 105-league planning, compact
+  diagnostics, underprepared Old Forest deferral, and non-improving supply
+  loops.
+
+### Manual changes
+
+No manual code edits were reported. The supplied regression guide and
+repository `AGENTS.md` were used as the implementation constraints.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- `python tests/progression_system_test.py` — 40 current-campaign
+  progression assertions.
+- `python tests/campaign_system_test.py` — 99 campaign/health/Inn
+  assertions.
+- `python tests/simulation_system_test.py` — 62 deterministic simulation
+  assertions.
+- `python tests/location_system_test.py` — 429 UI/provision/location browser
+  assertions.
+- `python tests/campaign_replay_system_test.py` — 27 campaign replay
+  assertions.
+- `python tests/replay_system_test.py` — 15 replay assertions.
+- `git diff --check`.
+
+The required fresh 100-campaign progression validation used a 105-league
+target, 20-expedition cap, default authored player state with 20 starting gold
+and 15 starting provisions, and the requested policy/strategy pairs. Aggressive
+recorded 96% Old Forest completion, 0 planned progression target reductions,
+1.04 average Old Forest attempts, 18% resource-exhaustion stops, 55% death
+stops, 13% campaign completion, and 29.30 average packed provisions. Cautious
+recorded 99% Old Forest, 92% Barenton, 78% Val, 61% Search-for-Merlin reach,
+20% campaign completion, 13% attempt-cap failure, 0% resource exhaustion, and
+29.29 average packed provisions. Cautious supply runs averaged 1.98 per
+campaign; repeated non-improving routes were stopped as blocked rather than
+consuming the attempt cap. The guide's broken baselines were approximately 9%
+Old Forest and 99% target reduction for Aggressive, and 93% attempt-cap
+failure for Cautious; the new runs show progression attempts occurring at
+their authored floors. The aggressive resource-exhaustion rate remains below
+the pre-provisioning-patch 63% reference.
+
 ## 2026-08-17 - Aggressive Campaign Simulation Strategy Patch
 
 ### Goal
