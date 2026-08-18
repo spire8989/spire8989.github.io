@@ -158,7 +158,10 @@ const CAMP_EVENT_DEFINITIONS = Object.freeze({
           id: "share_provisions",
           label: "Share Provisions",
           costs: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
-          outcomes: [{ type: "modifyResource", resource: "health", amount: 1 }],
+          outcomes: [
+            { type: "modifyResource", resource: "health", amount: 1 },
+            { type: "modifyResource", resource: "faith", amount: 1 },
+          ],
           resultText: "The traveler eats, steadies their breathing, and gives Arthur a grateful warning about the nearby trail.",
           endEncounter: true,
         },
@@ -251,7 +254,10 @@ const CAMP_EVENT_DEFINITIONS = Object.freeze({
         {
           id: "pray_and_listen",
           label: "Pray and Listen",
-          outcomes: [{ type: "learnKnowledge", knowledgeId: "woodcraft" }],
+          outcomes: [
+            { type: "learnKnowledge", knowledgeId: "woodcraft" },
+            { type: "modifyResource", resource: "faith", amount: 1 },
+          ],
           resultText: "Arthur does not dig. By morning he understands that Barenton's signs reward attention before action.",
           endEncounter: true,
         },

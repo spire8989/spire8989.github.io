@@ -631,7 +631,9 @@ function renderMaterialInventory() {
 function renderCookingIngredientInventory() {
   const ingredientIds = [...new Set(Object.values(RECIPE_DEFINITIONS)
     .filter((recipe) => recipe.craftingProvider === "campfire")
-    .flatMap((recipe) => Object.keys(recipe.ingredients ?? {})))];
+    .flatMap((recipe) => CraftingRules.normalizeRecipeIngredients(recipe)
+      .filter((ingredient) => ingredient.type === "item")
+      .map((ingredient) => ingredient.id)))];
   const chips = ingredientIds
     .map((itemId) => ({ itemId, item: ITEM_DEFINITIONS[itemId], quantity: game.player.materials[itemId] ?? game.player.ownedItems[itemId] ?? 0 }))
     .filter((entry) => entry.item && entry.quantity > 0)
@@ -651,9 +653,12 @@ function renderMaterialBagChips(expedition, emptyLabel = "None") {
 
 function craftingRow(recipe, providerId, options = {}) {
   const quote = CraftingRules.quote(game.player, recipe.id, providerId, options);
-  const ingredients = quote.ingredientStatus.map(({ ingredientId, materialId, itemId, required, owned, sufficient }) => (
-    `<span class="crafting-requirement crafting-ingredient ${sufficient ? "" : "is-missing"}">${ITEM_DEFINITIONS[itemId]?.name ?? MaterialRules.definition(materialId ?? ingredientId).name ?? "Ingredient"} ${owned}/${required}</span>`
-  )).join("");
+  const ingredients = quote.ingredientStatus.map(({ type, ingredientId, materialId, itemId, required, owned, sufficient }) => {
+    const name = type === "item"
+      ? ITEM_DEFINITIONS[itemId ?? ingredientId]?.name ?? itemId ?? "Item"
+      : MaterialRules.definition(materialId ?? ingredientId)?.name ?? materialId ?? "Material";
+    return `<span class="crafting-requirement crafting-ingredient ${sufficient ? "" : "is-missing"}">${name} ${owned}/${required}</span>`;
+  }).join("");
   const cost = recipe.goldCost > 0
     ? `<span class="crafting-requirement crafting-gold">${recipe.goldCost} gold</span>`
     : "";
@@ -945,7 +950,12 @@ function craftingFailureMessage(result) {
   if (result.reason === "insufficient-materials") {
     return (result.quote?.ingredientStatus ?? [])
       .filter((entry) => !entry.sufficient)
-      .map((entry) => `${MaterialRules.definition(entry.materialId ?? entry.ingredientId).name} ${entry.owned}/${entry.required}`)
+      .map((entry) => {
+        const name = entry.type === "item"
+          ? ITEM_DEFINITIONS[entry.itemId ?? entry.ingredientId]?.name ?? entry.itemId ?? "Item"
+          : MaterialRules.definition(entry.materialId ?? entry.ingredientId)?.name ?? entry.materialId ?? "Material";
+        return `${name} ${entry.owned}/${entry.required}`;
+      })
       .join(" · ") || "Required materials are missing.";
   }
   if (result.reason === "insufficient-gold") {
@@ -1329,11 +1339,12 @@ function renderCombatLoadout() {
     const selected = AbilityRules.isSelected(game.player, abilityId);
     const list = kind === "passive" ? game.player.selectedPassiveAbilityIds : game.player.selectedActiveAbilityIds;
     const full = !selected && list.length >= AbilityRules.capacity(kind);
-    const cost = ability.cost?.resource === "faith" ? `Faith ${ability.cost.amount}` : "No Faith cost";
+    const cost = ability.cost?.resource ? `${capitalize(ability.cost.resource)} ${ability.cost.amount}` : "No resource cost";
     const limit = kind === "active" ? `Active ${list.length}/${AbilityRules.capacity(kind)}` : `Passive ${list.length}/${AbilityRules.capacity(kind)}`;
+    const tags = Array.isArray(ability.tags) && ability.tags.length ? ` · ${ability.tags.join(", ")}` : "";
     return `<button class="ability-loadout-entry ${selected ? "is-selected" : ""}" type="button" data-action="toggle-ability-loadout" data-ability-id="${abilityId}" ${full ? "disabled" : ""}>
       <span class="ability-loadout-entry-heading"><strong>${ability.name}</strong><small>${selected ? limit : "Unequipped"}</small></span>
-      <span>${ability.description ?? ""}</span><small>${cost}${ability.cooldownActivations ? ` Â· Cooldown ${ability.cooldownActivations}` : ""}${ability.chargesPerCombat ? ` Â· ${ability.chargesPerCombat}/combat` : ""}</small>
+      <span>${ability.description ?? ""}</span><small>${cost}${ability.cooldownActivations ? ` · Cooldown ${ability.cooldownActivations}` : ""}${ability.chargesPerCombat ? ` · ${ability.chargesPerCombat}/combat` : ""}${tags}</small>
     </button>`;
   };
   return `<section class="preparation-section ability-loadout-section" aria-labelledby="ability-loadout-title">
@@ -2126,14 +2137,15 @@ function renderCombatControls(combat, activeActor) {
     const entries = abilities.length > 0
       ? abilities.map((ability) => {
         const availability = ability.availability;
-        const cost = ability.cost?.resource === "faith" ? `Faith ${availability.cost.amount}` : "No Faith cost";
+        const cost = ability.cost?.resource ? `${capitalize(ability.cost.resource)} ${availability.cost.amount}` : "No resource cost";
         const limits = [
           cost,
           availability.cooldownRemaining > 0 ? `Cooldown ${availability.cooldownRemaining}` : "",
           availability.chargesRemaining !== null ? `${availability.chargesRemaining} charge${availability.chargesRemaining === 1 ? "" : "s"}` : "",
           availability.reason ? availability.reason.replaceAll("-", " ") : "Ready",
         ].filter(Boolean).join(" Â· ");
-        return `<button type="button" data-action="combat-ability" data-ability-id="${ability.id}" ${availability.usable ? "" : "disabled"}><strong>${ability.name}</strong><span>${ability.description ?? ""}</span><small class="combat-ability-meta">${limits}</small></button>`;
+        const tags = Array.isArray(ability.tags) && ability.tags.length ? ` · ${ability.tags.join(", ")}` : "";
+        return `<button type="button" data-action="combat-ability" data-ability-id="${ability.id}" ${availability.usable ? "" : "disabled"}><strong>${ability.name}</strong><span>${ability.description ?? ""}</span><small class="combat-ability-meta">${limits}${tags}</small></button>`;
       }).join("")
       : '<p class="combat-empty-menu">No usable abilities.</p>';
     return `<div class="combat-submenu-heading"><p>${activeActor.name}'s Abilities</p><button type="button" data-action="combat-menu-back">Back</button></div><div class="combat-action-grid combat-submenu-list">${entries}</div>`;

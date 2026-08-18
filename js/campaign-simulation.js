@@ -2511,8 +2511,8 @@ function cookAtInn(player, strategyName, random = GameRandom.random, townActions
   const selected = candidates
     .map((candidate) => {
       const output = Number(candidate.recipe.output.provisions) || 0;
-      const ingredientCount = Object.values(candidate.recipe.ingredients ?? {})
-        .reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const ingredientCount = CraftingRules.normalizeRecipeIngredients(candidate.recipe)
+        .reduce((sum, ingredient) => sum + (Number(ingredient.quantity) || 0), 0);
       const score = strategyName === "cautious"
         ? output * 2 + output / Math.max(1, ingredientCount)
         : strategyName === "aggressive"
@@ -2782,8 +2782,8 @@ function quoteInnCookingProvisionGain(player, strategyName) {
   if (!candidates.length) return 0;
   const scores = candidates.map((candidate) => {
     const output = Number(candidate.recipe.output.provisions) || 0;
-    const ingredientCount = Object.values(candidate.recipe.ingredients ?? {})
-      .reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const ingredientCount = CraftingRules.normalizeRecipeIngredients(candidate.recipe)
+      .reduce((sum, ingredient) => sum + (Number(ingredient.quantity) || 0), 0);
     const score = strategyName === "cautious"
       ? output * 2 + output / Math.max(1, ingredientCount)
       : strategyName === "aggressive"

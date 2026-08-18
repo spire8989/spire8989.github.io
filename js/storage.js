@@ -8,8 +8,8 @@ const SaveSystem = Object.freeze({
       saveVersion: 12,
       faith: 10,
       maxFaith: 10,
-      learnedAbilityIds: [],
-      selectedActiveAbilityIds: [],
+      learnedAbilityIds: ["guard_break", "healing_prayer"],
+      selectedActiveAbilityIds: ["guard_break", "healing_prayer"],
       selectedPassiveAbilityIds: [],
       ownedItems: {
         arthur_sword: 1,

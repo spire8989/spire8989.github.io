@@ -33,9 +33,9 @@ const RECIPE_DEFINITIONS = Object.freeze({
     name: "Bandages",
     description: "Cut and prepare clean cloth for dressing wounds.",
     craftingProvider: "apothecary",
-    ingredients: {
-      cloth: 2
-    },
+    ingredients: [
+      { type: "material", id: "cloth", quantity: 2 },
+    ],
     output: {
       itemId: "bandages",
       quantity: 1
@@ -46,46 +46,72 @@ const RECIPE_DEFINITIONS = Object.freeze({
   },
   healing_poultice: Object.freeze({
     id: "healing_poultice", name: "Healing Poultice", description: "Bind crushed medicinal herbs into a restorative dressing.",
-    craftingProvider: "apothecary", ingredients: Object.freeze({ medicinal_herbs: 2, cloth: 1 }),
+    craftingProvider: "apothecary", ingredients: Object.freeze([
+      Object.freeze({ type: "material", id: "medicinal_herbs", quantity: 2 }),
+      Object.freeze({ type: "material", id: "cloth", quantity: 1 }),
+    ]),
     output: Object.freeze({ itemId: "healing_poultice", quantity: 1 }), goldCost: 0, rarity: "common",
   }),
   antidote: Object.freeze({
     id: "antidote", name: "Antidote", description: "Prepare a draught against common woodland venoms.",
-    craftingProvider: "apothecary", ingredients: Object.freeze({ medicinal_herbs: 2, alchemical_reagents: 1 }),
+    craftingProvider: "apothecary", ingredients: Object.freeze([
+      Object.freeze({ type: "material", id: "medicinal_herbs", quantity: 2 }),
+      Object.freeze({ type: "material", id: "alchemical_reagents", quantity: 1 }),
+    ]),
     output: Object.freeze({ itemId: "antidote", quantity: 1 }), goldCost: 0, rarity: "common",
   }),
   strong_tonic: Object.freeze({
     id: "strong_tonic", name: "Strong Tonic", description: "Concentrate rare herbs into a potent restorative.",
-    craftingProvider: "apothecary", ingredients: Object.freeze({ rare_herbs: 2, alchemical_reagents: 1, sacred_oil: 1 }),
+    craftingProvider: "apothecary", ingredients: Object.freeze([
+      Object.freeze({ type: "material", id: "rare_herbs", quantity: 2 }),
+      Object.freeze({ type: "material", id: "alchemical_reagents", quantity: 1 }),
+      Object.freeze({ type: "material", id: "sacred_oil", quantity: 1 }),
+    ]),
     output: Object.freeze({ itemId: "strong_tonic", quantity: 2 }), goldCost: 2, rarity: "uncommon",
   }),
   repair_kit: Object.freeze({
     id: "repair_kit", name: "Repair Kit", description: "Fit spare iron, wood, and leather into a portable repair kit.",
-    craftingProvider: "blacksmith", ingredients: Object.freeze({ iron: 2, wood: 1, leather: 1 }),
+    craftingProvider: "blacksmith", ingredients: Object.freeze([
+      Object.freeze({ type: "material", id: "iron", quantity: 2 }),
+      Object.freeze({ type: "material", id: "wood", quantity: 1 }),
+      Object.freeze({ type: "material", id: "leather", quantity: 1 }),
+    ]),
     output: Object.freeze({ itemId: "repair_kit", quantity: 1 }), goldCost: 2, rarity: "uncommon",
   }),
   roasted_meat: Object.freeze({
     id: "roasted_meat", name: "Roasted Meat", description: "Cook a plain but filling meal over the fire.",
-    craftingProvider: "campfire", ingredientType: "item", starter: true,
-    ingredients: Object.freeze({ raw_meat: 1 }),
+    craftingProvider: "campfire", starter: true,
+    ingredients: Object.freeze([
+      Object.freeze({ type: "item", id: "raw_meat", quantity: 1 }),
+    ]),
     output: Object.freeze({ provisions: 3 }), goldCost: 0, rarity: "common",
   }),
   foraged_meal: Object.freeze({
     id: "foraged_meal", name: "Foraged Meal", description: "Combine berries and mushrooms into a simple woodland meal.",
-    craftingProvider: "campfire", ingredientType: "item", starter: true,
-    ingredients: Object.freeze({ wild_berries: 1, mushrooms: 1 }),
+    craftingProvider: "campfire", starter: true,
+    ingredients: Object.freeze([
+      Object.freeze({ type: "item", id: "wild_berries", quantity: 1 }),
+      Object.freeze({ type: "item", id: "mushrooms", quantity: 1 }),
+    ]),
     output: Object.freeze({ provisions: 5 }), goldCost: 0, rarity: "common",
   }),
   hunters_stew: Object.freeze({
     id: "hunters_stew", name: "Hunter's Stew", description: "A careful use of meat, mushrooms, and herbs yields the best meal.",
-    craftingProvider: "campfire", ingredientType: "item", starter: true,
-    ingredients: Object.freeze({ raw_meat: 1, mushrooms: 1, fresh_herbs: 1 }),
+    craftingProvider: "campfire", starter: true,
+    ingredients: Object.freeze([
+      Object.freeze({ type: "item", id: "raw_meat", quantity: 1 }),
+      Object.freeze({ type: "item", id: "mushrooms", quantity: 1 }),
+      Object.freeze({ type: "item", id: "fresh_herbs", quantity: 1 }),
+    ]),
     output: Object.freeze({ provisions: 8 }), goldCost: 0, rarity: "uncommon",
   }),
   honeyed_berries: Object.freeze({
     id: "honeyed_berries", name: "Honeyed Berries", description: "Sweeten wild berries with a little golden honey.",
-    craftingProvider: "campfire", ingredientType: "item", starter: true,
-    ingredients: Object.freeze({ wild_berries: 1, honey: 1 }),
+    craftingProvider: "campfire", starter: true,
+    ingredients: Object.freeze([
+      Object.freeze({ type: "item", id: "wild_berries", quantity: 1 }),
+      Object.freeze({ type: "item", id: "honey", quantity: 1 }),
+    ]),
     output: Object.freeze({ provisions: 6 }), goldCost: 0, rarity: "common",
   }),
   glimmering_sword: {
@@ -93,16 +119,34 @@ const RECIPE_DEFINITIONS = Object.freeze({
     name: "Glimmering Sword",
     description: "Polish up ",
     craftingProvider: "blacksmith",
-    ingredients: {
-      rusted_sword: 1,
-      green_glass_vial: 1
-    },
+    ingredients: [
+      { type: "item", id: "rusted_sword", quantity: 1 },
+      { type: "item", id: "green_glass_vial", quantity: 1 },
+    ],
     output: {
       itemId: "glimmering_sword",
       quantity: 1
     },
     goldCost: 5,
-    rarity: "rare",
-    ingredientType: "item"
+    rarity: "rare"
+  },
+  threefold_seal: {
+    id: "threefold_seal",
+    name: "Threefold Seal",
+    description: "A relic assembled from forest omen, fountain stone, and the dark glass left behind by the Val.",
+    craftingProvider: "blacksmith",
+    ingredients: [
+      { type: "item", id: "white_stag_shard", quantity: 1 },
+      { type: "item", id: "barenton_stone", quantity: 1 },
+      { type: "item", id: "black_glass_tear", quantity: 1 },
+      { type: "material", id: "silver", quantity: 2 },
+      { type: "material", id: "sacred_oil", quantity: 1 },
+    ],
+    output: {
+      itemId: "threefold_seal",
+      quantity: 1,
+    },
+    goldCost: 8,
+    rarity: "epic"
   }
 });

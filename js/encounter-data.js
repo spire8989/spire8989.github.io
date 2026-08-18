@@ -190,6 +190,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             ],
             outcomes: [
               {
+                type: "gainUniqueUnsecuredItem",
+                itemId: "white_stag_shard",
+                resultText: "A pale shard remains where the stag stood, bright as polished antler."
+              },
+              {
                 type: "setRunFlag",
                 flag: "stagStoneDiscovered",
                 value: true
@@ -2045,6 +2050,14 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                     {
                       type: "learnRecipe",
                       recipeId: "glimmering_sword"
+                    },
+                    {
+                      type: "learnAbility",
+                      abilityId: "sweeping_cut"
+                    },
+                    {
+                      type: "learnRecipe",
+                      recipeId: "threefold_seal"
                     }
                   ],
                   resultText: "The bandit captain yields the road. His better-hidden purse confirms the rank he carried."
@@ -2141,6 +2154,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "setRunFlag",
                 flag: "waysideOfferingMade",
                 value: true
+              },
+              {
+                type: "modifyResource",
+                resource: "faith",
+                amount: 1
               }
             ],
             resultText: "Arthur leaves a small offering at the ruined shrine. Whether it matters remains unknown.",
@@ -2806,6 +2824,15 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "study_perron",
             label: "Study the Stone",
             outcomes: [
+              {
+                type: "gainUniqueUnsecuredItem",
+                itemId: "barenton_stone",
+                resultText: "A dark chip breaks free from the Perron, cold in Arthur's palm."
+              },
+              {
+                type: "learnAbility",
+                abilityId: "call_the_storm"
+              },
               {
                 type: "setRunFlag",
                 flag: "barentonClueUnderstood",
@@ -3595,6 +3622,15 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 value: true
               },
               {
+                type: "modifyResource",
+                resource: "faith",
+                amount: 2
+              },
+              {
+                type: "learnAbility",
+                abilityId: "smite"
+              },
+              {
                 type: "setRunFlag",
                 flag: "valWayUnderstood",
                 value: true
@@ -3623,6 +3659,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "modifyResource",
                 resource: "health",
                 amount: 5
+              },
+              {
+                type: "modifyResource",
+                resource: "faith",
+                amount: 1
               },
               {
                 type: "setRunFlag",
@@ -3712,6 +3753,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               }
             ],
             outcomes: [
+              {
+                type: "gainUniqueUnsecuredItem",
+                itemId: "black_glass_tear",
+                resultText: "The false image fractures, leaving one black glass tear in the moss."
+              },
               {
                 type: "setRunFlag",
                 flag: "valLoopConfirmed",

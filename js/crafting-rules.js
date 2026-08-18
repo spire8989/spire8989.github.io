@@ -1,6 +1,10 @@
 "use strict";
 
 const CraftingRules = Object.freeze({
+  normalizeRecipeIngredients(recipe) {
+    return normalizeRecipeIngredients(recipe);
+  },
+
   durationMs(providerId, recipeOrId = null) {
     const recipe = typeof recipeOrId === "string" ? RECIPE_DEFINITIONS[recipeOrId] : recipeOrId;
     const authoredDuration = Number(recipe?.craftingDurationMs);
@@ -35,16 +39,21 @@ const CraftingRules = Object.freeze({
       || (providerId === "campfire" && recipe.starter === true)
     ));
     const correctProvider = Boolean(recipe && recipe.craftingProvider === providerId);
-    const ingredientType = recipe?.ingredientType ?? "material";
-    const ingredientStatus = Object.entries(recipe?.ingredients ?? {}).map(([ingredientId, required]) => ({
-      ingredientId,
-      materialId: MaterialRules.isMaterialId(ingredientId) ? ingredientId : null,
-      itemId: ingredientType === "item" && !MaterialRules.isMaterialId(ingredientId) ? ingredientId : null,
-      materialBag: MaterialRules.isMaterialId(ingredientId),
-      required,
-      owned: ingredientQuantity(player, expedition, ingredientType, ingredientId),
-      sufficient: ingredientQuantity(player, expedition, ingredientType, ingredientId) >= required,
-    }));
+    const ingredients = normalizeRecipeIngredients(recipe);
+    const ingredientType = recipe?.ingredientType ?? null;
+    const ingredientStatus = ingredients.map(({ type, id: ingredientId, quantity: required }) => {
+      const owned = ingredientQuantity(player, expedition, type, ingredientId);
+      return {
+        type,
+        ingredientId,
+        materialId: type === "material" ? ingredientId : null,
+        itemId: type === "item" ? ingredientId : null,
+        materialBag: type === "material",
+        required,
+        owned,
+        sufficient: owned >= required,
+      };
+    });
     const uniqueAlreadyOwned = Boolean(item?.unique && player.ownedItems[item.id]);
     const affordable = Boolean(recipe && player.currentGold >= recipe.goldCost);
     const validOutput = Boolean(recipe && (item || Number(recipe.output?.provisions) > 0
@@ -59,6 +68,7 @@ const CraftingRules = Object.freeze({
       expedition,
       context: productionContext,
       ingredientType,
+      ingredients,
       known,
       correctProvider,
       contextValid,
@@ -77,13 +87,14 @@ const CraftingRules = Object.freeze({
     }
     const materialBagConsumed = {};
     const itemsConsumed = {};
-    quote.ingredientStatus.forEach(({ ingredientId, materialBag, required }) => {
-      if (materialBag) {
+    quote.ingredientStatus.forEach(({ type, ingredientId, required }) => {
+      if (type === "material") {
         const consumed = consumeMaterialIngredient(player, quote.expedition, ingredientId, required);
         materialBagConsumed[ingredientId] = consumed.consumed;
       } else {
-        consumeIngredient(player, quote.expedition, ingredientId, required);
-        itemsConsumed[ingredientId] = required;
+        const consumed = consumeIngredient(player, quote.expedition, ingredientId, required);
+        if (consumed.materialBag > 0) materialBagConsumed[ingredientId] = consumed.materialBag;
+        if (consumed.items > 0) itemsConsumed[ingredientId] = consumed.items;
       }
     });
     player.currentGold -= quote.recipe.goldCost;
@@ -139,22 +150,39 @@ function craftingBlockReason(quote) {
   return "unavailable";
 }
 
+function normalizeRecipeIngredients(recipe) {
+  if (Array.isArray(recipe?.ingredients)) {
+    return recipe.ingredients
+      .filter((entry) => entry && typeof entry === "object")
+      .map((entry) => ({
+        type: entry.type === "item" ? "item" : "material",
+        id: entry.id,
+        quantity: Number(entry.quantity),
+      }));
+  }
+  const legacyType = recipe?.ingredientType === "item" ? "item" : "material";
+  return Object.entries(recipe?.ingredients ?? {}).map(([id, quantity]) => ({
+    type: legacyType,
+    id,
+    quantity: Number(quantity),
+  }));
+}
+
 function ingredientQuantity(player, expedition, ingredientType, ingredientId) {
-  if (MaterialRules.isMaterialId(ingredientId)) {
+  if (ingredientType === "material") {
     return expedition
       ? MaterialRules.expeditionQuantity(expedition, ingredientId)
       : player.materials?.[ingredientId] ?? 0;
   }
-  if (ingredientType === "item") {
-    if (expedition) {
-      return (expedition.carriedItems?.[ingredientId] ?? 0)
-        + (expedition.unsecuredLoot ?? [])
-          .filter((entry) => entry.itemId === ingredientId)
-          .reduce((total, entry) => total + (Number(entry.quantity) || 0), 0);
-    }
-    return player.ownedItems?.[ingredientId] ?? 0;
+  if (expedition) {
+    const direct = (expedition.carriedItems?.[ingredientId] ?? 0)
+      + (expedition.unsecuredLoot ?? [])
+        .filter((entry) => entry.itemId === ingredientId)
+        .reduce((total, entry) => total + (Number(entry.quantity) || 0), 0);
+    return direct + (legacyMaterialItem(ingredientId) ? MaterialRules.expeditionQuantity(expedition, ingredientId) : 0);
   }
-  return player.materials?.[ingredientId] ?? 0;
+  return (player.ownedItems?.[ingredientId] ?? 0)
+    + (legacyMaterialItem(ingredientId) ? player.materials?.[ingredientId] ?? 0 : 0);
 }
 
 function consumeMaterialIngredient(player, expedition, materialId, quantity) {
@@ -169,26 +197,55 @@ function consumeMaterialIngredient(player, expedition, materialId, quantity) {
 }
 
 function consumeIngredient(player, expedition, itemId, quantity) {
+  let remaining = quantity;
+  let items = 0;
+  let materialBag = 0;
   if (!expedition) {
-    player.ownedItems[itemId] = Math.max(0, (player.ownedItems[itemId] ?? 0) - quantity);
-    if (player.ownedItems[itemId] <= 0) delete player.ownedItems[itemId];
-    return;
+    const owned = Math.min(player.ownedItems?.[itemId] ?? 0, remaining);
+    if (owned > 0) {
+      player.ownedItems[itemId] -= owned;
+      if (player.ownedItems[itemId] <= 0) delete player.ownedItems[itemId];
+      remaining -= owned;
+      items += owned;
+    }
+    if (remaining > 0 && legacyMaterialItem(itemId)) {
+      const available = Math.min(player.materials?.[itemId] ?? 0, remaining);
+      if (available > 0) {
+        player.materials[itemId] -= available;
+        if (player.materials[itemId] <= 0) delete player.materials[itemId];
+        remaining -= available;
+        materialBag += available;
+      }
+    }
+    return { applied: remaining <= 0, consumed: quantity - remaining, items, materialBag };
   }
 
-  let remaining = quantity;
   const carried = Math.min(expedition.carriedItems?.[itemId] ?? 0, remaining);
   if (carried > 0) {
     ExpeditionRules.consumeCarriedItem(expedition, itemId, carried);
     remaining -= carried;
+    items += carried;
   }
-  if (remaining <= 0) return;
-  for (const entry of expedition.unsecuredLoot ?? []) {
-    if (entry.itemId !== itemId || remaining <= 0) continue;
-    const consumed = Math.min(Number(entry.quantity) || 0, remaining);
-    entry.quantity -= consumed;
-    remaining -= consumed;
+  if (remaining > 0) {
+    for (const entry of expedition.unsecuredLoot ?? []) {
+      if (entry.itemId !== itemId || remaining <= 0) continue;
+      const consumed = Math.min(Number(entry.quantity) || 0, remaining);
+      entry.quantity -= consumed;
+      remaining -= consumed;
+      items += consumed;
+    }
+    expedition.unsecuredLoot = (expedition.unsecuredLoot ?? []).filter((entry) => entry.quantity > 0);
   }
-  expedition.unsecuredLoot = (expedition.unsecuredLoot ?? []).filter((entry) => entry.quantity > 0);
+  if (remaining > 0 && legacyMaterialItem(itemId)) {
+    const consumed = consumeMaterialIngredient(player, expedition, itemId, remaining);
+    materialBag += consumed.consumed;
+    remaining -= consumed.consumed;
+  }
+  return { applied: remaining <= 0, consumed: quantity - remaining, items, materialBag };
+}
+
+function legacyMaterialItem(itemId) {
+  return ITEM_DEFINITIONS[itemId]?.category === "ingredient";
 }
 
 function addExpeditionItem(expedition, itemId, quantity) {

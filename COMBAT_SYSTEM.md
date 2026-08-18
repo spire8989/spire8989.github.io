@@ -140,6 +140,32 @@ IDs are ignored during migration. Replay payloads record the ability ID, actor,
 target, Faith spent, and remaining cooldown/charges for compact action events;
 transient cooldown state itself is not persisted between combats.
 
+## Pass 3 authoring contract
+
+Combat abilities are authored in `COMBAT_ABILITY_DEFINITIONS` and are edited
+through the unified GrailTools Combat > Abilities view. Both active and passive
+definitions use the same identity fields: `id`, `name`, `description`, `kind`,
+`tags`, and target metadata. Actives may add `prompt`, `cost`,
+`cooldownActivations`, `chargesPerCombat`, and `effects`; passives use a
+`trigger` with one of the live lifecycle events and may add conditions,
+`oncePerCombat`, chance, and effects. Conditions support nested `all`/`any`
+groups and the editor provides structured controls for the production effect
+vocabulary. Deeper or uncommon authored shapes remain available through the
+raw JSON fallback rather than being discarded.
+
+The current authored roster includes Pommel Strike, Intercede, Charge,
+Healing Prayer, Sweeping Cut, Guard Break, Smite, and Call the Storm, plus
+Steady Heart, Pilgrim's Resolve, Unyielding, Battle Prayer, and Threefold
+Concord. The starting learned set is Guard Break and Healing Prayer. Chapel,
+shrine, camp, Barenton, and Val hooks demonstrate Faith changes and ability
+learning; the White Stag Shard, Barenton Stone, and Black Glass Tear route
+rewards support the Threefold Seal recipe and its granted Concord passive.
+
+When adding content, prefer a new definition, shared effect, condition, or
+event hook over a combat-specific branch. The editor validates IDs, tags,
+target modes, resource/cooldown/charge ranges, trigger events, condition
+shapes, effect fields, nested depth, and used-by references before saving.
+
 ## Verification
 
 Fast combat coverage reuses one headless Chrome session:
@@ -152,6 +178,12 @@ Focused integration coverage includes:
     python tests/debug_tools_test.py
     python tests/replay_system_test.py
     python tests/campaign_system_test.py
+
+Pass 3 content and crafting coverage also includes:
+
+    python tests/location_system_test.py
+    python -m unittest Tools.ContentEditor.tests.test_content_editor
+    python -m unittest Tools.ContentEditor.tests.test_phase6_filters
 
 The larger campaign/replay and content-distribution checks are grouped as
 soak coverage:

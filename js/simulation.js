@@ -106,8 +106,8 @@ const SimulationTravelPolicy = Object.freeze({
     return candidates
       .map((candidate) => {
         const output = Number(candidate.recipe.output?.provisions) || 0;
-        const ingredients = Object.values(candidate.recipe.ingredients ?? {})
-          .reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
+        const ingredients = CraftingRules.normalizeRecipeIngredients(candidate.recipe)
+          .reduce((sum, ingredient) => sum + (Number(ingredient.quantity) || 0), 0);
         const efficiency = output / Math.max(1, ingredients);
         const score = strategyName === "cautious"
           ? output * 2 + efficiency

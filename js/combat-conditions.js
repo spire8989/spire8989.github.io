@@ -10,6 +10,13 @@ const CombatConditionEvaluator = Object.freeze({
     }
     if (typeof conditions !== "object") return false;
 
+    if (conditions.all !== undefined) {
+      if (!Array.isArray(conditions.all) || !conditions.all.every((condition) => this.evaluate(condition, context))) return false;
+    }
+    if (conditions.any !== undefined) {
+      if (!Array.isArray(conditions.any) || !conditions.any.some((condition) => this.evaluate(condition, context))) return false;
+    }
+
     const source = context.sourceCombatant ?? context.source;
     const target = context.targetCombatant ?? context.target;
     if (conditions.sourceSide && source?.side !== conditions.sourceSide) return false;

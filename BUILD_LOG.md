@@ -1,5 +1,67 @@
 # Build Log
 
+## 2026-08-17 - Combat Content Authoring, Faith, and Mixed Crafting Pass 3
+
+### Goal
+
+Turn the generalized combat runtime into a practical authoring surface with a
+usable active/passive catalog, real event-driven passive hooks, broader Faith
+content, and typed mixed-source crafting that can grow without bespoke UI or
+runtime branches.
+
+### Human prompt and direction
+
+The human developer supplied the Pass 3 guide, asked to proceed immediately
+after the small Pass 2 follow-up, required all AGENTS.md instructions to remain
+authoritative, and requested local add/commit work in both repositories when
+finished.
+
+### AI-assisted implementation
+
+- Added four martial/Faith/mystical active abilities (Sweeping Cut, Guard
+  Break, Smite, and Call the Storm) and four event-driven passives (Pilgrim's
+  Resolve, Unyielding, Battle Prayer, and Threefold Concord) using the shared
+  target, condition, effect, cost, cooldown, charge, and lifecycle contracts.
+- Expanded the GrailTools Abilities editor into one schema-aware active/passive
+  editor with metadata, tags, generic resources, trigger conditions, nested
+  effects, used-by references, and a raw JSON escape hatch. Added ability
+  filters and validation for live events, conditions, effect fields, and
+  nested structures.
+- Added canonical typed recipe ingredients with item/material source checks,
+  atomic quote/consume behavior, typed editor rows, legacy map normalization,
+  reverse-reference support, and the mixed Threefold Seal recipe.
+- Added protected Threefold Seal component items, route rewards, chapel/shrine/
+  camp Faith hooks, Barenton/Val ability hooks, a sensible starting loadout,
+  and generic Faith/ability metadata in preparation and combat UI.
+- Updated simulation ingredient scoring, focused combat/location/content-editor
+  coverage, crafting/combat documentation, and this build log.
+
+### Manual changes
+
+No manual code edits were reported. The supplied guide and repository
+AGENTS.md files were used as the implementation constraints.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- `python tests/combat_system_test.py` — 34 Tier 1 combat assertions.
+- `python tests/simulation_system_test.py` — 62 deterministic simulation
+  assertions; `campaign_system_test.py` — 92 campaign/health/Inn assertions.
+- `python tests/location_system_test.py` — 429 UI/provision/location
+  assertions; `debug_tools_test.py` — 16; `replay_system_test.py` — 15;
+  `campaign_replay_system_test.py` — 27; `progression_system_test.py` — 36;
+  `discovery_progression_test.py` — 10; and `expedition_content_test.py` — 10.
+- `python -m unittest Tools.ContentEditor.tests.test_content_editor` — 65
+  tests; `python -m unittest Tools.ContentEditor.tests.test_phase6_filters` —
+  16 tests.
+- `git diff --check` in both repositories.
+
+The prototype remains dependency-free and portrait/mobile-compatible. The
+editor still keeps Grail content as the source of truth and writes only
+explicitly validated changes. No XP, skill-tree, elemental, or replacement
+combat-menu system was introduced, and no changes were pushed to a remote.
+
 ## 2026-08-17 - Combat Ability Loadouts and Resource Pass 2
 
 ### Goal
