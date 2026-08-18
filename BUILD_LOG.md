@@ -1,5 +1,58 @@
 # Build Log
 
+## 2026-08-17 - Aggressive Campaign Simulation Strategy Patch
+
+### Goal
+
+Correct aggressive campaign preparation and travel policy so it remains
+aggressive without knowingly underfunding long expeditions.
+
+### Human prompt and direction
+
+The human developer supplied a focused simulation-strategy guide after the
+combat overhaul and requested local add/commit work when the sim and project
+updates were complete. Combat and player/enemy balance were explicitly out of
+scope.
+
+### AI-assisted implementation
+
+- Added a deterministic Aggressive provision uncertainty buffer of
+  `ceil(distance / 25)`, clamped to 1–4 provisions, with re-quoting after
+  purchases when the departure ration changes from Sparse to Normal.
+- Reworked the shared runtime return check to compare current provisions with
+  passive return cost, encounter reserve, and strategy tolerance on every
+  travel-loop pass. Aggressive uses a one-unit tolerance, returns with Sparse
+  rations at the same boundary, and records trigger diagnostics.
+- Made the Aggressive preparation floor explicit: effective provisions and
+  minimum Bandages are funded before discretionary crafting or Smithy gear.
+  Deferred equipment records its item, cost, available gold, required food
+  spend, and effective target.
+- Extended campaign/simulation compact and CSV telemetry and updated the
+  campaign/simulation documentation.
+
+### Manual changes
+
+No manual code edits were reported. The supplied strategy guide and repository
+`AGENTS.md` were used as the implementation constraints.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- `python tests/campaign_system_test.py` — 99 campaign/health/Inn assertions.
+- `python tests/simulation_system_test.py` — 62 deterministic simulation
+  assertions.
+- A fresh 100-campaign Aggressive progression batch at a 105-league target,
+  20-expedition cap, and `aggressive-reinvestor` policy reduced hard failure
+  from the supplied 100% baseline to 34%, resource exhaustion from 63% to 2%,
+  and death from 37% to 32%. Barenton completion was 10% versus 28%, Val
+  completion was 4% versus 4%, and campaign completion remained 0% in this
+  batch. Average provisions packed were 28.76, with 16 emergency turnarounds
+  and gear spending still present; the result indicates starvation was sharply
+  reduced without tuning combat stats, while progression completion remains a
+  follow-up balance/policy concern.
+
+
 ## 2026-08-17 - Combat Content Authoring, Faith, and Mixed Crafting Pass 3
 
 ### Goal

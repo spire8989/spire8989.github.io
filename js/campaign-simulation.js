@@ -348,12 +348,21 @@ const CampaignSimulationRunner = Object.freeze({
         innCookingProvisionsGained: decision.innCookingProvisionsGained,
         innIngredientsConsumedById: decision.innIngredientsConsumedById,
         encounterProvisionReserve: decision.encounterProvisionReserve,
+        provisionUncertaintyBuffer: decision.provisionUncertaintyBuffer,
+        provisionUncertaintyBufferUsed: decision.provisionUncertaintyBufferUsed,
+        effectiveProvisionTarget: decision.effectiveProvisionTarget,
         totalEstimatedProvisionRequirement: decision.totalEstimatedProvisionRequirement,
         emergencyProvisionTurnaround: run.emergencyProvisionTurnaround,
         emergencyProvisionTurnaroundDistance: run.emergencyProvisionTurnaroundDistance,
+        emergencyReturnProvisions: run.emergencyReturnProvisions,
+        emergencyReturnEstimatedRequirement: run.emergencyReturnEstimatedRequirement,
+        emergencyReturnTotalRequirement: run.emergencyReturnTotalRequirement,
         originalTargetDistance: desiredTargetDistance,
         departureTargetDistance: actualTargetDistance,
         actualTurnaroundDistance: run.turnaroundDistance,
+        emergencyReturnStrategyTolerance: run.emergencyReturnStrategyTolerance,
+        emergencyReturnTolerance: run.emergencyReturnTolerance,
+        emergencyReturnTriggerReason: run.emergencyReturnTriggerReason,
         provisionExhaustionFailure: run.provisionExhaustionFailure,
         strategyConstraints: decision.strategyConstraints,
         hardFailure: Boolean(expeditionHardFailureReason),
@@ -653,8 +662,11 @@ const CampaignSimulationTelemetry = Object.freeze({
       "configuredTargetDistance", "routeObjectiveDistance", "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "progressionReadiness", "progressionDeferredReason", "progressionRequiredDistance",
       "progressionSupportedDistance", "objectiveDistanceFloorApplied", "strategyConstraintTypes", "hardFailure", "hardFailureReason",
-      "departurePassiveFoodEstimate", "encounterProvisionReserve", "totalEstimatedProvisionRequirement",
+      "departurePassiveFoodEstimate", "encounterProvisionReserve", "provisionUncertaintyBuffer",
+      "provisionUncertaintyBufferUsed", "effectiveProvisionTarget", "totalEstimatedProvisionRequirement",
       "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance",
+      "emergencyReturnProvisions", "emergencyReturnEstimatedRequirement", "emergencyReturnStrategyTolerance", "emergencyReturnTolerance",
+      "emergencyReturnTotalRequirement", "emergencyReturnTriggerReason",
       "originalTargetDistance", "departureTargetDistance", "actualTurnaroundDistance",
       "provisionExhaustionFailure",
       "paceSelectedAtDeparture", "rationSelectedAtDeparture", "paceChanges", "rationChanges", "briefRestCount", "campRestCount", "campEventCount",
@@ -972,7 +984,16 @@ function compactExpedition(entry, campaign) {
     remaining: Number(run.provisionsRemaining) || 0,
     endingStock: Number(entry.endingProvisionStock) || 0,
     provisionExhaustionFailure: Boolean(entry.provisionExhaustionFailure),
-    estimatedReturnRequirement: run.emergencyReturnTotalRequirement ?? null,
+    estimatedReturnRequirement: entry.emergencyReturnEstimatedRequirement
+      ?? run.emergencyReturnEstimatedRequirement ?? null,
+    returnRequirementAtTurnaround: entry.emergencyReturnTotalRequirement
+      ?? run.emergencyReturnTotalRequirement ?? null,
+    returnProvisionsAtTurnaround: entry.emergencyReturnProvisions
+      ?? run.emergencyReturnProvisions ?? null,
+    returnStrategyTolerance: entry.emergencyReturnStrategyTolerance
+      ?? run.emergencyReturnStrategyTolerance ?? null,
+    returnTolerance: entry.emergencyReturnTolerance
+      ?? run.emergencyReturnTolerance ?? null,
   });
   return {
     expeditionNumber: entry.expeditionNumber,
@@ -1037,6 +1058,9 @@ function compactExpedition(entry, campaign) {
       selectedRations: entry.rationSelectedAtDeparture ?? run.rationSelectedAtDeparture ?? null,
       departurePassiveFoodEstimate: entry.departurePassiveFoodEstimate ?? null,
       encounterProvisionReserve,
+      provisionUncertaintyBuffer: Number(entry.provisionUncertaintyBuffer) || 0,
+      provisionUncertaintyBufferUsed: Number(entry.provisionUncertaintyBufferUsed) || 0,
+      effectiveProvisionTarget: Number(entry.effectiveProvisionTarget) || null,
       estimatedProvisionRequirement: entry.totalEstimatedProvisionRequirement ?? null,
     },
     economy: compactOmitZeroNumbers({
@@ -1982,8 +2006,12 @@ function applyBetweenExpeditionPolicy(
     injuries: player.injuries,
   });
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
+  let provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
+    planningStrategy, targetDistance,
+  );
   const initialProvisionNeed = estimateCampaignProvisionRequirement(
-    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve, travelSettings,
+    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve,
+    travelSettings, provisionUncertaintyBuffer,
   );
   const innCooking = strategyName && player.provisions < Math.min(initialProvisionNeed, capacity)
     ? cookAtInn(player, planningStrategy, preparationRandom, townActions)
@@ -1993,10 +2021,11 @@ function applyBetweenExpeditionPolicy(
     capacity,
     injuries: player.injuries,
   });
-  const desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
-    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve, travelSettings,
+  let desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
+    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve,
+    travelSettings, provisionUncertaintyBuffer,
   );
-  const desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
+  let desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
   const provisionStockBeforePurchase = player.provisions;
   const shop = SHOP_DEFINITIONS.village_general_goods;
   const shopStockBeforePurchase = shopStocks[shop.id] ?? 0;
@@ -2005,10 +2034,10 @@ function applyBetweenExpeditionPolicy(
     shopStockBeforePurchase,
     Math.max(0, capacity - provisionStockBeforePurchase),
   );
-  const affordableProvisionStock = Math.min(
+  let affordableProvisionStock = Math.min(
     capacity, provisionStockBeforePurchase + affordablePurchaseQuantity,
   );
-  const provisionPurchase = CampaignRules.buyProvisionsTo(player, shopStocks, desiredProvisionStock);
+  let provisionPurchase = CampaignRules.buyProvisionsTo(player, shopStocks, desiredProvisionStock);
   if (provisionPurchase.quantity > 0) {
     townActions.push({
       type: "buy-provisions",
@@ -2017,6 +2046,47 @@ function applyBetweenExpeditionPolicy(
       goldCost: provisionPurchase.goldCost,
     });
   }
+  // Crossing Aggressive's half-capacity ration threshold changes its actual
+  // departure consumption. Re-quote after the first purchase so the bot does
+  // not fund a sparse-ration estimate and then leave under a normal-ration
+  // departure requirement.
+  travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+    provisions: player.provisions,
+    capacity,
+    injuries: player.injuries,
+  });
+  provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
+    planningStrategy, targetDistance,
+  );
+  desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
+    targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve,
+    travelSettings, provisionUncertaintyBuffer,
+  );
+  desiredProvisionStock = Math.min(desiredProvisionStockForNominalDistance, capacity);
+  if (player.provisions < desiredProvisionStock) {
+    const additionalProvisionPurchase = CampaignRules.buyProvisionsTo(
+      player, shopStocks, desiredProvisionStock,
+    );
+    provisionPurchase = {
+      ...provisionPurchase,
+      applied: provisionPurchase.applied || additionalProvisionPurchase.applied,
+      quantity: provisionPurchase.quantity + additionalProvisionPurchase.quantity,
+      goldCost: provisionPurchase.goldCost + additionalProvisionPurchase.goldCost,
+      shortfall: additionalProvisionPurchase.shortfall,
+    };
+    if (additionalProvisionPurchase.quantity > 0) {
+      townActions.push({
+        type: "buy-provisions",
+        shopId: "village_general_goods",
+        quantity: additionalProvisionPurchase.quantity,
+        goldCost: additionalProvisionPurchase.goldCost,
+      });
+    }
+  }
+  affordableProvisionStock = Math.min(
+    capacity,
+    provisionStockBeforePurchase + Math.floor(provisionPurchase.quantity),
+  );
   const bandagePlan = strategyName
     ? chooseBandagePlan(strategyName, preparationRandom)
     : { target: 0, minimum: 0, combatUseThreshold: 0, policy: "disabled" };
@@ -2058,15 +2128,29 @@ function applyBetweenExpeditionPolicy(
       goldCost: bandagePurchaseBeforeEquipment.goldCost,
     });
   }
-  const equipmentCraftingActions = provisionPurchase.shortfall > 0
-    || bandagePurchaseBeforeEquipment.shortfall > 0
+  const requiredProvisionSpend = provisionPurchase.shortfall
+    * shop.provisionsForSale.price;
+  const survivalSuppliesFunded = provisionPurchase.shortfall <= 0
+    && bandagePurchaseBeforeEquipment.shortfall <= 0;
+  const equipmentCandidateBeforeFloor = planningStrategy === "aggressive"
+    ? findCampaignEquipmentCandidate(
+      player, planningStrategy, shopStocks, player.currentGold + requiredProvisionSpend,
+    )
+    : null;
+  const equipmentPurchaseDeferredForProvisions = Boolean(
+    planningStrategy === "aggressive"
+      && !survivalSuppliesFunded
+      && equipmentCandidateBeforeFloor
+      && equipmentCandidateBeforeFloor.offer.price
+        <= player.currentGold + requiredProvisionSpend,
+  );
+  const equipmentCraftingActions = !survivalSuppliesFunded
     ? [] : craftUsefulCampaignEquipment(player, planningStrategy, townActions);
   craftingActions.push(...equipmentCraftingActions);
-  const equipmentPurchases = provisionPurchase.shortfall > 0
-    || bandagePurchaseBeforeEquipment.shortfall > 0
+  const equipmentPurchases = !survivalSuppliesFunded
     ? [] : buyCampaignEquipment(player, shopStocks, planningStrategy, townActions);
   const bandagePurchaseAfterEquipment = planningStrategy === "aggressive"
-    && provisionPurchase.shortfall <= 0
+    && survivalSuppliesFunded
     && bandagePackAvailable
     ? CampaignRules.buyItemsTo(player, shopStocks, "bandages", bandagePlan.target)
     : { quantity: 0, goldCost: 0, shortfall: 0, itemId: "bandages" };
@@ -2127,7 +2211,7 @@ function applyBetweenExpeditionPolicy(
   const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
   const preferredSafeDistance = maximumCampaignDistanceForProvisions(
     provisionStockAvailableToPack, activeCompanions,
-    policy.provisionMargin, encounterProvisionReserve, travelSettings,
+    policy.provisionMargin, encounterProvisionReserve, travelSettings, planningStrategy,
   );
   const encounterReserveSupportedDistance = maximumCampaignDistanceForProvisions(
     provisionStockAvailableToPack, activeCompanions, 0, encounterProvisionReserve, travelSettings,
@@ -2143,12 +2227,15 @@ function applyBetweenExpeditionPolicy(
   const encounterProvisionReserveUsed = preferredSafeDistance >= 1
     || encounterReserveSupportedDistance >= 1 ? encounterProvisionReserve : 0;
   const actualTargetDistance = Math.min(targetDistance, safeAffordableDistance);
+  const provisionUncertaintyBufferUsed = preferredSafeDistance >= 1
+    ? SimulationProvisionPlanning.provisionUncertaintyBuffer(planningStrategy, actualTargetDistance)
+    : 0;
   const targetDistanceReduced = actualTargetDistance < targetDistance;
   const targetDistanceReduction = targetDistance - actualTargetDistance;
   const estimatedProvisionRequirementForChosenDistance = actualTargetDistance >= 1
     ? estimateCampaignProvisionRequirement(
       actualTargetDistance, activeCompanions,
-      safetyMarginUsed, encounterProvisionReserveUsed, travelSettings,
+      safetyMarginUsed, encounterProvisionReserveUsed, travelSettings, provisionUncertaintyBufferUsed,
     ) : 0;
   const departurePassiveFoodEstimate = roundCampaignNumber(
     estimateCampaignPassiveProvisionCost(actualTargetDistance, activeCompanions, travelSettings),
@@ -2183,6 +2270,16 @@ function applyBetweenExpeditionPolicy(
       type: "active-companion-unavailable",
       companionId: unavailableCompanionId,
       resolution: "continue-without-companion",
+    });
+  }
+  if (equipmentPurchaseDeferredForProvisions) {
+    strategyConstraints.push({
+      type: "equipment-purchase-deferred-for-provisions",
+      itemId: equipmentCandidateBeforeFloor.itemId,
+      itemCost: equipmentCandidateBeforeFloor.offer.price,
+      availableGold: player.currentGold,
+      requiredProvisionSpend,
+      effectiveProvisionTarget: desiredProvisionStockForNominalDistance,
     });
   }
   if (actualProvisionStockAfterPurchase < desiredProvisionStock) {
@@ -2258,6 +2355,11 @@ function applyBetweenExpeditionPolicy(
     provisionStockBeforePurchase,
     desiredProvisionStock,
     desiredProvisionStockForNominalDistance,
+    effectiveProvisionTarget: desiredProvisionStockForNominalDistance,
+    provisionUncertaintyBuffer,
+    provisionUncertaintyBufferUsed,
+    requiredProvisionSpend,
+    survivalSuppliesFunded,
     affordableProvisionStock,
     actualProvisionStockAfterPurchase,
     provisionStockAvailableToPack,
@@ -2270,7 +2372,7 @@ function applyBetweenExpeditionPolicy(
     encounterProvisionReserve,
     encounterProvisionReserveUsed,
     totalEstimatedProvisionRequirement: estimatedProvisionRequirementForChosenDistance,
-    preferredProvisionTargetMet: actualProvisionStockAfterPurchase >= desiredProvisionStockForNominalDistance,
+    preferredProvisionTargetMet: actualProvisionStockAfterPurchase >= desiredProvisionStock,
     provisionPurchase,
     bandagePurchase,
     craftingActions,
@@ -2287,6 +2389,7 @@ function applyBetweenExpeditionPolicy(
     equipmentCraftingActions,
     equipmentPurchases,
     equipmentPurchaseGoldSpent,
+    equipmentPurchaseDeferredForProvisions,
     itemsPurchasedById,
     itemPurchaseGoldSpentById,
     itemPurchaseGoldSpent,
@@ -2461,21 +2564,7 @@ function craftUsefulCampaignEquipment(
 
 function buyCampaignEquipment(player, shopStocks, strategyName, townActions = []) {
   const shop = SHOP_DEFINITIONS.village_smithy;
-  const candidates = Object.entries(shop.itemsForSale ?? {})
-    .map(([itemId, offer]) => ({ item: ITEM_DEFINITIONS[itemId], itemId, offer }))
-    .filter(({ item, offer }) => item?.equippable && Number.isFinite(offer.price))
-    .filter(({ item }) => {
-      const bestOwned = EquipmentRules.bestOwnedForSlot(player, item.equipmentSlot, strategyName);
-      const bestOwnedScore = bestOwned
-        ? EquipmentRules.scoreItem(bestOwned.item, strategyName) : Number.NEGATIVE_INFINITY;
-      return EquipmentRules.scoreItem(item, strategyName) > bestOwnedScore;
-    })
-    .sort((left, right) => {
-      const valueLeft = EquipmentRules.scoreItem(left.item, strategyName);
-      const valueRight = EquipmentRules.scoreItem(right.item, strategyName);
-      return valueRight - valueLeft || left.offer.price - right.offer.price
-        || left.itemId.localeCompare(right.itemId);
-    });
+  const candidates = findCampaignEquipmentCandidates(player, strategyName);
   for (const candidate of candidates) {
     const goldReserve = strategyName === "aggressive" ? 0 : 10;
     if (player.currentGold < candidate.offer.price + goldReserve) continue;
@@ -2497,6 +2586,36 @@ function buyCampaignEquipment(player, shopStocks, strategyName, townActions = []
     }];
   }
   return [];
+}
+
+function findCampaignEquipmentCandidates(player, strategyName) {
+  const shop = SHOP_DEFINITIONS.village_smithy;
+  return Object.entries(shop.itemsForSale ?? {})
+    .map(([itemId, offer]) => ({ item: ITEM_DEFINITIONS[itemId], itemId, offer }))
+    .filter(({ item, offer }) => item?.equippable && Number.isFinite(offer.price))
+    .filter(({ item }) => {
+      const bestOwned = EquipmentRules.bestOwnedForSlot(player, item.equipmentSlot, strategyName);
+      const bestOwnedScore = bestOwned
+        ? EquipmentRules.scoreItem(bestOwned.item, strategyName) : Number.NEGATIVE_INFINITY;
+      return EquipmentRules.scoreItem(item, strategyName) > bestOwnedScore;
+    })
+    .sort((left, right) => {
+      const valueLeft = EquipmentRules.scoreItem(left.item, strategyName);
+      const valueRight = EquipmentRules.scoreItem(right.item, strategyName);
+      return valueRight - valueLeft || left.offer.price - right.offer.price
+        || left.itemId.localeCompare(right.itemId);
+    });
+}
+
+function findCampaignEquipmentCandidate(
+  player, strategyName, shopStocks, availableGold = player.currentGold,
+) {
+  const shop = SHOP_DEFINITIONS.village_smithy;
+  const goldReserve = strategyName === "aggressive" ? 0 : 10;
+  return findCampaignEquipmentCandidates(player, strategyName).find((candidate) => (
+    (shopStocks?.[`${shop.id}:${candidate.itemId}`] ?? candidate.offer.stock ?? Infinity) > 0
+      && candidate.offer.price + goldReserve <= availableGold
+  )) ?? null;
 }
 
 function cookAtInn(player, strategyName, random = GameRandom.random, townActions = []) {
@@ -2596,27 +2715,34 @@ function treatCampaignInjuries(player, strategyName, townActions = []) {
 
 function estimateCampaignProvisionRequirement(
   distance, companionId, safetyMargin, encounterProvisionReserve = 0, travelSettings = {},
+  uncertaintyBuffer = 0,
 ) {
   return Math.ceil(
     estimateCampaignPassiveProvisionCost(distance, companionId, travelSettings)
-      + safetyMargin + encounterProvisionReserve,
+      + safetyMargin + encounterProvisionReserve + (Number(uncertaintyBuffer) || 0),
   );
 }
 
 function maximumCampaignDistanceForProvisions(
   provisions, companionId, safetyMargin, encounterProvisionReserve = 0, travelSettings = {},
+  uncertaintyStrategyName = null,
 ) {
   const baseMultiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(companionId);
   const pace = ExpeditionRules.paceDefinition(travelSettings.paceId);
   const ration = ExpeditionRules.rationDefinition(travelSettings.rationId);
   const multiplier = baseMultiplier * pace.provisionMultiplier * ration.provisionMultiplier;
   const roundTripRate = 2 * EXPEDITION_TUNING.baseProvisionsPerDistance * multiplier;
+  const uncertaintyAtEstimate = uncertaintyStrategyName
+    ? SimulationProvisionPlanning.provisionUncertaintyBuffer(uncertaintyStrategyName, provisions / Math.max(roundTripRate, 0.0001))
+    : 0;
   let distance = Math.max(0, Math.floor(
-    (provisions - safetyMargin - encounterProvisionReserve) / roundTripRate + 1e-9,
+    (provisions - safetyMargin - encounterProvisionReserve - uncertaintyAtEstimate) / roundTripRate + 1e-9,
   ));
   while (distance > 0
     && estimateCampaignProvisionRequirement(
       distance, companionId, safetyMargin, encounterProvisionReserve, travelSettings,
+      uncertaintyStrategyName
+        ? SimulationProvisionPlanning.provisionUncertaintyBuffer(uncertaintyStrategyName, distance) : 0,
     ) > provisions) {
     distance -= 1;
   }
@@ -2745,6 +2871,9 @@ function quoteCampaignProvisionAvailability(
     injuries: player.injuries,
   });
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
+  const provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
+    planningStrategy, targetDistance,
+  );
   const shop = SHOP_DEFINITIONS.village_general_goods;
   const availableShopStock = Math.max(0, Number(shopStocks?.[shop.id]) || 0);
   const affordablePurchaseQuantity = Math.min(
@@ -2763,12 +2892,13 @@ function quoteCampaignProvisionAvailability(
     provisionStock,
     desiredProvisionStock: Math.min(capacity, estimateCampaignProvisionRequirement(
       targetDistance, activeCompanions, policy.provisionMargin,
-      encounterProvisionReserve, travelSettings,
+      encounterProvisionReserve, travelSettings, provisionUncertaintyBuffer,
     )),
     preferredSafeDistance: maximumCampaignDistanceForProvisions(
       provisionStock, activeCompanions, policy.provisionMargin,
-      encounterProvisionReserve, travelSettings,
+      encounterProvisionReserve, travelSettings, planningStrategy,
     ),
+    provisionUncertaintyBuffer,
   };
 }
 

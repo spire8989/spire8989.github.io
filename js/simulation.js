@@ -39,8 +39,11 @@ const SimulationTravelPolicy = Object.freeze({
         ? "generous" : "normal";
     }
     if (strategyName === "aggressive") {
-      const returnStatus = ExpeditionRules.returnProvisionStatus(expedition);
-      settings.rationId = returnStatus.state === "danger" || expedition.provisions <= expedition.provisionCapacity * 0.5
+      const returnSafety = SimulationProvisionPlanning.returnSafety(expedition, strategyName);
+      settings.rationId = (
+        expedition.direction === "returning"
+          && expedition.provisions <= returnSafety.totalReturnRequirement
+      ) || expedition.provisions <= expedition.provisionCapacity * 0.5
         ? "sparse" : "normal";
     }
     if (hasInjury(expedition?.injuries, "sprained_ankle") && settings.paceId === "hard_push") {
@@ -122,9 +125,27 @@ const SimulationTravelPolicy = Object.freeze({
 
 const SimulationProvisionPlanning = Object.freeze({
   encounterReserves: Object.freeze({ cautious: 4, random: 3, normal: 3, aggressive: 2, greedy: 3 }),
+  strategyTolerances: Object.freeze({ cautious: 2, random: 0, normal: 0, aggressive: 1, greedy: 0 }),
+  uncertaintyBufferSettings: Object.freeze({
+    aggressive: Object.freeze({ distanceStep: 25, minimum: 1, maximum: 4 }),
+  }),
 
   encounterReserve(strategyName) {
     return this.encounterReserves[strategyName] ?? this.encounterReserves.random;
+  },
+
+  strategyTolerance(strategyName) {
+    return this.strategyTolerances[strategyName] ?? this.strategyTolerances.random;
+  },
+
+  provisionUncertaintyBuffer(strategyName, distance) {
+    const tuning = this.uncertaintyBufferSettings[strategyName];
+    const routeDistance = Math.max(0, Number(distance) || 0);
+    if (!tuning || routeDistance <= 0) return 0;
+    return Math.min(
+      tuning.maximum,
+      Math.max(tuning.minimum, Math.ceil(routeDistance / tuning.distanceStep)),
+    );
   },
 
   passiveTravelCost(distance, consumptionMultiplier) {
@@ -135,22 +156,39 @@ const SimulationProvisionPlanning = Object.freeze({
     return this.passiveTravelCost(distance, consumptionMultiplier) * 2;
   },
 
-  emergencyTurnaround(expedition, strategyName) {
-    const encounterReserve = this.encounterReserve(strategyName);
-    const passiveReturnEstimate = this.passiveTravelCost(
+  returnSafety(expedition, strategyName) {
+    const estimatedReturnRequirement = this.passiveTravelCost(
       expedition.distance, ExpeditionRules.provisionConsumptionMultiplier(expedition),
     );
-    const totalReturnRequirement = passiveReturnEstimate + encounterReserve;
+    const encounterReserve = this.encounterReserve(strategyName);
+    const strategyTolerance = this.strategyTolerance(strategyName);
     return {
-      shouldTurn: expedition.direction === "outbound"
-        && expedition.distance > 0
-        && expedition.provisions <= totalReturnRequirement,
+      estimatedReturnRequirement,
+      encounterReserve,
+      strategyTolerance,
+      tolerance: strategyTolerance,
+      totalReturnRequirement: estimatedReturnRequirement + encounterReserve + strategyTolerance,
+    };
+  },
+
+  emergencyTurnaround(expedition, strategyName) {
+    const safety = this.returnSafety(expedition, strategyName);
+    const shouldTurn = expedition.direction === "outbound"
+      && expedition.distance > 0
+      && expedition.provisions < safety.totalReturnRequirement;
+    return {
+      shouldTurn,
       strategy: strategyName,
       distance: rounded(expedition.distance),
       provisionsRemaining: rounded(expedition.provisions),
-      passiveReturnEstimate: rounded(passiveReturnEstimate),
-      encounterReserve,
-      totalReturnRequirement: rounded(totalReturnRequirement),
+      currentProvisions: rounded(expedition.provisions),
+      estimatedReturnRequirement: rounded(safety.estimatedReturnRequirement),
+      passiveReturnEstimate: rounded(safety.estimatedReturnRequirement),
+      encounterReserve: safety.encounterReserve,
+      strategyTolerance: safety.strategyTolerance,
+      tolerance: safety.tolerance,
+      totalReturnRequirement: rounded(safety.totalReturnRequirement),
+      triggerReason: shouldTurn ? "return-requirement-exceeds-available-provisions" : null,
     };
   },
 });
@@ -258,8 +296,13 @@ const SimulationRunner = Object.freeze({
         telemetry.turnaroundDistance = rounded(expedition.distance);
         telemetry.emergencyProvisionTurnaround = true;
         telemetry.emergencyProvisionTurnaroundDistance = rounded(expedition.distance);
+        telemetry.emergencyReturnProvisions = provisionSafety.currentProvisions;
+        telemetry.emergencyReturnEstimatedRequirement = provisionSafety.estimatedReturnRequirement;
         telemetry.emergencyReturnPassiveEstimate = provisionSafety.passiveReturnEstimate;
+        telemetry.emergencyReturnStrategyTolerance = provisionSafety.strategyTolerance;
+        telemetry.emergencyReturnTolerance = provisionSafety.tolerance;
         telemetry.emergencyReturnTotalRequirement = provisionSafety.totalReturnRequirement;
+        telemetry.emergencyReturnTriggerReason = provisionSafety.triggerReason;
         const decision = {
           type: "emergency-provision-turnaround",
           distance: rounded(expedition.distance),
@@ -461,8 +504,13 @@ const SimulationTelemetry = Object.freeze({
       departureTotalEstimatedRequirement: run.departureTotalEstimatedRequirement,
       emergencyProvisionTurnaround: run.emergencyProvisionTurnaround,
       emergencyProvisionTurnaroundDistance: run.emergencyProvisionTurnaroundDistance,
+      emergencyReturnProvisions: run.emergencyReturnProvisions,
+      emergencyReturnEstimatedRequirement: run.emergencyReturnEstimatedRequirement,
       emergencyReturnPassiveEstimate: run.emergencyReturnPassiveEstimate,
+      emergencyReturnStrategyTolerance: run.emergencyReturnStrategyTolerance,
+      emergencyReturnTolerance: run.emergencyReturnTolerance,
       emergencyReturnTotalRequirement: run.emergencyReturnTotalRequirement,
+      emergencyReturnTriggerReason: run.emergencyReturnTriggerReason,
       loadout: run.loadout,
       packedItems: run.packedItems,
       itemsPackedById: run.itemsPackedById,
@@ -538,7 +586,9 @@ const SimulationTelemetry = Object.freeze({
       "activeInjuriesAtEnd", "returnedWhileInjured", "exhaustionOccurrences", "distanceByPace", "distanceByRation",
       "outcome", "failureReason", "provisionExhaustionFailure", "originalTargetDistance",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "departureTotalEstimatedRequirement",
-      "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance", "turnaroundDistance",
+      "emergencyProvisionTurnaround", "emergencyProvisionTurnaroundDistance", "emergencyReturnProvisions",
+      "emergencyReturnEstimatedRequirement", "emergencyReturnStrategyTolerance", "emergencyReturnTolerance", "emergencyReturnTotalRequirement",
+      "emergencyReturnTriggerReason", "turnaroundDistance",
       "maximumDistance", "finalDistance", "finalArthurHealth",
       "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
       "briefRestCount", "campRestCount", "campEventCount", "cookingActionCount", "cookingProvisionsGained",
@@ -1601,8 +1651,13 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     departureTotalEstimatedRequirement,
     emergencyProvisionTurnaround: false,
     emergencyProvisionTurnaroundDistance: null,
+    emergencyReturnProvisions: null,
+    emergencyReturnEstimatedRequirement: null,
     emergencyReturnPassiveEstimate: null,
+    emergencyReturnStrategyTolerance: null,
+    emergencyReturnTolerance: null,
     emergencyReturnTotalRequirement: null,
+    emergencyReturnTriggerReason: null,
     loadout: deepClone(expedition.selectedEquipment),
     packedItems: deepClone(expedition.carriedItems),
     itemsPackedById: deepClone(expedition.carriedItems),
