@@ -6,15 +6,32 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     id: "attack",
     name: "Attack",
     target: "enemy",
+    targetMode: "singleEnemy",
+    kind: "active",
+    tags: ["martial", "basic"],
+    effects: Object.freeze([
+      Object.freeze({ type: "weaponDamage", multiplier: 1, onHit: true }),
+    ]),
     selectionPrompt: "Choose an enemy target",
     category: "action",
   }),
-  defend: Object.freeze({ id: "defend", name: "Defend", target: "self", category: "action" }),
+  defend: Object.freeze({
+    id: "defend",
+    name: "Defend",
+    target: "self",
+    targetMode: "self",
+    kind: "active",
+    effects: Object.freeze([{ type: "setDefending", value: true }]),
+    category: "action",
+  }),
   abilities: Object.freeze({
     id: "abilities",
     name: "Abilities",
     description: "Use a learned or equipped combat ability.",
     target: "menu",
+    targetMode: "none",
+    kind: "active",
+    effects: Object.freeze([]),
     category: "action",
   }),
   items: Object.freeze({
@@ -22,6 +39,9 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     name: "Items",
     description: "Use a carried combat item.",
     target: "menu",
+    targetMode: "none",
+    kind: "active",
+    effects: Object.freeze([]),
     category: "action",
   }),
   pommel_strike: Object.freeze({
@@ -29,7 +49,15 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     name: "Pommel Strike",
     description: "Deal reduced weapon damage and push an enemy's action gauge back.",
     target: "enemy",
+    targetMode: "singleEnemy",
+    kind: "active",
+    tags: ["martial"],
+    effects: Object.freeze([
+      Object.freeze({ type: "weaponDamage", multiplier: 0.6 }),
+      Object.freeze({ type: "modifyGauge", target: "target", amount: -25 }),
+    ]),
     selectionPrompt: "Choose an enemy target",
+    // Legacy aliases remain readable by the Content Editor and older tools.
     effectType: "damageAndGauge",
     damageMultiplier: 0.6,
     gaugeReduction: 25,
@@ -38,7 +66,13 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     id: "intercede",
     name: "Intercede",
     target: "self",
+    targetMode: "self",
+    kind: "active",
     description: "Protect Arthur from the next targeted attack.",
+    tags: ["martial", "protection"],
+    effects: Object.freeze([
+      Object.freeze({ type: "setFlag", flag: "interceding", value: true }),
+    ]),
     effectType: "intercede",
   }),
   charge: Object.freeze({
@@ -46,12 +80,27 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     name: "Charge",
     description: "Llamrei strikes an enemy and pushes its action gauge back.",
     target: "enemy",
+    targetMode: "singleEnemy",
+    kind: "active",
+    tags: ["martial", "mount"],
+    effects: Object.freeze([
+      Object.freeze({ type: "weaponDamage", multiplier: 1.15 }),
+      Object.freeze({ type: "modifyGauge", target: "target", amount: -10 }),
+    ]),
     selectionPrompt: "Choose an enemy for Charge",
     effectType: "damageAndGauge",
     damageMultiplier: 1.15,
     gaugeReduction: 10,
   }),
-  flee: Object.freeze({ id: "flee", name: "Flee", target: "none", category: "action" }),
+  flee: Object.freeze({
+    id: "flee",
+    name: "Flee",
+    target: "none",
+    targetMode: "none",
+    kind: "active",
+    effects: Object.freeze([{ type: "attemptFlee" }]),
+    category: "action",
+  }),
 });
 
 const COMBAT_STATUS_DEFINITIONS = Object.freeze({
@@ -62,6 +111,10 @@ const COMBAT_STATUS_DEFINITIONS = Object.freeze({
     periodicDamage: 2,
     durationActivations: 3,
     refreshBehavior: "refresh",
+    triggers: Object.freeze([Object.freeze({
+      event: "turnStart",
+      effects: Object.freeze([{ type: "dealDamage", amount: 2 }]),
+    })]),
   }),
   poisoned: Object.freeze({
     id: "poisoned",
@@ -70,6 +123,10 @@ const COMBAT_STATUS_DEFINITIONS = Object.freeze({
     periodicDamage: 2,
     durationActivations: 4,
     refreshBehavior: "refresh",
+    triggers: Object.freeze([Object.freeze({
+      event: "turnStart",
+      effects: Object.freeze([{ type: "dealDamage", amount: 2 }]),
+    })]),
   }),
 });
 

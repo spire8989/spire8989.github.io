@@ -6,6 +6,8 @@ const SaveSystem = Object.freeze({
   createDefaultPlayerState() {
     return {
       saveVersion: 11,
+      faith: 10,
+      maxFaith: 10,
       ownedItems: {
         arthur_sword: 1,
         quilted_hauberk: 1,
@@ -155,9 +157,12 @@ function sanitizePlayerState(savedState, defaults) {
   const selectedExpeditionId = EXPEDITION_DEFINITIONS[savedState.selectedExpeditionId]
     ? savedState.selectedExpeditionId
     : defaults.selectedExpeditionId;
+  const maxFaith = sanitizeMaximumResource(savedState.maxFaith, defaults.maxFaith);
 
   return {
     saveVersion: 11,
+    faith: sanitizeResource(savedState.faith, defaults.faith, maxFaith),
+    maxFaith,
     ownedItems,
     equippedItems,
     packedItems,
@@ -313,6 +318,17 @@ function nonNegativeNumber(value) {
 function sanitizeHealth(value, maximum, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.min(Math.max(number, 0), maximum) : fallback;
+}
+
+function sanitizeResource(value, fallback, maximum) {
+  const amount = Number(value);
+  const cap = Math.max(0, Number(maximum) || 0);
+  return Number.isFinite(amount) ? Math.min(Math.max(0, Math.floor(amount)), cap) : fallback;
+}
+
+function sanitizeMaximumResource(value, fallback) {
+  const maximum = Number(value);
+  return Number.isFinite(maximum) && maximum >= 0 ? Math.floor(maximum) : fallback;
 }
 
 function sanitizeCompanionStates(value, fallback) {

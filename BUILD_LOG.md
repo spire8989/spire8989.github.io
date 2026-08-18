@@ -1,5 +1,72 @@
 # Build Log
 
+## 2026-08-17 - Shared Combat Runtime Overhaul
+
+### Goal
+
+Replace the branch-heavy combat resolution path with a deterministic,
+data-driven action/effect lifecycle that can grow to support future abilities,
+passives, statuses, resources, enemy behavior, equipment reactions, and replay
+without expanding the player-facing combat menu.
+
+### Human prompt and direction
+
+The human developer supplied the Pass 1 combat overhaul guide, requested that
+all AGENTS.md instructions remain authoritative, asked for BUILD_LOG.md to be
+updated, and requested local add/commit work in both repositories when
+finished.
+
+### AI-assisted implementation
+
+- Added shared target, condition, effect, and event modules with stable
+  listener ordering, action/damage/death lifecycle events, deterministic
+  injected RNG, target filtering, status triggers, and once-per-combat
+  conditions.
+- Migrated Attack, Defend, Flee, Pommel Strike, Intercede, Charge, Bleeding,
+  Poisoned, equipment combat effects, Resolve charges, and Bound Warden
+  regeneration/suppression through the shared resolver. Legacy authored aliases
+  remain readable while runtime behavior converges on definitions and effects.
+- Added generic active/passive definition metadata, Faith persistence and
+  cost validation, save compatibility, and a non-enumerable expedition player
+  reference so combat resource mutations persist without entering replay
+  snapshots.
+- Extended the GrailTools validator for active/passive kinds, target modes,
+  tags, costs, conditions, and the shared authored effect vocabulary.
+- Added focused combat coverage, a soak-suite wrapper, combat architecture
+  documentation, README/SIMULATION verification guidance, and corrected an
+  obsolete stochastic Campaign 40 replay fixture to assert ownership and
+  replay invariants instead of a random inventory snapshot.
+
+### Manual changes
+
+No manual code edits were reported. The supplied guide and repository
+AGENTS.md files were used as the implementation constraints.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- python tests/combat_system_test.py — 19 Tier 1 combat assertions.
+- python tests/simulation_system_test.py — 62 deterministic simulation
+  assertions.
+- python tests/debug_tools_test.py — 16 debug-tools assertions.
+- python tests/campaign_system_test.py — 92 campaign/health/Inn assertions.
+- python tests/replay_system_test.py — 15 replay assertions.
+- python tests/campaign_replay_system_test.py — 27 focused campaign-replay
+  assertions.
+- python tests/soak_regression_test.py — simulation, campaign, and long
+  campaign-replay suites; 62, 92, and 30 assertions respectively.
+- python tests/location_system_test.py — 429 UI/provision/location assertions.
+- python tests/progression_system_test.py — 36 current-campaign progression
+  assertions; discovery_progression_test.py — 10 assertions; and
+  expedition_content_test.py — 10 assertions.
+- GrailTools ContentEditor unittest suite — 78 tests passed.
+- git diff --check in both repositories.
+
+The prototype remains dependency-free and portrait/mobile-compatible. No new
+combat UI or authored ability catalog expansion was introduced. No changes
+were pushed to a remote.
+
 ## 2026-08-17 - Discovery-Gated Barenton and Val Progression
 
 ### Goal

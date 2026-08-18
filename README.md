@@ -31,11 +31,12 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 - `js/crafting-data.js` defines rarity metadata, the separate material catalog, crafting providers, and recipes; `js/crafting-rules.js` owns generic quote and atomic craft mutations.
 - `js/loot-data.js` defines reusable/nested weighted loot tables and expedition-return tiers; `js/loot-rules.js` owns eligibility, cycle/depth protection, deterministic resolution, reward staging, and debug traces.
 - `js/tuning.js` centralizes expedition and combat pacing, resource, gauge, defense, and flee values for playtesting.
-- `js/combat-data.js` defines reusable combat encounters, enemies, enemy actions, and player-facing ability metadata.
+- `js/combat-data.js` defines reusable combat encounters, enemies, enemy actions, statuses, and player-facing ability metadata.
+- `js/combat-targets.js`, `js/combat-conditions.js`, `js/combat-effects.js`, and `js/combat-events.js` provide shared target resolution, trigger conditions, effect resolution, and deterministic event dispatch for combat actions and passives.
 - `js/location-data.js` contains reusable location, destination, NPC, and specialized shop definitions.
 - `js/encounter-data.js` contains the authored encounter definitions, stages, choices, requirements, costs, and outcomes.
 - `js/encounters.js` contains reusable encounter selection, requirement checking, outcome application, and stage-flow systems.
-- `js/combat.js` owns transient combat state, delta-time action gauges, targeting, damage, enemy intent/AI, abilities, HP synchronization, and battle results.
+- `js/combat.js` owns transient combat state, delta-time action gauges, player interaction, enemy intent/AI orchestration, compatibility normalization, HP synchronization, and battle results. See `COMBAT_SYSTEM.md` for the shared combat contract.
 - `js/random.js`, `js/expedition-rules.js`, and `js/simulation.js` provide seeded gameplay randomness, shared expedition rules, and instant deterministic balance simulations.
 - `js/healing-rules.js`, `js/economy-rules.js`, `js/campaign-rules.js`, and `js/campaign-simulation.js` share persistent party health, repeatable flat-cost active-party Inn recovery, trading/restocking, automated Bandage crafting/purchasing, and provision-aware repeated-expedition campaign simulation.
 - `js/storage.js` owns the persistent player-state defaults, validation, local save/load, and reset behavior.
@@ -61,14 +62,17 @@ py -m http.server 8000
 
 Then visit [http://localhost:8000](http://localhost:8000) in Chrome or Edge. Stop the server with `Ctrl+C` in the terminal.
 
-Run the current automated browser regression flow with:
+Run the fast combat and focused browser regression flow with:
 
-```sh
-python tests/debug_tools_test.py
-python tests/campaign_system_test.py
-python tests/simulation_system_test.py
-python tests/location_system_test.py
-```
+    python tests/combat_system_test.py
+    python tests/debug_tools_test.py
+    python tests/simulation_system_test.py
+    python tests/replay_system_test.py
+    python tests/location_system_test.py
+
+Run the larger campaign and replay soak coverage separately:
+
+    python tests/soak_regression_test.py
 
 ### Game Debug panel
 

@@ -1,20 +1,16 @@
 "use strict";
 
+// The ATB loop remains here. Action consequences are normalized into the
+// shared CombatEffectResolver and all reactions pass through CombatEventSystem.
 const CombatSystem = Object.freeze({
   create(expedition, combatId, options = {}) {
     const definition = COMBAT_DEFINITIONS[combatId];
-    if (!definition) {
-      return null;
-    }
-
+    if (!definition) return null;
     expedition.companionCombatHp ??= {};
     const allies = [createArthurCombatant(expedition)];
-    const selectedCompanions = selectedCompanionIds(expedition);
-    selectedCompanions.forEach((companionId) => {
+    selectedCompanionIds(expedition).forEach((companionId) => {
       const companion = createCompanionCombatant(expedition, companionId);
-      if (companion) {
-        allies.push(companion);
-      }
+      if (companion) allies.push(companion);
     });
     const enemyCounts = definition.enemyIds.reduce((counts, enemyId) => {
       counts[enemyId] = (counts[enemyId] ?? 0) + 1;
@@ -50,6 +46,9 @@ const CombatSystem = Object.freeze({
         ? options.random
         : typeof expedition.random === "function" ? expedition.random : GameRandom.random,
       eventCounter: 0,
+      eventDispatchDepth: 0,
+      combatConditionUses: {},
+      playerState: options.player ?? expedition.playerState ?? null,
     };
     Object.defineProperty(state, "expedition", { value: expedition, enumerable: false });
     enemies.forEach((enemy) => {
@@ -57,17 +56,13 @@ const CombatSystem = Object.freeze({
       addCombatLog(state, `${enemy.name} prepares ${enemyIntentName(enemy)}.`);
     });
     syncCombatHealth(state, expedition);
+    CombatEventSystem.dispatch(state, "combatStart", { sourceCombatant: null });
     return state;
   },
 
   update(state, expedition, deltaSeconds) {
-    if (!state || state.status !== "running") {
-      return { changed: false, result: state?.result ?? null };
-    }
-
-    let changed = false;
-    const livingCombatants = [...state.allies, ...state.enemies].filter(isLivingCombatant);
-    livingCombatants.forEach((combatant) => {
+    if (!state || state.status !== "running") return { changed: false, result: state?.result ?? null };
+    [...state.allies, ...state.enemies].filter(isLivingCombatant).forEach((combatant) => {
       combatant.gauge = Math.min(
         COMBAT_TUNING.actionGaugeMaximum,
         combatant.gauge + combatant.speed * deltaSeconds * COMBAT_TUNING.actionGaugeRate
@@ -75,63 +70,39 @@ const CombatSystem = Object.freeze({
             ? InjuryRules.combatGaugeRateMultiplier(expedition, combatant.id) : 1),
       );
     });
-
     state.allies.filter((ally) => (
       isLivingCombatant(ally)
       && ally.gauge >= COMBAT_TUNING.actionGaugeMaximum
       && ally.id !== state.activeActorId
       && !state.readyQueue.includes(ally.id)
     )).forEach((ally) => state.readyQueue.push(ally.id));
-
     if (state.readyQueue.length > 0) {
       activateNextAlly(state);
-      return { changed: true, result: null };
+      return { changed: true, result: state.result };
     }
-
     state.enemies.filter((enemy) => (
       isLivingCombatant(enemy) && enemy.gauge >= COMBAT_TUNING.actionGaugeMaximum
     )).forEach((enemy) => {
-      if (state.status !== "running") {
-        return;
-      }
-      const activeStatusIds = Object.keys(enemy.statuses ?? {}).sort();
-      if (!processEnemyActivationStatuses(state, enemy)) {
-        enemy.gauge = 0;
-        enemy.intentId = null;
-        refreshSelectedEnemy(state);
-        if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
-        return;
-      }
-      applyEnemyActivationTraits(state, enemy, activeStatusIds);
+      if (state.status !== "running" || !isLivingCombatant(enemy)) return;
+      beginActorActivation(state, enemy);
       if (!isLivingCombatant(enemy)) {
         enemy.gauge = 0;
         enemy.intentId = null;
         refreshSelectedEnemy(state);
-        if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
+        checkCombatOutcome(state);
         return;
       }
       resolveEnemyAction(state, expedition, enemy);
-      changed = true;
     });
-
-    return { changed, result: state.result };
+    return { changed: true, result: state.result };
   },
 
   chooseAction(state, expedition, actionId, targetId = null) {
-    if (!state || state.status !== "awaitingAction") {
-      return { resolved: false, needsTarget: false };
-    }
+    if (!state || state.status !== "awaitingAction") return { resolved: false, needsTarget: false };
     const actor = findCombatant(state, state.activeActorId);
-    if (!actor || !isLivingCombatant(actor)) {
-      return { resolved: false, needsTarget: false };
-    }
-
+    if (!actor || !isLivingCombatant(actor)) return { resolved: false, needsTarget: false };
     if (actionId === "back" || actionId === "cancel") {
-      state.interactionMode = "main";
-      state.pendingActionId = null;
-      state.pendingActionKind = null;
-      state.targetSelectionReturnMode = null;
-      state.pendingTargetPrompt = null;
+      resetPendingSelection(state, "main");
       return { resolved: false, menu: "main" };
     }
     if (actionId === "abilities") {
@@ -148,98 +119,63 @@ const CombatSystem = Object.freeze({
       state.pendingTargetPrompt = null;
       return { resolved: false, menu: "items" };
     }
-    if (availableAbilityIds(state, expedition).includes(actionId)) {
-      return this.chooseAbility(state, expedition, actionId, targetId);
-    }
-    if (!topLevelActionIds().includes(actionId)) {
-      return { resolved: false, needsTarget: false };
-    }
-
-    if (actionId === "defend" && actor.canDefend === false) {
-      return { resolved: false, unavailable: true };
-    }
-    if (actionId === "flee" && actor.canFlee === false) {
-      return { resolved: false, unavailable: true };
-    }
-    if (actionId === "items" && actor.canUseItems === false) {
-      return { resolved: false, unavailable: true };
-    }
-
-    if (actionId === "attack") {
-      const targets = state.enemies.filter(isLivingCombatant);
-      refreshSelectedEnemy(state);
-      const selectedTarget = targets.find((target) => target.id === state.selectedEnemyId);
-      if (!targetId && !selectedTarget && targets.length > 1) {
-        return enterTargetSelection(
-          state, actionId, "enemy", "action", COMBAT_ABILITY_DEFINITIONS[actionId].selectionPrompt,
-        );
-      }
-      const target = targetId
-        ? targets.find((candidate) => candidate.id === targetId)
-        : selectedTarget ?? targets[0];
-      if (!target) {
-        return { resolved: false, needsTarget: targets.length > 1 };
-      }
-      resolveAttack(state, actor, target);
-    } else if (actionId === "defend") {
-      actor.defending = true;
-      addCombatLog(state, `${actor.name} braces for the next attack.`);
-      recordCombatEvent(state, { actor: actor.id, action: "defend", target: actor.id, damage: 0 });
-    } else if (actionId === "flee") {
-      const escaped = state.random() < COMBAT_TUNING.fleeChance;
-      recordCombatEvent(state, { actor: actor.id, action: "flee", target: null, damage: 0, escaped });
-      if (escaped) {
-        addCombatLog(state, "The company escapes the battle.");
-        finishCombat(state, "fled");
-      } else {
-        addCombatLog(state, `${actor.name} fails to find an escape route.`);
-      }
-    }
-
-    actor.gauge = 0;
-    state.activeActorId = null;
-    state.pendingActionId = null;
-    state.pendingActionKind = null;
-    state.interactionMode = "main";
-    state.targetSelectionReturnMode = null;
-    state.pendingTargetPrompt = null;
-    if (state.status === "awaitingAction") {
-      state.status = "running";
-      activateNextAlly(state);
-    }
-    syncCombatHealth(state, expedition);
-    return { resolved: true, needsTarget: false, result: state.result };
+    if (availableAbilityIds(state, expedition).includes(actionId)) return this.chooseAbility(state, expedition, actionId, targetId);
+    if (!topLevelActionIds().includes(actionId)) return { resolved: false, needsTarget: false };
+    const ability = COMBAT_ABILITY_DEFINITIONS[actionId];
+    if (actionId === "defend" && actor.canDefend === false) return { resolved: false, unavailable: true };
+    if (actionId === "flee" && actor.canFlee === false) return { resolved: false, unavailable: true };
+    const targetResult = playerTargetResult(state, actor, ability, targetId, actionId);
+    if (!targetResult.ready) return targetResult.response;
+    const resolved = resolveCombatAbility(state, expedition, actor, ability, targetResult.targets, { action: actionId });
+    return finishActorAction(state, expedition, actor, resolved);
   },
 
   chooseAbility(state, expedition, abilityId, targetId = null) {
     if (!state || state.status !== "awaitingAction") return { resolved: false, needsTarget: false };
     const actor = findCombatant(state, state.activeActorId);
     const ability = COMBAT_ABILITY_DEFINITIONS[abilityId];
-    if (!actor || !ability || !availableAbilityIds(state, expedition).includes(abilityId)) {
+    if (!actor || !ability || ability.kind === "passive"
+      || !availableAbilityIds(state, expedition).includes(abilityId)) {
       return { resolved: false, needsTarget: false };
     }
-    const targets = ability.target === "enemy"
-      ? state.enemies.filter(isLivingCombatant)
-      : ability.target === "ally" ? state.allies.filter(isLivingCombatant) : [];
-    if (["enemy", "ally"].includes(ability.target) && !targetId && targets.length > 1) {
-      return enterTargetSelection(
-        state, abilityId, ability.target, "ability", ability.selectionPrompt,
-      );
-    }
-    const target = ability.target === "self" ? actor : targetId ? targets.find((entry) => entry.id === targetId) : targets[0];
-    if (["enemy", "ally"].includes(ability.target) && !target) {
-      return { resolved: false, needsTarget: targets.length > 1, targetType: ability.target };
-    }
-    if (ability.effectType === "intercede") {
-      actor.interceding = true;
-      addCombatLog(state, `${actor.name} uses Intercede and moves to protect Arthur.`);
-      recordCombatEvent(state, { actor: actor.id, action: "ability", abilityId, target: "arthur", damage: 0 });
-    } else if (ability.effectType === "damageAndGauge") {
-      resolvePommelStrike(state, actor, target, ability);
-    } else {
+    const costResult = validateAbilityCost(state, ability);
+    if (!costResult.sufficient) return { resolved: false, unavailable: true, reason: "insufficient-resource", cost: costResult };
+    const targetResult = playerTargetResult(state, actor, ability, targetId, abilityId);
+    if (!targetResult.ready) return targetResult.response;
+    if (!payAbilityCost(state, ability)) return { resolved: false, unavailable: true, reason: "insufficient-resource" };
+    const resolved = resolveCombatAbility(state, expedition, actor, ability, targetResult.targets, {
+      action: "ability", abilityId,
+    });
+    return finishActorAction(state, expedition, actor, {
+      ...resolved,
+      action: "ability",
+      abilityId,
+      target: targetResult.targets[0]?.id ?? null,
+    });
+  },
+
+  // Direct callers such as deterministic tests and future AI can execute a
+  // normalized definition without adding it to the player-facing ability
+  // catalog. The same target, cost, event, and effect path is used.
+  resolveDefinition(state, expedition, definition, targetId = null) {
+    if (!state || state.status !== "awaitingAction" || !definition || definition.kind === "passive") {
       return { resolved: false, needsTarget: false };
     }
-    return finishActorAction(state, expedition, actor, { action: "ability", abilityId, target: target?.id ?? null });
+    const actor = findCombatant(state, state.activeActorId);
+    const costResult = validateAbilityCost(state, definition);
+    if (!actor || !isLivingCombatant(actor) || !costResult.sufficient) {
+      return { resolved: false, unavailable: true, reason: costResult.sufficient ? "invalid-actor" : "insufficient-resource", cost: costResult };
+    }
+    const targetResult = playerTargetResult(state, actor, definition, targetId, definition.id);
+    if (!targetResult.ready) return targetResult.response;
+    if (!payAbilityCost(state, definition)) return { resolved: false, unavailable: true, reason: "insufficient-resource" };
+    const resolved = resolveCombatAbility(state, expedition, actor, definition, targetResult.targets, {
+      action: "ability", abilityId: definition.id,
+    });
+    return finishActorAction(state, expedition, actor, {
+      ...resolved, action: "ability", abilityId: definition.id,
+      target: targetResult.targets[0]?.id ?? null,
+    });
   },
 
   chooseItem(state, expedition, itemId, targetId = null) {
@@ -247,25 +183,26 @@ const CombatSystem = Object.freeze({
     const actor = findCombatant(state, state.activeActorId);
     const entry = availableItemEntries(state, expedition).find((candidate) => candidate.itemId === itemId);
     const itemEffect = entry?.item?.effects?.combat;
-    if (!actor || actor.canUseItems === false || !entry || !itemEffect) {
-      return { resolved: false, needsTarget: false };
-    }
-    const targets = itemEffect.target === "ally"
-      ? state.allies.filter((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp)
-      : [];
-    if (!targetId && targets.length > 1) {
-      return enterTargetSelection(
-        state, itemId, "ally", "item", itemEffect.selectionPrompt,
-      );
-    }
-    const target = targetId ? targets.find((ally) => ally.id === targetId) : targets[0];
-    if (!target) return { resolved: false, needsTarget: targets.length > 1, targetType: "ally" };
-    const amount = Math.min(Number(itemEffect.amount) || 0, target.maxHp - target.hp);
-    if (amount <= 0 || !consumeCombatItem(expedition, itemId)) return { resolved: false, needsTarget: false };
-    target.hp += amount;
-    addCombatLog(state, `${actor.name} uses ${entry.item.name} on ${target.name}, restoring ${amount} HP.`);
-    recordCombatEvent(state, { actor: actor.id, action: "item", itemId, target: target.id, damage: 0, healingAmount: amount });
-    return finishActorAction(state, expedition, actor, { action: "item", itemId, target: target.id });
+    if (!actor || actor.canUseItems === false || !entry || !itemEffect) return { resolved: false, needsTarget: false };
+    const itemAbility = {
+      id: itemId,
+      name: entry.item.name,
+      target: itemEffect.target ?? "ally",
+      targetMode: itemEffect.target === "self" ? "self" : "singleAlly",
+      kind: "active",
+      selectionPrompt: itemEffect.selectionPrompt,
+      effects: [{ type: itemEffect.effectType === "heal" ? "heal" : itemEffect.effectType, amount: itemEffect.amount }],
+    };
+    const targetResult = playerTargetResult(state, actor, itemAbility, targetId, itemId);
+    if (!targetResult.ready) return targetResult.response;
+    if (!consumeCombatItem(expedition, itemId)) return { resolved: false, needsTarget: false };
+    const resolved = resolveCombatAbility(state, expedition, actor, itemAbility, targetResult.targets, {
+      action: "item", itemId,
+    });
+    return finishActorAction(state, expedition, actor, {
+      ...resolved,
+      action: "item", itemId, target: targetResult.targets[0]?.id ?? null,
+    });
   },
 
   availableActions(state) {
@@ -284,9 +221,7 @@ const CombatSystem = Object.freeze({
     return availableAbilityIds(state, expedition).map((id) => COMBAT_ABILITY_DEFINITIONS[id]);
   },
 
-  availableItems(state, expedition) {
-    return availableItemEntries(state, expedition);
-  },
+  availableItems(state, expedition) { return availableItemEntries(state, expedition); },
 
   choosePendingTarget(state, expedition, targetId) {
     if (!state?.pendingActionId) return { resolved: false, needsTarget: false };
@@ -296,35 +231,22 @@ const CombatSystem = Object.freeze({
   },
 
   selectEnemyTarget(state, targetId) {
-    if (!state || !["running", "awaitingAction"].includes(state.status)
-      || state.interactionMode !== "main") {
-      return { selected: false };
-    }
+    if (!state || !["running", "awaitingAction"].includes(state.status) || state.interactionMode !== "main") return { selected: false };
     const target = state.enemies.find((enemy) => enemy.id === targetId && isLivingCombatant(enemy));
-    if (!target) {
-      return { selected: false };
-    }
+    if (!target) return { selected: false };
     state.selectedEnemyId = target.id;
     return { selected: true, targetId: target.id };
   },
 
   cancelTargetSelection(state) {
-    if (!state || state.status !== "awaitingAction" || !state.pendingActionId) {
-      return false;
-    }
-    state.pendingActionId = null;
-    state.pendingActionKind = null;
-    state.interactionMode = state.targetSelectionReturnMode ?? "main";
-    state.targetSelectionReturnMode = null;
-    state.pendingTargetPrompt = null;
+    if (!state || state.status !== "awaitingAction" || !state.pendingActionId) return false;
+    resetPendingSelection(state, state.targetSelectionReturnMode ?? "main");
     return true;
   },
 
   applyStatus(state, targetId, statusId, source = {}) {
-    const target = state?.enemies?.find((enemy) => enemy.id === targetId);
-    if (!state || !target) {
-      return { applied: false, reason: "invalid-target-or-status" };
-    }
+    const target = findCombatant(state, targetId);
+    if (!state || !target) return { applied: false, reason: "invalid-target-or-status" };
     return applyCombatStatus(state, target, statusId, source);
   },
 });
@@ -335,228 +257,161 @@ function createArthurCombatant(expedition) {
   const relic = ITEM_DEFINITIONS[expedition.selectedEquipment.relic];
   const equippedCombatEffects = EquipmentRules.aggregateEquippedCombatEffects(expedition);
   return {
-    id: "arthur",
-    definitionId: "arthur",
-    side: "ally",
-    name: PLAYER_CHARACTER_DEFINITION.name,
+    id: "arthur", definitionId: "arthur", side: "ally", name: PLAYER_CHARACTER_DEFINITION.name,
     maxHp: InjuryRules.effectiveMaxHealth(expedition, "arthur"),
     hp: clampCombatNumber(expedition.health, 0, InjuryRules.effectiveMaxHealth(expedition, "arthur")),
     speed: Math.max(1, PLAYER_CHARACTER_DEFINITION.combat.speed + equippedCombatEffects.combatSpeed),
     defense: Math.max(0, Math.floor((Number(armor?.effects?.combatDefense) || 0)
       * InjuryRules.combatDefenseMultiplier(expedition, "arthur"))),
-    damage: weapon?.effects?.combatDamage ?? { minimum: 4, maximum: 6 },
-    gauge: 0,
-    defending: false,
-    interceding: false,
-    abilityIds: collectAbilityIds(
-      PLAYER_CHARACTER_DEFINITION.combatAbilities,
-      weapon,
-      armor,
-      relic,
-    ),
-    sourceItemIds: [weapon?.id, armor?.id, relic?.id].filter(Boolean),
-    equippedCombatEffects,
-    combatCharges: {},
-    canUseItems: true,
-    canDefend: true,
-    canFlee: true,
+    damage: weapon?.effects?.combatDamage ?? { minimum: 4, maximum: 6 }, gauge: 0,
+    defending: false, interceding: false,
+    abilityIds: collectAbilityIds(PLAYER_CHARACTER_DEFINITION.combatAbilities, weapon, armor, relic),
+    sourceItemIds: [weapon?.id, armor?.id, relic?.id].filter(Boolean), equippedCombatEffects,
+    equippedPassives: equipmentPassives(equippedCombatEffects), learnedPassives: [], passiveDefinitions: [],
+    combatCharges: {}, statuses: {}, canUseItems: true, canDefend: true, canFlee: true,
   };
 }
 
 function createCompanionCombatant(expedition, companionId) {
   const companion = COMPANION_DEFINITIONS[companionId];
-  if (!companion?.combat) {
-    return null;
-  }
+  if (!companion?.combat) return null;
   const storedHp = expedition.companionCombatHp[companionId];
   const hp = Number.isFinite(storedHp) ? storedHp : companion.combat.maxHp;
   expedition.companionCombatHp[companionId] = hp;
   return {
-    id: companionId,
-    definitionId: companionId,
-    side: "ally",
-    name: companion.name,
+    id: companionId, definitionId: companionId, side: "ally", name: companion.name,
     maxHp: InjuryRules.effectiveMaxHealth(expedition, companionId),
     hp: clampCombatNumber(hp, 0, InjuryRules.effectiveMaxHealth(expedition, companionId)),
     speed: companion.combat.speed,
-    defense: Math.max(0, Math.floor(companion.combat.defense
-      * InjuryRules.combatDefenseMultiplier(expedition, companionId))),
-    damage: companion.combat.basicDamage,
-    gauge: 0,
-    defending: false,
-    interceding: false,
-    abilityIds: collectAbilityIds(companion.combatAbilities),
-    sourceItemIds: [],
+    defense: Math.max(0, Math.floor(companion.combat.defense * InjuryRules.combatDefenseMultiplier(expedition, companionId))),
+    damage: companion.combat.basicDamage, gauge: 0, defending: false, interceding: false,
+    abilityIds: collectAbilityIds(companion.combatAbilities), sourceItemIds: [],
+    equippedPassives: [], learnedPassives: [], passiveDefinitions: [], statuses: {},
     canUseItems: companion.capabilities?.canUseItems !== false,
-    canDefend: companion.capabilities?.canDefend !== false,
-    canFlee: companion.capabilities?.canFlee !== false,
+    canDefend: companion.capabilities?.canDefend !== false, canFlee: companion.capabilities?.canFlee !== false,
   };
 }
 
 function createEnemyCombatant(enemyId, index, occurrence) {
   const enemy = COMBAT_ENEMY_DEFINITIONS[enemyId];
-  if (!enemy) {
-    return null;
-  }
+  if (!enemy) return null;
+  const traits = (enemy.traits ?? []).map((trait) => ({ ...trait, suppressedByStatuses: [...(trait.suppressedByStatuses ?? [])] }));
   return {
-    id: `${enemyId}_${index + 1}`,
-    definitionId: enemyId,
-    side: "enemy",
+    id: `${enemyId}_${index + 1}`, definitionId: enemyId, side: "enemy",
     name: occurrence ? `${enemy.name} ${occurrence}` : enemy.name,
-    maxHp: enemy.maxHp,
-    hp: enemy.maxHp,
-    speed: enemy.speed,
-    defense: enemy.defense,
-    gauge: 0,
-    intentId: null,
-    patternIndex: 0,
-    actionPattern: [...enemy.actionPattern],
-    statuses: {},
-    traits: (enemy.traits ?? []).map((trait) => ({
-      ...trait,
-      suppressedByStatuses: [...(trait.suppressedByStatuses ?? [])],
-    })),
+    maxHp: enemy.maxHp, hp: enemy.maxHp, speed: enemy.speed, defense: enemy.defense, gauge: 0,
+    intentId: null, patternIndex: 0, actionPattern: [...enemy.actionPattern], statuses: {}, traits,
+    passiveDefinitions: enemyTraitsToPassives(enemyId, traits, index), equippedPassives: [], learnedPassives: [],
   };
 }
 
 function activateNextAlly(state) {
-  if (state.activeActorId || state.status !== "running") {
-    return;
-  }
+  if (state.activeActorId || state.status !== "running") return;
   while (state.readyQueue.length > 0) {
-    const actorId = state.readyQueue.shift();
-    const actor = findCombatant(state, actorId);
-    if (!isLivingCombatant(actor)) {
-      continue;
-    }
+    const actor = findCombatant(state, state.readyQueue.shift());
+    if (!isLivingCombatant(actor)) continue;
     actor.defending = false;
     state.activeActorId = actor.id;
     state.status = "awaitingAction";
+    beginActorActivation(state, actor);
+    if (!isLivingCombatant(actor)) {
+      actor.gauge = 0; state.activeActorId = null; state.status = "running"; checkCombatOutcome(state); continue;
+    }
     addCombatLog(state, `${actor.name} is ready.`);
     return;
   }
 }
 
-function resolveAttack(state, actor, target) {
-  const triggerResult = actor.id === "arthur"
-    ? applyEquipmentCombatTriggers(state, actor, "beforeNormalAttack")
-    : { bonusDamage: 0 };
-  const baseDamage = rollCombatDamage(actor.damage, state.random);
-  const damage = calculateCombatDamage(baseDamage + triggerResult.bonusDamage, target.defense);
-  applyCombatDamage(state, target, damage);
-  recordCombatEvent(state, {
-    actor: actor.id,
-    action: "attack",
-    target: target.id,
-    damage,
-    baseDamage,
-    bonusDamage: triggerResult.bonusDamage,
-  });
-  addCombatLog(state, `${actor.name} attacks ${target.name} for ${damage} damage.`);
-  if (triggerResult.bonusDamage > 0) {
-    addCombatLog(state, `${actor.name}'s stored Resolve adds ${triggerResult.bonusDamage} bonus damage.`);
-  }
-  if (actor.id === "arthur" && isLivingCombatant(target)) {
-    applyEquippedOnHitEffects(state, actor, target);
-  }
-  if (!isLivingCombatant(target)) {
-    addCombatLog(state, `${target.name} is defeated.`);
-  }
-  refreshSelectedEnemy(state);
-  if (!state.enemies.some(isLivingCombatant)) {
-    finishCombat(state, "victory");
-  }
+function beginActorActivation(state, actor) {
+  CombatEventSystem.dispatch(state, "actorReady", { sourceCombatant: actor, targetCombatant: actor });
+  CombatEventSystem.dispatch(state, "turnStart", { sourceCombatant: actor, targetCombatant: actor });
 }
 
-function resolvePommelStrike(state, actor, target, ability) {
-  const multiplier = Number(ability.damageMultiplier ?? COMBAT_TUNING.pommelStrikeDamageMultiplier) || 0;
-  const rawDamage = Math.floor(rollCombatDamage(actor.damage, state.random) * multiplier);
-  const damage = calculateCombatDamage(Math.max(1, rawDamage), target.defense);
-  applyCombatDamage(state, target, damage);
-  const reduction = Number(ability.gaugeReduction ?? COMBAT_TUNING.pommelStrikeGaugeReduction) || 0;
-  const previousGauge = target.gauge;
-  target.gauge = Math.max(0, target.gauge - reduction);
-  recordCombatEvent(state, {
-    actor: actor.id,
-    action: "ability",
-    abilityId: ability.id,
-    target: target.id,
-    damage,
-    gaugeReduction: Math.max(0, previousGauge - target.gauge),
+function resolveCombatAbility(state, expedition, actor, ability, targets, metadata = {}) {
+  const actionId = metadata.action === "ability" ? metadata.abilityId : ability.id;
+  const baseContext = {
+    eventType: "beforeAction", sourceCombatant: actor, source: actor,
+    targetCombatant: targets[0] ?? null, target: targets[0] ?? null,
+    abilityId: actionId, actionId, ability, damageRange: metadata.damageRange ?? actor.damage,
+    tags: ability.tags ?? [], side: actor.side,
+    resultMetadata: { selectedTargetId: metadata.selectedTargetId ?? targets[0]?.id ?? null, redirectedByIntercede: Boolean(metadata.redirectedByIntercede) },
+    expedition,
+  };
+  CombatEventSystem.dispatch(state, "beforeAction", baseContext);
+  const aggregate = { damage: 0, baseDamage: 0, healingAmount: 0, gaugeReduction: 0, damagePrevented: 0, injuryId: null };
+  const effectTargets = targets.length > 0 ? targets : [null];
+  effectTargets.forEach((target) => {
+    const targetContext = { ...baseContext, targetCombatant: target, target };
+    const result = CombatEffectResolver.resolve(state, targetContext, ability.effects ?? normalizeLegacyAbilityEffects(ability));
+    aggregate.damage += Number(result.damage) || 0; aggregate.baseDamage += Number(result.baseDamage) || 0;
+    aggregate.healingAmount += Number(result.healingAmount) || 0; aggregate.gaugeReduction += Number(result.gaugeReduction) || 0;
+    aggregate.damagePrevented += Number(result.damagePrevented) || 0;
+    aggregate.injuryId ??= targetContext.injuryId ?? null;
   });
-  addCombatLog(state, `${actor.name} uses ${ability.name} on ${target.name} for ${damage} damage.`);
-  if (previousGauge > target.gauge) addCombatLog(state, `${target.name}'s action gauge is pushed back.`);
-  if (!isLivingCombatant(target)) addCombatLog(state, `${target.name} is defeated.`);
-  refreshSelectedEnemy(state);
-  if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
+  if (ability.id === "defend") addCombatLog(state, `${actor.name} braces for the next attack.`);
+  if (ability.id === "intercede") addCombatLog(state, `${actor.name} uses Intercede and moves to protect Arthur.`);
+  if (["attack", "pommel_strike", "charge"].includes(ability.id)) {
+    const target = targets[0];
+    addCombatLog(state, `${actor.name} uses ${(ability.name ?? "Attack").toLowerCase()} on ${target?.name ?? "the target"} for ${aggregate.damage} damage.`);
+    if (aggregate.gaugeReduction > 0 && target) addCombatLog(state, `${target.name}'s action gauge is pushed back.`);
+    if (aggregate.damage > 0 && Number(baseContext.damageBonus) > 0) addCombatLog(state, `${actor.name}'s stored Resolve adds ${baseContext.damageBonus} bonus damage.`);
+    if (target && !isLivingCombatant(target)) addCombatLog(state, `${target.name} is defeated.`);
+    refreshSelectedEnemy(state);
+  }
+  CombatEventSystem.dispatch(state, "actionUsed", { ...baseContext, eventType: "actionUsed", targetCombatant: targets[0] ?? null, target: targets[0] ?? null, resultMetadata: { ...baseContext.resultMetadata, ...aggregate } });
+  aggregate.actionEvent = recordCombatEvent(state, {
+    actor: actor.id, action: metadata.action ?? ability.id,
+    abilityId: metadata.abilityId ?? (metadata.action === "ability" ? ability.id : null), itemId: metadata.itemId ?? null,
+    target: targets[0]?.id ?? null, damage: aggregate.damage, baseDamage: aggregate.baseDamage,
+    bonusDamage: Number(baseContext.damageBonus) || 0, healingAmount: aggregate.healingAmount,
+    gaugeReduction: aggregate.gaugeReduction, damagePrevented: aggregate.damagePrevented,
+    selectedTarget: baseContext.resultMetadata.selectedTargetId ?? null,
+    redirectedByIntercede: baseContext.resultMetadata.redirectedByIntercede ?? false,
+    injuryId: baseContext.injuryId ?? null,
+  });
+  checkCombatOutcome(state);
+  return aggregate;
 }
 
 function resolveEnemyAction(state, expedition, enemy) {
   if (!isLivingCombatant(enemy)) return;
   const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
+  const ability = normalizeEnemyAction(action);
   let target = chooseEnemyTarget(state, action);
   const selectedTargetId = target?.id ?? null;
-  const interceder = state.allies.find((ally) => (
-    ally.interceding && isLivingCombatant(ally) && target?.id === "arthur"
-  ));
+  const interceder = state.allies.find((ally) => ally.interceding && isLivingCombatant(ally) && target?.id === "arthur");
   if (interceder) {
     interceder.interceding = false;
     addCombatLog(state, `${interceder.name} takes ${action.name} meant for Arthur.`);
     target = interceder;
   }
   if (target) {
-    const rolled = rollCombatDamage(action.damage, state.random);
-    const mitigated = calculateCombatDamage(rolled, target.defense);
-    const unguardedDamage = Math.max(1, Math.floor(
-      mitigated * InjuryRules.incomingDamageMultiplier(expedition, target.id),
-    ));
-    const damageBeforeInjury = target.defending
-      ? Math.max(1, Math.floor(mitigated * COMBAT_TUNING.defendDamageMultiplier))
-      : mitigated;
-    const damage = Math.max(1, Math.floor(
-      damageBeforeInjury * InjuryRules.incomingDamageMultiplier(expedition, target.id),
-    ));
-    const damagePrevented = target.defending
-      ? Math.max(0, unguardedDamage - damage) : 0;
-    applyCombatDamage(state, target, damage);
-    if (damagePrevented > 0) {
-      applyEquipmentCombatTriggers(state, target, "defendDamagePrevented", {
-        amount: damagePrevented,
-      });
-    }
-    let injury = null;
-    const injuryThreshold = Number(action.injuryChance) || 0;
-    const injuryRoll = action.damage.maximum > action.damage.minimum
-      ? (rolled - action.damage.minimum) / (action.damage.maximum - action.damage.minimum)
-      : 1;
-    if (action.injuryId && injuryRoll >= 1 - injuryThreshold) {
-      injury = InjuryRules.applyToExpedition(expedition, target.id, action.injuryId, {
-        source: `combat:${action.id}`,
-      });
-      if (injury.applied) addCombatLog(state, `${target.name} suffers ${injury.definition.name}.`);
-    }
-    recordCombatEvent(state, {
-      actor: enemy.id,
-      action: action.id,
-      target: target.id,
-      selectedTarget: selectedTargetId,
+    resolveCombatAbility(state, expedition, enemy, ability, [target], {
+      action: action.id, damageRange: action.damage, selectedTargetId,
       redirectedByIntercede: target.id !== selectedTargetId,
-      damage,
-      injuryId: injury?.applied ? injury.injuryId : null,
     });
-    addCombatLog(state, `${enemy.name} uses ${action.name} on ${target.name} for ${damage} damage.`);
-    if (!isLivingCombatant(target)) {
-      addCombatLog(state, `${target.name} is incapacitated.`);
+    const event = [...state.events].reverse().find((entry) => (
+      entry.actor === enemy.id && entry.action === action.id
+    ));
+    if (event && event.actor === enemy.id && event.action === action.id) {
+      event.selectedTarget = selectedTargetId; event.target = target.id; event.redirectedByIntercede = target.id !== selectedTargetId;
     }
+    addCombatLog(state, `${enemy.name} uses ${action.name} on ${target.name} for ${event?.damage ?? 0} damage.`);
+    if (!isLivingCombatant(target)) addCombatLog(state, `${target.name} is incapacitated.`);
   }
-  enemy.gauge = 0;
-  enemy.intentId = nextEnemyIntent(enemy);
-  if (state.allies.find((ally) => ally.id === "arthur")?.hp <= 0) {
-    finishCombat(state, "defeat");
-  } else {
-    addCombatLog(state, `${enemy.name} prepares ${enemyIntentName(enemy)}.`);
-  }
+  enemy.gauge = 0; enemy.intentId = nextEnemyIntent(enemy);
+  CombatEventSystem.dispatch(state, "turnEnd", { sourceCombatant: enemy, targetCombatant: enemy, abilityId: action?.id ?? null });
+  if (state.allies.find((ally) => ally.id === "arthur")?.hp <= 0) finishCombat(state, "defeat");
+  else if (state.status === "running") addCombatLog(state, `${enemy.name} prepares ${enemyIntentName(enemy)}.`);
   syncCombatHealth(state, expedition);
+}
+
+function normalizeEnemyAction(action) {
+  if (!action) return { id: "enemy_attack", name: "Attack", targetMode: "singleEnemy", effects: [] };
+  return {
+    ...action, kind: "active", targetMode: "singleEnemy", tags: ["enemy", "martial"],
+    effects: [{ type: "weaponDamage", range: action.damage }, ...(action.injuryId ? [{ type: "applyInjury", injuryId: action.injuryId, chance: action.injuryChance }] : [])],
+  };
 }
 
 function chooseEnemyTarget(state, action) {
@@ -567,11 +422,85 @@ function chooseEnemyTarget(state, action) {
     if (companions.length === 0) return arthur;
     const roll = state.random();
     if (roll < COMBAT_TUNING.enemyTargetWeights.arthur) return arthur;
-    const companionRoll = (roll - COMBAT_TUNING.enemyTargetWeights.arthur)
-      / COMBAT_TUNING.enemyTargetWeights.activeCompanions;
+    const companionRoll = (roll - COMBAT_TUNING.enemyTargetWeights.arthur) / COMBAT_TUNING.enemyTargetWeights.activeCompanions;
     return companions[Math.min(companions.length - 1, Math.floor(companionRoll * companions.length))];
   }
   return state.allies.find(isLivingCombatant) ?? null;
+}
+
+function playerTargetResult(state, actor, ability, targetId, actionId) {
+  const mode = CombatTargetResolver.normalizeMode(ability);
+  if (mode === "singleEnemy") refreshSelectedEnemy(state);
+  const candidates = CombatTargetResolver.candidates(state, actor, mode);
+  if (mode === "singleEnemy" && !targetId && candidates.length > 1) {
+    const selected = candidates.find((entry) => entry.id === state.selectedEnemyId);
+    if (actionId === "attack" && selected) return { ready: true, targets: [selected] };
+    return { ready: false, response: enterTargetSelection(state, actionId, "enemy", actionId === "ability" ? "ability" : "action", ability.selectionPrompt) };
+  }
+  if (mode === "singleAlly" && !targetId && candidates.length > 1) {
+    return { ready: false, response: enterTargetSelection(state, actionId, "ally", actionId === "ability" ? "ability" : "item", ability.selectionPrompt) };
+  }
+  const resolved = CombatTargetResolver.resolve(state, actor, mode, targetId);
+  if ((mode === "singleEnemy" || mode === "singleAlly") && resolved.targets.length === 0) {
+    return { ready: false, response: { resolved: false, needsTarget: candidates.length > 1, targetType: mode === "singleAlly" ? "ally" : "enemy" } };
+  }
+  return { ready: true, targets: resolved.targets };
+}
+
+function validateAbilityCost(state, ability) {
+  const cost = ability.cost;
+  if (!cost || !cost.resource) return { sufficient: true, resource: null, amount: 0, current: null };
+  const owner = resourceOwnerForState(state, cost.resource);
+  const current = Number(owner?.[cost.resource]) || 0;
+  const amount = Math.max(0, Number(cost.amount) || 0);
+  return { sufficient: current >= amount, resource: cost.resource, amount, current };
+}
+
+function payAbilityCost(state, ability) {
+  const cost = ability.cost;
+  if (!cost?.resource) return true;
+  const result = validateAbilityCost(state, ability);
+  if (!result.sufficient) return false;
+  CombatEffectResolver.resolve(state, { sourceCombatant: findCombatant(state, state.activeActorId), abilityId: ability.id, resourceOwner: resourceOwnerForState(state, cost.resource) }, [{ type: "modifyResource", resource: cost.resource, amount: -result.amount }]);
+  return true;
+}
+
+function resourceOwnerForState(state, resource) {
+  return resource === "faith" ? state.playerState ?? state.expedition?.playerState : state.expedition;
+}
+
+function normalizeLegacyAbilityEffects(ability) {
+  if (ability.effectType === "intercede") return [{ type: "setFlag", flag: "interceding", value: true }];
+  if (ability.effectType === "damageAndGauge") return [{ type: "weaponDamage", multiplier: Number(ability.damageMultiplier) || 1 }, { type: "modifyGauge", amount: -(Number(ability.gaugeReduction) || 0) }];
+  return [];
+}
+
+function equipmentPassives(equippedCombatEffects) {
+  const passives = [];
+  (equippedCombatEffects.onHitEffects ?? []).forEach((effect, index) => passives.push({
+    id: `equipment:${effect.sourceItemId}:onHit:${index}`, trigger: { event: "attackHit" }, effects: [{ ...effect }],
+    sourceItemId: effect.sourceItemId, equipmentSlot: effect.equipmentSlot,
+  }));
+  (equippedCombatEffects.combatTriggers ?? []).forEach((trigger, index) => passives.push({
+    id: `equipment:${trigger.sourceItemId}:trigger:${index}`,
+    trigger: { event: trigger.trigger === "beforeNormalAttack" ? "beforeAction" : "damagePrevented", conditions: trigger.trigger === "beforeNormalAttack" ? { actionId: "attack" } : null },
+    effects: trigger.effect === "storeCharge"
+      ? [{ type: "storeCharge", chargeId: trigger.chargeId, cap: trigger.cap, amount: "damagePrevented" }]
+      : [{ type: "consumeCharge", chargeId: trigger.chargeId }],
+    sourceItemId: trigger.sourceItemId, equipmentSlot: trigger.equipmentSlot,
+  }));
+  return passives;
+}
+
+function enemyTraitsToPassives(enemyId, traits, index) {
+  return traits.flatMap((trait, traitIndex) => {
+    if (trait.type !== "regeneration" || trait.trigger !== "activation") return [];
+    const suppressedByStatuses = trait.suppressedByStatuses ?? [];
+    return [{
+      id: `enemy:${enemyId}:${index}:trait:${traitIndex}`, trigger: { event: "turnStart" },
+      effects: [{ type: "conditional", condition: { missingStatus: suppressedByStatuses }, effects: [{ type: "heal", amount: trait.amount }, { type: "recordTrait", trait, amount: trait.amount, suppressedByStatuses: [] }], elseEffects: [{ type: "recordTrait", trait, amount: trait.amount, suppressedByStatuses }] }],
+    }];
+  });
 }
 
 function nextEnemyIntent(enemy) {
@@ -580,106 +509,99 @@ function nextEnemyIntent(enemy) {
   return intentId;
 }
 
-function enemyIntentName(enemy) {
-  return COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId]?.name ?? "Attack";
+function enemyIntentName(enemy) { return COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId]?.name ?? "Attack"; }
+
+function processEnemyActivationStatuses(state, enemy) {
+  if (!enemy) return false;
+  CombatEventSystem.dispatchStatusTriggers(state, enemy, "turnStart");
+  return isLivingCombatant(enemy);
 }
 
-function calculateCombatDamage(rawDamage, defense) {
-  return Math.max(1, rawDamage - Math.max(0, Number(defense) || 0));
+function applyEnemyActivationTraits(state, enemy) {
+  if (enemy) CombatEventSystem.dispatch(state, "turnStart", { sourceCombatant: enemy, targetCombatant: enemy });
 }
 
-function rollCombatDamage(range, random) {
-  const minimum = Math.ceil(range.minimum);
-  const maximum = Math.floor(range.maximum);
-  return minimum + Math.floor(random() * (maximum - minimum + 1));
+function applyEquippedOnHitEffects(state, actor, target) {
+  if (actor && target) CombatEventSystem.dispatch(state, "attackHit", { sourceCombatant: actor, targetCombatant: target });
 }
 
-function applyCombatDamage(state, target, amount) {
-  target.hp = Math.max(0, target.hp - amount);
-  target.lastHitEvent = ++state.eventCounter;
-  if (target.hp <= 0) {
-    target.interceding = false;
-  }
+function applyEquipmentCombatTriggers(state, actor, triggerName, context = {}) {
+  const event = triggerName === "beforeNormalAttack" ? "beforeAction" : "damagePrevented";
+  const resultContext = { sourceCombatant: actor, targetCombatant: context.target ?? actor, actionId: triggerName === "beforeNormalAttack" ? "attack" : null, damagePrevented: context.amount ?? 0 };
+  CombatEventSystem.dispatch(state, event, resultContext);
+  return { bonusDamage: Number(resultContext.damageBonus) || 0 };
 }
 
-function syncCombatHealth(state, expedition) {
-  const arthur = state.allies.find((ally) => ally.id === "arthur");
-  if (arthur) {
-    expedition.health = arthur.hp;
-  }
-  expedition.companionCombatHp ??= {};
-  state.allies.filter((ally) => ally.id !== "arthur").forEach((ally) => {
-    expedition.companionCombatHp[ally.definitionId] = ally.hp;
-  });
-}
-
-function availableActionIds(actor) {
-  return topLevelActionIds();
-}
-
-function topLevelActionIds() {
-  return ["attack", "defend", "abilities", "items", "flee"];
-}
-
-function collectAbilityIds(...sources) {
-  return [...new Set(sources.flatMap((source) => {
-    if (Array.isArray(source)) return source;
-    return source?.effects?.grantedAbilityIds ?? [];
-  }).filter((id) => COMBAT_ABILITY_DEFINITIONS[id] && !COMBAT_ABILITY_DEFINITIONS[id].category))];
-}
-
-function availableAbilityIds(state, expedition = state?.expedition) {
-  const actor = findCombatant(state, state?.activeActorId);
-  return actor && isLivingCombatant(actor)
-    ? (actor.abilityIds ?? []).filter((id) => COMBAT_ABILITY_DEFINITIONS[id])
-    : [];
-}
-
-function availableItemEntries(state, expedition = state?.expedition) {
-  if (!expedition) return [];
-  const actor = findCombatant(state, state?.activeActorId);
-  if (actor?.canUseItems === false) return [];
-  const hasInjuredAlly = state.allies.some((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp);
-  return Object.entries(expedition.carriedItems ?? {})
-    .filter(([itemId, quantity]) => quantity > 0)
-    .map(([itemId, quantity]) => ({ itemId, quantity, item: ITEM_DEFINITIONS[itemId] }))
-    .filter((entry) => entry.item?.effects?.combat?.usable
-      && entry.item.effects.combat.effectType === "heal"
-      && hasInjuredAlly
-    );
-}
-
-function enterTargetSelection(state, actionId, targetType, kind = "action", prompt = null) {
-  state.pendingActionId = actionId;
-  state.pendingActionKind = kind;
-  state.targetSelectionReturnMode = state.interactionMode === "enemyTarget"
-    || state.interactionMode === "allyTarget" ? "main" : state.interactionMode;
-  state.pendingTargetPrompt = prompt ?? (targetType === "ally"
-    ? "Choose an ally target" : "Choose an enemy target");
-  state.interactionMode = targetType === "ally" ? "allyTarget" : "enemyTarget";
-  return { resolved: false, needsTarget: true, targetType, targetPrompt: state.pendingTargetPrompt };
+function applyCombatStatus(state, target, statusId, source = {}) {
+  const definition = COMBAT_STATUS_DEFINITIONS[statusId];
+  const allowedSides = definition?.targetSides ?? ["enemy"];
+  if (!definition || !isLivingCombatant(target) || !allowedSides.includes(target.side)) return { applied: false, statusId, reason: "invalid-target-or-status" };
+  target.statuses ??= {};
+  const previous = target.statuses[statusId];
+  const remainingActivations = Math.max(1, Math.floor(Number(definition.durationActivations) || 1));
+  target.statuses[statusId] = { statusId, remainingActivations };
+  const refreshed = Boolean(previous);
+  recordCombatEvent(state, { type: "status-applied", target: target.id, statusId, sourceItemId: source.sourceItemId ?? null, equipmentSlot: source.equipmentSlot ?? null, refreshed, remainingActivations });
+  addCombatLog(state, `${target.name} is ${definition.name.toLowerCase()}${refreshed ? " again" : ""}.`);
+  return { applied: true, statusId, refreshed, remainingActivations };
 }
 
 function finishActorAction(state, expedition, actor, event = {}) {
   actor.gauge = 0;
-  state.activeActorId = null;
-  state.pendingActionId = null;
-  state.pendingActionKind = null;
-  state.interactionMode = "main";
-  state.targetSelectionReturnMode = null;
-  state.pendingTargetPrompt = null;
-  if (state.status === "awaitingAction") {
-    state.status = "running";
-    activateNextAlly(state);
-  }
+  CombatEventSystem.dispatch(state, "turnEnd", { sourceCombatant: actor, targetCombatant: actor, abilityId: event.abilityId ?? event.action });
+  state.activeActorId = null; state.pendingActionId = null; state.pendingActionKind = null;
+  state.interactionMode = "main"; state.targetSelectionReturnMode = null; state.pendingTargetPrompt = null;
+  if (state.status === "awaitingAction") { state.status = "running"; activateNextAlly(state); }
   syncCombatHealth(state, expedition);
-  return { resolved: true, needsTarget: false, result: state.result, ...event };
+  const actionEvent = event.actionEvent;
+  if (actionEvent) {
+    const index = state.events.indexOf(actionEvent);
+    if (index >= 0) {
+      state.events.splice(index, 1);
+      actionEvent.sequence = state.events.length + 1;
+      state.events.push(actionEvent);
+    }
+  }
+  const publicEvent = { ...event };
+  delete publicEvent.actionEvent;
+  return { resolved: true, needsTarget: false, result: state.result, ...publicEvent };
+}
+
+function finishCombat(state, result) {
+  if (!state || state.result) return;
+  state.result = result;
+  const eventType = ({ victory: "combatVictory", defeat: "combatDefeat", fled: "combatFled" })[result];
+  if (eventType) CombatEventSystem.dispatch(state, eventType, { result, sourceCombatant: null });
+  CombatEventSystem.dispatch(state, "combatEnd", { result, sourceCombatant: null });
+  state.status = "resolved";
+  state.allies.forEach((ally) => { ally.interceding = false; });
+  state.activeActorId = null; state.pendingActionId = null; state.pendingActionKind = null;
+  state.interactionMode = "main"; state.targetSelectionReturnMode = null; state.pendingTargetPrompt = null;
+  state.readyQueue.length = 0; state.selectedEnemyId = null;
+}
+
+function checkCombatOutcome(state) {
+  if (!state || state.result) return state?.result ?? null;
+  if (!state.enemies.some(isLivingCombatant)) finishCombat(state, "victory");
+  else if (!state.allies.find((ally) => ally.id === "arthur" && isLivingCombatant(ally))) finishCombat(state, "defeat");
+  return state.result;
+}
+
+function enterTargetSelection(state, actionId, targetType, kind = "action", prompt = null) {
+  state.pendingActionId = actionId; state.pendingActionKind = kind;
+  state.targetSelectionReturnMode = state.interactionMode === "enemyTarget" || state.interactionMode === "allyTarget" ? "main" : state.interactionMode;
+  state.pendingTargetPrompt = prompt ?? (targetType === "ally" ? "Choose an ally target" : "Choose an enemy target");
+  state.interactionMode = targetType === "ally" ? "allyTarget" : "enemyTarget";
+  return { resolved: false, needsTarget: true, targetType, targetPrompt: state.pendingTargetPrompt };
+}
+
+function resetPendingSelection(state, mode = "main") {
+  state.pendingActionId = null; state.pendingActionKind = null; state.interactionMode = mode;
+  state.targetSelectionReturnMode = null; state.pendingTargetPrompt = null;
 }
 
 function consumeCombatItem(expedition, itemId) {
-  if (typeof ExpeditionRules?.consumeCarriedItem === "function") {
-    return ExpeditionRules.consumeCarriedItem(expedition, itemId, 1);
-  }
+  if (typeof ExpeditionRules?.consumeCarriedItem === "function") return ExpeditionRules.consumeCarriedItem(expedition, itemId, 1);
   const quantity = expedition?.carriedItems?.[itemId] ?? 0;
   if (quantity < 1) return false;
   expedition.carriedItems[itemId] = quantity - 1;
@@ -688,213 +610,51 @@ function consumeCombatItem(expedition, itemId) {
   return true;
 }
 
-function finishCombat(state, result) {
-  state.status = "resolved";
-  state.result = result;
-  state.allies.forEach((ally) => { ally.interceding = false; });
-  state.activeActorId = null;
-  state.pendingActionId = null;
-  state.pendingActionKind = null;
-  state.interactionMode = "main";
-  state.targetSelectionReturnMode = null;
-  state.pendingTargetPrompt = null;
-  state.readyQueue.length = 0;
-  state.selectedEnemyId = null;
+function topLevelActionIds() { return ["attack", "defend", "abilities", "items", "flee"]; }
+
+function collectAbilityIds(...sources) {
+  return [...new Set(sources.flatMap((source) => Array.isArray(source) ? source : source?.effects?.grantedAbilityIds ?? [])
+    .filter((id) => COMBAT_ABILITY_DEFINITIONS[id] && COMBAT_ABILITY_DEFINITIONS[id].kind !== "passive" && !COMBAT_ABILITY_DEFINITIONS[id].category))];
 }
 
-function processEnemyActivationStatuses(state, enemy) {
-  const statusIds = Object.keys(enemy.statuses ?? {}).sort();
-  for (const statusId of statusIds) {
-    const status = COMBAT_STATUS_DEFINITIONS[statusId];
-    const entry = enemy.statuses?.[statusId];
-    if (!status || !entry) {
-      delete enemy.statuses[statusId];
-      continue;
-    }
-    const damage = Math.max(0, Number(status.periodicDamage) || 0);
-    applyCombatDamage(state, enemy, damage);
-    entry.remainingActivations = Math.max(0, (Number(entry.remainingActivations) || 0) - 1);
-    recordCombatEvent(state, {
-      type: "status-tick",
-      target: enemy.id,
-      statusId,
-      damage,
-      remainingActivations: entry.remainingActivations,
-    });
-    addCombatLog(state, `${enemy.name} suffers ${damage} damage from ${status.name}.`);
-    if (entry.remainingActivations <= 0) {
-      delete enemy.statuses[statusId];
-      recordCombatEvent(state, { type: "status-expired", target: enemy.id, statusId });
-      addCombatLog(state, `${enemy.name} is no longer ${status.name.toLowerCase()}.`);
-    }
-    if (!isLivingCombatant(enemy)) {
-      addCombatLog(state, `${enemy.name} is defeated by ${status.name}.`);
-      return false;
-    }
-  }
-  return true;
+function availableAbilityIds(state) {
+  const actor = findCombatant(state, state?.activeActorId);
+  return actor && isLivingCombatant(actor) ? (actor.abilityIds ?? []).filter((id) => COMBAT_ABILITY_DEFINITIONS[id]?.kind !== "passive") : [];
 }
 
-function applyEnemyActivationTraits(state, enemy, activeStatusIds = []) {
-  (enemy.traits ?? []).forEach((trait) => {
-    if (!trait || trait.trigger !== "activation") return;
-    if (trait.type === "regeneration") {
-      const amount = Math.max(0, Number(trait.amount) || 0);
-      const suppressedByStatuses = (trait.suppressedByStatuses ?? [])
-        .filter((statusId) => activeStatusIds.includes(statusId));
-      const healed = suppressedByStatuses.length > 0
-        ? 0
-        : Math.min(amount, Math.max(0, enemy.maxHp - enemy.hp));
-      enemy.hp += healed;
-      recordCombatEvent(state, {
-        type: "enemy-trait",
-        trait: trait.type,
-        traitType: trait.type,
-        trigger: trait.trigger,
-        target: enemy.id,
-        amount,
-        healed,
-        appliedAmount: healed,
-        suppressedByStatuses,
-      });
-      if (suppressedByStatuses.length > 0) {
-        const names = suppressedByStatuses.map((statusId) => (
-          COMBAT_STATUS_DEFINITIONS[statusId]?.name ?? statusId
-        )).join(" and ");
-        addCombatLog(state, `${enemy.name}'s regeneration is suppressed by ${names}.`);
-      } else if (healed > 0) {
-        addCombatLog(state, `${enemy.name} regenerates ${healed} HP.`);
-      } else {
-        addCombatLog(state, `${enemy.name}'s regeneration cannot exceed its maximum HP.`);
-      }
-    }
-  });
+function availableItemEntries(state, expedition = state?.expedition) {
+  if (!expedition) return [];
+  const actor = findCombatant(state, state?.activeActorId);
+  if (actor?.canUseItems === false) return [];
+  const hasInjuredAlly = state.allies.some((ally) => isLivingCombatant(ally) && ally.hp < ally.maxHp);
+  return Object.entries(expedition.carriedItems ?? {}).filter(([itemId, quantity]) => quantity > 0)
+    .map(([itemId, quantity]) => ({ itemId, quantity, item: ITEM_DEFINITIONS[itemId] }))
+    .filter((entry) => entry.item?.effects?.combat?.usable && entry.item.effects.combat.effectType === "heal" && hasInjuredAlly);
 }
 
-function applyEquippedOnHitEffects(state, actor, target) {
-  (actor.equippedCombatEffects?.onHitEffects ?? []).forEach((effect) => {
-    if (effect.type !== "applyStatus") return;
-    const statusId = effect.statusId;
-    const chance = Math.max(0, Math.min(1, Number(effect.chance) || 0));
-    const applied = Boolean(COMBAT_STATUS_DEFINITIONS[statusId]) && state.random() < chance;
-    recordCombatEvent(state, {
-      type: "equipment-trigger",
-      trigger: "onHit",
-      effect: effect.type,
-      sourceItemId: effect.sourceItemId,
-      equipmentSlot: effect.equipmentSlot,
-      statusId,
-      chance,
-      applied,
-      target: target.id,
-    });
-    if (applied) applyCombatStatus(state, target, statusId, effect);
-  });
-}
-
-function applyCombatStatus(state, target, statusId, source = {}) {
-  const definition = COMBAT_STATUS_DEFINITIONS[statusId];
-  if (!definition || !isLivingCombatant(target) || target.side !== "enemy") {
-    return { applied: false, statusId, reason: "invalid-target-or-status" };
-  }
-  target.statuses ??= {};
-  const previous = target.statuses[statusId];
-  const remainingActivations = Math.max(1, Math.floor(
-    Number(definition.durationActivations) || 1,
-  ));
-  target.statuses[statusId] = {
-    statusId,
-    remainingActivations,
-  };
-  const refreshed = Boolean(previous);
-  recordCombatEvent(state, {
-    type: "status-applied",
-    target: target.id,
-    statusId,
-    sourceItemId: source.sourceItemId ?? null,
-    equipmentSlot: source.equipmentSlot ?? null,
-    refreshed,
-    remainingActivations,
-  });
-  addCombatLog(state, `${target.name} is ${definition.name.toLowerCase()}${refreshed ? " again" : ""}.`);
-  return { applied: true, statusId, refreshed, remainingActivations };
-}
-
-function applyEquipmentCombatTriggers(state, actor, triggerName, context = {}) {
-  const result = { bonusDamage: 0 };
-  if (!actor || actor.id !== "arthur") return result;
-  actor.combatCharges ??= {};
-  (actor.equippedCombatEffects?.combatTriggers ?? [])
-    .filter((trigger) => trigger.trigger === triggerName)
-    .forEach((trigger) => {
-      const chargeId = String(trigger.chargeId ?? "");
-      if (!chargeId) return;
-      if (trigger.effect === "storeCharge") {
-        const amount = Math.max(0, Number(context.amount) || 0);
-        const cap = Math.max(0, Number(trigger.cap) || 0);
-        const current = Math.max(0, Number(actor.combatCharges[chargeId]) || 0);
-        const next = Math.min(cap, current + amount);
-        const storedAmount = Math.max(0, next - current);
-        actor.combatCharges[chargeId] = next;
-        recordCombatEvent(state, {
-          type: "equipment-trigger",
-          trigger: triggerName,
-          effect: trigger.effect,
-          sourceItemId: trigger.sourceItemId,
-          equipmentSlot: trigger.equipmentSlot,
-          chargeId,
-          amount,
-          storedAmount,
-          chargeTotal: next,
-        });
-        if (storedAmount > 0) {
-          addCombatLog(state, `${actor.name} stores ${storedAmount} Resolve (${next}/${cap}).`);
-        }
-      } else if (trigger.effect === "consumeChargeForBonusDamage") {
-        const spent = Math.max(0, Number(actor.combatCharges[chargeId]) || 0);
-        actor.combatCharges[chargeId] = 0;
-        if (spent > 0) {
-          result.bonusDamage += spent;
-          recordCombatEvent(state, {
-            type: "equipment-trigger",
-            trigger: triggerName,
-            effect: trigger.effect,
-            sourceItemId: trigger.sourceItemId,
-            equipmentSlot: trigger.equipmentSlot,
-            chargeId,
-            spentAmount: spent,
-            chargeTotal: 0,
-          });
-        }
-      }
-    });
-  return result;
+function syncCombatHealth(state, expedition) {
+  const arthur = state.allies.find((ally) => ally.id === "arthur");
+  if (arthur) expedition.health = arthur.hp;
+  expedition.companionCombatHp ??= {};
+  state.allies.filter((ally) => ally.id !== "arthur").forEach((ally) => { expedition.companionCombatHp[ally.definitionId] = ally.hp; });
 }
 
 function addCombatLog(state, message) {
   state.log.push(message);
-  if (state.log.length > COMBAT_TUNING.combatLogLimit) {
-    state.log.splice(0, state.log.length - COMBAT_TUNING.combatLogLimit);
-  }
+  if (state.log.length > COMBAT_TUNING.combatLogLimit) state.log.splice(0, state.log.length - COMBAT_TUNING.combatLogLimit);
 }
 
 function recordCombatEvent(state, event) {
-  state.events.push({ sequence: state.events.length + 1, ...event });
+  const record = { sequence: state.events.length + 1, ...event };
+  state.events.push(record);
+  return record;
 }
 
-function findCombatant(state, combatantId) {
-  return [...state.allies, ...state.enemies].find((combatant) => combatant.id === combatantId);
-}
-
-function isLivingCombatant(combatant) {
-  return Boolean(combatant && combatant.hp > 0);
-}
+function findCombatant(state, combatantId) { return [...state.allies, ...state.enemies].find((combatant) => combatant.id === combatantId); }
 
 function refreshSelectedEnemy(state) {
   const selected = state.enemies.find((enemy) => enemy.id === state.selectedEnemyId);
-  if (!isLivingCombatant(selected)) {
-    state.selectedEnemyId = state.enemies.find(isLivingCombatant)?.id ?? null;
-  }
+  if (!isLivingCombatant(selected)) state.selectedEnemyId = state.enemies.find(isLivingCombatant)?.id ?? null;
 }
 
 function clampCombatNumber(value, minimum, maximum) {

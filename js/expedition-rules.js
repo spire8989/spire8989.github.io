@@ -373,6 +373,9 @@ const ExpeditionRules = Object.freeze({
       status: "active",
       random: typeof options.random === "function" ? options.random : GameRandom.random,
     };
+    // Combat may consume persistent resources such as Faith. Keep the player
+    // reference transient so expedition serialization/replay remains compact.
+    Object.defineProperty(expedition, "playerState", { value: player, enumerable: false, writable: true });
     EncounterManager.initializeExpedition(expedition);
     return expedition;
   },

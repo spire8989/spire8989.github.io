@@ -2247,6 +2247,8 @@ function campaignReplayPlayerSnapshot(player) {
   return {
     gold: player.currentGold,
     provisionStock: player.provisions,
+    faith: player.faith,
+    maxFaith: player.maxFaith,
     ownedItems: deepClone(player.ownedItems),
     equippedItems: deepClone(player.equippedItems),
     packedItems: deepClone(player.packedItems),
@@ -2311,6 +2313,8 @@ function campaignReplayStateDifferences(actual = {}, expected = {}) {
 
   compareNumber("gold", ["gold", "currentGold"], ["gold", "currentGold"]);
   compareNumber("provisionStock", ["provisionStock", "provisions"], ["provisionStock", "provisions"]);
+  compareNumber("faith", ["faith"], ["faith"]);
+  compareNumber("maxFaith", ["maxFaith"], ["maxFaith"]);
   compareNumber("arthurHealth", ["arthurHealth"], ["arthurHealth"]);
   compareQuantityMap("ownedItems", "ownedItems", "ownedItems");
   compareQuantityMap("materials", "materials", "materials");

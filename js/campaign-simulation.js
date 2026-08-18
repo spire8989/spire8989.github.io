@@ -2907,6 +2907,8 @@ function campaignStateSnapshot(player, shopStocks, expeditionNumber) {
     selectedExpeditionId: player.selectedExpeditionId,
     gold: player.currentGold,
     provisionStock: player.provisions,
+    faith: player.faith,
+    maxFaith: player.maxFaith,
     ownedItems: player.ownedItems,
     equippedItems: player.equippedItems,
     packedItems: player.packedItems,

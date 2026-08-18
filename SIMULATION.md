@@ -16,7 +16,7 @@ data.js / tuning.js / encounter-data.js / combat-data.js
 
 Pending-action delay length is presentation-only. Normal UI resolution draws it from an explicitly separate presentation source; instant simulation requests a zero delay and does not consume either native randomness or the seeded gameplay stream. The pending choice's eventual gameplay effects still use the expedition source.
 
-`js/expedition-rules.js` owns party provision capacity/consumption, expedition construction and departure provision commitment, distance-based travel cost, turnaround state, carried-item snapshots, and settlement. Both `game.js` and `simulation.js` call it. Encounter stages and effects run through `EncounterManager`; combat runs through `CombatSystem`. Simulation skips presentation time but does not skip pending-action resolution or active-time combat rules.
+js/expedition-rules.js owns party provision capacity/consumption, expedition construction and departure provision commitment, distance-based travel cost, turnaround state, carried-item snapshots, and settlement. Both game.js and simulation.js call it. Encounter stages and effects run through EncounterManager; combat runs through CombatSystem and its shared target/condition/effect/event modules. Simulation skips presentation time but does not skip pending-action resolution or active-time combat rules.
 
 ## Browser console
 
@@ -137,14 +137,24 @@ const csv = SimulationTelemetry.toCsv(batch);
 
 ## Automated verification
 
-Run:
+Fast focused verification:
 
-```sh
-python tests/simulation_system_test.py
-python tests/location_system_test.py
-```
+    python tests/combat_system_test.py
+    python tests/simulation_system_test.py
+    python tests/replay_system_test.py
+    python tests/debug_tools_test.py
+    python tests/location_system_test.py
 
-The focused suites verify normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, strategy pace/ration selection and adaptation, production provision effects, real brief-rest/camp/cooking flows, Material Bag capacity and replay state, camp-event determinism, replay metadata, production-state telemetry, direct encounter selection, and Phase 1 visual replay sandboxing/determinism/desync handling. They also temporarily make native `Math.random()` throw while seeded simulations run, catching accidental bypasses of the injected source. The larger suite retains all end-to-end gameplay, settlement, save, debug, and UI regressions.
+The focused suites verify the shared combat lifecycle, target/effect resolution, Faith costs, status/passive ordering, seeded combat, normalized same-seed runs, repeatable known-seed batches, multi-seed divergence, strategy pace/ration selection and adaptation, production provision effects, real brief-rest/camp/cooking flows, Material Bag capacity and replay state, camp-event determinism, replay metadata, production-state telemetry, direct encounter selection, and visual replay sandboxing/determinism/desync handling. They also temporarily make native Math.random() throw while seeded simulations run, catching accidental bypasses of the injected source.
+
+Run the larger deterministic campaign/replay checks as a soak:
+
+    python tests/soak_regression_test.py
+
+The soak wrapper sets GRAIL_RUN_SOAK=1 and retains long campaign, replay seek,
+distribution, settlement, and cross-expedition coverage. The split keeps the
+short feedback loop focused while leaving the expensive checks available
+before a milestone commit.
 
 ## Current Phase 1 boundaries
 

@@ -104,7 +104,7 @@ def run():
             "Replay settlement mutated the real saved player",
         )
         check(
-            "(() => { const run=SimulationRunner.run({seed:'coverage-2',strategy:'cautious',provisions:30,turnaroundPolicy:{type:'fixedDistance',distance:100}}); const types=[...new Set(run.decisions.map(decision=>decision.type))]; ReplayController.exit(); ReplayController.start(run); ReplayController.skipTo('end'); const state=ReplayController.state(); return ['combat-action','expedition-action','cook-recipe','camp-event-choice','leave-camp'].every(type=>types.includes(type))&&state.status==='completed'&&state.error===null&&state.decisionIndex===state.data.decisions.length; })()",
+            "(() => { const run=SimulationRunner.run({seed:'coverage-0',strategy:'cautious',provisions:30,turnaroundPolicy:{type:'fixedDistance',distance:100}}); const types=[...new Set(run.decisions.map(decision=>decision.type))]; ReplayController.exit(); ReplayController.start(run); ReplayController.skipTo('end'); const state=ReplayController.state(); return ['combat-action','expedition-action','cook-recipe','camp-event-choice','leave-camp'].every(type=>types.includes(type))&&state.status==='completed'&&state.error===null&&state.decisionIndex===state.data.decisions.length; })()",
             "Replay did not enforce the recorded camp, cooking, encounter, and combat decision stream",
         )
         check(
