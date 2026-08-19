@@ -1,5 +1,26 @@
 # Build Log
 
+## 2026-08-19 - Preserve Pending Travel Scenes Through Encounters
+
+### Goal
+
+Keep a pending distance-based Travel Scene transition queued when an encounter
+interrupts travel before the next safe panorama seam.
+
+### AI-assisted implementation
+
+- Preserve the active travel presentation when resolving the post-encounter
+  screen, including when dedicated encounter artwork was temporarily visible.
+- Keep pending scene state intact while the current panorama is restored and
+  frozen, then resume the normal seam-aware transition afterward.
+- Separate the preserved visible asset from the incoming transition target so
+  preloaded replacement images still activate at the seam.
+
+### Verification and resulting prototype state
+
+Passed the focused location browser flow with 441 assertions and
+`git diff --check`.
+
 ## 2026-08-19 - Seam-Aware Travel Scene Transitions
 
 ### Goal

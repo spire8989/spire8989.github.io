@@ -543,6 +543,16 @@ function currentTravelPresentation() {
   };
 }
 
+function activeTravelPresentation(state) {
+  if (!state?.activeAssetId) return null;
+  return {
+    assetId: state.activeAssetId,
+    motion: normalizeTravelMotion(state.activeMotion),
+    sceneKey: state.activeSceneKey ?? "",
+    kind: "travel",
+  };
+}
+
 function setActiveTravelPresentation(expedition, presentation) {
   const state = travelScenePresentationFor(expedition);
   if (!state || !presentation?.assetId) return;
@@ -699,7 +709,8 @@ function bindTravelImage(scene, image) {
   image.dataset.travelBound = "true";
   image.addEventListener("load", () => {
     const track = image.closest(".travel-visual-track");
-    if (!image.isConnected || image.dataset.travelAssetId !== scene.dataset.travelDesiredAssetId) {
+    if (!image.isConnected || (track?.dataset.travelLayer === "next"
+      && image.dataset.travelAssetId !== scene.dataset.travelDesiredAssetId)) {
       if (track?.dataset.travelLayer === "next") track.remove();
       return;
     }
@@ -921,6 +932,7 @@ function syncTravelVisual(expedition, activeEncounter) {
     ? activeEncounter.visualAssetId
     : null;
   const resolvedTravel = resolveTravelScene(expedition) ?? { assetId: null, motion: "loop", sceneKey: "" };
+  const resolvedPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
   const current = currentTravelTrack();
   const currentImage = current?.querySelector("[data-travel-copy='primary']");
   const currentPresentation = currentTravelPresentation();
@@ -928,10 +940,18 @@ function syncTravelVisual(expedition, activeEncounter) {
     ? { assetId: encounterAssetId, motion: "loop", sceneKey: "encounter", kind: "encounter" }
     : activeEncounter && currentPresentation
       ? currentPresentation
-      : resolvedTravel;
+      : (activeEncounter || state?.pending || state?.transition)
+        ? resolvedPresentation
+        : resolvedTravel;
   const desiredAssetId = desiredPresentation.assetId;
   const desiredMotion = normalizeTravelMotion(desiredPresentation.motion);
   const desiredPath = AssetCatalog.imagePath(desiredAssetId);
+  const presentationTargetAssetId = encounterAssetId
+    ? desiredAssetId
+    : state?.pending?.assetId ?? state?.transition?.assetId ?? desiredAssetId;
+  const presentationTargetMotion = encounterAssetId
+    ? desiredMotion
+    : normalizeTravelMotion(state?.pending?.motion ?? state?.transition?.motion ?? desiredMotion);
   if (activeEncounter && !encounterAssetId && state?.transition) {
     cancelTravelSceneTransition(expedition, true);
   }
@@ -941,10 +961,10 @@ function syncTravelVisual(expedition, activeEncounter) {
       || game.travelVisualState.motion !== normalizeTravelMotion(resolvedTravel.motion))) {
     game.travelVisualState = null;
   }
-  art.dataset.travelDesiredAssetId = desiredAssetId ?? "";
-  art.dataset.travelDesiredMotion = desiredMotion;
-  scene.dataset.travelDesiredAssetId = desiredAssetId ?? "";
-  scene.dataset.travelDesiredMotion = desiredMotion;
+  art.dataset.travelDesiredAssetId = presentationTargetAssetId ?? "";
+  art.dataset.travelDesiredMotion = presentationTargetMotion;
+  scene.dataset.travelDesiredAssetId = presentationTargetAssetId ?? "";
+  scene.dataset.travelDesiredMotion = presentationTargetMotion;
   if (!desiredPath) {
     art.querySelectorAll(".travel-visual-track").forEach((track) => track.remove());
     scene.classList.remove("asset-image-active", "asset-load-failed");
@@ -962,7 +982,11 @@ function syncTravelVisual(expedition, activeEncounter) {
     && currentImage
     && !currentImage.hidden) {
     if (!activeEncounter && state) {
-      state.pending = null;
+      if (state.pending
+        && state.pending.assetId === desiredAssetId
+        && state.pending.motion === desiredMotion) {
+        state.pending = null;
+      }
       if (state.transition && state.transition.assetId !== desiredAssetId) {
         cancelTravelSceneTransition(expedition);
       }
@@ -1035,13 +1059,18 @@ function resolveExpeditionTravelPresentation(expedition, encounter = null) {
   const resolved = resolveTravelScene(expedition) ?? { assetId: null, motion: "loop", sceneKey: "" };
   const current = currentTravelPresentation();
   const state = travelScenePresentationFor(expedition);
+  const preserved = current?.kind !== "encounter"
+    ? current
+    : activeTravelPresentation(state);
   const ownsCurrentPresentation = state?.activeAssetId === current?.assetId;
+  if (state?.pending || state?.transition) {
+    return preserved ?? resolved;
+  }
   if (current?.kind !== "encounter"
-    && (state?.pending || state?.transition
-      || (ownsCurrentPresentation
-        && (current?.assetId !== resolved.assetId
-          || current?.motion !== normalizeTravelMotion(resolved.motion))))) {
-    return current ?? resolved;
+    && ownsCurrentPresentation
+    && (current?.assetId !== resolved.assetId
+      || current?.motion !== normalizeTravelMotion(resolved.motion))) {
+    return preserved ?? resolved;
   }
   return resolved;
 }
