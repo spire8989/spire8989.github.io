@@ -1,5 +1,28 @@
 # Build Log
 
+## 2026-08-18 - Freeze Travel Backdrop During Unillustrated Encounters
+
+### Goal
+
+Keep encounters without dedicated artwork anchored to the exact travel
+panorama position where they begin, rather than briefly restarting the scene.
+
+### AI-assisted implementation
+
+- Distinguished valid dedicated encounter artwork from the travel panorama
+  being reused as an encounter backdrop.
+- Restored and froze the saved travel animation time for the reused backdrop,
+  retained that state through the encounter, and resumed it after Continue
+  Journey. Dedicated encounter artwork remains isolated from travel state.
+- Invalid encounter artwork IDs now safely fall back to the current travel
+  asset without inheriting unrelated presentation state.
+
+### Verification and resulting prototype state
+
+Passed `python tests/location_system_test.py` with 440 browser assertions,
+including exact no-artwork freeze/resume, dedicated encounter artwork,
+distance-scene state clearing, pause, direction, and crossfade coverage.
+
 ## 2026-08-18 - Preserve Travel Panorama Position Across Encounters
 
 ### Goal

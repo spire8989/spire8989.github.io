@@ -462,7 +462,16 @@ function captureTravelVisualState(expedition = game.expedition) {
 function restoreTravelVisualState(image) {
   const saved = game.travelVisualState;
   const expedition = game.expedition;
-  if (!saved || expedition?.activeEncounter) return;
+  const encounter = expedition?.activeEncounter
+    ? EncounterManager.definitionFor(expedition)
+    : null;
+  const hasDedicatedEncounterArtwork = Boolean(
+    encounter?.visualAssetId && AssetCatalog.imagePath(encounter.visualAssetId),
+  );
+  const isEncounterTravelFallback = Boolean(expedition?.activeEncounter)
+    && !hasDedicatedEncounterArtwork
+    && saved?.assetId === image?.dataset.travelAssetId;
+  if (!saved || (expedition?.activeEncounter && !isEncounterTravelFallback)) return;
   if (saved.expedition !== expedition
     || saved.expeditionId !== (expedition?.expeditionId ?? expedition?.id ?? "")
     || saved.assetId !== image?.dataset.travelAssetId) {
@@ -473,7 +482,7 @@ function restoreTravelVisualState(image) {
     if (!image.isConnected || game.travelVisualState !== saved) return;
     const animation = travelImageAnimation(image);
     if (animation && saved.currentTime !== null) animation.currentTime = saved.currentTime;
-    game.travelVisualState = null;
+    if (!isEncounterTravelFallback) game.travelVisualState = null;
   });
 }
 
@@ -618,7 +627,10 @@ function expeditionDefinition(expedition) {
 
 function resolveExpeditionVisualAssetId(expedition, mode = "travel", encounter = null) {
   const definition = expeditionDefinition(expedition);
-  return encounter?.visualAssetId
+  const encounterAssetId = encounter?.visualAssetId && AssetCatalog.imagePath(encounter.visualAssetId)
+    ? encounter.visualAssetId
+    : null;
+  return encounterAssetId
     ?? (mode === "camp" ? definition.campVisualAssetId : resolveTravelSceneAssetId(expedition))
     ?? null;
 }
