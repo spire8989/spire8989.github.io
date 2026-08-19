@@ -1754,8 +1754,32 @@ button:active:not(:disabled) {
 .camp-visual-asset { object-fit: cover; }
 .location-scene > .location-visual-asset,
 .destination-visual > .destination-visual-asset,
-.travel-scene > .travel-visual-asset,
+.travel-scene > .travel-art,
 .camp-scene > .camp-visual-asset { position: absolute; }
+
+.travel-art {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.travel-art .travel-visual-asset {
+  opacity: 0;
+  transform: scale(1.07);
+  transform-origin: center center;
+  transition: opacity 720ms ease;
+  will-change: opacity, transform;
+}
+
+.travel-art .travel-visual-asset.is-visible {
+  opacity: 1;
+}
+
+.travel-art .travel-visual-asset.is-fading-out {
+  opacity: 0;
+}
 
 .travel-scene.asset-image-active > .moon,
 .travel-scene.asset-image-active > .forest-far,
@@ -1802,8 +1826,25 @@ button:active:not(:disabled) {
   filter: drop-shadow(0 0 0.4rem rgb(244 221 160 / 70%));
 }
 
-.travel-scene.is-paused.asset-image-active > .travel-visual-asset {
+.travel-scene.is-paused.asset-image-active .travel-art .travel-visual-asset {
   filter: saturate(0.82) brightness(0.88);
+}
+
+.travel-art .travel-visual-asset.is-visible {
+  animation: travel-art-drift var(--travel-motion-duration, 30s) ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+.travel-scene.is-moving .travel-art .travel-visual-asset.is-visible {
+  animation-play-state: running;
+}
+
+.travel-scene.is-returning.is-moving .travel-art .travel-visual-asset.is-visible {
+  animation-direction: reverse;
+}
+
+.travel-scene.is-paused .travel-art .travel-visual-asset {
+  animation-play-state: paused;
 }
 
 .moon {
@@ -1872,6 +1913,19 @@ button:active:not(:disabled) {
 
 .travelers.is-returning {
   transform: translateX(-50%) scaleX(-1);
+}
+
+.travelers > span {
+  animation: traveler-bob 1.9s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+.travelers.is-moving > span {
+  animation-play-state: running;
+}
+
+.travelers.is-returning.is-moving > span {
+  animation-direction: reverse;
 }
 
 .travelers .companion {
@@ -1946,6 +2000,16 @@ button:active:not(:disabled) {
 .resource-card strong {
   color: #f5eac8;
   font-size: clamp(0.62rem, 2.7cqw, 0.78rem);
+}
+
+@keyframes travel-art-drift {
+  from { transform: scale(1.07) translate3d(-1.25%, 0, 0); }
+  to { transform: scale(1.09) translate3d(1.25%, -0.35%, 0); }
+}
+
+@keyframes traveler-bob {
+  from { transform: translateY(0); }
+  to { transform: translateY(-2px); }
 }
 
 .provisions-card.provision-state-warning {
@@ -4454,7 +4518,12 @@ button.combatant {
   button,
   .forest,
   .travelers,
+  .travel-art .travel-visual-asset,
   .progress-fill {
     transition: none;
+  }
+  .travel-art .travel-visual-asset.is-visible,
+  .travelers > span {
+    animation: none;
   }
 }

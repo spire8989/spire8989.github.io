@@ -377,6 +377,157 @@ function renderImageAsset(assetId, className = "", alt = "") {
   return `<img class="asset-image ${className}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="lazy" decoding="async" onload="${loadHandler}" onerror="${failureHandler}">`;
 }
 
+const travelScenePreloadCache = new Map();
+
+function orderedTravelScenes(definition) {
+  return (Array.isArray(definition?.travelScenes) ? definition.travelScenes : [])
+    .map((scene, index) => ({
+      ...scene,
+      minDistance: Number(scene?.minDistance),
+      _authoredIndex: index,
+    }))
+    .filter((scene) => Number.isFinite(scene.minDistance)
+      && scene.minDistance >= 0
+      && typeof scene.visualAssetId === "string"
+      && scene.visualAssetId)
+    .sort((left, right) => left.minDistance - right.minDistance || left._authoredIndex - right._authoredIndex);
+}
+
+function resolveTravelSceneAssetId(expedition) {
+  const definition = expeditionDefinition(expedition);
+  const distance = Math.max(0, Number(expedition?.distance) || 0);
+  const activeScene = orderedTravelScenes(definition)
+    .filter((scene) => scene.minDistance <= distance)
+    .at(-1);
+  return activeScene?.visualAssetId ?? definition?.travelVisualAssetId ?? null;
+}
+
+function renderTravelVisualAsset(assetId, alt) {
+  const path = AssetCatalog.imagePath(assetId);
+  const image = path
+    ? `<img class="asset-image travel-visual-asset is-visible" data-travel-layer="current" data-travel-asset-id="${assetAttribute(assetId)}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)">`
+    : "";
+  return `<div class="travel-art" id="travel-art" data-travel-asset-id="${assetAttribute(assetId ?? "")}">${image}</div>`;
+}
+
+function markTravelImageActive(scene, image) {
+  if (!scene?.isConnected || !image?.isConnected) return;
+  const art = image.closest("#travel-art");
+  image.hidden = false;
+  image.classList.remove("is-fading-out");
+  image.classList.add("is-visible");
+  scene.classList.remove("asset-load-failed");
+  scene.classList.add("asset-image-active");
+  scene.dataset.travelAssetFailedId = "";
+  if (art) art.dataset.travelAssetFailedId = "";
+}
+
+function markTravelImageFailed(scene, image) {
+  if (!scene?.isConnected) return;
+  const art = image?.closest("#travel-art") ?? scene.querySelector("#travel-art");
+  const failedId = image?.dataset.travelAssetId || scene.dataset.travelDesiredAssetId || "";
+  scene.querySelectorAll(".travel-visual-asset").forEach((candidate) => {
+    candidate.hidden = true;
+    candidate.classList.remove("is-visible", "is-fading-out");
+  });
+  scene.classList.remove("asset-image-active");
+  scene.classList.add("asset-load-failed");
+  scene.dataset.travelAssetId = "";
+  scene.dataset.travelAssetFailedId = failedId;
+  if (art) {
+    art.dataset.travelAssetId = "";
+    art.dataset.travelAssetFailedId = failedId;
+    art.querySelector("[data-travel-layer='next']")?.remove();
+  }
+}
+
+function bindTravelImage(scene, image) {
+  if (!scene || !image || image.dataset.travelBound === "true") return;
+  image.dataset.travelBound = "true";
+  image.addEventListener("load", () => {
+    if (!image.isConnected || image.dataset.travelAssetId !== scene.dataset.travelDesiredAssetId) {
+      if (image.dataset.travelLayer === "next") image.remove();
+      return;
+    }
+    const oldImage = scene.querySelector("[data-travel-layer='current']");
+    const isTransition = image.dataset.travelLayer === "next" && oldImage && oldImage !== image;
+    if (isTransition) oldImage.classList.add("is-fading-out");
+    markTravelImageActive(scene, image);
+    scene.dataset.travelAssetId = image.dataset.travelAssetId;
+    if (image.dataset.travelLayer === "next") {
+      image.dataset.travelLayer = "current";
+      window.setTimeout(() => {
+        if (oldImage?.isConnected && oldImage !== image) oldImage.remove();
+      }, 760);
+    }
+  });
+  image.addEventListener("error", () => markTravelImageFailed(scene, image));
+  if (image.complete) {
+    if (image.naturalWidth > 0) image.dispatchEvent(new Event("load"));
+    else if (image.currentSrc || image.src) image.dispatchEvent(new Event("error"));
+  }
+}
+
+function preloadNextTravelScene(expedition) {
+  const definition = expeditionDefinition(expedition);
+  const scenes = orderedTravelScenes(definition);
+  if (!scenes.length) return;
+  const distance = Math.max(0, Number(expedition?.distance) || 0);
+  const activeIndex = scenes.reduce((index, scene, sceneIndex) => (
+    scene.minDistance <= distance ? sceneIndex : index
+  ), -1);
+  const nextIndex = expedition?.direction === "returning" ? activeIndex - 1 : activeIndex + 1;
+  const nextScene = scenes[nextIndex];
+  const path = AssetCatalog.imagePath(nextScene?.visualAssetId);
+  if (!path || travelScenePreloadCache.has(nextScene.visualAssetId)) return;
+  const image = new Image();
+  image.decoding = "async";
+  image.src = path;
+  travelScenePreloadCache.set(nextScene.visualAssetId, image);
+}
+
+function syncTravelVisual(expedition, activeEncounter) {
+  const scene = document.querySelector("#travel-scene");
+  const art = document.querySelector("#travel-art");
+  if (!scene || !art) return;
+  const desiredAssetId = resolveExpeditionVisualAssetId(expedition, "travel", activeEncounter);
+  const desiredPath = AssetCatalog.imagePath(desiredAssetId);
+  art.dataset.travelDesiredAssetId = desiredAssetId ?? "";
+  scene.dataset.travelDesiredAssetId = desiredAssetId ?? "";
+  if (!desiredPath) {
+    art.querySelectorAll(".travel-visual-asset").forEach((image) => image.remove());
+    scene.classList.remove("asset-image-active", "asset-load-failed");
+    art.dataset.travelAssetId = "";
+    art.dataset.travelAssetFailedId = "";
+    return;
+  }
+  if (art.dataset.travelAssetFailedId === desiredAssetId) return;
+  const current = art.querySelector("[data-travel-layer='current']");
+  const pending = art.querySelector("[data-travel-layer='next']");
+  if (current && art.dataset.travelAssetId === desiredAssetId && !current.hidden) {
+    bindTravelImage(scene, current);
+    return;
+  }
+  if (pending?.dataset.travelAssetId === desiredAssetId) {
+    bindTravelImage(scene, pending);
+    return;
+  }
+  if (current && !scene.classList.contains("asset-image-active")) current.remove();
+  pending?.remove();
+  const next = document.createElement("img");
+  next.className = "asset-image travel-visual-asset";
+  next.dataset.travelLayer = current && scene.classList.contains("asset-image-active") ? "next" : "current";
+  next.dataset.travelAssetId = desiredAssetId;
+  next.alt = activeEncounter?.title ?? expeditionDefinition(expedition).name;
+  next.loading = "eager";
+  next.decoding = "async";
+  next.fetchPriority = "high";
+  next.src = desiredPath;
+  art.append(next);
+  art.dataset.travelAssetId = desiredAssetId;
+  bindTravelImage(scene, next);
+}
+
 function renderPortraitAsset(assetId, initials, alt) {
   const fallbackVisibility = AssetCatalog.imagePath(assetId) ? "" : " is-visible";
   return `${renderImageAsset(assetId, "dialogue-portrait-image", alt)}<span class="portrait-fallback${fallbackVisibility}">${initials}</span>`;
@@ -393,7 +544,7 @@ function expeditionDefinition(expedition) {
 function resolveExpeditionVisualAssetId(expedition, mode = "travel", encounter = null) {
   const definition = expeditionDefinition(expedition);
   return encounter?.visualAssetId
-    ?? (mode === "camp" ? definition.campVisualAssetId : definition.travelVisualAssetId)
+    ?? (mode === "camp" ? definition.campVisualAssetId : resolveTravelSceneAssetId(expedition))
     ?? null;
 }
 
@@ -1783,7 +1934,7 @@ function renderExpedition() {
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
       <div data-asset-frame="travel" class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
-        ${renderImageAsset(travelVisualAssetId, "travel-visual-asset", activeEncounter?.title ?? expeditionDefinition(expedition).name)}
+        ${renderTravelVisualAsset(travelVisualAssetId, activeEncounter?.title ?? expeditionDefinition(expedition).name)}
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
@@ -3034,12 +3185,14 @@ function updateTravelHud() {
   const returnButton = document.querySelector("#return-button");
   const progressFill = document.querySelector("#distance-progress");
   const scene = document.querySelector("#travel-scene");
+  const isMoving = !activeEncounter && expedition.travelState === "traveling";
 
   if (directionBanner) {
     directionBanner.textContent = travelBannerText(expedition, activeEncounter);
   }
   travelers?.classList.toggle("is-returning", returning);
   travelers?.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
+  travelers?.classList.toggle("is-moving", isMoving);
   if (returnButton) {
     returnButton.disabled = returning;
     returnButton.textContent = "Return";
@@ -3050,7 +3203,16 @@ function updateTravelHud() {
   }
   if (scene) {
     scene.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
+    scene.classList.toggle("is-returning", returning);
+    scene.classList.toggle("is-moving", isMoving);
+    scene.style.setProperty("--travel-motion-duration", {
+      cautious: "38s",
+      normal: "30s",
+      hard_push: "22s",
+    }[expedition.paceId] ?? "30s");
     scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
+    syncTravelVisual(expedition, activeEncounter);
+    preloadNextTravelScene(expedition);
   }
   setText("#path-value", pathLabel(expedition.currentPathId));
   setText("#journey-log-preview", journeyLogPreview(expedition));

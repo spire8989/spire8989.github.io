@@ -1,5 +1,47 @@
 # Build Log
 
+## 2026-08-18 - Distance-Based Expedition Travel Presentation
+
+### Goal
+
+Polish the expedition travel screen with distance-aware artwork transitions and
+paced motion while preserving the existing route UI, party markers, CSS
+fallback scenery, camp presentation, and saved-expedition compatibility.
+
+### AI-assisted implementation
+
+- Added optional `travelScenes` resolution by current expedition distance,
+  falling back to the legacy `travelVisualAssetId` when no distance scene is
+  authored or available. Return travel selects the scene for the live distance
+  rather than the maximum distance reached.
+- Added eager travel artwork loading, next-scene preloading, a 720ms
+  crossfade, subtle 105–109% cinematic drift, reversed return motion, paced
+  motion durations, pause freeze/dim treatment, and restrained 2px party-marker
+  bobbing. Failed or missing artwork restores the existing CSS environment.
+- Extended the Expedition Content Editor with Travel Scenes rows for minimum
+  distance, expedition image selection, upload/optimized scene profile, preview,
+  add, and remove operations. Added validation for non-negative numeric values,
+  ascending deterministic order, duplicate thresholds, missing references, and
+  expedition image categories.
+- Kept `campVisualAssetId` and all Camp rendering behavior unchanged.
+
+### Manual changes
+
+No artwork or audio was generated. Existing authored expedition assets and the
+legacy single travel visual remain valid without requiring `travelScenes`.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- `python -B tests/location_system_test.py` - 437 browser assertions,
+  including distance-scene crossfade, return selection, paused motion,
+  fallback scenery, and camp artwork behavior.
+- `python -B tests/test_content_editor.py -v` - 66 Content Editor tests.
+- `python -B tests/test_asset_pipeline.py -v` - 12 asset upload/optimization
+  tests.
+- `git diff --check` in both repositories.
+
 ## 2026-08-18 - First Graphics and Audio Asset Pipeline
 
 ### Goal
