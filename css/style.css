@@ -1783,6 +1783,34 @@ button:active:not(:disabled) {
   opacity: 0;
 }
 
+.travel-transition-art {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.travel-transition-art.is-active {
+  opacity: 1;
+}
+
+.travel-transition-image {
+  position: absolute;
+  top: -10%;
+  left: -115%;
+  width: 120%;
+  max-width: none;
+  height: 120%;
+  object-fit: cover;
+  animation: none;
+}
+
+.travel-transition-art.is-active .travel-transition-image {
+  animation: travel-transition-sweep 760ms ease-in-out both;
+}
+
 .travel-art .travel-visual-asset {
   opacity: 1;
   transform: scale(1.07);
@@ -1998,7 +2026,7 @@ button:active:not(:disabled) {
 
 .direction-banner {
   position: absolute;
-  z-index: 3;
+  z-index: 5;
   top: 0.55rem;
   left: 50%;
   padding: 0.3rem 0.65rem;
@@ -2073,6 +2101,11 @@ button:active:not(:disabled) {
 @keyframes travel-panorama-pan {
   from { transform: scale(1.02) translate3d(0, 0, 0); }
   to { transform: scale(1.02) translate3d(calc(var(--travel-pan-range, 0px) * -1), 0, 0); }
+}
+
+@keyframes travel-transition-sweep {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(192%, 0, 0); }
 }
 
 @keyframes traveler-bob {
@@ -4593,6 +4626,7 @@ button.combatant {
   }
   .travel-visual-track.is-loop-motion.is-visible,
   .travel-visual-track.is-pan-motion .travel-visual-asset.is-visible,
+  .travel-transition-art.is-active .travel-transition-image,
   .travelers > span {
     animation: none;
   }

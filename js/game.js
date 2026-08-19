@@ -24,6 +24,7 @@ const game = {
   lastTimestamp: null,
   hudAccumulator: 0,
   travelVisualState: null,
+  travelScenePresentation: null,
   craftingAction: null,
   restAction: null,
 };
@@ -409,10 +410,11 @@ function resolveTravelScene(expedition) {
     return {
       assetId: activeScene.visualAssetId,
       motion: activeScene.motion,
+      sceneKey: `scene:${activeScene._authoredIndex}:${activeScene.minDistance}`,
     };
   }
   return definition?.travelVisualAssetId
-    ? { assetId: definition.travelVisualAssetId, motion: "loop" }
+    ? { assetId: definition.travelVisualAssetId, motion: "loop", sceneKey: "legacy-default" }
     : null;
 }
 
@@ -420,10 +422,10 @@ function resolveTravelSceneAssetId(expedition) {
   return resolveTravelScene(expedition)?.assetId ?? null;
 }
 
-function renderTravelVisualAsset(assetId, alt, motion = "loop") {
+function renderTravelVisualAsset(assetId, alt, motion = "loop", sceneKey = "", presentationKind = "travel") {
   const path = AssetCatalog.imagePath(assetId);
   const image = path
-    ? `<div class="travel-visual-track is-visible" data-travel-layer="current" data-travel-asset-id="${assetAttribute(assetId)}" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}"><img class="asset-image travel-visual-asset is-visible" data-travel-copy="primary" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}" data-travel-asset-id="${assetAttribute(assetId)}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)"></div>`
+    ? `<div class="travel-visual-track is-visible" data-travel-layer="current" data-travel-kind="${assetAttribute(presentationKind)}" data-travel-scene-key="${assetAttribute(sceneKey)}" data-travel-asset-id="${assetAttribute(assetId)}" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}"><img class="asset-image travel-visual-asset is-visible" data-travel-copy="primary" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}" data-travel-asset-id="${assetAttribute(assetId)}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)"></div>`
     : "";
   return `<div class="travel-art" id="travel-art" data-travel-asset-id="${assetAttribute(assetId ?? "")}" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}">${image}</div>`;
 }
@@ -506,6 +508,86 @@ function travelImageAnimation(image) {
   return null;
 }
 
+function travelScenePresentationFor(expedition = game.expedition) {
+  if (!expedition) return null;
+  const expeditionId = expedition.expeditionId ?? expedition.id ?? "";
+  const current = game.travelScenePresentation;
+  if (!current || current.expedition !== expedition || current.expeditionId !== expeditionId) {
+    game.travelScenePresentation = {
+      expedition,
+      expeditionId,
+      activeAssetId: null,
+      activeMotion: null,
+      activeSceneKey: null,
+      pending: null,
+      transition: null,
+      failedAssetId: null,
+    };
+  }
+  return game.travelScenePresentation;
+}
+
+function currentTravelTrack() {
+  return document.querySelector("#travel-art .travel-visual-track[data-travel-layer='current']:not(.is-fading-out)")
+    ?? document.querySelector("#travel-art .travel-visual-track[data-travel-layer='current']");
+}
+
+function currentTravelPresentation() {
+  const track = currentTravelTrack();
+  if (!track?.dataset.travelAssetId) return null;
+  return {
+    assetId: track.dataset.travelAssetId,
+    motion: normalizeTravelMotion(track.dataset.travelMotion),
+    sceneKey: track.dataset.travelSceneKey ?? "",
+    kind: track.dataset.travelKind ?? "travel",
+  };
+}
+
+function setActiveTravelPresentation(expedition, presentation) {
+  const state = travelScenePresentationFor(expedition);
+  if (!state || !presentation?.assetId) return;
+  state.failedAssetId = null;
+  state.activeAssetId = presentation.assetId;
+  state.activeMotion = normalizeTravelMotion(presentation.motion);
+  state.activeSceneKey = presentation.sceneKey ?? "";
+}
+
+function preloadTravelAsset(assetId) {
+  const path = AssetCatalog.imagePath(assetId);
+  if (!path || travelScenePreloadCache.has(assetId)) return;
+  const image = new Image();
+  image.decoding = "async";
+  image.src = path;
+  travelScenePreloadCache.set(assetId, image);
+}
+
+function clearTravelTransitionTimers(transition) {
+  if (!transition) return;
+  if (transition.overlayTimer) window.clearTimeout(transition.overlayTimer);
+  if (transition.crossfadeTimer) window.clearTimeout(transition.crossfadeTimer);
+  if (transition.finishTimer) window.clearTimeout(transition.finishTimer);
+}
+
+function cancelTravelSceneTransition(expedition, preservePending = false) {
+  const state = travelScenePresentationFor(expedition);
+  const transition = state?.transition;
+  if (!state || !transition) return;
+  if (preservePending && !state.pending) {
+    state.pending = {
+      assetId: transition.assetId,
+      motion: transition.motion,
+      sceneKey: transition.sceneKey ?? "",
+      queuedCycle: null,
+      elapsedMs: 0,
+      lastSampleAt: performance.now(),
+    };
+  }
+  clearTravelTransitionTimers(transition);
+  state.transition = null;
+  document.querySelector("#travel-art .travel-visual-track[data-travel-layer='next']")?.remove();
+  document.querySelector("#travel-transition-art")?.classList.remove("is-active");
+}
+
 function captureTravelVisualState(expedition = game.expedition) {
   const image = document.querySelector("#travel-art .travel-visual-asset.is-visible:not([hidden])");
   if (!image) return null;
@@ -576,7 +658,21 @@ function markTravelImageActive(scene, image) {
 function markTravelImageFailed(scene, image) {
   if (!scene?.isConnected) return;
   const art = image?.closest("#travel-art") ?? scene.querySelector("#travel-art");
+  const failedTrack = image?.closest(".travel-visual-track");
   const failedId = image?.dataset.travelAssetId || scene.dataset.travelDesiredAssetId || "";
+  const currentTrack = scene.querySelector(".travel-visual-track[data-travel-layer='current']");
+  if (failedTrack?.dataset.travelLayer === "next" && currentTrack && failedTrack !== currentTrack) {
+    failedTrack.remove();
+    const state = travelScenePresentationFor(game.expedition);
+    if (state) {
+      clearTravelTransitionTimers(state.transition);
+      state.transition = null;
+      state.pending = null;
+      state.failedAssetId = failedId;
+    }
+    art?.querySelector("#travel-transition-art")?.classList.remove("is-active");
+    return;
+  }
   scene.querySelectorAll(".travel-visual-asset").forEach((candidate) => {
     candidate.hidden = true;
     candidate.classList.remove("is-visible", "is-fading-out");
@@ -615,9 +711,34 @@ function bindTravelImage(scene, image) {
     scene.dataset.travelMotion = travelMotionForImage(image);
     if (track?.dataset.travelLayer === "next") {
       track.dataset.travelLayer = "current";
+      const state = travelScenePresentationFor(game.expedition);
+      if (track.dataset.travelKind !== "encounter") {
+        setActiveTravelPresentation(game.expedition, {
+          assetId: image.dataset.travelAssetId,
+          motion: travelMotionForImage(image),
+          sceneKey: track.dataset.travelSceneKey,
+        });
+        if (state) {
+          const transition = state.transition;
+          state.pending = null;
+          if (transition?.overlayActive) {
+            if (transition.overlayTimer) window.clearTimeout(transition.overlayTimer);
+          } else {
+            clearTravelTransitionTimers(transition);
+            document.querySelector("#travel-transition-art")?.classList.remove("is-active");
+          }
+          state.transition = null;
+        }
+      }
       window.setTimeout(() => {
         if (oldTrack?.isConnected && oldTrack !== track) oldTrack.remove();
       }, 760);
+    } else if (track?.dataset.travelKind !== "encounter") {
+      setActiveTravelPresentation(game.expedition, {
+        assetId: image.dataset.travelAssetId,
+        motion: travelMotionForImage(image),
+        sceneKey: track.dataset.travelSceneKey,
+      });
     }
   });
   image.addEventListener("error", () => markTravelImageFailed(scene, image));
@@ -637,26 +758,187 @@ function preloadNextTravelScene(expedition) {
   ), -1);
   const nextIndex = expedition?.direction === "returning" ? activeIndex - 1 : activeIndex + 1;
   const nextScene = scenes[nextIndex];
-  const path = AssetCatalog.imagePath(nextScene?.visualAssetId);
-  if (!path || travelScenePreloadCache.has(nextScene.visualAssetId)) return;
-  const image = new Image();
+  preloadTravelAsset(nextScene?.visualAssetId);
+}
+
+function createTravelTrack(scene, art, expedition, presentation, activeEncounter = null, layer = "next") {
+  const path = AssetCatalog.imagePath(presentation?.assetId);
+  if (!path) return null;
+  const next = document.createElement("div");
+  next.className = "travel-visual-track";
+  next.dataset.travelLayer = layer;
+  next.dataset.travelKind = activeEncounter ? "encounter" : "travel";
+  next.dataset.travelSceneKey = presentation.sceneKey ?? "";
+  next.dataset.travelAssetId = presentation.assetId;
+  next.dataset.travelMotion = normalizeTravelMotion(presentation.motion);
+  if (layer === "current") next.classList.add("is-visible");
+  const image = document.createElement("img");
+  image.className = "asset-image travel-visual-asset is-visible";
+  image.dataset.travelCopy = "primary";
+  image.dataset.travelAssetId = presentation.assetId;
+  image.dataset.travelMotion = normalizeTravelMotion(presentation.motion);
+  image.alt = activeEncounter?.title ?? expeditionDefinition(expedition).name;
+  image.loading = "eager";
   image.decoding = "async";
+  image.fetchPriority = "high";
   image.src = path;
-  travelScenePreloadCache.set(nextScene.visualAssetId, image);
+  next.append(image);
+  art.append(next);
+  if (layer === "current") {
+    art.dataset.travelAssetId = presentation.assetId;
+    art.dataset.travelMotion = normalizeTravelMotion(presentation.motion);
+    scene.dataset.travelAssetId = presentation.assetId;
+    scene.dataset.travelMotion = normalizeTravelMotion(presentation.motion);
+  }
+  bindTravelImage(scene, image);
+  return image;
+}
+
+function queueTravelSceneTransition(expedition, desiredPresentation, currentImage) {
+  const state = travelScenePresentationFor(expedition);
+  if (!state || !desiredPresentation?.assetId || !currentImage) return;
+  const currentTrack = currentImage.closest(".travel-visual-track");
+  const currentAssetId = currentTrack?.dataset.travelAssetId ?? currentImage.dataset.travelAssetId;
+  const currentMotion = normalizeTravelMotion(currentTrack?.dataset.travelMotion ?? currentImage.dataset.travelMotion);
+  const desiredMotion = normalizeTravelMotion(desiredPresentation.motion);
+  if (currentAssetId === desiredPresentation.assetId && currentMotion === desiredMotion) {
+    state.pending = null;
+    return;
+  }
+  if (state.failedAssetId === desiredPresentation.assetId) return;
+  if (state.failedAssetId) state.failedAssetId = null;
+  if (state.transition) return;
+  if (state.pending
+    && state.pending.assetId === desiredPresentation.assetId
+    && state.pending.motion === desiredMotion
+    && state.pending.sceneKey === (desiredPresentation.sceneKey ?? "")) {
+    return;
+  }
+  const animation = travelImageAnimation(currentImage);
+  const duration = Number(animation?.effect?.getComputedTiming?.().duration);
+  const currentTime = Number(animation?.currentTime);
+  const loop = animation?.animationName === "travel-panorama-loop" && Number.isFinite(duration) && duration > 0;
+  const now = performance.now();
+  state.pending = {
+    assetId: desiredPresentation.assetId,
+    motion: desiredMotion,
+    sceneKey: desiredPresentation.sceneKey ?? "",
+    queuedCycle: loop && Number.isFinite(currentTime) ? Math.floor(currentTime / duration) : null,
+    elapsedMs: 0,
+    lastSampleAt: now,
+  };
+  preloadTravelAsset(desiredPresentation.assetId);
+}
+
+function startTravelSceneCrossfade(expedition, scene, pending) {
+  const state = travelScenePresentationFor(expedition);
+  const art = document.querySelector("#travel-art");
+  const current = currentTravelTrack();
+  if (!state || !art || !current || state.transition?.crossfadeStarted) return;
+  const transition = state.transition ?? { ...pending };
+  transition.crossfadeStarted = true;
+  state.transition = transition;
+  createTravelTrack(scene, art, expedition, pending, null, "next");
+}
+
+function beginTravelSceneTransition(expedition, scene, pending) {
+  const state = travelScenePresentationFor(expedition);
+  if (!state || state.transition) return;
+  const overlay = document.querySelector("#travel-transition-art");
+  const overlayImage = overlay?.querySelector("img");
+  const transition = { ...pending, crossfadeStarted: false, overlayActive: false };
+  state.transition = transition;
+  const overlayReady = Boolean(overlayImage && !overlayImage.hidden && overlayImage.naturalWidth > 0);
+  if (!overlayReady) {
+    startTravelSceneCrossfade(expedition, scene, pending);
+    return;
+  }
+  overlay.classList.remove("is-active");
+  void overlay.offsetWidth;
+  overlay.classList.add("is-active");
+  transition.overlayActive = true;
+  transition.overlayTimer = window.setTimeout(() => {
+    if (state.transition !== transition) return;
+    startTravelSceneCrossfade(expedition, scene, pending);
+  }, 260);
+  transition.finishTimer = window.setTimeout(() => {
+    overlay.classList.remove("is-active");
+  }, 820);
+}
+
+function advancePendingTravelScene(expedition, scene, activeEncounter) {
+  const state = travelScenePresentationFor(expedition);
+  const pending = state?.pending;
+  if (!state || !pending || state.transition || activeEncounter || !scene.classList.contains("is-moving")) {
+    if (pending) pending.lastSampleAt = performance.now();
+    return;
+  }
+  const now = performance.now();
+  const elapsed = Math.min(250, Math.max(0, now - (pending.lastSampleAt ?? now)));
+  pending.elapsedMs += elapsed;
+  pending.lastSampleAt = now;
+  const currentImage = currentTravelTrack()?.querySelector("[data-travel-copy='primary']");
+  if (!currentImage) return;
+  const animation = travelImageAnimation(currentImage);
+  const duration = Number(animation?.effect?.getComputedTiming?.().duration);
+  const currentTime = Number(animation?.currentTime);
+  let safe = false;
+  if (animation?.animationName === "travel-panorama-loop" && Number.isFinite(duration) && duration > 0 && Number.isFinite(currentTime)) {
+    const cycle = Math.floor(currentTime / duration);
+    const phase = ((currentTime % duration) + duration) % duration;
+    if (pending.queuedCycle === null) pending.queuedCycle = cycle;
+    safe = cycle > pending.queuedCycle && phase <= 180;
+  } else if (animation?.animationName === "travel-panorama-pan" && Number.isFinite(duration)) {
+    safe = currentTime >= duration - 80 || pending.elapsedMs >= 1500;
+  } else {
+    safe = true;
+  }
+  if (safe) beginTravelSceneTransition(expedition, scene, pending);
+}
+
+function applyTravelMotionChange(scene, track, image, motion) {
+  const animation = travelImageAnimation(image);
+  const currentTime = Number(animation?.currentTime);
+  track.dataset.travelMotion = normalizeTravelMotion(motion);
+  image.dataset.travelMotion = normalizeTravelMotion(motion);
+  updateTravelImagePresentation(scene, image);
+  window.requestAnimationFrame(() => {
+    if (!image.isConnected || !Number.isFinite(currentTime)) return;
+    const nextAnimation = travelImageAnimation(image);
+    const duration = Number(nextAnimation?.effect?.getComputedTiming?.().duration);
+    if (nextAnimation && Number.isFinite(duration) && duration > 0) {
+      nextAnimation.currentTime = Math.min(currentTime, duration);
+    }
+  });
 }
 
 function syncTravelVisual(expedition, activeEncounter) {
   const scene = document.querySelector("#travel-scene");
   const art = document.querySelector("#travel-art");
   if (!scene || !art) return;
-  const desiredPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
+  const state = travelScenePresentationFor(expedition);
+  const encounterAssetId = activeEncounter?.visualAssetId && AssetCatalog.imagePath(activeEncounter.visualAssetId)
+    ? activeEncounter.visualAssetId
+    : null;
+  const resolvedTravel = resolveTravelScene(expedition) ?? { assetId: null, motion: "loop", sceneKey: "" };
+  const current = currentTravelTrack();
+  const currentImage = current?.querySelector("[data-travel-copy='primary']");
+  const currentPresentation = currentTravelPresentation();
+  const desiredPresentation = encounterAssetId
+    ? { assetId: encounterAssetId, motion: "loop", sceneKey: "encounter", kind: "encounter" }
+    : activeEncounter && currentPresentation
+      ? currentPresentation
+      : resolvedTravel;
   const desiredAssetId = desiredPresentation.assetId;
   const desiredMotion = normalizeTravelMotion(desiredPresentation.motion);
   const desiredPath = AssetCatalog.imagePath(desiredAssetId);
+  if (activeEncounter && !encounterAssetId && state?.transition) {
+    cancelTravelSceneTransition(expedition, true);
+  }
   if (!activeEncounter && game.travelVisualState
     && (game.travelVisualState.expedition !== expedition
-      || game.travelVisualState.assetId !== desiredAssetId
-      || game.travelVisualState.motion !== desiredMotion)) {
+      || game.travelVisualState.assetId !== resolvedTravel.assetId
+      || game.travelVisualState.motion !== normalizeTravelMotion(resolvedTravel.motion))) {
     game.travelVisualState = null;
   }
   art.dataset.travelDesiredAssetId = desiredAssetId ?? "";
@@ -674,49 +956,33 @@ function syncTravelVisual(expedition, activeEncounter) {
     return;
   }
   if (art.dataset.travelAssetFailedId === desiredAssetId) return;
-  const current = art.querySelector(".travel-visual-track[data-travel-layer='current']");
-  const pending = art.querySelector(".travel-visual-track[data-travel-layer='next']");
-  const currentImage = current?.querySelector("[data-travel-copy='primary']");
   if (current
     && current.dataset.travelAssetId === desiredAssetId
     && current.dataset.travelMotion === desiredMotion
     && currentImage
     && !currentImage.hidden) {
+    if (!activeEncounter && state) {
+      state.pending = null;
+      if (state.transition && state.transition.assetId !== desiredAssetId) {
+        cancelTravelSceneTransition(expedition);
+      }
+    }
     bindTravelImage(scene, currentImage);
     return;
   }
-  if (pending?.dataset.travelAssetId === desiredAssetId
-    && pending.dataset.travelMotion === desiredMotion) {
-    bindTravelImage(scene, pending.querySelector("[data-travel-copy='primary']"));
+  if (current
+    && current.dataset.travelAssetId === desiredAssetId
+    && current.dataset.travelMotion !== desiredMotion) {
+    applyTravelMotionChange(scene, current, currentImage, desiredMotion);
+    if (state) state.pending = null;
+    return;
+  }
+  if (current && current.dataset.travelKind !== "encounter") {
+    if (!activeEncounter) queueTravelSceneTransition(expedition, resolvedTravel, currentImage);
     return;
   }
   if (current && !scene.classList.contains("asset-image-active")) current.remove();
-  pending?.remove();
-  const next = document.createElement("div");
-  next.className = "travel-visual-track";
-  next.dataset.travelLayer = current && scene.classList.contains("asset-image-active") ? "next" : "current";
-  next.dataset.travelAssetId = desiredAssetId;
-  next.dataset.travelMotion = desiredMotion;
-  if (next.dataset.travelLayer === "current") next.classList.add("is-visible");
-  const image = document.createElement("img");
-  image.className = "asset-image travel-visual-asset is-visible";
-  image.dataset.travelCopy = "primary";
-  image.dataset.travelAssetId = desiredAssetId;
-  image.dataset.travelMotion = desiredMotion;
-  image.alt = activeEncounter?.title ?? expeditionDefinition(expedition).name;
-  image.loading = "eager";
-  image.decoding = "async";
-  image.fetchPriority = "high";
-  image.src = desiredPath;
-  next.append(image);
-  art.append(next);
-  if (next.dataset.travelLayer === "current") {
-    art.dataset.travelAssetId = desiredAssetId;
-    art.dataset.travelMotion = desiredMotion;
-    scene.dataset.travelAssetId = desiredAssetId;
-    scene.dataset.travelMotion = desiredMotion;
-  }
-  bindTravelImage(scene, image);
+  createTravelTrack(scene, art, expedition, desiredPresentation, activeEncounter, "current");
 }
 
 function preserveTravelDirectionPosition(scene, returning) {
@@ -764,9 +1030,46 @@ function resolveExpeditionTravelPresentation(expedition, encounter = null) {
     ? encounter.visualAssetId
     : null;
   if (encounterAssetId) {
-    return { assetId: encounterAssetId, motion: "loop" };
+    return { assetId: encounterAssetId, motion: "loop", sceneKey: "encounter", kind: "encounter" };
   }
-  return resolveTravelScene(expedition) ?? { assetId: null, motion: "loop" };
+  const resolved = resolveTravelScene(expedition) ?? { assetId: null, motion: "loop", sceneKey: "" };
+  const current = currentTravelPresentation();
+  const state = travelScenePresentationFor(expedition);
+  const ownsCurrentPresentation = state?.activeAssetId === current?.assetId;
+  if (current?.kind !== "encounter"
+    && (state?.pending || state?.transition
+      || (ownsCurrentPresentation
+        && (current?.assetId !== resolved.assetId
+          || current?.motion !== normalizeTravelMotion(resolved.motion))))) {
+    return current ?? resolved;
+  }
+  return resolved;
+}
+
+function resolveTravelTransitionAssetId(expedition) {
+  const assetId = expeditionDefinition(expedition)?.travelTransitionAssetId;
+  return assetId && AssetCatalog.imagePath(assetId) ? assetId : null;
+}
+
+function renderTravelTransitionAsset(expedition) {
+  const assetId = resolveTravelTransitionAssetId(expedition);
+  const path = assetId ? AssetCatalog.imagePath(assetId) : null;
+  const image = path
+    ? `<img class="travel-transition-image" data-travel-transition-asset-id="${assetAttribute(assetId)}" src="${assetAttribute(path)}" alt="" aria-hidden="true" loading="eager" decoding="async" onload="this.classList.add('is-ready')" onerror="markTravelTransitionFailed(this)">`
+    : "";
+  return `<div class="travel-transition-art" id="travel-transition-art" aria-hidden="true">${image}</div>`;
+}
+
+function markTravelTransitionFailed(image) {
+  if (!image) return;
+  image.hidden = true;
+  const overlay = image.closest("#travel-transition-art");
+  overlay?.classList.remove("is-active");
+  const state = travelScenePresentationFor(game.expedition);
+  if (state?.transition && !state.transition.crossfadeStarted) {
+    const scene = document.querySelector("#travel-scene");
+    if (scene && state.pending) startTravelSceneCrossfade(game.expedition, scene, state.pending);
+  }
 }
 
 function syncExpeditionAmbience(expedition, mode = "travel", encounter = null) {
@@ -2158,7 +2461,7 @@ function renderExpedition() {
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
       <div data-asset-frame="travel" class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
-        ${renderTravelVisualAsset(travelPresentation.assetId, activeEncounter?.title ?? expeditionDefinition(expedition).name, travelPresentation.motion)}
+        ${renderTravelVisualAsset(travelPresentation.assetId, activeEncounter?.title ?? expeditionDefinition(expedition).name, travelPresentation.motion, travelPresentation.sceneKey, travelPresentation.kind ?? (activeEncounter ? "encounter" : "travel"))}
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
@@ -2166,6 +2469,7 @@ function renderExpedition() {
           <span class="arthur">♞</span>${companions.map((companion) => `<span class="companion companion-${companion.type}">${companion.type === "mount" ? "♞" : "♜"}</span>`).join("")}
         </div>
         <div class="ground" aria-hidden="true"></div>
+        ${renderTravelTransitionAsset(expedition)}
         <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>
       </div>
       ${activeEncounter
@@ -2192,6 +2496,7 @@ function refreshExpedition() {
 }
 
 function renderCamp(expedition) {
+  game.travelScenePresentation = null;
   const activeEvent = expedition.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
@@ -3445,6 +3750,7 @@ function updateTravelHud() {
     }[expedition.paceId] ?? "16s");
     scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
     syncTravelVisual(expedition, activeEncounter);
+    advancePendingTravelScene(expedition, scene, activeEncounter);
     preloadNextTravelScene(expedition);
   }
   setText("#path-value", pathLabel(expedition.currentPathId));

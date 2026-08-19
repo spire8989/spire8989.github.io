@@ -1,5 +1,26 @@
 # Build Log
 
+## 2026-08-19 - Seam-Aware Travel Scene Transitions
+
+### Goal
+
+Make distance-based Travel Scene changes feel deliberate instead of replacing
+the active panorama mid-scroll.
+
+### AI-assisted implementation
+
+- Queue different scene assets until a Loop seam or Pan endpoint, preload the
+  incoming artwork, then crossfade it in without changing expedition state.
+- Added an optional expedition travel-transition artwork selector with safe
+  crossfade fallback when the foreground asset is unavailable.
+- Preserve pause, return direction, encounter freeze/resume, and same-asset
+  continuity while safely recovering from failed incoming images.
+
+### Verification and resulting prototype state
+
+Passed the focused location browser flow with 440 assertions, the two focused
+Content Editor travel-asset checks, and `git diff --check`.
+
 ## 2026-08-19 - Fix Travel Scene Threshold Swaps
 
 ### Goal
