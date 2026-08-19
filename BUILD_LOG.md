@@ -1,5 +1,28 @@
 # Build Log
 
+## 2026-08-18 - Configurable Travel Scene Motion
+
+### Goal
+
+Give each expedition Travel Scene an explicit Loop or Pan presentation mode
+without changing the existing panorama assets, thresholds, or encounter flow.
+
+### AI-assisted implementation
+
+- Added backward-compatible `motion: "loop"` defaults plus compact Loop/Pan
+  controls and validation in the Content Editor.
+- Loop mode repeats the panorama at a constant pace; Pan mode travels once
+  across the available overflow and holds at the edge. Direction changes alone
+  reverse the presentation, preserving pause and encounter freeze/resume state.
+- Kept same-asset/same-motion scenes stable, while distance and motion changes
+  continue to use the existing preload/crossfade and fallback behavior.
+
+### Verification and resulting prototype state
+
+Passed `python tests/location_system_test.py` with 440 browser assertions,
+plus the focused Content Editor tests for Travel Scene motion controls and
+travel-scene validation. `git diff --check` passed.
+
 ## 2026-08-18 - Freeze Travel Backdrop During Unillustrated Encounters
 
 ### Goal

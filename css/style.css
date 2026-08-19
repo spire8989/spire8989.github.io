@@ -1765,25 +1765,34 @@ button:active:not(:disabled) {
   pointer-events: none;
 }
 
-.travel-art .travel-visual-asset {
+.travel-visual-track {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
   opacity: 0;
-  transform: scale(1.07);
-  transform-origin: center center;
   transition: opacity 720ms ease;
+  pointer-events: none;
   will-change: opacity, transform;
 }
 
-.travel-art .travel-visual-asset.is-visible {
+.travel-visual-track.is-visible {
   opacity: 1;
 }
 
-.travel-art .travel-visual-asset.is-fading-out {
+.travel-visual-track.is-fading-out {
   opacity: 0;
 }
 
-/* Travel panoramas fill the 16:9 viewport by height, then pan across their
-   actual rendered overflow. Standard 16:9 travel art keeps the safe drift
-   treatment below. */
+.travel-art .travel-visual-asset {
+  opacity: 1;
+  transform: scale(1.07);
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Travel panoramas fill the 16:9 viewport by height, then use the selected
+   motion track across their actual rendered overflow. Standard 16:9 travel
+   art keeps a safe static treatment. */
 .travel-art .travel-visual-asset.is-panorama {
   inset: auto;
   top: -3%;
@@ -1796,6 +1805,35 @@ button:active:not(:disabled) {
   object-fit: contain;
   object-position: left center;
   transform-origin: left center;
+}
+
+.travel-visual-track.is-loop-motion {
+  top: -3%;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: max-content;
+  height: 106%;
+  display: flex;
+  align-items: stretch;
+  overflow: visible;
+  animation: travel-panorama-loop var(--travel-loop-duration, 28s) linear infinite;
+  animation-play-state: paused;
+}
+
+.travel-visual-track.is-loop-motion .travel-visual-asset.is-panorama {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  height: 100%;
+  object-fit: contain;
+  transform: none;
+}
+
+.travel-visual-track.is-loop-motion .travel-visual-asset[data-travel-copy="loop"] {
+  margin-left: -1px;
 }
 
 .travel-scene.asset-image-active > .moon,
@@ -1847,25 +1885,25 @@ button:active:not(:disabled) {
   filter: saturate(0.82) brightness(0.88);
 }
 
-.travel-art .travel-visual-asset.is-visible {
-  animation: travel-art-drift var(--travel-motion-duration, 30s) ease-in-out infinite alternate;
+.travel-visual-track.is-pan-motion .travel-visual-asset.is-visible.is-panorama {
+  animation: travel-panorama-pan var(--travel-pan-duration, 16s) ease-in-out 1 normal both;
   animation-play-state: paused;
 }
 
-.travel-art .travel-visual-asset.is-visible.is-panorama {
-  animation: travel-panorama var(--travel-pan-duration, 16s) ease-in-out infinite alternate;
-}
-
-.travel-scene.is-moving .travel-art .travel-visual-asset.is-visible {
+.travel-scene.is-moving .travel-visual-track.is-loop-motion.is-visible {
   animation-play-state: running;
 }
 
-.travel-scene.is-returning.is-moving .travel-art .travel-visual-asset.is-visible {
+.travel-scene.is-returning .travel-visual-track.is-loop-motion.is-visible {
   animation-direction: reverse;
 }
 
-.travel-scene.is-returning .travel-art .travel-visual-asset.is-visible.is-panorama {
-  animation-direction: alternate-reverse;
+.travel-scene.is-moving .travel-visual-track.is-pan-motion .travel-visual-asset.is-visible.is-panorama {
+  animation-play-state: running;
+}
+
+.travel-scene.is-returning .travel-visual-track.is-pan-motion .travel-visual-asset.is-visible.is-panorama {
+  animation-direction: reverse;
 }
 
 .travel-scene.is-paused .travel-art .travel-visual-asset {
@@ -2027,12 +2065,12 @@ button:active:not(:disabled) {
   font-size: clamp(0.62rem, 2.7cqw, 0.78rem);
 }
 
-@keyframes travel-art-drift {
-  from { transform: scale(1.07) translate3d(-1.25%, 0, 0); }
-  to { transform: scale(1.09) translate3d(1.25%, -0.35%, 0); }
+@keyframes travel-panorama-loop {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(calc(var(--travel-loop-distance, 0px) * -1), 0, 0); }
 }
 
-@keyframes travel-panorama {
+@keyframes travel-panorama-pan {
   from { transform: scale(1.02) translate3d(0, 0, 0); }
   to { transform: scale(1.02) translate3d(calc(var(--travel-pan-range, 0px) * -1), 0, 0); }
 }
@@ -4548,11 +4586,13 @@ button.combatant {
   button,
   .forest,
   .travelers,
+  .travel-visual-track,
   .travel-art .travel-visual-asset,
   .progress-fill {
     transition: none;
   }
-  .travel-art .travel-visual-asset.is-visible,
+  .travel-visual-track.is-loop-motion.is-visible,
+  .travel-visual-track.is-pan-motion .travel-visual-asset.is-visible,
   .travelers > span {
     animation: none;
   }
