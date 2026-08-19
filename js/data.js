@@ -920,6 +920,8 @@ const KNOWLEDGE_DEFINITIONS = Object.freeze({
 const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   id: "arthur",
   name: "Arthur",
+  portraitAssetId: null,
+  combatVisualAssetId: null,
   provisionCapacity: 20,
   provisionConsumptionMultiplier: 1,
   combat: Object.freeze({ maxHp: 45, speed: 10 }),
@@ -929,6 +931,8 @@ const COMPANION_DEFINITIONS = Object.freeze({
   sir_kay: {
     id: "sir_kay",
     name: "Sir Kay",
+    portraitAssetId: null,
+    combatVisualAssetId: null,
     description: "A blunt, steadfast knight who knows the cost of an expedition.",
     tags: ["knight", "practical"],
     provisionCapacityBonus: 10,
@@ -941,6 +945,8 @@ const COMPANION_DEFINITIONS = Object.freeze({
   llamrei: {
     id: "llamrei",
     name: "Llamrei",
+    portraitAssetId: null,
+    combatVisualAssetId: null,
     description: "Arthur's sure-footed warhorse, alert to paths no map records.",
     tags: ["mount", "horse", "campaign"],
     type: "mount",

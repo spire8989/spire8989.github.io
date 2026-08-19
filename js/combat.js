@@ -306,6 +306,7 @@ function createArthurCombatant(expedition) {
   const grantedPassives = collectAbilityPassives(grantedAbilityIds);
   return {
     id: "arthur", definitionId: "arthur", side: "ally", name: PLAYER_CHARACTER_DEFINITION.name,
+    visualAssetId: PLAYER_CHARACTER_DEFINITION.combatVisualAssetId ?? null,
     maxHp: InjuryRules.effectiveMaxHealth(expedition, "arthur"),
     hp: clampCombatNumber(expedition.health, 0, InjuryRules.effectiveMaxHealth(expedition, "arthur")),
     speed: Math.max(1, PLAYER_CHARACTER_DEFINITION.combat.speed + equippedCombatEffects.combatSpeed),
@@ -341,6 +342,7 @@ function createCompanionCombatant(expedition, companionId) {
   const grantedAbilityIds = collectAbilityIds(companion.combatAbilities);
   return {
     id: companionId, definitionId: companionId, side: "ally", name: companion.name,
+    visualAssetId: companion.combatVisualAssetId ?? companion.combat?.visualAssetId ?? null,
     maxHp: InjuryRules.effectiveMaxHealth(expedition, companionId),
     hp: clampCombatNumber(hp, 0, InjuryRules.effectiveMaxHealth(expedition, companionId)),
     speed: companion.combat.speed,
@@ -361,6 +363,7 @@ function createEnemyCombatant(enemyId, index, occurrence) {
   const traits = (enemy.traits ?? []).map((trait) => ({ ...trait, suppressedByStatuses: [...(trait.suppressedByStatuses ?? [])] }));
   return {
     id: `${enemyId}_${index + 1}`, definitionId: enemyId, side: "enemy",
+    visualAssetId: enemy.visualAssetId ?? null,
     name: occurrence ? `${enemy.name} ${occurrence}` : enemy.name,
     maxHp: enemy.maxHp, hp: enemy.maxHp, speed: enemy.speed, defense: enemy.defense, gauge: 0,
     intentId: null, patternIndex: 0, actionPattern: [...enemy.actionPattern], statuses: {}, traits,

@@ -40,9 +40,11 @@ function initializeGame() {
   }
 
   document.addEventListener("click", handleAction);
+  document.addEventListener("input", handleAudioSettingInput);
   document.addEventListener("pointerdown", showPressedState);
   document.addEventListener("pointerup", clearPressedState);
   document.addEventListener("pointercancel", clearPressedState);
+  AudioManager.initialize();
   renderScreen();
   requestAnimationFrame(gameLoop);
 }
@@ -62,6 +64,9 @@ function handleAction(event) {
     || (typeof CampaignReplayController !== "undefined" && CampaignReplayController.isActive())) {
     return;
   }
+
+  AudioManager.unlock();
+  AudioManager.playAction(action);
 
   switch (action) {
     case "show-campaign":
@@ -242,12 +247,19 @@ function handleAction(event) {
     case "reset-save":
       resetSave();
       break;
+    case "toggle-audio-settings":
+      AudioManager.toggleSettings();
+      break;
+    case "toggle-audio-mute":
+      AudioManager.setMuted(!AudioManager.settings().muted);
+      break;
     default:
       break;
   }
 }
 
 function showPressedState(event) {
+  AudioManager.unlock();
   const control = event.target.closest("button:not(:disabled)");
   control?.classList.add("is-pressed");
 }
@@ -264,6 +276,7 @@ function showScreen(screen) {
 }
 
 function renderScreen() {
+  if (game.screen !== "expedition") AudioManager.stopAmbience();
   switch (game.screen) {
     case "campaign":
       renderCampaign();
@@ -342,6 +355,67 @@ function showLocation() {
   showScreen("location");
 }
 
+function handleAudioSettingInput(event) {
+  const setting = event.target?.dataset?.audioSetting;
+  if (setting === "sfxVolume") AudioManager.setSfxVolume(event.target.value);
+  if (setting === "ambienceVolume") AudioManager.setAmbienceVolume(event.target.value);
+}
+
+function assetAttribute(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function renderImageAsset(assetId, className = "", alt = "") {
+  const path = AssetCatalog.imagePath(assetId);
+  if (!path) return "";
+  const failureHandler = "this.hidden=true;this.closest('[data-asset-frame]')?.classList.add('asset-load-failed')";
+  return `<img class="asset-image ${className}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="lazy" decoding="async" onerror="${failureHandler}">`;
+}
+
+function renderPortraitAsset(assetId, initials, alt) {
+  return `${renderImageAsset(assetId, "dialogue-portrait-image", alt)}<span class="portrait-fallback">${initials}</span>`;
+}
+
+function renderCombatVisual(assetId, fallback, alt) {
+  return `${renderImageAsset(assetId, "combat-visual-image", alt)}<span class="combat-visual-fallback">${fallback}</span>`;
+}
+
+function expeditionDefinition(expedition) {
+  return ExpeditionCatalog.get(expedition?.expeditionId ?? expedition?.id);
+}
+
+function resolveExpeditionVisualAssetId(expedition, mode = "travel", encounter = null) {
+  const definition = expeditionDefinition(expedition);
+  return encounter?.visualAssetId
+    ?? (mode === "camp" ? definition.campVisualAssetId : definition.travelVisualAssetId)
+    ?? null;
+}
+
+function syncExpeditionAmbience(expedition, mode = "travel", encounter = null) {
+  const definition = expeditionDefinition(expedition);
+  const assetId = encounter?.ambienceAssetId
+    ?? (mode === "camp" ? definition.campAmbienceAssetId : definition.travelAmbienceAssetId)
+    ?? null;
+  AudioManager.setAmbience(assetId);
+}
+
+function playEncounterAudio(encounter) {
+  if (encounter?.stingAssetId && AudioManager.playSfx(encounter.stingAssetId)) return;
+  AudioManager.playSemantic("encounter");
+}
+
+function resolveDialoguePortraitAssetId(node, speaker) {
+  const nodeAssetId = node?.portraitAssetId;
+  const speakerAssetId = speaker?.portraitAssetId;
+  return AssetCatalog.hasImage(nodeAssetId) ? nodeAssetId
+    : AssetCatalog.hasImage(speakerAssetId) ? speakerAssetId
+      : null;
+}
+
 function renderLocation() {
   const location = LOCATION_DEFINITIONS[game.player.currentLocationId];
   if (!location) {
@@ -364,7 +438,8 @@ function renderLocation() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen location-screen" aria-labelledby="location-title">
-      <div class="location-scene" aria-label="Village scene with five destinations">
+      <div data-asset-frame="location" class="location-scene" aria-label="Village scene with five destinations">
+        ${renderImageAsset(location.visualAssetId, "location-visual-asset", location.name)}
         <div class="village-sky" aria-hidden="true"></div>
         <div class="village-tree-line" aria-hidden="true"></div>
         <div class="village-road" aria-hidden="true"></div>
@@ -430,7 +505,8 @@ function renderDestination() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen destination-screen" aria-labelledby="destination-title">
-      <div class="visual-frame destination-visual visual-${destination.visualKey}">
+      <div data-asset-frame="destination" class="visual-frame destination-visual visual-${destination.visualKey}">
+        ${renderImageAsset(destination.visualAssetId, "destination-visual-asset", destination.name)}
         <span class="destination-emblem" aria-hidden="true">${destinationIcon(destination.type)}</span>
       </div>
       <div class="destination-panel">
@@ -1061,13 +1137,14 @@ function renderDialogueOverlay(session) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+  const portraitAssetId = resolveDialoguePortraitAssetId(node, speaker);
   const actions = choices.length > 0
     ? `<div class="dialogue-choices">${choices.map((choice) => `<button class="game-button dialogue-choice" type="button" data-action="dialogue-choice" data-choice-id="${choice.id}">${choice.label}</button>`).join("")}</div>`
     : `<button class="game-button dialogue-continue" type="button" data-action="dialogue-continue">Continue</button>`;
   return `
     <div class="dialogue-overlay" role="dialog" aria-modal="true" aria-labelledby="dialogue-speaker" aria-describedby="dialogue-text">
       <div class="dialogue-box">
-        <div class="dialogue-portrait" data-portrait-key="${node.portraitKey ?? "placeholder"}" aria-label="Portrait placeholder for ${speaker.name}"><span>${initials}</span></div>
+        <div data-asset-frame="portrait" class="dialogue-portrait" data-portrait-key="${node.portraitKey ?? "placeholder"}" aria-label="Portrait for ${speaker.name}">${renderPortraitAsset(portraitAssetId, initials, `Portrait of ${speaker.name}`)}</div>
         <div class="dialogue-copy">
           <strong id="dialogue-speaker">${speaker.name}</strong>
           <p id="dialogue-text">${node.text}</p>
@@ -1695,13 +1772,16 @@ function renderExpedition() {
   const activeEncounter = expedition.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
+  syncExpeditionAmbience(expedition, "travel", activeEncounter);
+  const travelVisualAssetId = resolveExpeditionVisualAssetId(expedition, "travel", activeEncounter);
   const loadoutEntries = Object.values(expedition.selectedEquipment)
     .map((itemId) => ({ itemId, quantity: 1 }))
     .filter(({ itemId }) => ITEM_DEFINITIONS[itemId]);
 
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
-      <div class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
+      <div data-asset-frame="travel" class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
+        ${renderImageAsset(travelVisualAssetId, "travel-visual-asset", activeEncounter?.title ?? expeditionDefinition(expedition).name)}
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
@@ -1735,10 +1815,13 @@ function renderCamp(expedition) {
   const activeEvent = expedition.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
+  syncExpeditionAmbience(expedition, "camp", activeEvent);
+  const campVisualAssetId = resolveExpeditionVisualAssetId(expedition, "camp", activeEvent);
   if (activeEvent) {
     ui.screenRoot.innerHTML = `
       <section class="screen expedition-screen camp-screen" aria-label="Camp event">
-        <div class="visual-frame camp-scene is-paused" aria-hidden="true">
+        <div data-asset-frame="camp" class="visual-frame camp-scene is-paused" aria-label="Camp environment">
+          ${renderImageAsset(campVisualAssetId, "camp-visual-asset", activeEvent.title)}
           <div class="camp-moon"></div>
           <div class="camp-fire"><span></span><span></span><span></span></div>
           <div class="camp-silhouette"></div>
@@ -1762,7 +1845,8 @@ function renderCamp(expedition) {
 
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen camp-screen" aria-label="Camp">
-      <div class="visual-frame camp-scene" aria-hidden="true">
+      <div data-asset-frame="camp" class="visual-frame camp-scene" aria-label="Camp environment">
+        ${renderImageAsset(campVisualAssetId, "camp-visual-asset", expeditionDefinition(expedition).name)}
         <div class="camp-moon"></div>
         <div class="camp-fire"><span></span><span></span><span></span></div>
         <div class="camp-silhouette"></div>
@@ -2048,6 +2132,7 @@ function renderEncounterResultPanel(expedition, encounter, active) {
 }
 
 function renderCombat(expedition, combat) {
+  syncExpeditionAmbience(expedition, "travel");
   const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
   const awaitingAction = combat.status === "awaitingAction";
   const choosingTarget = ["enemyTarget", "allyTarget"].includes(combat.interactionMode);
@@ -2110,7 +2195,7 @@ function renderCombatant(combatant, combat) {
   const markup = `
     <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${selected ? "is-selected" : ""} ${wasHit ? "was-hit" : ""}"
       data-combatant-id="${combatant.id}" ${targetAttributes}>
-      <div class="combatant-token" aria-hidden="true">${combatant.side === "ally" ? "♞" : "◆"}</div>
+      <div data-asset-frame="combat" class="combatant-token" aria-hidden="true">${renderCombatVisual(combatant.visualAssetId, combatant.side === "ally" ? "♞" : "◆", combatant.name)}</div>
       ${selected ? '<span class="combat-target-badge" aria-hidden="true">TARGET</span>' : ""}
       <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
       <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
@@ -2297,6 +2382,7 @@ function updateExpedition(deltaSeconds) {
   }
 
   if (travel.encounter) {
+    playEncounterAudio(EncounterManager.definitionFor(expedition));
     renderExpedition();
   }
 }
@@ -2483,6 +2569,7 @@ function startCombat(expedition, combatId, options = {}) {
     return false;
   }
   expedition.combat = combat;
+  AudioManager.playSemantic("encounter");
   return true;
 }
 
@@ -2605,6 +2692,7 @@ function finishCombatResolution(expedition) {
   }
   combat.resultHandled = true;
   const result = combat.result;
+  if (result === "victory") AudioManager.playSemantic("victory");
   expedition.combat = null;
   EncounterManager.completeCombat(expedition, game.player, result, {
     failExpedition,

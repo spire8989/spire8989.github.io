@@ -5,6 +5,7 @@
 const NPC_DEFINITIONS = Object.freeze({
   village_innkeeper: {
     id: "village_innkeeper",
+    portraitAssetId: null,
     name: "Innkeeper",
     role: "Keeper of the village inn",
     description: "A watchful host who hears much from travelers at the forest edge.",
@@ -17,6 +18,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   village_merchant: {
     id: "village_merchant",
+    portraitAssetId: null,
     name: "Village Merchant",
     role: "General goods trader",
     description: "A practical trader with supplies for those bound for the forest.",
@@ -26,6 +28,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   village_blacksmith: {
     id: "village_blacksmith",
+    portraitAssetId: null,
     name: "Blacksmith",
     role: "Smith and armorer",
     description: "The village smith keeps a small stock of dependable arms and tools.",
@@ -35,6 +38,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   village_apothecary: {
     id: "village_apothecary",
+    portraitAssetId: null,
     name: "Apothecary",
     role: "Herbalist and remedy maker",
     description: "Bundles of herbs and stoppered bottles line the apothecary's small workroom.",
@@ -44,6 +48,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   village_reeve: {
     id: "village_reeve",
+    portraitAssetId: null,
     name: "Reeve of Brocéliande",
     role: "Village leader",
     description: "A measured village leader who has listened to too many conflicting accounts of the forest.",
@@ -55,6 +60,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   leper_knight: {
     id: "leper_knight",
+    portraitAssetId: null,
     name: "Leper Knight",
     role: "Wounded knight of the forest road",
     description: "A scarred knight who offers hard-won warnings without asking for pity.",
@@ -65,6 +71,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   charcoal_burner: {
     id: "charcoal_burner",
+    portraitAssetId: null,
     name: "Charcoal Burner",
     role: "Forest kiln worker",
     description: "A solitary burner who reads the forest floor and smoke better than any map.",
@@ -75,6 +82,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   pilgrim: {
     id: "pilgrim",
+    portraitAssetId: null,
     name: "Pilgrim",
     role: "Traveler seeking the true fountain",
     description: "A weary pilgrim who named the wrong fountain out of desperate hope.",
@@ -85,6 +93,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   forgotten_knight: {
     id: "forgotten_knight",
+    portraitAssetId: null,
     name: "Forgotten Knight",
     role: "Nameless knight of the deep forest",
     description: "A knight who remembers the urge to leave but not the reason he stayed.",
@@ -95,6 +104,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   woman_at_ford: {
     id: "woman_at_ford",
+    portraitAssetId: null,
     name: "Woman at the Ford",
     role: "Watcher at the forest crossing",
     description: "A quiet woman who treats every crossing as a question rather than a place.",
@@ -105,6 +115,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   unseen_voice: {
     id: "unseen_voice",
+    portraitAssetId: null,
     name: "Familiar Voice",
     role: "Unseen presence beyond the campfire",
     description: "A voice from the dark that sounds familiar enough to make exhaustion feel uncertain.",
@@ -200,6 +211,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "inn",
     description: "A low timber hall offering warmth, simple fare, and village talk.",
     visualKey: "inn_interior",
+    visualAssetId: null,
     scenePosition: "northwest",
       npcIds: ["village_innkeeper"],
       shopId: null,
@@ -212,6 +224,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "shop",
     description: "A covered stall stocked with practical expedition supplies.",
     visualKey: "merchant_stall",
+    visualAssetId: null,
     scenePosition: "northeast",
     npcIds: ["village_merchant"],
     shopId: "village_general_goods",
@@ -223,6 +236,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "shop",
     description: "Firelight falls across a compact forge and racks of serviceable gear.",
     visualKey: "smithy_interior",
+    visualAssetId: null,
     scenePosition: "southwest",
     npcIds: ["village_blacksmith"],
     shopId: "village_smithy",
@@ -235,6 +249,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "shop",
     description: "Drying herbs hang above a workbench crowded with jars and small brass scales.",
     visualKey: "apothecary_interior",
+    visualAssetId: null,
     scenePosition: "southeast",
     npcIds: ["village_apothecary"],
     shopId: "village_apothecary_shop",
@@ -247,6 +262,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "story",
     description: "The village's central hall, where news is weighed and the chapter's purpose is kept in view.",
     visualKey: "hall_interior",
+    visualAssetId: null,
     scenePosition: "center",
     npcIds: ["village_reeve"],
     shopId: null,
@@ -264,6 +280,7 @@ const LOCATION_DEFINITIONS = Object.freeze({
     chapterId: "chapter_03",
     regionId: "broceliande",
     visualKey: "broceliande_village",
+    visualAssetId: null,
     destinations: ["inn", "merchant", "blacksmith", "apothecary", "hall"],
     npcs: ["village_innkeeper", "village_merchant", "village_blacksmith", "village_apothecary", "village_reeve"],
     shops: ["village_general_goods", "village_smithy", "village_apothecary_shop"],

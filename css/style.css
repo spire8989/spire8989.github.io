@@ -574,6 +574,29 @@ button:focus-visible {
   height: 93.5%;
 }
 
+.audio-settings {
+  position: absolute;
+  z-index: 25;
+  top: 5.9%;
+  right: 3.5%;
+  display: grid;
+  width: min(14rem, 82%);
+  gap: 0.45rem;
+  padding: 0.65rem;
+  border: 1px solid var(--gold);
+  border-radius: 0.4rem;
+  background: rgb(17 26 19 / 98%);
+  box-shadow: 0 0.5rem 1.4rem rgb(0 0 0 / 45%);
+  color: #e8e1c7;
+  font-family: system-ui, sans-serif;
+  font-size: 0.68rem;
+}
+
+.audio-settings[hidden] { display: none; }
+.audio-settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.audio-settings label { display: grid; gap: 0.2rem; color: #b6c1b0; }
+.audio-settings input[type="range"] { width: 100%; accent-color: var(--gold-bright); }
+
 .toast-region {
   position: absolute;
   z-index: 20;
@@ -1721,6 +1744,19 @@ button:active:not(:disabled) {
   flex: 0 0 auto;
 }
 
+.asset-frame { position: relative; }
+.asset-image { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; border: 0; object-fit: cover; }
+.asset-load-failed .asset-image { display: none; }
+.asset-load-failed .combat-visual-fallback { visibility: visible !important; }
+.location-visual-asset { z-index: 0; }
+.destination-visual-asset,
+.travel-visual-asset,
+.camp-visual-asset { object-fit: cover; }
+.location-scene > .location-visual-asset,
+.destination-visual > .destination-visual-asset,
+.travel-scene > .travel-visual-asset,
+.camp-scene > .camp-visual-asset { position: absolute; }
+
 .travel-scene,
 .combat-scene {
   aspect-ratio: var(--interaction-visual-aspect);
@@ -2859,6 +2895,11 @@ button.combatant {
   transform: translateY(-50%);
 }
 
+.combat-visual-image { position: absolute; inset: 50% auto auto 50%; width: 2.1rem; height: 2.1rem; object-fit: contain; transform: translate(-50%, -50%); }
+.combat-visual-fallback { display: block; }
+.combatant-token:has(.combat-visual-image) { width: 2.25rem; height: 2.25rem; }
+.combatant-token:has(.combat-visual-image) .combat-visual-fallback { visibility: hidden; }
+
 .combatant.enemy .combatant-token {
   right: calc(100% + 0.18rem);
   left: auto;
@@ -3683,6 +3724,7 @@ button.combatant {
 }
 
 .dialogue-portrait {
+  position: relative;
   display: grid;
   align-self: start;
   width: 100%;
@@ -3697,6 +3739,9 @@ button.combatant {
   font-size: clamp(0.9rem, 5cqw, 1.25rem);
   font-weight: 700;
 }
+
+.dialogue-portrait-image { z-index: 0; object-fit: cover; border-radius: 0.3rem; }
+.portrait-fallback { position: relative; z-index: 1; }
 
 .dialogue-copy {
   display: grid;

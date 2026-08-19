@@ -1,5 +1,53 @@
 # Build Log
 
+## 2026-08-18 - First Graphics and Audio Asset Pipeline
+
+### Goal
+
+Introduce the first real asset workflow across the game and sibling Content
+Editor while preserving the existing placeholder presentation and save/data
+compatibility.
+
+### AI-assisted implementation
+
+- Added stable image/audio asset catalog constants and category folders under
+  `assets/images/` and `assets/audio/`; the shipped catalog remains empty until
+  final files are authored.
+- Added runtime asset resolution with graceful image-load fallback for village,
+  destination, expedition travel, route-scoped camp, encounter, dialogue
+  portrait, and combat visuals. Travel/camp visuals and ambience resolve from
+  the current expedition definition rather than a global setting.
+- Added `AudioManager` with gesture unlock, persisted mute/SFX/ambience
+  preferences, semantic gameplay hooks, duplicate-ambience protection, and a
+  compact header settings panel.
+- Extended authored definitions with optional asset IDs while leaving the
+  existing placeholder rendering and deterministic simulation paths intact.
+- Added Content Editor asset browsing, preview, upload, explicit replacement,
+  stable-ID selectors, source-preserving/atomic writes, binary/source backups,
+  path/category/reference validation, and focused asset pipeline tests.
+
+### Manual changes
+
+No final artwork or audio was generated. Empty catalog definitions and
+`.gitkeep` files are intentional first-pass placeholders.
+
+### Verification and resulting prototype state
+
+Passed:
+
+- `python -B tests/asset_audio_system_test.py` - runtime asset/audio smoke
+  coverage.
+- `python -B tests/location_system_test.py` - existing location/UI coverage.
+- `python -B tests/simulation_system_test.py` - deterministic simulation
+  coverage.
+- `python -B tests/test_content_editor.py` - existing Content Editor source
+  preservation/reference suite.
+- `python -B tests/test_asset_pipeline.py` - upload/replace/validation
+  coverage.
+- Content Editor browser smoke - asset category, selector, and empty-catalog
+  fallback coverage.
+- `git diff --check`.
+
 ## 2026-08-17 - Progression Planner Regression Fix
 
 ### Goal
