@@ -3741,7 +3741,8 @@ button.combatant {
 }
 
 .dialogue-portrait-image { z-index: 0; object-fit: cover; border-radius: 0.3rem; }
-.portrait-fallback { position: relative; z-index: 1; }
+.portrait-fallback { position: relative; z-index: 1; visibility: hidden; }
+.portrait-fallback.is-visible { visibility: visible; }
 
 .dialogue-copy {
   display: grid;

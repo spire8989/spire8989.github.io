@@ -372,12 +372,13 @@ function assetAttribute(value) {
 function renderImageAsset(assetId, className = "", alt = "") {
   const path = AssetCatalog.imagePath(assetId);
   if (!path) return "";
-  const failureHandler = "this.hidden=true;this.closest('[data-asset-frame]')?.classList.add('asset-load-failed')";
+  const failureHandler = "this.hidden=true;this.closest('[data-asset-frame]')?.classList.add('asset-load-failed');this.closest('[data-asset-frame]')?.querySelector('.portrait-fallback')?.classList.add('is-visible')";
   return `<img class="asset-image ${className}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="lazy" decoding="async" onerror="${failureHandler}">`;
 }
 
 function renderPortraitAsset(assetId, initials, alt) {
-  return `${renderImageAsset(assetId, "dialogue-portrait-image", alt)}<span class="portrait-fallback">${initials}</span>`;
+  const fallbackVisibility = AssetCatalog.imagePath(assetId) ? "" : " is-visible";
+  return `${renderImageAsset(assetId, "dialogue-portrait-image", alt)}<span class="portrait-fallback${fallbackVisibility}">${initials}</span>`;
 }
 
 function renderCombatVisual(assetId, fallback, alt) {
