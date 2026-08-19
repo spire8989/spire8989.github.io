@@ -1781,6 +1781,23 @@ button:active:not(:disabled) {
   opacity: 0;
 }
 
+/* Travel panoramas fill the 16:9 viewport by height, then pan across their
+   actual rendered overflow. Standard 16:9 travel art keeps the safe drift
+   treatment below. */
+.travel-art .travel-visual-asset.is-panorama {
+  inset: auto;
+  top: -3%;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  max-width: none;
+  height: 106%;
+  object-fit: contain;
+  object-position: left center;
+  transform-origin: left center;
+}
+
 .travel-scene.asset-image-active > .moon,
 .travel-scene.asset-image-active > .forest-far,
 .travel-scene.asset-image-active > .forest-near,
@@ -1835,12 +1852,20 @@ button:active:not(:disabled) {
   animation-play-state: paused;
 }
 
+.travel-art .travel-visual-asset.is-visible.is-panorama {
+  animation: travel-panorama var(--travel-pan-duration, 16s) ease-in-out infinite alternate;
+}
+
 .travel-scene.is-moving .travel-art .travel-visual-asset.is-visible {
   animation-play-state: running;
 }
 
 .travel-scene.is-returning.is-moving .travel-art .travel-visual-asset.is-visible {
   animation-direction: reverse;
+}
+
+.travel-scene.is-returning .travel-art .travel-visual-asset.is-visible.is-panorama {
+  animation-direction: alternate-reverse;
 }
 
 .travel-scene.is-paused .travel-art .travel-visual-asset {
@@ -2005,6 +2030,11 @@ button:active:not(:disabled) {
 @keyframes travel-art-drift {
   from { transform: scale(1.07) translate3d(-1.25%, 0, 0); }
   to { transform: scale(1.09) translate3d(1.25%, -0.35%, 0); }
+}
+
+@keyframes travel-panorama {
+  from { transform: scale(1.02) translate3d(0, 0, 0); }
+  to { transform: scale(1.02) translate3d(calc(var(--travel-pan-range, 0px) * -1), 0, 0); }
 }
 
 @keyframes traveler-bob {

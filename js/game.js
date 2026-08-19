@@ -23,6 +23,7 @@ const game = {
   elapsedSeconds: 0,
   lastTimestamp: null,
   hudAccumulator: 0,
+  travelVisualState: null,
   craftingAction: null,
   restAction: null,
 };
@@ -410,6 +411,63 @@ function renderTravelVisualAsset(assetId, alt) {
   return `<div class="travel-art" id="travel-art" data-travel-asset-id="${assetAttribute(assetId ?? "")}">${image}</div>`;
 }
 
+function isTravelPanorama(image) {
+  const width = Number(image?.naturalWidth);
+  const height = Number(image?.naturalHeight);
+  return width > 0 && height > 0 && width / height >= 2.2;
+}
+
+function updateTravelImagePresentation(scene, image) {
+  if (!scene?.isConnected || !image?.isConnected) return;
+  const art = image.closest("#travel-art");
+  const panorama = isTravelPanorama(image);
+  image.classList.toggle("is-panorama", panorama);
+  image.dataset.travelAspect = panorama ? "panorama" : "standard";
+  scene.classList.toggle("has-travel-panorama", panorama);
+  if (!panorama) {
+    image.style.removeProperty("--travel-pan-range");
+    return;
+  }
+  const frameWidth = art?.clientWidth ?? scene.clientWidth;
+  const renderedWidth = image.offsetWidth;
+  const range = Math.max(0, renderedWidth - frameWidth);
+  image.style.setProperty("--travel-pan-range", `${range}px`);
+  if (renderedWidth <= frameWidth) {
+    window.requestAnimationFrame(() => {
+      if (image.isConnected) updateTravelImagePresentation(scene, image);
+    });
+  }
+}
+
+function travelImageAnimation(image) {
+  const animations = image?.getAnimations?.() ?? [];
+  return animations.find((animation) => (
+    animation.animationName === "travel-panorama" || animation.animationName === "travel-art-drift"
+  )) ?? animations[0] ?? null;
+}
+
+function captureTravelVisualState() {
+  const image = document.querySelector("#travel-art .travel-visual-asset.is-visible:not([hidden])");
+  if (!image) return null;
+  const animation = travelImageAnimation(image);
+  const currentTime = Number(animation?.currentTime);
+  return {
+    assetId: image.dataset.travelAssetId || "",
+    currentTime: Number.isFinite(currentTime) ? currentTime : null,
+  };
+}
+
+function restoreTravelVisualState(image) {
+  const saved = game.travelVisualState;
+  if (!saved || saved.assetId !== image?.dataset.travelAssetId) return;
+  window.requestAnimationFrame(() => {
+    if (!image.isConnected || game.travelVisualState !== saved) return;
+    const animation = travelImageAnimation(image);
+    if (animation && saved.currentTime !== null) animation.currentTime = saved.currentTime;
+    game.travelVisualState = null;
+  });
+}
+
 function markTravelImageActive(scene, image) {
   if (!scene?.isConnected || !image?.isConnected) return;
   const art = image.closest("#travel-art");
@@ -420,6 +478,8 @@ function markTravelImageActive(scene, image) {
   scene.classList.add("asset-image-active");
   scene.dataset.travelAssetFailedId = "";
   if (art) art.dataset.travelAssetFailedId = "";
+  updateTravelImagePresentation(scene, image);
+  restoreTravelVisualState(image);
 }
 
 function markTravelImageFailed(scene, image) {
@@ -431,6 +491,7 @@ function markTravelImageFailed(scene, image) {
     candidate.classList.remove("is-visible", "is-fading-out");
   });
   scene.classList.remove("asset-image-active");
+  scene.classList.remove("has-travel-panorama");
   scene.classList.add("asset-load-failed");
   scene.dataset.travelAssetId = "";
   scene.dataset.travelAssetFailedId = failedId;
@@ -1952,6 +2013,7 @@ function renderExpedition() {
 }
 
 function refreshExpedition() {
+  game.travelVisualState = captureTravelVisualState();
   const currentPanel = document.querySelector(".camp-panel, .travel-panel");
   const currentMode = currentPanel?.classList.contains("camp-panel") ? "camp" : "travel";
   const scrollTop = currentPanel?.scrollTop ?? 0;
@@ -3210,6 +3272,11 @@ function updateTravelHud() {
       normal: "30s",
       hard_push: "22s",
     }[expedition.paceId] ?? "30s");
+    scene.style.setProperty("--travel-pan-duration", {
+      cautious: "20s",
+      normal: "16s",
+      hard_push: "11s",
+    }[expedition.paceId] ?? "16s");
     scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
     syncTravelVisual(expedition, activeEncounter);
     preloadNextTravelScene(expedition);
