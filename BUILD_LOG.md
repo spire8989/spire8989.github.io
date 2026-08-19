@@ -1,5 +1,28 @@
 # Build Log
 
+## 2026-08-18 - Preserve Travel Panorama Position Across Encounters
+
+### Goal
+
+Keep the active travel artwork at its current horizontal animation position
+when an encounter interrupts travel and the same scene resumes afterward.
+
+### AI-assisted implementation
+
+- Captured transient travel presentation state at the travel-to-encounter
+  render boundary, associated with the live expedition and asset ID.
+- Deferred restoration until the encounter view ends, so encounter-specific
+  artwork takes precedence and cannot consume the saved travel position.
+- Cleared the saved state when a distance threshold selects a different travel
+  asset; pause, direction, pace, and existing crossfade behavior remain intact.
+
+### Verification and resulting prototype state
+
+Passed `python tests/location_system_test.py` with 439 browser assertions,
+including encounter interruption/restoration, encounter artwork precedence,
+changed-scene state clearing, panorama direction, pause, fallback, and
+distance-scene coverage.
+
 ## 2026-08-18 - Ultra-Wide Expedition Travel Panoramas
 
 ### Goal

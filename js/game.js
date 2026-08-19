@@ -446,12 +446,14 @@ function travelImageAnimation(image) {
   )) ?? animations[0] ?? null;
 }
 
-function captureTravelVisualState() {
+function captureTravelVisualState(expedition = game.expedition) {
   const image = document.querySelector("#travel-art .travel-visual-asset.is-visible:not([hidden])");
   if (!image) return null;
   const animation = travelImageAnimation(image);
   const currentTime = Number(animation?.currentTime);
   return {
+    expedition,
+    expeditionId: expedition?.expeditionId ?? expedition?.id ?? "",
     assetId: image.dataset.travelAssetId || "",
     currentTime: Number.isFinite(currentTime) ? currentTime : null,
   };
@@ -459,7 +461,14 @@ function captureTravelVisualState() {
 
 function restoreTravelVisualState(image) {
   const saved = game.travelVisualState;
-  if (!saved || saved.assetId !== image?.dataset.travelAssetId) return;
+  const expedition = game.expedition;
+  if (!saved || expedition?.activeEncounter) return;
+  if (saved.expedition !== expedition
+    || saved.expeditionId !== (expedition?.expeditionId ?? expedition?.id ?? "")
+    || saved.assetId !== image?.dataset.travelAssetId) {
+    if (saved.expedition === expedition) game.travelVisualState = null;
+    return;
+  }
   window.requestAnimationFrame(() => {
     if (!image.isConnected || game.travelVisualState !== saved) return;
     const animation = travelImageAnimation(image);
@@ -553,6 +562,11 @@ function syncTravelVisual(expedition, activeEncounter) {
   if (!scene || !art) return;
   const desiredAssetId = resolveExpeditionVisualAssetId(expedition, "travel", activeEncounter);
   const desiredPath = AssetCatalog.imagePath(desiredAssetId);
+  if (!activeEncounter && game.travelVisualState
+    && (game.travelVisualState.expedition !== expedition
+      || game.travelVisualState.assetId !== desiredAssetId)) {
+    game.travelVisualState = null;
+  }
   art.dataset.travelDesiredAssetId = desiredAssetId ?? "";
   scene.dataset.travelDesiredAssetId = desiredAssetId ?? "";
   if (!desiredPath) {
@@ -1972,6 +1986,9 @@ function startExpedition() {
 
 function renderExpedition() {
   const expedition = game.expedition;
+  if (expedition?.activeEncounter && !document.querySelector(".encounter-panel")) {
+    game.travelVisualState = captureTravelVisualState(expedition) ?? game.travelVisualState;
+  }
   if (expedition.combat) {
     renderCombat(expedition, expedition.combat);
     return;
@@ -2013,7 +2030,9 @@ function renderExpedition() {
 }
 
 function refreshExpedition() {
-  game.travelVisualState = captureTravelVisualState();
+  if (!game.expedition?.activeEncounter) {
+    game.travelVisualState = captureTravelVisualState(game.expedition);
+  }
   const currentPanel = document.querySelector(".camp-panel, .travel-panel");
   const currentMode = currentPanel?.classList.contains("camp-panel") ? "camp" : "travel";
   const scrollTop = currentPanel?.scrollTop ?? 0;
