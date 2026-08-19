@@ -48,7 +48,7 @@ const NPC_DEFINITIONS = Object.freeze({
   },
   village_reeve: {
     id: "village_reeve",
-    portraitAssetId: null,
+    portraitAssetId: "portrait_reeve",
     name: "Reeve of Brocéliande",
     role: "Village leader",
     description: "A measured village leader who has listened to too many conflicting accounts of the forest.",
@@ -56,7 +56,7 @@ const NPC_DEFINITIONS = Object.freeze({
     rumors: [],
     dialogueSequenceId: "reeve_after_intro",
     introDialogueSequenceId: "broceliande_intro",
-    locationIds: ["broceliande_village"],
+    locationIds: ["broceliande_village"]
   },
   leper_knight: {
     id: "leper_knight",
@@ -236,12 +236,12 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "shop",
     description: "Firelight falls across a compact forge and racks of serviceable gear.",
     visualKey: "smithy_interior",
-    visualAssetId: null,
+    visualAssetId: "location_blacksmith_bg",
     scenePosition: "southwest",
     npcIds: ["village_blacksmith"],
     shopId: "village_smithy",
     craftingProviderId: "blacksmith",
-    actions: ["talk", "shop"],
+    actions: ["talk", "shop"]
   },
   apothecary: {
     id: "apothecary",

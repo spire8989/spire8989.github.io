@@ -4,21 +4,32 @@
 // preparation UI consume these stable IDs so the chapter can grow without
 // hardcoding route names into travel logic.
 const EXPEDITION_DEFINITIONS = Object.freeze({
-  old_forest_road: Object.freeze({
+  old_forest_road: {
     id: "old_forest_road",
     name: "Old Forest Road",
     description: "A grounded road beneath increasingly ancient trees.",
     danger: 1,
     regionId: "broceliande",
     pathId: "old_forest_road",
-    travelVisualAssetId: null,
-    campVisualAssetId: null,
+    travelVisualAssetId: "expedition_old_forest_road_bg",
+    campVisualAssetId: "expedition_old_forest_road_camp_bg",
     travelAmbienceAssetId: null,
     campAmbienceAssetId: null,
     kind: "normal",
     campEventTableIds: ["forest_wildlife", "road_travelers"],
     prerequisites: [],
-  }),
+    travelScenes: [
+      {
+        minDistance: 0,
+        visualAssetId: "expedition_old_forest_road_wide_bg_loop"
+      },
+      {
+        minDistance: 15,
+        visualAssetId: "expedition_old_forest_road_50_bg",
+        motion: "loop"
+      }
+    ]
+  },
   fountain_of_barenton: Object.freeze({
     id: "fountain_of_barenton",
     name: "Fountain of Barenton",
