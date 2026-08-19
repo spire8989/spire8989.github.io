@@ -553,6 +553,7 @@ function markTravelImageActive(scene, image) {
   if (!scene?.isConnected || !image?.isConnected) return;
   const art = image.closest("#travel-art");
   const track = image.closest(".travel-visual-track");
+  const motion = travelMotionForImage(image);
   image.hidden = false;
   image.classList.remove("is-fading-out");
   image.classList.add("is-visible");
@@ -560,8 +561,14 @@ function markTravelImageActive(scene, image) {
   track?.classList.add("is-visible");
   scene.classList.remove("asset-load-failed");
   scene.classList.add("asset-image-active");
+  scene.dataset.travelAssetId = image.dataset.travelAssetId || "";
+  scene.dataset.travelMotion = motion;
   scene.dataset.travelAssetFailedId = "";
-  if (art) art.dataset.travelAssetFailedId = "";
+  if (art) {
+    art.dataset.travelAssetId = image.dataset.travelAssetId || "";
+    art.dataset.travelMotion = motion;
+    art.dataset.travelAssetFailedId = "";
+  }
   updateTravelImagePresentation(scene, image);
   restoreTravelVisualState(image);
 }
@@ -581,9 +588,11 @@ function markTravelImageFailed(scene, image) {
   scene.classList.remove("has-travel-panorama");
   scene.classList.add("asset-load-failed");
   scene.dataset.travelAssetId = "";
+  scene.dataset.travelMotion = "";
   scene.dataset.travelAssetFailedId = failedId;
   if (art) {
     art.dataset.travelAssetId = "";
+    art.dataset.travelMotion = "";
     art.dataset.travelAssetFailedId = failedId;
     art.querySelector("[data-travel-layer='next']")?.remove();
   }
@@ -603,6 +612,7 @@ function bindTravelImage(scene, image) {
     if (isTransition) oldTrack.classList.add("is-fading-out");
     markTravelImageActive(scene, image);
     scene.dataset.travelAssetId = image.dataset.travelAssetId;
+    scene.dataset.travelMotion = travelMotionForImage(image);
     if (track?.dataset.travelLayer === "next") {
       track.dataset.travelLayer = "current";
       window.setTimeout(() => {
@@ -656,8 +666,10 @@ function syncTravelVisual(expedition, activeEncounter) {
   if (!desiredPath) {
     art.querySelectorAll(".travel-visual-track").forEach((track) => track.remove());
     scene.classList.remove("asset-image-active", "asset-load-failed");
+    scene.dataset.travelAssetId = "";
+    scene.dataset.travelMotion = "";
     art.dataset.travelAssetId = "";
-    art.dataset.travelMotion = desiredMotion;
+    art.dataset.travelMotion = "";
     art.dataset.travelAssetFailedId = "";
     return;
   }
@@ -666,8 +678,8 @@ function syncTravelVisual(expedition, activeEncounter) {
   const pending = art.querySelector(".travel-visual-track[data-travel-layer='next']");
   const currentImage = current?.querySelector("[data-travel-copy='primary']");
   if (current
-    && art.dataset.travelAssetId === desiredAssetId
-    && art.dataset.travelMotion === desiredMotion
+    && current.dataset.travelAssetId === desiredAssetId
+    && current.dataset.travelMotion === desiredMotion
     && currentImage
     && !currentImage.hidden) {
     bindTravelImage(scene, currentImage);
@@ -698,8 +710,12 @@ function syncTravelVisual(expedition, activeEncounter) {
   image.src = desiredPath;
   next.append(image);
   art.append(next);
-  art.dataset.travelAssetId = desiredAssetId;
-  art.dataset.travelMotion = desiredMotion;
+  if (next.dataset.travelLayer === "current") {
+    art.dataset.travelAssetId = desiredAssetId;
+    art.dataset.travelMotion = desiredMotion;
+    scene.dataset.travelAssetId = desiredAssetId;
+    scene.dataset.travelMotion = desiredMotion;
+  }
   bindTravelImage(scene, image);
 }
 

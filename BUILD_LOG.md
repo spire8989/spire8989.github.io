@@ -1,5 +1,26 @@
 # Build Log
 
+## 2026-08-19 - Fix Travel Scene Threshold Swaps
+
+### Goal
+
+Ensure a distance threshold activates the newly selected Travel Scene when its
+asset differs from the current panorama.
+
+### AI-assisted implementation
+
+- Made same-asset continuity compare the active track's asset and motion
+  metadata rather than a wrapper value that could already describe a pending
+  crossfade.
+- Promote scene and wrapper presentation metadata only after the replacement
+  image becomes active; clear stale asset/motion metadata on fallback failure.
+
+### Verification and resulting prototype state
+
+The focused location browser regression now checks 0, 14, 15, and 24 league
+selection plus same-asset continuity. Passed `python tests/location_system_test.py`
+with 440 browser assertions and `git diff --check`.
+
 ## 2026-08-18 - Configurable Travel Scene Motion
 
 ### Goal
