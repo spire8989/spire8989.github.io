@@ -574,6 +574,9 @@ const EncounterManager = Object.freeze({
       this.begin(expedition, dueMilestone.id);
       return dueMilestone;
     }
+    if (typeof DebugTools !== "undefined" && DebugTools.randomEncountersDisabled()) {
+      return null;
+    }
     if (expedition.encounterTravelDistance < expedition.nextEncounterAt) {
       return null;
     }

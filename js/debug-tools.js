@@ -20,6 +20,7 @@ const debugToolsState = {
   expeditionId: null,
   combatEnemyId: null,
   combatStatusId: null,
+  disableRandomEncounters: false,
 };
 
 let debugToolsPanel = null;
@@ -28,6 +29,10 @@ let debugToolsToggle = null;
 const DebugTools = Object.freeze({
   isEnabled() {
     return Boolean(DEBUG_TOOLS_ENABLED);
+  },
+
+  randomEncountersDisabled() {
+    return this.isEnabled() && debugToolsState.disableRandomEncounters === true;
   },
 
   refresh() {
@@ -107,6 +112,9 @@ function initializeDebugTools() {
     if (target.id === "debug-combat-enemy") debugToolsState.combatEnemyId = target.value;
     if (target.id === "debug-combat-status") debugToolsState.combatStatusId = target.value;
     if (target.id === "debug-expedition-select") debugToolsState.expeditionId = target.value;
+    if (target.id === "debug-disable-random-encounters" && !debugReplayActive()) {
+      debugToolsState.disableRandomEncounters = target.checked;
+    }
     renderDebugTools();
   });
   debugToolsPanel.addEventListener("input", (event) => {
@@ -146,7 +154,7 @@ async function handleDebugAction(action, control) {
     "clear-injuries", "add-injury", "learn-recipe", "forget-recipe", "grant-knowledge", "remove-knowledge",
     "toggle-companion", "toggle-campaign-flag", "unlock-expedition", "select-expedition", "trigger-encounter",
     "next-encounter", "start-combat", "set-distance", "add-distance", "force-return", "pause-travel",
-    "resume-travel", "apply-combat-status", "save-now", "reset-save",
+    "resume-travel", "set-travel-direction", "apply-combat-status", "save-now", "reset-save",
   ].includes(action) && !debugMutationAllowed()) {
     return;
   }
@@ -265,6 +273,9 @@ async function handleDebugAction(action, control) {
         renderScreen();
         DebugTools.refreshState();
       }
+      break;
+    case "set-travel-direction":
+      setDebugTravelDirection(control.dataset.direction);
       break;
     case "apply-combat-status":
       applyDebugCombatStatus();
@@ -473,11 +484,14 @@ function renderDebugExpeditionSection() {
     <pre id="debug-expedition-state">${escapeDebugText(debugExpeditionSnapshot(expedition))}</pre>` : '<p class="debug-muted">No active expedition. Start one through normal preparation.</p>';
   return `<details class="debug-section" data-debug-details="expedition" open>
     <summary>Encounters / Expedition</summary><div class="debug-section-content">
+      <h4>Travel Debug</h4>
+      <label class="debug-flag-row"><input id="debug-disable-random-encounters" type="checkbox" ${debugToolsState.disableRandomEncounters ? "checked" : ""} ${debugReplayActive() ? "disabled" : ""}> Disable random encounters</label>
       <select id="debug-encounter-select" aria-label="Encounter to trigger">${encounterOptions}</select>
       <div class="debug-actions"><button type="button" data-debug-action="trigger-encounter" ${active ? "" : "disabled"}>Trigger Selected</button><button type="button" data-debug-action="next-encounter" ${active ? "" : "disabled"}>Next Encounter Soon</button></div>
       <select id="debug-combat-select" aria-label="Combat definition to start">${combatOptions}</select>
       <button type="button" data-debug-action="start-combat" ${active ? "" : "disabled"}>Start Selected Combat</button>
       ${active ? `<div class="debug-direct-row"><label>Set distance <input id="debug-distance-set" type="number" min="0" step="0.1" value="${Number(expedition.distance).toFixed(1)}"></label><button type="button" data-debug-action="set-distance">Set</button><button type="button" data-debug-action="add-distance" data-amount="10">+10</button><button type="button" data-debug-action="add-distance" data-amount="50">+50</button></div>
+        <div class="debug-direct-row"><span>Direction</span><button type="button" data-debug-action="set-travel-direction" data-direction="outbound">Outbound</button><button type="button" data-debug-action="set-travel-direction" data-direction="returning">Return</button></div>
         <div class="debug-actions"><button type="button" data-debug-action="force-return">Begin Return</button>${expedition.travelState === "paused" ? '<button type="button" data-debug-action="resume-travel">Resume</button>' : '<button type="button" data-debug-action="pause-travel">Pause</button>'}</div>` : ""}
       ${expeditionReadout}
       ${active ? `<details data-debug-details="expedition-equipment"><summary>Equipment / carried state</summary><pre>${escapeDebugText(JSON.stringify({ equipment: expedition.selectedEquipment, carriedItems: expedition.carriedItems, materialBag: MaterialRules.expeditionContents(expedition), unsecuredLoot: expedition.unsecuredLoot, unsecuredMaterials: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials }, null, 2))}</pre></details>` : ""}
@@ -701,6 +715,14 @@ function setDebugDistance(distance) {
     DebugTools.refreshState();
     setDebugStatus("Expedition distance updated");
   }
+}
+
+function setDebugTravelDirection(direction) {
+  if (!canUseActiveExpedition() || !["outbound", "returning"].includes(direction)) return;
+  game.expedition.direction = direction;
+  renderScreen();
+  DebugTools.refreshState();
+  setDebugStatus(`Travel direction set to ${direction === "returning" ? "returning" : "outbound"}`);
 }
 
 function applyDebugCombatStatus() {

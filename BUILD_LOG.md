@@ -3588,3 +3588,23 @@ The human developer supplied the simulation-planning guide and explicitly author
 ### Verification and resulting prototype state
 
 The focused progression suite passed 36 assertions; the deterministic simulation suite passed 62 assertions; and the campaign/health/Inn suite passed 92 assertions. Cautious Merlin campaigns now record preparation runs before a committed 120-league attempt, Aggressive may proceed sooner but also never targets below 120, and validated campaigns recorded zero objective-floor violations. `git diff --check` passed. The standalone replay suite still has its unrelated camp/combat decision-coverage fixture failure, and the campaign replay suite still has its unrelated Campaign 40 loadout fixture failure; both are documented for handoff. No Tools files were changed.
+
+## 2026-08-19 - Travel Debug Controls
+
+### Goal
+
+Make distance-based travel-scene and encounter presentation testing quick without changing normal gameplay or persisted state.
+
+### Human prompt and direction
+
+The human developer supplied a focused guide for three transient `?debug` travel controls and requested a Grail-only implementation with a commit and push.
+
+### AI-assisted implementation
+
+- Added a transient Disable Random Encounters checkbox that suppresses only the normal travel encounter roll while leaving authored milestone and explicitly forced encounters available.
+- Grouped the existing expedition distance setter with the travel debug controls so distance changes immediately refresh travel presentation through the existing canonical setter.
+- Added Outbound and Return direction overrides that refresh the active travel presentation without changing distance, provisions, objectives, or save data.
+
+### Verification and resulting prototype state
+
+Verified the debug-only controls and narrow encounter suppression path with the focused browser smoke checks, confirmed normal URL gating, and passed `git diff --check`. The debug overrides reset on reload and `Tools/` remains unchanged.
