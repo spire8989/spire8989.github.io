@@ -1757,6 +1757,14 @@ button:active:not(:disabled) {
 .travel-scene > .travel-visual-asset,
 .camp-scene > .camp-visual-asset { position: absolute; }
 
+.travel-scene.asset-image-active > .moon,
+.travel-scene.asset-image-active > .forest-far,
+.travel-scene.asset-image-active > .forest-near,
+.travel-scene.asset-image-active > .ground,
+.camp-scene.asset-image-active > .camp-moon,
+.camp-scene.asset-image-active > .camp-fire,
+.camp-scene.asset-image-active > .camp-silhouette { display: none; }
+
 .travel-scene,
 .combat-scene {
   aspect-ratio: var(--interaction-visual-aspect);
@@ -1792,6 +1800,10 @@ button:active:not(:disabled) {
 
 .travel-scene.is-paused .travelers {
   filter: drop-shadow(0 0 0.4rem rgb(244 221 160 / 70%));
+}
+
+.travel-scene.is-paused.asset-image-active > .travel-visual-asset {
+  filter: saturate(0.82) brightness(0.88);
 }
 
 .moon {

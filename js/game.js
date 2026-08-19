@@ -372,8 +372,9 @@ function assetAttribute(value) {
 function renderImageAsset(assetId, className = "", alt = "") {
   const path = AssetCatalog.imagePath(assetId);
   if (!path) return "";
-  const failureHandler = "this.hidden=true;this.closest('[data-asset-frame]')?.classList.add('asset-load-failed');this.closest('[data-asset-frame]')?.querySelector('.portrait-fallback')?.classList.add('is-visible')";
-  return `<img class="asset-image ${className}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="lazy" decoding="async" onerror="${failureHandler}">`;
+  const loadHandler = "const frame=this.closest('[data-asset-frame]');frame?.classList.add('asset-image-active');frame?.classList.remove('asset-load-failed')";
+  const failureHandler = "this.hidden=true;const frame=this.closest('[data-asset-frame]');frame?.classList.remove('asset-image-active');frame?.classList.add('asset-load-failed');frame?.querySelector('.portrait-fallback')?.classList.add('is-visible')";
+  return `<img class="asset-image ${className}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="lazy" decoding="async" onload="${loadHandler}" onerror="${failureHandler}">`;
 }
 
 function renderPortraitAsset(assetId, initials, alt) {
