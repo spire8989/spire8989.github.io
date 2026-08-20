@@ -214,8 +214,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_the_inn_woodcut_2",
     scenePosition: "northwest",
     hotspot: {
-      x: 0.4735576923076923,
-      y: 0.2708333333333333
+      x: 0.46730775099534255,
+      y: 0.2605769573113857
     },
     npcIds: ["village_innkeeper"],
     shopId: null,
@@ -231,8 +231,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_merchant_woodcut_2",
     scenePosition: "northeast",
     hotspot: {
-      x: 0.8052884615384616,
-      y: 0.328525641025641
+      x: 0.7865384908822867,
+      y: 0.34006409767346507
     },
     npcIds: ["village_merchant"],
     shopId: "village_general_goods",
@@ -247,8 +247,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_blacksmith_bg",
     scenePosition: "southwest",
     hotspot: {
-      x: 0.14903846153846154,
-      y: 0.5608974358974359
+      x: 0.15384615384615385,
+      y: 0.4990385740231245
     },
     npcIds: ["village_blacksmith"],
     shopId: "village_smithy",
@@ -264,8 +264,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_apothecary_woodcut",
     scenePosition: "southeast",
     hotspot: {
-      x: 0.8461538461538461,
-      y: 0.5833333333333334
+      x: 0.7999999706561749,
+      y: 0.5464743834275466
     },
     npcIds: ["village_apothecary"],
     shopId: "village_apothecary_shop",
@@ -281,8 +281,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_the_hall_woodcut_3",
     scenePosition: "center",
     hotspot: {
-      x: 0.5432692307692307,
-      y: 0.4583333333333333
+      x: 0.47884618318997896,
+      y: 0.4349360099205604
     },
     npcIds: ["village_reeve"],
     shopId: null,

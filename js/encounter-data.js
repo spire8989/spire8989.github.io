@@ -100,7 +100,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
-    }
+    },
+    visualAssetId: "encounter_abandoned_camp"
   },
   fork_in_the_road: {
     id: "fork_in_the_road",

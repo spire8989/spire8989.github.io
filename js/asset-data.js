@@ -73,6 +73,11 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "location_village_at_the_edge_of_broc_liande_woodcut_1",
     path: "assets/images/town/town_woodcut_1.webp",
     category: "town"
+  },
+  encounter_abandoned_camp: {
+    id: "encounter_abandoned_camp",
+    path: "assets/images/encounter/abandoned_camp.webp",
+    category: "encounter"
   }
 });
 
