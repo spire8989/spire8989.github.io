@@ -3497,7 +3497,8 @@ button.combatant {
 }
 
 .location-scene {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  aspect-ratio: 2 / 3;
   width: 100%;
   min-height: 0;
 }
@@ -3548,6 +3549,7 @@ button.combatant {
   color: #fff1c5;
   box-shadow: 0 0.25rem 0.8rem rgb(0 0 0 / 45%);
   cursor: pointer;
+  transform: translate(-50%, -50%);
 }
 
 .hub-hotspot:hover {
@@ -3565,13 +3567,8 @@ button.combatant {
   line-height: 1;
 }
 
-.position-northwest { left: 5%; top: 15%; }
-.position-northeast { right: 5%; top: 16%; }
-.position-southwest { left: 8%; bottom: 5%; }
-.position-southeast { right: 8%; bottom: 5%; }
-.position-center { left: 50%; top: 48%; transform: translate(-50%, -50%); }
-.hub-hotspot.position-center.is-pressed,
-.hub-hotspot.position-center:active:not(:disabled) {
+.hub-hotspot.is-pressed,
+.hub-hotspot:active:not(:disabled) {
   transform: translate(-50%, calc(-50% + 0.1rem)) scale(0.98);
 }
 
@@ -3681,7 +3678,7 @@ button.combatant {
 }
 
 .location-screen {
-  position: relative;
+  position: static;
   display: flex;
   flex-direction: column;
 }

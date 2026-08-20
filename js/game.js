@@ -1395,6 +1395,25 @@ function resolveDialoguePortraitAssetId(node, speaker) {
       : null;
 }
 
+const TOWN_HOTSPOT_FALLBACKS = Object.freeze({
+  northwest: Object.freeze({ x: 0.18, y: 0.27 }),
+  northeast: Object.freeze({ x: 0.82, y: 0.27 }),
+  southwest: Object.freeze({ x: 0.22, y: 0.56 }),
+  southeast: Object.freeze({ x: 0.78, y: 0.56 }),
+  center: Object.freeze({ x: 0.50, y: 0.35 }),
+});
+
+function townHotspotForDestination(destination) {
+  const authored = destination?.hotspot;
+  const fallback = TOWN_HOTSPOT_FALLBACKS[destination?.scenePosition] || TOWN_HOTSPOT_FALLBACKS.center;
+  const x = Number(authored?.x);
+  const y = Number(authored?.y);
+  return {
+    x: Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : fallback.x,
+    y: Number.isFinite(y) ? Math.min(1, Math.max(0, y)) : fallback.y,
+  };
+}
+
 function renderLocation() {
   const location = LOCATION_DEFINITIONS[game.player.currentLocationId];
   if (!location) {
@@ -1406,9 +1425,10 @@ function renderLocation() {
   const destinations = location.destinations.map((destinationId) => {
     const destination = DESTINATION_DEFINITIONS[destinationId];
     const locked = destination.requiresIntro !== false && !villageUnlocked;
+    const hotspot = townHotspotForDestination(destination);
     return `
-      <button class="hub-hotspot position-${destination.scenePosition} ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
-        data-action="open-destination" data-destination-id="${destination.id}" ${locked ? "disabled aria-disabled=\"true\"" : ""}>
+      <button class="hub-hotspot ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
+        style="left: ${hotspot.x * 100}%; top: ${hotspot.y * 100}%;" data-hotspot-x="${hotspot.x}" data-hotspot-y="${hotspot.y}" data-action="open-destination" data-destination-id="${destination.id}" ${locked ? "disabled aria-disabled=\"true\"" : ""}>
         <span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>
         <strong>${destination.name}</strong>
         ${locked ? "<span class=\"hub-lock-label\">Available after the Hall</span>" : ""}
