@@ -422,12 +422,28 @@ function resolveTravelSceneAssetId(expedition) {
   return resolveTravelScene(expedition)?.assetId ?? null;
 }
 
-function renderTravelVisualAsset(assetId, alt, motion = "loop", sceneKey = "", presentationKind = "travel") {
-  const path = AssetCatalog.imagePath(assetId);
-  const image = path
-    ? `<div class="travel-visual-track is-visible" data-travel-layer="current" data-travel-kind="${assetAttribute(presentationKind)}" data-travel-scene-key="${assetAttribute(sceneKey)}" data-travel-asset-id="${assetAttribute(assetId)}" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}"><img class="asset-image travel-visual-asset is-visible" data-travel-copy="primary" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}" data-travel-asset-id="${assetAttribute(assetId)}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)"></div>`
+function renderTravelVisualAsset(assetId, alt, motion = "loop", sceneKey = "", presentationKind = "travel", visualSnapshot = null) {
+  const snapshotTiles = Array.isArray(visualSnapshot?.tiles) && visualSnapshot.tiles.length > 0
+    ? visualSnapshot.tiles
+    : [{ assetId, copy: "primary", tile: "leading" }];
+  const trackAssetId = visualSnapshot?.trackAssetId || visualSnapshot?.assetId || assetId;
+  const trackMotion = normalizeTravelMotion(visualSnapshot?.trackMotion ?? visualSnapshot?.motion ?? motion);
+  const trackSceneKey = visualSnapshot?.trackSceneKey ?? visualSnapshot?.activeSceneKey ?? sceneKey;
+  const trackStyle = visualSnapshot?.trackTransform && visualSnapshot.trackTransform !== "none"
+    ? ` style="transform:${assetAttribute(visualSnapshot.trackTransform)}"`
     : "";
-  return `<div class="travel-art" id="travel-art" data-travel-asset-id="${assetAttribute(assetId ?? "")}" data-travel-motion="${assetAttribute(normalizeTravelMotion(motion))}">${image}</div>`;
+  const tiles = snapshotTiles.map((tile, index) => {
+    const tileAssetId = tile?.assetId;
+    const path = AssetCatalog.imagePath(tileAssetId);
+    if (!path) return "";
+    const copy = tile?.copy === "loop" || index > 0 ? "loop" : "primary";
+    const tileRole = copy === "primary" ? "leading" : "trailing";
+    return `<img class="asset-image travel-visual-asset is-visible" data-travel-copy="${copy}" data-travel-tile="${tileRole}" data-travel-motion="${assetAttribute(trackMotion)}" data-travel-asset-id="${assetAttribute(tileAssetId)}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)">`;
+  }).filter(Boolean).join("");
+  const image = tiles
+    ? `<div class="travel-visual-track is-visible"${trackStyle} data-travel-layer="current" data-travel-kind="${assetAttribute(presentationKind)}" data-travel-scene-key="${assetAttribute(trackSceneKey)}" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}">${tiles}</div>`
+    : "";
+  return `<div class="travel-art" id="travel-art" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}">${image}</div>`;
 }
 
 function isTravelPanorama(image) {
@@ -787,13 +803,31 @@ function captureTravelVisualState(expedition = game.expedition) {
   if (!image) return null;
   const animation = travelImageAnimation(track ?? image);
   const currentTime = Number(animation?.currentTime);
+  const tiles = images.map((tile, index) => ({
+    assetId: tile.dataset.travelAssetId || "",
+    copy: tile.dataset.travelCopy === "loop" || index > 0 ? "loop" : "primary",
+    tile: tile.dataset.travelTile || (index > 0 ? "trailing" : "leading"),
+  })).filter((tile) => tile.assetId);
+  const trackMotion = normalizeTravelMotion(track?.dataset.travelMotion ?? travelMotionForImage(image));
   return {
     expedition,
     expeditionId: expedition?.expeditionId ?? expedition?.id ?? "",
     assetId: state?.activeAssetId || track?.dataset.travelAssetId || image.dataset.travelAssetId || "",
     motion: normalizeTravelMotion(state?.activeMotion ?? travelMotionForImage(image)),
     currentTime: Number.isFinite(currentTime) ? currentTime : null,
+    trackAssetId: track?.dataset.travelAssetId || image.dataset.travelAssetId || "",
+    trackMotion,
+    trackSceneKey: track?.dataset.travelSceneKey ?? "",
+    trackTransform: track ? getComputedStyle(track).transform : "",
+    activeSceneKey: state?.activeSceneKey ?? "",
+    tiles,
   };
+}
+
+function applyTravelVisualSnapshot(snapshot) {
+  if (!snapshot || snapshot.currentTime === null) return;
+  const animation = travelImageAnimation(currentTravelTrack());
+  if (animation) animation.currentTime = snapshot.currentTime;
 }
 
 function restoreTravelVisualState(image) {
@@ -817,10 +851,12 @@ function restoreTravelVisualState(image) {
     if (saved.expedition === expedition) game.travelVisualState = null;
     return;
   }
+  const animation = travelImageAnimation(image);
+  if (animation && saved.currentTime !== null) animation.currentTime = saved.currentTime;
   window.requestAnimationFrame(() => {
     if (!image.isConnected || game.travelVisualState !== saved) return;
-    const animation = travelImageAnimation(image);
-    if (animation && saved.currentTime !== null) animation.currentTime = saved.currentTime;
+    const restoredAnimation = travelImageAnimation(image);
+    if (restoredAnimation && saved.currentTime !== null) restoredAnimation.currentTime = saved.currentTime;
     if (!isEncounterTravelFallback) game.travelVisualState = null;
   });
 }
@@ -830,6 +866,8 @@ function markTravelImageActive(scene, image) {
   const art = image.closest("#travel-art");
   const track = image.closest(".travel-visual-track");
   const motion = travelMotionForImage(image);
+  const activeTile = travelActiveTile(track, game.expedition);
+  const activeAssetId = activeTile?.dataset.travelAssetId || image.dataset.travelAssetId || "";
   image.hidden = false;
   image.classList.remove("is-fading-out");
   image.classList.add("is-visible");
@@ -837,20 +875,21 @@ function markTravelImageActive(scene, image) {
   track?.classList.add("is-visible");
   scene.classList.remove("asset-load-failed");
   scene.classList.add("asset-image-active");
-  scene.dataset.travelAssetId = image.dataset.travelAssetId || "";
+  scene.dataset.travelAssetId = activeAssetId;
   scene.dataset.travelMotion = motion;
   scene.dataset.travelAssetFailedId = "";
   if (art) {
-    art.dataset.travelAssetId = image.dataset.travelAssetId || "";
+    art.dataset.travelAssetId = activeAssetId;
     art.dataset.travelMotion = motion;
     art.dataset.travelAssetFailedId = "";
   }
-  updateTravelImagePresentation(scene, image);
+  const presentationImage = activeTile?.naturalWidth > 0 ? activeTile : image;
+  updateTravelImagePresentation(scene, presentationImage);
   const state = travelScenePresentationFor(game.expedition);
   if (track?.dataset.travelKind !== "encounter" && state?.pending?.tileMode) {
     installTravelPendingTile(game.expedition, state.pending);
   }
-  restoreTravelVisualState(travelActiveTile(track, game.expedition) ?? image);
+  restoreTravelVisualState(activeTile ?? image);
 }
 
 function markTravelImageFailed(scene, image) {
@@ -1173,7 +1212,14 @@ function syncTravelVisual(expedition, activeEncounter) {
   if (activeEncounter && !encounterAssetId && state?.transition) {
     cancelTravelSceneTransition(expedition, true);
   }
+  const snapshotPreservesPending = Boolean(
+    state?.pending
+    && game.travelVisualState?.expedition === expedition
+    && game.travelVisualState.assetId === state.activeAssetId
+    && game.travelVisualState.tiles?.some((tile) => tile.assetId === state.pending.assetId),
+  );
   if (!activeEncounter && game.travelVisualState
+    && !snapshotPreservesPending
     && (game.travelVisualState.expedition !== expedition
       || game.travelVisualState.assetId !== resolvedTravel.assetId
       || game.travelVisualState.motion !== normalizeTravelMotion(resolvedTravel.motion))) {
@@ -2701,6 +2747,10 @@ function renderExpedition() {
     : null;
   syncExpeditionAmbience(expedition, "travel", activeEncounter);
   const travelPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
+  const travelVisualSnapshot = game.travelVisualState?.expedition === expedition
+    && travelPresentation.kind !== "encounter"
+    ? game.travelVisualState
+    : null;
   const loadoutEntries = Object.values(expedition.selectedEquipment)
     .map((itemId) => ({ itemId, quantity: 1 }))
     .filter(({ itemId }) => ITEM_DEFINITIONS[itemId]);
@@ -2708,7 +2758,7 @@ function renderExpedition() {
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
       <div data-asset-frame="travel" class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
-        ${renderTravelVisualAsset(travelPresentation.assetId, activeEncounter?.title ?? expeditionDefinition(expedition).name, travelPresentation.motion, travelPresentation.sceneKey, travelPresentation.kind ?? (activeEncounter ? "encounter" : "travel"))}
+        ${renderTravelVisualAsset(travelPresentation.assetId, activeEncounter?.title ?? expeditionDefinition(expedition).name, travelPresentation.motion, travelPresentation.sceneKey, travelPresentation.kind ?? (activeEncounter ? "encounter" : "travel"), travelVisualSnapshot)}
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
@@ -2723,6 +2773,7 @@ function renderExpedition() {
         ? renderEncounterPanel(expedition, activeEncounter)
          : `${renderTravelPanel(expedition, companions, loadoutEntries)}${renderExpeditionActionBar(expedition)}`}
     </section>`;
+  applyTravelVisualSnapshot(travelVisualSnapshot);
   updateTravelHud();
 }
 
