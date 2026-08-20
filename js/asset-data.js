@@ -71,15 +71,15 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
   },
   location_village_at_the_edge_of_broc_liande_woodcut_1: {
     id: "location_village_at_the_edge_of_broc_liande_woodcut_1",
-    path: "assets/images/location/town_woodcut_1.webp",
-    category: "location"
+    path: "assets/images/town/town_woodcut_1.webp",
+    category: "town"
   }
 });
 
 const AUDIO_ASSET_DEFINITIONS = Object.freeze({
 });
 
-const ASSET_IMAGE_CATEGORIES = Object.freeze(["location", "expedition", "encounter", "combat", "portrait", "ui"]);
+const ASSET_IMAGE_CATEGORIES = Object.freeze(["location", "town", "expedition", "encounter", "combat", "portrait", "ui"]);
 const ASSET_AUDIO_CATEGORIES = Object.freeze(["ambience", "sfx", "music"]);
 
 function validAssetPath(path, root) {

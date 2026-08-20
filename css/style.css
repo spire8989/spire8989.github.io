@@ -3530,6 +3530,10 @@ button.combatant {
   transform: perspective(8rem) rotateX(20deg);
 }
 
+.location-scene.asset-image-active > .village-sky,
+.location-scene.asset-image-active > .village-tree-line,
+.location-scene.asset-image-active > .village-road { display: none; }
+
 .hub-hotspot {
   position: absolute;
   z-index: 2;
@@ -3655,8 +3659,12 @@ button.combatant {
 }
 
 .hub-hud {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: grid;
-  flex: 0 0 clamp(5.4rem, 14%, 6.5rem);
   gap: 0.35rem;
   padding: 0.45rem 4%;
   border-top: 1px solid rgb(217 189 114 / 35%);
@@ -3673,6 +3681,7 @@ button.combatant {
 }
 
 .location-screen {
+  position: relative;
   display: flex;
   flex-direction: column;
 }
