@@ -1893,6 +1893,14 @@ button:active:not(:disabled) {
   user-select: none;
 }
 
+.travel-seam-foreground[data-travel-seam-copy="previous"] {
+  left: 0;
+}
+
+.travel-seam-foreground[data-travel-seam-copy="next"] {
+  left: var(--travel-loop-distance, 0px);
+}
+
 .travel-scene.asset-image-active > .moon,
 .travel-scene.asset-image-active > .forest-far,
 .travel-scene.asset-image-active > .forest-near,

@@ -320,10 +320,39 @@ def run() -> None:
                 const animation = travelImageAnimation(image);
                 const duration = Number(animation?.effect?.getComputedTiming?.().duration);
                 if (!image || !animation || !Number.isFinite(duration) || duration <= 0) return false;
+                const initialTrack = currentTravelTrack();
+                const seamLayer = document.querySelector("#travel-scene > .travel-seam-foreground-layer");
+                const seamCopies = [...(seamLayer?.querySelectorAll(".travel-seam-foreground") ?? [])];
+                const seamAnimation = travelImageAnimation(seamLayer);
+                const loopDistance = Number.parseFloat(
+                  getComputedStyle(initialTrack).getPropertyValue("--travel-loop-distance"),
+                );
+                const artFrame = document.querySelector("#travel-art")?.getBoundingClientRect();
+                const setLoopTime = (time) => {
+                  animation.currentTime = time;
+                  if (seamAnimation) seamAnimation.currentTime = time;
+                };
+                const crossesLeftEdge = () => seamCopies.some((foreground) => {
+                  const bounds = foreground.getBoundingClientRect();
+                  return artFrame && bounds.left < artFrame.left && bounds.right > artFrame.left;
+                });
+                setLoopTime(duration - 1);
+                const seamVisibleBeforeWrap = crossesLeftEdge();
+                const spacing = seamCopies.length === 2
+                  ? Math.abs(seamCopies[1].getBoundingClientRect().left - seamCopies[0].getBoundingClientRect().left)
+                  : 0;
+                setLoopTime(duration + 1);
+                const seamVisibleAfterWrap = crossesLeftEdge();
+                const repeatingSeamWrapPreserved = seamCopies.length === 2
+                  && seamAnimation
+                  && Number.isFinite(loopDistance)
+                  && Math.abs(spacing - loopDistance) < 3
+                  && seamVisibleBeforeWrap
+                  && seamVisibleAfterWrap;
                 const state = travelScenePresentationFor(expedition);
                 state.activeTileDistance = expedition.distance;
                 state.activeAnimationCycle = travelAnimationCycle(animation);
-                animation.currentTime = duration * 0.55;
+                setLoopTime(duration * 0.55);
                 updateTravelHud();
                 await wait(120);
                 animation.currentTime = duration - 1;
@@ -331,22 +360,30 @@ def run() -> None:
                 await wait(120);
                 updateTravelHud();
                 const carry = document.querySelector("#travel-scene > .travel-seam-foreground-carry");
-                const foreground = carry?.querySelector(".travel-seam-foreground");
+                const foregrounds = [...(carry?.querySelectorAll(".travel-seam-foreground") ?? [])];
                 const frame = document.querySelector("#travel-art")?.getBoundingClientRect();
-                const bounds = foreground?.getBoundingClientRect();
-                const outgoingRetained = Boolean(carry?.isConnected && bounds && frame)
-                  && bounds.right > frame.left
-                  && bounds.left < frame.right;
+                const outgoingRetained = Boolean(carry?.isConnected && foregrounds.length && frame)
+                  && foregrounds.some((foreground) => {
+                    const bounds = foreground.getBoundingClientRect();
+                    return bounds.right > frame.left && bounds.left < frame.right;
+                  });
                 const backgroundBeforePause = currentTravelTrack()?.dataset.travelAssetId;
                 expedition.travelState = "paused";
                 updateTravelHud();
+                const directionBeforeTransform = travelTransformX(currentTravelTrack());
                 expedition.direction = "returning";
                 updateTravelHud();
+                const directionAfterTransform = travelTransformX(currentTravelTrack());
                 const backgroundAfterDirection = currentTravelTrack()?.dataset.travelAssetId;
+                const directionBeforeResumeTime = Number(travelImageAnimation(currentTravelTrack())?.currentTime);
                 expedition.travelState = "traveling";
                 updateTravelHud();
                 await wait(120);
                 const backgroundAfterResume = currentTravelTrack()?.dataset.travelAssetId;
+                const directionAfterResumeAnimation = travelImageAnimation(currentTravelTrack());
+                const movedAfterResume = Math.abs(
+                  Number(directionAfterResumeAnimation?.currentTime) - directionBeforeResumeTime,
+                ) > 0;
                 expedition.distance = 17;
                 updateTravelHud();
                 await wait(120);
@@ -354,7 +391,17 @@ def run() -> None:
                 const directionPreservedBackground = backgroundBeforePause
                   && backgroundBeforePause === backgroundAfterDirection
                   && backgroundBeforePause === backgroundAfterResume;
-                return outgoingRetained && directionPreservedBackground && Boolean(returnForeground?.isConnected);
+                const directionTransformPreserved = Number.isFinite(directionBeforeTransform)
+                  && Number.isFinite(directionAfterTransform)
+                  && Math.abs(directionBeforeTransform - directionAfterTransform) < 1;
+                const returningDirection = getComputedStyle(currentTravelTrack()).animationDirection === "reverse";
+                return outgoingRetained
+                  && repeatingSeamWrapPreserved
+                  && directionTransformPreserved
+                  && movedAfterResume
+                  && returningDirection
+                  && directionPreservedBackground
+                  && Boolean(returnForeground?.isConnected);
               } finally {
                 definition.travelScenes = originalScenes;
                 if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
@@ -367,6 +414,94 @@ def run() -> None:
             })()
             """,
             "Loop seam foreground was removed before its outgoing tree fully left the travel frame",
+        )
+        check(
+            r"""
+            (async () => {
+              const definition = EXPEDITION_DEFINITIONS.old_forest_road;
+              const originalScenes = definition.travelScenes;
+              const originalSeamForeground = definition.travelSeamForegroundAssetId;
+              const originalExpedition = game.expedition;
+              const originalScreen = game.screen;
+              const firstId = "expedition_old_forest_road_woodcut";
+              const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              const waitForActive = (frame) => new Promise((resolve) => {
+                let ticks = 0;
+                const poll = () => frame?.classList.contains("asset-image-active")
+                  || frame?.classList.contains("asset-load-failed")
+                  || ticks++ > 100
+                  ? resolve()
+                  : setTimeout(poll, 10);
+                poll();
+              });
+              try {
+                definition.travelScenes = [
+                  { minDistance: 0, visualAssetId: firstId, motion: "loop", showSeamForegroundBetweenLoops: true },
+                ];
+                definition.travelSeamForegroundAssetId = firstId;
+                const expedition = ExpeditionRules.createExpedition(game.player, {
+                  expeditionId: "old_forest_road",
+                  companions: [],
+                  provisions: 10,
+                  random: () => 0,
+                });
+                game.expedition = expedition;
+                game.screen = "expedition";
+                game.travelScenePresentation = null;
+                expedition.status = "visual-direction-phase-test";
+                expedition.travelState = "paused";
+                expedition.direction = "outbound";
+                expedition.distance = 5;
+                expedition.maxDistanceReached = 10;
+                renderExpedition();
+                await waitForActive(document.querySelector(".travel-scene"));
+                const initialAnimation = travelImageAnimation(currentTravelTrack());
+                const duration = Number(initialAnimation?.effect?.getComputedTiming?.().duration);
+                if (!initialAnimation || !Number.isFinite(duration) || duration <= 0) return false;
+                const phaseResults = [];
+                for (const fraction of [0.25, 0.92]) {
+                  expedition.travelState = "paused";
+                  expedition.direction = "outbound";
+                  updateTravelHud();
+                  const outboundAnimation = travelImageAnimation(currentTravelTrack());
+                  outboundAnimation.currentTime = duration * fraction;
+                  const before = travelTransformX(currentTravelTrack());
+                  const beforeAsset = currentTravelTrack()?.dataset.travelAssetId;
+                  expedition.direction = "returning";
+                  updateTravelHud();
+                  const after = travelTransformX(currentTravelTrack());
+                  const afterAsset = currentTravelTrack()?.dataset.travelAssetId;
+                  const direction = getComputedStyle(currentTravelTrack()).animationDirection;
+                  const beforeResume = Number(travelImageAnimation(currentTravelTrack())?.currentTime);
+                  expedition.travelState = "traveling";
+                  updateTravelHud();
+                  await wait(80);
+                  const afterResume = Number(travelImageAnimation(currentTravelTrack())?.currentTime);
+                  phaseResults.push(
+                    Number.isFinite(before)
+                    && Number.isFinite(after)
+                    && Math.abs(before - after) < 1
+                    && beforeAsset === afterAsset
+                    && direction === "reverse"
+                    && afterResume > beforeResume,
+                  );
+                  expedition.travelState = "paused";
+                  expedition.direction = "outbound";
+                  updateTravelHud();
+                }
+                return phaseResults.length === 2 && phaseResults.every(Boolean);
+              } finally {
+                definition.travelScenes = originalScenes;
+                if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
+                else definition.travelSeamForegroundAssetId = originalSeamForeground;
+                game.expedition = originalExpedition;
+                game.screen = originalScreen;
+                game.travelScenePresentation = null;
+                renderScreen();
+              }
+            })()
+            """,
+            "Reversing travel direction did not preserve the rendered loop position near and far from a seam",
         )
         check(
             "(() => { const definition=ENCOUNTER_DEFINITIONS.abandoned_camp; const base=resolveEncounterVisualState(definition,{}); const oldExpedition=game.expedition; const oldScreen=game.screen; const choice=definition.stages.start.choices.find(candidate=>candidate.id==='leave'); const oldOutcomes=choice.outcomes; const oldVisual=choice.visualOverride; const oldEnd=choice.endEncounter; choice.outcomes=[{type:'modifyResource',resource:'gold',amount:0}]; choice.visualOverride={backgroundAssetId:'expedition_old_forest_road_bg',encounterLayout:{arthur:{x:0.9,y:0.8}},hiddenSlots:['companion2']}; choice.endEncounter=true; const expedition=ExpeditionRules.createExpedition(SaveSystem.createDefaultPlayerState(),{expeditionId:'fountain_of_barenton',companions:['sir_kay','llamrei'],provisions:10}); EncounterManager.force(expedition,'abandoned_camp'); const resolved=EncounterManager.resolveChoice(expedition,SaveSystem.createDefaultPlayerState(),'leave'); const visual=resolveEncounterVisualState(definition,expedition.activeEncounter); game.expedition=expedition; game.screen='expedition'; renderScreen(); const image=document.querySelector('#travel-scene .travel-visual-track')?.dataset.travelAssetId; const members=[...document.querySelectorAll('#travelers > .companion')]; const rendered=members.length===2&&members[1].hidden&&document.querySelector('#travelers .arthur')?.dataset.encounterLayoutX==='0.9'&&Math.abs(Number(document.querySelector('#travelers .companion')?.dataset.encounterLayoutX)-base.layout.companion1.x)<0.0001; const inherited=visual.layout.companion1.x===base.layout.companion1.x&&visual.layout.companion2.y===base.layout.companion2.y; const stateUnchanged=expedition.selectedCompanions.length===2&&resolved.awaitingContinue; choice.outcomes=oldOutcomes; choice.visualOverride=oldVisual; choice.endEncounter=oldEnd; game.expedition=oldExpedition; game.screen=oldScreen; renderScreen(); return image==='expedition_old_forest_road_bg'&&resolved.resolved&&visual.hiddenSlots.has('companion2')&&inherited&&rendered&&stateUnchanged; })()",
