@@ -3539,17 +3539,49 @@ button.combatant {
   position: absolute;
   z-index: 2;
   display: grid;
-  min-width: 27%;
-  padding: clamp(0.35rem, 2.3cqw, 0.7rem);
-  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.2rem;
+  gap: 0.08rem;
   place-items: center;
-  border: 1px solid rgb(244 221 160 / 70%);
-  border-radius: 0.45rem;
-  background: rgb(17 25 18 / 88%);
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
   color: #fff1c5;
-  box-shadow: 0 0.25rem 0.8rem rgb(0 0 0 / 45%);
+  box-shadow: none;
   cursor: pointer;
   transform: translate(-50%, -50%);
+}
+
+.hub-hotspot.town-hotspot-style-plaque {
+  min-width: 21%;
+  padding: 0.25rem 0.35rem;
+  border-color: rgb(244 221 160 / 70%);
+  background: rgb(17 25 18 / 88%);
+  box-shadow: 0 0.12rem 0.35rem rgb(0 0 0 / 35%);
+}
+
+.hub-hotspot.town-hotspot-style-label {
+  padding: 0.12rem 0.2rem;
+  color: #f7e9bb;
+  text-shadow: 0 0.08rem 0.18rem #081008, 0 0 0.2rem rgb(8 16 8 / 85%);
+}
+
+.hub-hotspot.town-hotspot-style-seal {
+  width: clamp(3.2rem, 20cqw, 5rem);
+  padding: 0.05rem;
+  color: #fff0bd;
+  text-shadow: 0 0.08rem 0.16rem #081008;
+}
+
+.hub-hotspot.town-hotspot-style-seal .hub-building-icon {
+  display: grid;
+  width: clamp(1.65rem, 8cqw, 2.35rem);
+  height: clamp(1.65rem, 8cqw, 2.35rem);
+  place-items: center;
+  border: 1px solid var(--gold-bright);
+  border-radius: 50%;
+  background: rgb(35 46 28 / 88%);
+  box-shadow: 0 0 0 0.12rem rgb(27 35 22 / 72%), 0 0.12rem 0.35rem rgb(0 0 0 / 40%);
 }
 
 .hub-hotspot:hover {
@@ -3557,14 +3589,40 @@ button.combatant {
   border-color: var(--gold-bright);
 }
 
+.hub-hotspot.town-hotspot-style-label:hover {
+  background: rgb(17 25 18 / 22%);
+  border-color: transparent;
+}
+
+.hub-hotspot.town-hotspot-style-seal:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
 .hub-hotspot strong {
-  font-size: clamp(0.6rem, 2.8cqw, 0.82rem);
+  font-size: clamp(0.52rem, 2.2cqw, 0.68rem);
+}
+
+.hub-hotspot.town-hotspot-style-label strong {
+  font-size: clamp(0.5rem, 2.1cqw, 0.64rem);
+}
+
+.hub-hotspot.town-hotspot-style-seal strong {
+  font-size: clamp(0.48rem, 2cqw, 0.62rem);
 }
 
 .hub-building-icon {
   color: var(--gold);
-  font-size: clamp(1rem, 6cqw, 1.8rem);
+  font-size: clamp(0.82rem, 4.3cqw, 1.25rem);
   line-height: 1;
+}
+
+.hub-hotspot.town-hotspot-style-label .hub-building-icon {
+  font-size: clamp(0.72rem, 3.4cqw, 1rem);
+}
+
+.hub-hotspot.town-hotspot-style-seal .hub-building-icon {
+  font-size: clamp(0.8rem, 4cqw, 1.2rem);
 }
 
 .hub-hotspot.is-pressed,
@@ -3575,7 +3633,20 @@ button.combatant {
 .hub-hotspot.is-story-destination {
   border-color: var(--gold-bright);
   background: linear-gradient(145deg, rgb(86 55 30 / 92%), rgb(27 43 29 / 94%));
-  box-shadow: 0 0 1.2rem rgb(217 189 114 / 28%);
+  box-shadow: 0 0 0.65rem rgb(217 189 114 / 28%);
+}
+
+.hub-hotspot.town-hotspot-style-label.is-story-destination,
+.hub-hotspot.town-hotspot-style-seal.is-story-destination {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hub-hotspot.town-hotspot-style-label.is-story-destination .hub-building-icon,
+.hub-hotspot.town-hotspot-style-seal.is-story-destination .hub-building-icon {
+  color: var(--gold-bright);
+  filter: drop-shadow(0 0 0.25rem rgb(217 189 114 / 45%));
 }
 
 .hub-hotspot.is-locked {
@@ -3587,6 +3658,13 @@ button.combatant {
 }
 
 .hub-hotspot.is-locked .hub-building-icon { color: #7b887b; }
+
+.hub-hotspot.town-hotspot-style-label.is-locked,
+.hub-hotspot.town-hotspot-style-seal.is-locked {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
 
 .hub-lock-label {
   color: #8d998d;

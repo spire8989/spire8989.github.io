@@ -20,11 +20,18 @@ const debugToolsState = {
   expeditionId: null,
   combatEnemyId: null,
   combatStatusId: null,
+  townHotspotStyle: "plaque",
   disableRandomEncounters: false,
 };
 
 let debugToolsPanel = null;
 let debugToolsToggle = null;
+
+function debugTownHotspotStyle() {
+  return ["plaque", "label", "seal"].includes(debugToolsState.townHotspotStyle)
+    ? debugToolsState.townHotspotStyle
+    : "plaque";
+}
 
 const DebugTools = Object.freeze({
   isEnabled() {
@@ -112,6 +119,10 @@ function initializeDebugTools() {
     if (target.id === "debug-combat-enemy") debugToolsState.combatEnemyId = target.value;
     if (target.id === "debug-combat-status") debugToolsState.combatStatusId = target.value;
     if (target.id === "debug-expedition-select") debugToolsState.expeditionId = target.value;
+    if (target.id === "debug-town-hotspot-style") {
+      debugToolsState.townHotspotStyle = debugTownHotspotStyleValue(target.value);
+      if (game.screen === "location") renderLocation();
+    }
     if (target.id === "debug-disable-random-encounters" && !debugReplayActive()) {
       debugToolsState.disableRandomEncounters = target.checked;
     }
@@ -314,6 +325,7 @@ function renderDebugTools() {
     ${renderDebugItemsSection()}
     ${renderDebugMaterialsSection()}
     ${renderDebugProgressionSection()}
+    ${renderDebugTownHotspotSection()}
     ${renderDebugExpeditionSection()}
     ${renderDebugCombatSection()}
     ${renderDebugSaveSection()}`;
@@ -324,6 +336,24 @@ function renderDebugTools() {
     control.dataset.baseDisabled = String(control.disabled);
   });
   updateDebugAvailability();
+}
+
+function debugTownHotspotStyleValue(value) {
+  return ["plaque", "label", "seal"].includes(value) ? value : "plaque";
+}
+
+function renderDebugTownHotspotSection() {
+  const style = debugTownHotspotStyle();
+  return `<details class="debug-section" data-debug-details="town-hotspots" open>
+    <summary>Town Hotspots</summary><div class="debug-section-content">
+      <label>Marker style <select id="debug-town-hotspot-style" aria-label="Town hotspot marker style">
+        <option value="plaque" ${style === "plaque" ? "selected" : ""}>Plaque</option>
+        <option value="label" ${style === "label" ? "selected" : ""}>Label</option>
+        <option value="seal" ${style === "seal" ? "selected" : ""}>Seal</option>
+      </select></label>
+      <p class="debug-muted">Visual comparison only. Hotspot coordinates and town state are unchanged.</p>
+    </div>
+  </details>`;
 }
 
 function captureDebugPanelViewState() {
