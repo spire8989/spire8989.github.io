@@ -2015,6 +2015,7 @@ button:active:not(:disabled) {
   inset: 0;
   display: block;
   transform: none;
+  transition: none;
 }
 
 .travelers.is-encounter-layout.is-returning {
