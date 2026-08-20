@@ -484,19 +484,34 @@ function travelUpcomingTile(track, expedition) {
     : travelTileFor(track, "loop");
 }
 
-function setTravelTileImage(tile, source, assetId, motion, copy) {
-  if (!tile || !source || !assetId) return;
-  const sourcePath = source.currentSrc || source.src;
-  if (!sourcePath) return;
-  tile.src = sourcePath;
+function travelTileIsOffscreen(tile, viewport, returning) {
+  if (!tile || !viewport) return false;
+  const box = tile.getBoundingClientRect();
+  const tolerance = 3;
+  return returning
+    ? box.left >= viewport.right - tolerance
+    : box.right <= viewport.left + tolerance;
+}
+
+function configureTravelTile(tile, assetId, motion, copy, panorama) {
+  if (!tile || !assetId) return;
   tile.className = "asset-image travel-visual-asset is-visible";
   tile.dataset.travelCopy = copy;
   tile.dataset.travelTile = copy === "primary" ? "leading" : "trailing";
   tile.dataset.travelAssetId = assetId;
   tile.dataset.travelMotion = normalizeTravelMotion(motion);
-  tile.dataset.travelAspect = isTravelPanorama(source) ? "panorama" : "standard";
-  tile.classList.toggle("is-panorama", isTravelPanorama(source));
+  tile.dataset.travelAspect = panorama ? "panorama" : "standard";
+  tile.classList.toggle("is-panorama", panorama);
   tile.hidden = false;
+}
+
+function setTravelTileImage(tile, source, assetId, motion, copy) {
+  if (!tile || !source || !assetId) return;
+  const sourcePath = source.currentSrc || source.src;
+  if (!sourcePath) return;
+  const panorama = isTravelPanorama(source);
+  tile.src = sourcePath;
+  configureTravelTile(tile, assetId, motion, copy, panorama);
 }
 
 function resetTravelPendingTile(expedition) {
@@ -564,20 +579,38 @@ function installTravelPendingTile(expedition, pending) {
   }
 }
 
-function promoteTravelLoopScene(expedition, scene, pending) {
+function recycleTravelLoopScene(expedition, scene, pending) {
   const state = travelScenePresentationFor(expedition);
   const track = currentTravelTrack();
   if (!state || !track || track.dataset.travelKind === "encounter") return false;
   const upcomingTile = travelUpcomingTile(track, expedition);
   const activeTile = travelActiveTile(track, expedition);
-  if (!upcomingTile || !activeTile || upcomingTile.dataset.travelAssetId !== pending.assetId) return false;
-  setTravelTileImage(
-    activeTile,
-    upcomingTile,
-    pending.assetId,
-    pending.motion,
-    activeTile.dataset.travelCopy || (expedition?.direction === "returning" ? "loop" : "primary"),
-  );
+  if (!upcomingTile
+    || !activeTile
+    || activeTile.dataset.travelAssetId !== pending.outgoingAssetId
+    || upcomingTile.dataset.travelAssetId !== pending.assetId) return false;
+  const returning = expedition?.direction === "returning";
+  let presentationImage;
+  if (returning) {
+    const replacement = upcomingTile.cloneNode(false);
+    replacement.removeAttribute("onload");
+    replacement.removeAttribute("onerror");
+    replacement.removeAttribute("data-travel-bound");
+    configureTravelTile(replacement, pending.assetId, pending.motion, "loop", isTravelPanorama(upcomingTile));
+    activeTile.replaceWith(replacement);
+    presentationImage = upcomingTile;
+  } else {
+    const replacement = upcomingTile;
+    configureTravelTile(replacement, pending.assetId, pending.motion, "primary", isTravelPanorama(replacement));
+    activeTile.replaceWith(replacement);
+    const copy = replacement.cloneNode(false);
+    copy.removeAttribute("onload");
+    copy.removeAttribute("onerror");
+    copy.removeAttribute("data-travel-bound");
+    configureTravelTile(copy, pending.assetId, pending.motion, "loop", isTravelPanorama(replacement));
+    track.append(copy);
+    presentationImage = replacement;
+  }
   track.dataset.travelAssetId = pending.assetId;
   track.dataset.travelMotion = normalizeTravelMotion(pending.motion);
   track.dataset.travelSceneKey = pending.sceneKey ?? "";
@@ -599,8 +632,7 @@ function promoteTravelLoopScene(expedition, scene, pending) {
   state.pending = null;
   state.transition = null;
   document.querySelector("#travel-transition-art")?.classList.remove("is-active");
-  const activeImage = travelActiveTile(track, expedition);
-  if (scene && activeImage) updateTravelImagePresentation(scene, activeImage);
+  if (scene && presentationImage) updateTravelImagePresentation(scene, presentationImage);
   return true;
 }
 
@@ -733,6 +765,8 @@ function cancelTravelSceneTransition(expedition, preservePending = false) {
       tileMode: Boolean(transition.tileMode),
       tileReady: false,
       tileInstallRequested: false,
+      outgoingAssetId: transition.outgoingAssetId ?? state.activeAssetId ?? "",
+      seamCrossed: Boolean(transition.seamCrossed),
       elapsedMs: 0,
       lastSampleAt: performance.now(),
     };
@@ -984,7 +1018,6 @@ function queueTravelSceneTransition(expedition, desiredPresentation, currentImag
   if (state.pending) resetTravelPendingTile(expedition);
   const animation = travelImageAnimation(currentImage);
   const duration = Number(animation?.effect?.getComputedTiming?.().duration);
-  const currentTime = Number(animation?.currentTime);
   const loop = animation?.animationName === "travel-panorama-loop" && Number.isFinite(duration) && duration > 0;
   const now = performance.now();
   state.pending = {
@@ -994,6 +1027,8 @@ function queueTravelSceneTransition(expedition, desiredPresentation, currentImag
     tileMode: loop && desiredMotion === "loop",
     tileReady: false,
     tileInstallRequested: false,
+    outgoingAssetId: currentAssetId,
+    seamCrossed: false,
     elapsedMs: 0,
     lastSampleAt: now,
   };
@@ -1002,10 +1037,6 @@ function queueTravelSceneTransition(expedition, desiredPresentation, currentImag
 }
 
 function startTravelSceneCrossfade(expedition, scene, pending) {
-  if (pending?.tileMode) {
-    promoteTravelLoopScene(expedition, scene, pending);
-    return;
-  }
   const state = travelScenePresentationFor(expedition);
   const art = document.querySelector("#travel-art");
   const current = currentTravelTrack();
@@ -1019,29 +1050,6 @@ function startTravelSceneCrossfade(expedition, scene, pending) {
 function beginTravelSceneTransition(expedition, scene, pending) {
   const state = travelScenePresentationFor(expedition);
   if (!state || state.transition) return;
-  if (pending.tileMode) {
-    const overlay = document.querySelector("#travel-transition-art");
-    const overlayImage = overlay?.querySelector("img");
-    const transition = { ...pending, crossfadeStarted: false, overlayActive: false };
-    state.transition = transition;
-    const overlayReady = Boolean(overlayImage && !overlayImage.hidden && overlayImage.naturalWidth > 0);
-    if (!overlayReady) {
-      startTravelSceneCrossfade(expedition, scene, pending);
-      return;
-    }
-    overlay.classList.remove("is-active");
-    void overlay.offsetWidth;
-    overlay.classList.add("is-active");
-    transition.overlayActive = true;
-    transition.overlayTimer = window.setTimeout(() => {
-      if (state.transition !== transition) return;
-      startTravelSceneCrossfade(expedition, scene, pending);
-    }, 180);
-    transition.finishTimer = window.setTimeout(() => {
-      overlay.classList.remove("is-active");
-    }, 420);
-    return;
-  }
   const overlay = document.querySelector("#travel-transition-art");
   const overlayImage = overlay?.querySelector("img");
   const transition = { ...pending, crossfadeStarted: false, overlayActive: false };
@@ -1089,7 +1097,13 @@ function advancePendingTravelScene(expedition, scene, activeEncounter) {
     const reachedAnchor = expedition.direction === "returning"
       ? seamX >= anchorX
       : seamX <= anchorX;
-    if (reachedAnchor) beginTravelSceneTransition(expedition, scene, pending);
+    if (!pending.seamCrossed && reachedAnchor) pending.seamCrossed = true;
+    if (!pending.seamCrossed) return;
+    const outgoingTile = travelActiveTile(track, expedition);
+    if (!outgoingTile || outgoingTile.dataset.travelAssetId !== pending.outgoingAssetId) return;
+    if (travelTileIsOffscreen(outgoingTile, scene.getBoundingClientRect(), expedition.direction === "returning")) {
+      recycleTravelLoopScene(expedition, scene, pending);
+    }
     return;
   }
   if (!scene.classList.contains("is-moving")) return;
