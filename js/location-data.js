@@ -211,12 +211,12 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "inn",
     description: "A low timber hall offering warmth, simple fare, and village talk.",
     visualKey: "inn_interior",
-    visualAssetId: null,
+    visualAssetId: "location_the_inn_woodcut_2",
     scenePosition: "northwest",
-      npcIds: ["village_innkeeper"],
-      shopId: null,
-      craftingProviderId: "campfire",
-      actions: ["talk", "rumor"],
+    npcIds: ["village_innkeeper"],
+    shopId: null,
+    craftingProviderId: "campfire",
+    actions: ["talk", "rumor"]
   },
   merchant: {
     id: "merchant",
@@ -224,11 +224,11 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "shop",
     description: "A covered stall stocked with practical expedition supplies.",
     visualKey: "merchant_stall",
-    visualAssetId: null,
+    visualAssetId: "location_merchant_woodcut_2",
     scenePosition: "northeast",
     npcIds: ["village_merchant"],
     shopId: "village_general_goods",
-    actions: ["talk", "shop"],
+    actions: ["talk", "shop"]
   },
   blacksmith: {
     id: "blacksmith",
@@ -249,12 +249,12 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "shop",
     description: "Drying herbs hang above a workbench crowded with jars and small brass scales.",
     visualKey: "apothecary_interior",
-    visualAssetId: null,
+    visualAssetId: "location_apothecary_woodcut",
     scenePosition: "southeast",
     npcIds: ["village_apothecary"],
     shopId: "village_apothecary_shop",
     craftingProviderId: "apothecary",
-    actions: ["talk", "shop"],
+    actions: ["talk", "shop"]
   },
   hall: {
     id: "hall",
@@ -262,12 +262,12 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     type: "story",
     description: "The village's central hall, where news is weighed and the chapter's purpose is kept in view.",
     visualKey: "hall_interior",
-    visualAssetId: null,
+    visualAssetId: "location_the_hall_woodcut_3",
     scenePosition: "center",
     npcIds: ["village_reeve"],
     shopId: null,
     actions: ["talk"],
-    requiresIntro: false,
+    requiresIntro: false
   },
 });
 
@@ -280,12 +280,12 @@ const LOCATION_DEFINITIONS = Object.freeze({
     chapterId: "chapter_03",
     regionId: "broceliande",
     visualKey: "broceliande_village",
-    visualAssetId: null,
+    visualAssetId: "location_village_at_the_edge_of_broc_liande_woodcut_1",
     destinations: ["inn", "merchant", "blacksmith", "apothecary", "hall"],
     npcs: ["village_innkeeper", "village_merchant", "village_blacksmith", "village_apothecary", "village_reeve"],
     shops: ["village_general_goods", "village_smithy", "village_apothecary_shop"],
     availableExpeditions: ["old_forest_road", "fountain_of_barenton", "val_sans_retour", "search_for_merlin"],
     availableQuests: [],
-    requirements: [],
+    requirements: []
   },
 });
