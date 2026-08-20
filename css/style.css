@@ -3552,8 +3552,22 @@ button.combatant {
   transform: translate(-50%, -50%);
 }
 
+.hub-hotspot::after {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  content: "";
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
 .hub-hotspot.town-hotspot-style-tag {
-  border-color: rgb(244 221 160 / 30%);
+  padding-right: 0.28rem;
+  padding-left: 0.28rem;
+  border-color: rgb(244 221 160 / 34%);
   background: rgb(17 25 18 / 82%);
   box-shadow: 0 0.08rem 0.2rem rgb(0 0 0 / 28%);
 }
@@ -3601,11 +3615,19 @@ button.combatant {
   line-height: 1.1;
 }
 
+.hub-hotspot.town-hotspot-style-tag strong {
+  font-size: clamp(0.55rem, 2.35cqw, 0.72rem);
+}
+
 .hub-building-icon {
   flex: 0 0 auto;
   color: var(--gold);
   font-size: clamp(0.7rem, 3.6cqw, 1rem);
   line-height: 1;
+}
+
+.hub-hotspot.town-hotspot-style-tag .hub-building-icon {
+  font-size: clamp(0.76rem, 3.9cqw, 1.08rem);
 }
 
 .hub-hotspot.is-pressed,
@@ -3656,12 +3678,6 @@ button.combatant {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
-}
-
-.hub-lock-label {
-  color: #8d998d;
-  font-family: system-ui, sans-serif;
-  font-size: clamp(0.42rem, 1.8cqw, 0.55rem);
 }
 
 .destination-panel {

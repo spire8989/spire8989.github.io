@@ -46,6 +46,9 @@ function initializeGame() {
   document.addEventListener("pointerdown", showPressedState);
   document.addEventListener("pointerup", clearPressedState);
   document.addEventListener("pointercancel", clearPressedState);
+  window.addEventListener("resize", () => {
+    if (game.screen === "location") window.requestAnimationFrame(clampTownHotspotsToScene);
+  });
   AudioManager.initialize();
   renderScreen();
   requestAnimationFrame(gameLoop);
@@ -1422,6 +1425,30 @@ function townHotspotStyle(location) {
   return TOWN_HOTSPOT_STYLES.includes(location?.markerStyle) ? location.markerStyle : "tag";
 }
 
+function clampTownHotspotsToScene(scene = document.querySelector(".location-scene")) {
+  if (!scene) return;
+  const sceneBounds = scene.getBoundingClientRect();
+  if (!sceneBounds.width || !sceneBounds.height) return;
+  scene.querySelectorAll(".hub-hotspot").forEach((button) => {
+    const authoredX = Number(button.dataset.hotspotX);
+    const authoredY = Number(button.dataset.hotspotY);
+    if (!Number.isFinite(authoredX) || !Number.isFinite(authoredY)) return;
+    const markerBounds = button.getBoundingClientRect();
+    const halfWidth = markerBounds.width / 2;
+    const halfHeight = markerBounds.height / 2;
+    const anchorX = sceneBounds.left + sceneBounds.width * authoredX;
+    const anchorY = sceneBounds.top + sceneBounds.height * authoredY;
+    const minX = sceneBounds.left + halfWidth;
+    const maxX = sceneBounds.right - halfWidth;
+    const minY = sceneBounds.top + halfHeight;
+    const maxY = sceneBounds.bottom - halfHeight;
+    const clampedX = clamp(anchorX, Math.min(minX, maxX), Math.max(minX, maxX));
+    const clampedY = clamp(anchorY, Math.min(minY, maxY), Math.max(minY, maxY));
+    button.style.left = `${((clampedX - sceneBounds.left) / sceneBounds.width) * 100}%`;
+    button.style.top = `${((clampedY - sceneBounds.top) / sceneBounds.height) * 100}%`;
+  });
+}
+
 function renderLocation() {
   const location = LOCATION_DEFINITIONS[game.player.currentLocationId];
   if (!location) {
@@ -1439,7 +1466,6 @@ function renderLocation() {
         style="left: ${hotspot.x * 100}%; top: ${hotspot.y * 100}%;" data-hotspot-x="${hotspot.x}" data-hotspot-y="${hotspot.y}" data-action="open-destination" data-destination-id="${destination.id}" ${locked ? "disabled aria-disabled=\"true\"" : ""}>
         <span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>
         <strong>${destination.name}</strong>
-        ${locked ? "<span class=\"hub-lock-label\">Available after the Hall</span>" : ""}
       </button>`;
   }).join("");
 
@@ -1469,6 +1495,7 @@ function renderLocation() {
         </div>
       </div>
     </section>`;
+  clampTownHotspotsToScene();
 }
 
 function openDestination(destinationId) {
