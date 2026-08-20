@@ -24,7 +24,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
         visualAssetId: "expedition_old_forest_road_wide_bg_loop"
       },
       {
-        minDistance: 15,
+        minDistance: 5,
         visualAssetId: "expedition_old_forest_road_50_bg",
         motion: "loop"
       }

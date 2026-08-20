@@ -466,6 +466,12 @@ function ensureTravelLoopCopies(image, panorama, motion) {
   const imageCopy = image.dataset.travelCopy === "loop" ? "loop" : "primary";
   image.dataset.travelCopy = imageCopy;
   image.dataset.travelTile = imageCopy === "primary" ? "leading" : "trailing";
+  if (track.dataset.travelSnapshot === "true" && panorama && motion === "loop") {
+    track.querySelectorAll(".travel-visual-asset").forEach((tile) => {
+      tile.classList.add("is-panorama");
+      tile.dataset.travelAspect = "panorama";
+    });
+  }
   const loopCopy = track.querySelector("[data-travel-copy='loop']");
   const hasRestoredLoopComposition = track.dataset.travelSnapshot === "true"
     && panorama
@@ -2731,7 +2737,26 @@ function startExpedition() {
 
 function renderExpedition() {
   const expedition = game.expedition;
-  if (expedition?.activeEncounter && !document.querySelector(".encounter-panel")) {
+  const existingTravelScene = document.querySelector("#travel-scene");
+  const existingTravelTrack = currentTravelTrack();
+  const activeEncounter = expedition?.activeEncounter
+    ? EncounterManager.definitionFor(expedition)
+    : null;
+  const hasDedicatedEncounterArtwork = Boolean(
+    activeEncounter?.visualAssetId && AssetCatalog.imagePath(activeEncounter.visualAssetId),
+  );
+  const preserveLiveTravelScene = Boolean(
+    existingTravelScene
+    && existingTravelTrack
+    && game.travelScenePresentation?.expedition === expedition
+    && existingTravelTrack.dataset.travelKind !== "encounter"
+    && !hasDedicatedEncounterArtwork
+    && !expedition?.combat
+    && expedition?.travelState !== "camped",
+  );
+  if (expedition?.activeEncounter
+    && !document.querySelector(".encounter-panel")
+    && !preserveLiveTravelScene) {
     game.travelVisualState = captureTravelVisualState(expedition) ?? game.travelVisualState;
   }
   if (expedition.combat) {
@@ -2745,18 +2770,32 @@ function renderExpedition() {
   const companions = selectedCompanionIds(expedition)
     .map((companionId) => COMPANION_DEFINITIONS[companionId])
     .filter(Boolean);
-  const activeEncounter = expedition.activeEncounter
-    ? EncounterManager.definitionFor(expedition)
-    : null;
   syncExpeditionAmbience(expedition, "travel", activeEncounter);
   const travelPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
-  const travelVisualSnapshot = game.travelVisualState?.expedition === expedition
+  const travelVisualSnapshot = !preserveLiveTravelScene
+    && game.travelVisualState?.expedition === expedition
     && travelPresentation.kind !== "encounter"
     ? game.travelVisualState
     : null;
   const loadoutEntries = Object.values(expedition.selectedEquipment)
     .map((itemId) => ({ itemId, quantity: 1 }))
     .filter(({ itemId }) => ITEM_DEFINITIONS[itemId]);
+  const expeditionPanelMarkup = activeEncounter
+    ? renderEncounterPanel(expedition, activeEncounter)
+    : `${renderTravelPanel(expedition, companions, loadoutEntries)}${renderExpeditionActionBar(expedition)}`;
+
+  if (preserveLiveTravelScene) {
+    const expeditionScreen = existingTravelScene.closest(".expedition-screen");
+    if (expeditionScreen) {
+      [...expeditionScreen.children]
+        .filter((child) => child !== existingTravelScene)
+        .forEach((child) => child.remove());
+      expeditionScreen.insertAdjacentHTML("beforeend", expeditionPanelMarkup);
+      game.travelVisualState = null;
+      updateTravelHud();
+      return;
+    }
+  }
 
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
@@ -2772,9 +2811,7 @@ function renderExpedition() {
         ${renderTravelTransitionAsset(expedition)}
         <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>
       </div>
-      ${activeEncounter
-        ? renderEncounterPanel(expedition, activeEncounter)
-         : `${renderTravelPanel(expedition, companions, loadoutEntries)}${renderExpeditionActionBar(expedition)}`}
+      ${expeditionPanelMarkup}
     </section>`;
   applyTravelVisualSnapshot(travelVisualSnapshot);
   updateTravelHud();
