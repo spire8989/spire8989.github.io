@@ -1414,11 +1414,12 @@ function townHotspotForDestination(destination) {
   };
 }
 
-const TOWN_HOTSPOT_STYLES = Object.freeze(["plaque", "label", "seal"]);
+const TOWN_HOTSPOT_STYLES = Object.freeze(["tag", "ribbon", "ink"]);
 
-function townHotspotStyle() {
-  const requested = typeof debugTownHotspotStyle === "function" ? debugTownHotspotStyle() : "plaque";
-  return TOWN_HOTSPOT_STYLES.includes(requested) ? requested : "plaque";
+function townHotspotStyle(location) {
+  const override = typeof debugTownHotspotStyle === "function" ? debugTownHotspotStyle() : null;
+  if (TOWN_HOTSPOT_STYLES.includes(override)) return override;
+  return TOWN_HOTSPOT_STYLES.includes(location?.markerStyle) ? location.markerStyle : "tag";
 }
 
 function renderLocation() {
@@ -1434,7 +1435,7 @@ function renderLocation() {
     const locked = destination.requiresIntro !== false && !villageUnlocked;
     const hotspot = townHotspotForDestination(destination);
     return `
-      <button class="hub-hotspot town-hotspot-style-${townHotspotStyle()} ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
+      <button class="hub-hotspot town-hotspot-style-${townHotspotStyle(location)} ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
         style="left: ${hotspot.x * 100}%; top: ${hotspot.y * 100}%;" data-hotspot-x="${hotspot.x}" data-hotspot-y="${hotspot.y}" data-action="open-destination" data-destination-id="${destination.id}" ${locked ? "disabled aria-disabled=\"true\"" : ""}>
         <span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>
         <strong>${destination.name}</strong>

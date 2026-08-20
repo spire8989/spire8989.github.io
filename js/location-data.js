@@ -213,7 +213,10 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "inn_interior",
     visualAssetId: "location_the_inn_woodcut_2",
     scenePosition: "northwest",
-    hotspot: { x: 0.18, y: 0.27 },
+    hotspot: {
+      x: 0.4735576923076923,
+      y: 0.2708333333333333
+    },
     npcIds: ["village_innkeeper"],
     shopId: null,
     craftingProviderId: "campfire",
@@ -227,7 +230,10 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "merchant_stall",
     visualAssetId: "location_merchant_woodcut_2",
     scenePosition: "northeast",
-    hotspot: { x: 0.82, y: 0.27 },
+    hotspot: {
+      x: 0.8052884615384616,
+      y: 0.328525641025641
+    },
     npcIds: ["village_merchant"],
     shopId: "village_general_goods",
     actions: ["talk", "shop"]
@@ -240,7 +246,10 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "smithy_interior",
     visualAssetId: "location_blacksmith_bg",
     scenePosition: "southwest",
-    hotspot: { x: 0.22, y: 0.56 },
+    hotspot: {
+      x: 0.14903846153846154,
+      y: 0.5608974358974359
+    },
     npcIds: ["village_blacksmith"],
     shopId: "village_smithy",
     craftingProviderId: "blacksmith",
@@ -254,7 +263,10 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "apothecary_interior",
     visualAssetId: "location_apothecary_woodcut",
     scenePosition: "southeast",
-    hotspot: { x: 0.78, y: 0.56 },
+    hotspot: {
+      x: 0.8461538461538461,
+      y: 0.5833333333333334
+    },
     npcIds: ["village_apothecary"],
     shopId: "village_apothecary_shop",
     craftingProviderId: "apothecary",
@@ -268,7 +280,10 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "hall_interior",
     visualAssetId: "location_the_hall_woodcut_3",
     scenePosition: "center",
-    hotspot: { x: 0.50, y: 0.35 },
+    hotspot: {
+      x: 0.5432692307692307,
+      y: 0.4583333333333333
+    },
     npcIds: ["village_reeve"],
     shopId: null,
     actions: ["talk"],
@@ -286,6 +301,7 @@ const LOCATION_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     visualKey: "broceliande_village",
     visualAssetId: "location_village_at_the_edge_of_broc_liande_woodcut_1",
+    markerStyle: "tag",
     destinations: ["inn", "merchant", "blacksmith", "apothecary", "hall"],
     npcs: ["village_innkeeper", "village_merchant", "village_blacksmith", "village_apothecary", "village_reeve"],
     shops: ["village_general_goods", "village_smithy", "village_apothecary_shop"],

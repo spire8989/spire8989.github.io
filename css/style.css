@@ -3538,91 +3538,74 @@ button.combatant {
 .hub-hotspot {
   position: absolute;
   z-index: 2;
-  display: grid;
+  display: inline-flex;
   min-width: 0;
-  padding: 0.2rem;
-  gap: 0.08rem;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  padding: 0.1rem 0.2rem;
   border: 1px solid transparent;
-  border-radius: 0.25rem;
+  border-radius: 0.18rem;
   background: transparent;
   color: #fff1c5;
-  box-shadow: none;
   cursor: pointer;
   transform: translate(-50%, -50%);
 }
 
-.hub-hotspot.town-hotspot-style-plaque {
-  min-width: 21%;
-  padding: 0.25rem 0.35rem;
-  border-color: rgb(244 221 160 / 70%);
-  background: rgb(17 25 18 / 88%);
-  box-shadow: 0 0.12rem 0.35rem rgb(0 0 0 / 35%);
+.hub-hotspot.town-hotspot-style-tag {
+  border-color: rgb(244 221 160 / 30%);
+  background: rgb(17 25 18 / 82%);
+  box-shadow: 0 0.08rem 0.2rem rgb(0 0 0 / 28%);
 }
 
-.hub-hotspot.town-hotspot-style-label {
-  padding: 0.12rem 0.2rem;
+.hub-hotspot.town-hotspot-style-ribbon {
+  padding: 0.11rem 0.42rem;
+  border-color: rgb(244 221 160 / 42%);
+  border-radius: 0.12rem;
+  background: rgb(28 32 22 / 86%);
+  box-shadow: 0 0.08rem 0.2rem rgb(0 0 0 / 25%);
+  clip-path: polygon(0.2rem 0, calc(100% - 0.2rem) 0, 100% 50%, calc(100% - 0.2rem) 100%, 0.2rem 100%, 0 50%);
+}
+
+.hub-hotspot.town-hotspot-style-ink {
+  position: relative;
+  isolation: isolate;
+  padding: 0.1rem 0.26rem;
   color: #f7e9bb;
   text-shadow: 0 0.08rem 0.18rem #081008, 0 0 0.2rem rgb(8 16 8 / 85%);
 }
 
-.hub-hotspot.town-hotspot-style-seal {
-  width: clamp(3.2rem, 20cqw, 5rem);
-  padding: 0.05rem;
-  color: #fff0bd;
-  text-shadow: 0 0.08rem 0.16rem #081008;
-}
-
-.hub-hotspot.town-hotspot-style-seal .hub-building-icon {
-  display: grid;
-  width: clamp(1.65rem, 8cqw, 2.35rem);
-  height: clamp(1.65rem, 8cqw, 2.35rem);
-  place-items: center;
-  border: 1px solid var(--gold-bright);
-  border-radius: 50%;
-  background: rgb(35 46 28 / 88%);
-  box-shadow: 0 0 0 0.12rem rgb(27 35 22 / 72%), 0 0.12rem 0.35rem rgb(0 0 0 / 40%);
+.hub-hotspot.town-hotspot-style-ink::before {
+  position: absolute;
+  z-index: -1;
+  inset: -0.13rem -0.24rem;
+  border-radius: 48% 54% 43% 57% / 55% 43% 58% 46%;
+  background: radial-gradient(ellipse at 40% 44%, rgb(17 25 18 / 88%), rgb(17 25 18 / 62%) 68%, transparent 100%);
+  content: "";
+  filter: blur(0.02rem);
+  transform: rotate(-2deg);
 }
 
 .hub-hotspot:hover {
-  background: rgb(47 72 51 / 94%);
+  color: #fff7d5;
+}
+
+.hub-hotspot.town-hotspot-style-tag:hover,
+.hub-hotspot.town-hotspot-style-ribbon:hover {
   border-color: var(--gold-bright);
-}
-
-.hub-hotspot.town-hotspot-style-label:hover {
-  background: rgb(17 25 18 / 22%);
-  border-color: transparent;
-}
-
-.hub-hotspot.town-hotspot-style-seal:hover {
-  background: transparent;
-  border-color: transparent;
+  background: rgb(47 72 51 / 92%);
 }
 
 .hub-hotspot strong {
-  font-size: clamp(0.52rem, 2.2cqw, 0.68rem);
-}
-
-.hub-hotspot.town-hotspot-style-label strong {
-  font-size: clamp(0.5rem, 2.1cqw, 0.64rem);
-}
-
-.hub-hotspot.town-hotspot-style-seal strong {
-  font-size: clamp(0.48rem, 2cqw, 0.62rem);
+  font-size: clamp(0.5rem, 2.1cqw, 0.66rem);
+  line-height: 1.1;
 }
 
 .hub-building-icon {
+  flex: 0 0 auto;
   color: var(--gold);
-  font-size: clamp(0.82rem, 4.3cqw, 1.25rem);
+  font-size: clamp(0.7rem, 3.6cqw, 1rem);
   line-height: 1;
-}
-
-.hub-hotspot.town-hotspot-style-label .hub-building-icon {
-  font-size: clamp(0.72rem, 3.4cqw, 1rem);
-}
-
-.hub-hotspot.town-hotspot-style-seal .hub-building-icon {
-  font-size: clamp(0.8rem, 4cqw, 1.2rem);
 }
 
 .hub-hotspot.is-pressed,
@@ -3631,27 +3614,31 @@ button.combatant {
 }
 
 .hub-hotspot.is-story-destination {
+  color: #fff7d2;
+}
+
+.hub-hotspot.town-hotspot-style-tag.is-story-destination {
   border-color: var(--gold-bright);
-  background: linear-gradient(145deg, rgb(86 55 30 / 92%), rgb(27 43 29 / 94%));
-  box-shadow: 0 0 0.65rem rgb(217 189 114 / 28%);
+  background: linear-gradient(145deg, rgb(86 55 30 / 90%), rgb(27 43 29 / 92%));
+  box-shadow: 0 0 0.55rem rgb(217 189 114 / 28%);
 }
 
-.hub-hotspot.town-hotspot-style-label.is-story-destination,
-.hub-hotspot.town-hotspot-style-seal.is-story-destination {
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
+.hub-hotspot.town-hotspot-style-ribbon.is-story-destination {
+  border-color: var(--gold-bright);
+  background: linear-gradient(145deg, rgb(86 55 30 / 90%), rgb(27 43 29 / 92%));
+  box-shadow: 0 0 0.55rem rgb(217 189 114 / 24%);
 }
 
-.hub-hotspot.town-hotspot-style-label.is-story-destination .hub-building-icon,
-.hub-hotspot.town-hotspot-style-seal.is-story-destination .hub-building-icon {
+.hub-hotspot.town-hotspot-style-ink.is-story-destination::before {
+  background: radial-gradient(ellipse at 40% 44%, rgb(86 55 30 / 94%), rgb(27 43 29 / 75%) 68%, transparent 100%);
+}
+
+.hub-hotspot.is-story-destination .hub-building-icon {
   color: var(--gold-bright);
   filter: drop-shadow(0 0 0.25rem rgb(217 189 114 / 45%));
 }
 
 .hub-hotspot.is-locked {
-  border-color: rgb(151 163 150 / 32%);
-  background: rgb(17 25 18 / 64%);
   color: #899388;
   cursor: default;
   opacity: 0.68;
@@ -3659,8 +3646,13 @@ button.combatant {
 
 .hub-hotspot.is-locked .hub-building-icon { color: #7b887b; }
 
-.hub-hotspot.town-hotspot-style-label.is-locked,
-.hub-hotspot.town-hotspot-style-seal.is-locked {
+.hub-hotspot.town-hotspot-style-tag.is-locked {
+  border-color: rgb(151 163 150 / 32%);
+  background: rgb(17 25 18 / 64%);
+}
+
+.hub-hotspot.town-hotspot-style-ribbon.is-locked,
+.hub-hotspot.town-hotspot-style-ink.is-locked {
   border-color: transparent;
   background: transparent;
   box-shadow: none;

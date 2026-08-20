@@ -20,7 +20,7 @@ const debugToolsState = {
   expeditionId: null,
   combatEnemyId: null,
   combatStatusId: null,
-  townHotspotStyle: "plaque",
+  townHotspotStyleOverride: null,
   disableRandomEncounters: false,
 };
 
@@ -28,9 +28,9 @@ let debugToolsPanel = null;
 let debugToolsToggle = null;
 
 function debugTownHotspotStyle() {
-  return ["plaque", "label", "seal"].includes(debugToolsState.townHotspotStyle)
-    ? debugToolsState.townHotspotStyle
-    : "plaque";
+  return ["tag", "ribbon", "ink"].includes(debugToolsState.townHotspotStyleOverride)
+    ? debugToolsState.townHotspotStyleOverride
+    : null;
 }
 
 const DebugTools = Object.freeze({
@@ -120,7 +120,7 @@ function initializeDebugTools() {
     if (target.id === "debug-combat-status") debugToolsState.combatStatusId = target.value;
     if (target.id === "debug-expedition-select") debugToolsState.expeditionId = target.value;
     if (target.id === "debug-town-hotspot-style") {
-      debugToolsState.townHotspotStyle = debugTownHotspotStyleValue(target.value);
+      debugToolsState.townHotspotStyleOverride = debugTownHotspotStyleValue(target.value);
       if (game.screen === "location") renderLocation();
     }
     if (target.id === "debug-disable-random-encounters" && !debugReplayActive()) {
@@ -339,19 +339,23 @@ function renderDebugTools() {
 }
 
 function debugTownHotspotStyleValue(value) {
-  return ["plaque", "label", "seal"].includes(value) ? value : "plaque";
+  return ["tag", "ribbon", "ink"].includes(value) ? value : null;
 }
 
 function renderDebugTownHotspotSection() {
-  const style = debugTownHotspotStyle();
+  const override = debugTownHotspotStyle();
+  const savedStyle = ["tag", "ribbon", "ink"].includes(LOCATION_DEFINITIONS[game.player.currentLocationId]?.markerStyle)
+    ? LOCATION_DEFINITIONS[game.player.currentLocationId].markerStyle
+    : "tag";
   return `<details class="debug-section" data-debug-details="town-hotspots" open>
     <summary>Town Hotspots</summary><div class="debug-section-content">
       <label>Marker style <select id="debug-town-hotspot-style" aria-label="Town hotspot marker style">
-        <option value="plaque" ${style === "plaque" ? "selected" : ""}>Plaque</option>
-        <option value="label" ${style === "label" ? "selected" : ""}>Label</option>
-        <option value="seal" ${style === "seal" ? "selected" : ""}>Seal</option>
+        <option value="" ${override === null ? "selected" : ""}>Saved (${savedStyle})</option>
+        <option value="tag" ${override === "tag" ? "selected" : ""}>Tag</option>
+        <option value="ribbon" ${override === "ribbon" ? "selected" : ""}>Ribbon</option>
+        <option value="ink" ${override === "ink" ? "selected" : ""}>Ink</option>
       </select></label>
-      <p class="debug-muted">Visual comparison only. Hotspot coordinates and town state are unchanged.</p>
+      <p class="debug-muted">Override is temporary. Saved town style: ${savedStyle}.</p>
     </div>
   </details>`;
 }
