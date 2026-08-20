@@ -2808,8 +2808,8 @@ function resolveEncounterVisualState(encounter, activeEncounter = null) {
   if (!encounter) {
     return { backgroundAssetId: null, layout: {}, hiddenSlots: new Set() };
   }
-  const outcomeVisual = activeEncounter?.outcomeVisual;
-  const authoredBackground = outcomeVisual?.backgroundAssetId;
+  const visualOverride = activeEncounter?.visualOverride;
+  const authoredBackground = visualOverride?.backgroundAssetId;
   const baseBackground = encounter.visualAssetId;
   const backgroundAssetId = AssetCatalog.imagePath(authoredBackground)
     ? authoredBackground
@@ -2818,14 +2818,14 @@ function resolveEncounterVisualState(encounter, activeEncounter = null) {
       : null;
   const layout = Object.fromEntries(ENCOUNTER_PARTY_LAYOUT_SLOTS.map((slot) => {
     const base = encounterPartyLayoutPosition(encounter, slot);
-    const override = outcomeVisual?.encounterLayout?.[slot];
+    const override = visualOverride?.encounterLayout?.[slot];
     return [slot, {
       x: clamp(Number.isFinite(Number(override?.x)) ? Number(override.x) : base.x, 0, 1),
       y: clamp(Number.isFinite(Number(override?.y)) ? Number(override.y) : base.y, 0, 1),
     }];
   }));
   const hiddenSlots = new Set(
-    (Array.isArray(outcomeVisual?.hiddenSlots) ? outcomeVisual.hiddenSlots : [])
+    (Array.isArray(visualOverride?.hiddenSlots) ? visualOverride.hiddenSlots : [])
       .filter((slot) => ENCOUNTER_PARTY_LAYOUT_SLOTS.includes(slot)),
   );
   return { backgroundAssetId, layout, hiddenSlots };
