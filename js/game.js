@@ -449,6 +449,9 @@ function ensureTravelLoopCopies(image, panorama, motion) {
   track.classList.toggle("is-pan-motion", panorama && motion === "pan");
   track.classList.toggle("is-standard-motion", !panorama);
   image.dataset.travelMotion = motion;
+  const imageCopy = image.dataset.travelCopy === "loop" ? "loop" : "primary";
+  image.dataset.travelCopy = imageCopy;
+  image.dataset.travelTile = imageCopy === "primary" ? "leading" : "trailing";
   const loopCopy = track.querySelector("[data-travel-copy='loop']");
   if (panorama && motion === "loop" && !loopCopy) {
     const copy = image.cloneNode(false);
@@ -456,12 +459,149 @@ function ensureTravelLoopCopies(image, panorama, motion) {
     copy.removeAttribute("onerror");
     copy.removeAttribute("data-travel-bound");
     copy.dataset.travelCopy = "loop";
+    copy.dataset.travelTile = "trailing";
     copy.hidden = false;
     copy.classList.add("is-visible");
     track.append(copy);
   } else if ((!panorama || motion !== "loop") && loopCopy) {
     loopCopy.remove();
   }
+}
+
+function travelTileFor(track, copy) {
+  return track?.querySelector(`[data-travel-copy="${copy}"]`) ?? null;
+}
+
+function travelActiveTile(track, expedition) {
+  return expedition?.direction === "returning"
+    ? travelTileFor(track, "loop")
+    : travelTileFor(track, "primary");
+}
+
+function travelUpcomingTile(track, expedition) {
+  return expedition?.direction === "returning"
+    ? travelTileFor(track, "primary")
+    : travelTileFor(track, "loop");
+}
+
+function setTravelTileImage(tile, source, assetId, motion, copy) {
+  if (!tile || !source || !assetId) return;
+  const sourcePath = source.currentSrc || source.src;
+  if (!sourcePath) return;
+  tile.src = sourcePath;
+  tile.className = "asset-image travel-visual-asset is-visible";
+  tile.dataset.travelCopy = copy;
+  tile.dataset.travelTile = copy === "primary" ? "leading" : "trailing";
+  tile.dataset.travelAssetId = assetId;
+  tile.dataset.travelMotion = normalizeTravelMotion(motion);
+  tile.dataset.travelAspect = isTravelPanorama(source) ? "panorama" : "standard";
+  tile.classList.toggle("is-panorama", isTravelPanorama(source));
+  tile.hidden = false;
+}
+
+function resetTravelPendingTile(expedition) {
+  const track = currentTravelTrack();
+  if (!track || track.dataset.travelKind === "encounter") return;
+  const activeTile = travelActiveTile(track, expedition);
+  const upcomingTile = travelUpcomingTile(track, expedition);
+  const activeAssetId = track.dataset.travelAssetId || activeTile?.dataset.travelAssetId;
+  if (!activeTile || !upcomingTile || !activeAssetId) return;
+  setTravelTileImage(
+    upcomingTile,
+    activeTile,
+    activeAssetId,
+    track.dataset.travelMotion,
+    upcomingTile.dataset.travelCopy || (expedition?.direction === "returning" ? "primary" : "loop"),
+  );
+}
+
+function installTravelPendingTile(expedition, pending) {
+  if (!pending?.tileMode) return;
+  const state = travelScenePresentationFor(expedition);
+  const track = currentTravelTrack();
+  if (!state || state.pending !== pending || !track || track.dataset.travelKind === "encounter") return;
+  const upcomingTile = travelUpcomingTile(track, expedition);
+  const preloaded = preloadTravelAsset(pending.assetId);
+  if (!upcomingTile || !preloaded) return;
+  if (upcomingTile.dataset.travelAssetId === pending.assetId) {
+    pending.tileReady = true;
+    return;
+  }
+  if (pending.tileReady) {
+    pending.tileReady = false;
+    pending.tileInstallRequested = false;
+  }
+  if (pending.tileInstallRequested) return;
+  pending.tileInstallRequested = true;
+  const install = () => {
+    if (state.pending !== pending || !upcomingTile.isConnected || !preloaded.naturalWidth) return;
+    setTravelTileImage(
+      preloaded,
+      preloaded,
+      pending.assetId,
+      pending.motion,
+      upcomingTile.dataset.travelCopy || (expedition?.direction === "returning" ? "primary" : "loop"),
+    );
+    upcomingTile.replaceWith(preloaded);
+    pending.tileReady = true;
+    const scene = document.querySelector("#travel-scene");
+    const activeTile = travelActiveTile(track, expedition);
+    if (scene && activeTile) updateTravelImagePresentation(scene, activeTile);
+  };
+  const fail = () => {
+    if (state.pending !== pending) return;
+    pending.tileInstallRequested = false;
+    state.pending = null;
+    state.failedAssetId = pending.assetId;
+  };
+  if (preloaded.naturalWidth > 0) {
+    install();
+  } else if (preloaded.complete) {
+    fail();
+  } else {
+    preloaded.addEventListener("load", install, { once: true });
+    preloaded.addEventListener("error", fail, { once: true });
+  }
+}
+
+function promoteTravelLoopScene(expedition, scene, pending) {
+  const state = travelScenePresentationFor(expedition);
+  const track = currentTravelTrack();
+  if (!state || !track || track.dataset.travelKind === "encounter") return false;
+  const upcomingTile = travelUpcomingTile(track, expedition);
+  const activeTile = travelActiveTile(track, expedition);
+  if (!upcomingTile || !activeTile || upcomingTile.dataset.travelAssetId !== pending.assetId) return false;
+  setTravelTileImage(
+    activeTile,
+    upcomingTile,
+    pending.assetId,
+    pending.motion,
+    activeTile.dataset.travelCopy || (expedition?.direction === "returning" ? "loop" : "primary"),
+  );
+  track.dataset.travelAssetId = pending.assetId;
+  track.dataset.travelMotion = normalizeTravelMotion(pending.motion);
+  track.dataset.travelSceneKey = pending.sceneKey ?? "";
+  const art = document.querySelector("#travel-art");
+  if (art) {
+    art.dataset.travelAssetId = pending.assetId;
+    art.dataset.travelMotion = normalizeTravelMotion(pending.motion);
+  }
+  if (scene) {
+    scene.classList.remove("asset-load-failed");
+    scene.classList.add("asset-image-active");
+    scene.dataset.travelAssetId = pending.assetId;
+    scene.dataset.travelMotion = normalizeTravelMotion(pending.motion);
+    scene.dataset.travelAssetFailedId = "";
+  }
+  setActiveTravelPresentation(expedition, pending);
+  const transition = state.transition;
+  clearTravelTransitionTimers(transition);
+  state.pending = null;
+  state.transition = null;
+  document.querySelector("#travel-transition-art")?.classList.remove("is-active");
+  const activeImage = travelActiveTile(track, expedition);
+  if (scene && activeImage) updateTravelImagePresentation(scene, activeImage);
+  return true;
 }
 
 function updateTravelImagePresentation(scene, image) {
@@ -564,11 +704,13 @@ function setActiveTravelPresentation(expedition, presentation) {
 
 function preloadTravelAsset(assetId) {
   const path = AssetCatalog.imagePath(assetId);
-  if (!path || travelScenePreloadCache.has(assetId)) return;
+  if (!path) return null;
+  if (travelScenePreloadCache.has(assetId)) return travelScenePreloadCache.get(assetId);
   const image = new Image();
   image.decoding = "async";
   image.src = path;
   travelScenePreloadCache.set(assetId, image);
+  return image;
 }
 
 function clearTravelTransitionTimers(transition) {
@@ -582,32 +724,40 @@ function cancelTravelSceneTransition(expedition, preservePending = false) {
   const state = travelScenePresentationFor(expedition);
   const transition = state?.transition;
   if (!state || !transition) return;
+  if (transition.tileMode || state.pending?.tileMode) resetTravelPendingTile(expedition);
   if (preservePending && !state.pending) {
     state.pending = {
       assetId: transition.assetId,
       motion: transition.motion,
       sceneKey: transition.sceneKey ?? "",
-      queuedCycle: null,
+      tileMode: Boolean(transition.tileMode),
+      tileReady: false,
+      tileInstallRequested: false,
       elapsedMs: 0,
       lastSampleAt: performance.now(),
     };
   }
   clearTravelTransitionTimers(transition);
   state.transition = null;
+  if (!preservePending) state.pending = null;
   document.querySelector("#travel-art .travel-visual-track[data-travel-layer='next']")?.remove();
   document.querySelector("#travel-transition-art")?.classList.remove("is-active");
 }
 
 function captureTravelVisualState(expedition = game.expedition) {
-  const image = document.querySelector("#travel-art .travel-visual-asset.is-visible:not([hidden])");
+  const track = currentTravelTrack();
+  const state = travelScenePresentationFor(expedition);
+  const images = [...(track?.querySelectorAll(".travel-visual-asset.is-visible:not([hidden])") ?? [])];
+  const image = images.find((candidate) => candidate.dataset.travelAssetId === state?.activeAssetId)
+    ?? images[0];
   if (!image) return null;
-  const animation = travelImageAnimation(image);
+  const animation = travelImageAnimation(track ?? image);
   const currentTime = Number(animation?.currentTime);
   return {
     expedition,
     expeditionId: expedition?.expeditionId ?? expedition?.id ?? "",
-    assetId: image.dataset.travelAssetId || "",
-    motion: travelMotionForImage(image),
+    assetId: state?.activeAssetId || track?.dataset.travelAssetId || image.dataset.travelAssetId || "",
+    motion: normalizeTravelMotion(state?.activeMotion ?? travelMotionForImage(image)),
     currentTime: Number.isFinite(currentTime) ? currentTime : null,
   };
 }
@@ -662,7 +812,11 @@ function markTravelImageActive(scene, image) {
     art.dataset.travelAssetFailedId = "";
   }
   updateTravelImagePresentation(scene, image);
-  restoreTravelVisualState(image);
+  const state = travelScenePresentationFor(game.expedition);
+  if (track?.dataset.travelKind !== "encounter" && state?.pending?.tileMode) {
+    installTravelPendingTile(game.expedition, state.pending);
+  }
+  restoreTravelVisualState(travelActiveTile(track, game.expedition) ?? image);
 }
 
 function markTravelImageFailed(scene, image) {
@@ -813,6 +967,7 @@ function queueTravelSceneTransition(expedition, desiredPresentation, currentImag
   const currentMotion = normalizeTravelMotion(currentTrack?.dataset.travelMotion ?? currentImage.dataset.travelMotion);
   const desiredMotion = normalizeTravelMotion(desiredPresentation.motion);
   if (currentAssetId === desiredPresentation.assetId && currentMotion === desiredMotion) {
+    if (state.pending) resetTravelPendingTile(expedition);
     state.pending = null;
     return;
   }
@@ -823,8 +978,10 @@ function queueTravelSceneTransition(expedition, desiredPresentation, currentImag
     && state.pending.assetId === desiredPresentation.assetId
     && state.pending.motion === desiredMotion
     && state.pending.sceneKey === (desiredPresentation.sceneKey ?? "")) {
+    installTravelPendingTile(expedition, state.pending);
     return;
   }
+  if (state.pending) resetTravelPendingTile(expedition);
   const animation = travelImageAnimation(currentImage);
   const duration = Number(animation?.effect?.getComputedTiming?.().duration);
   const currentTime = Number(animation?.currentTime);
@@ -834,14 +991,21 @@ function queueTravelSceneTransition(expedition, desiredPresentation, currentImag
     assetId: desiredPresentation.assetId,
     motion: desiredMotion,
     sceneKey: desiredPresentation.sceneKey ?? "",
-    queuedCycle: loop && Number.isFinite(currentTime) ? Math.floor(currentTime / duration) : null,
+    tileMode: loop && desiredMotion === "loop",
+    tileReady: false,
+    tileInstallRequested: false,
     elapsedMs: 0,
     lastSampleAt: now,
   };
   preloadTravelAsset(desiredPresentation.assetId);
+  installTravelPendingTile(expedition, state.pending);
 }
 
 function startTravelSceneCrossfade(expedition, scene, pending) {
+  if (pending?.tileMode) {
+    promoteTravelLoopScene(expedition, scene, pending);
+    return;
+  }
   const state = travelScenePresentationFor(expedition);
   const art = document.querySelector("#travel-art");
   const current = currentTravelTrack();
@@ -855,6 +1019,29 @@ function startTravelSceneCrossfade(expedition, scene, pending) {
 function beginTravelSceneTransition(expedition, scene, pending) {
   const state = travelScenePresentationFor(expedition);
   if (!state || state.transition) return;
+  if (pending.tileMode) {
+    const overlay = document.querySelector("#travel-transition-art");
+    const overlayImage = overlay?.querySelector("img");
+    const transition = { ...pending, crossfadeStarted: false, overlayActive: false };
+    state.transition = transition;
+    const overlayReady = Boolean(overlayImage && !overlayImage.hidden && overlayImage.naturalWidth > 0);
+    if (!overlayReady) {
+      startTravelSceneCrossfade(expedition, scene, pending);
+      return;
+    }
+    overlay.classList.remove("is-active");
+    void overlay.offsetWidth;
+    overlay.classList.add("is-active");
+    transition.overlayActive = true;
+    transition.overlayTimer = window.setTimeout(() => {
+      if (state.transition !== transition) return;
+      startTravelSceneCrossfade(expedition, scene, pending);
+    }, 180);
+    transition.finishTimer = window.setTimeout(() => {
+      overlay.classList.remove("is-active");
+    }, 420);
+    return;
+  }
   const overlay = document.querySelector("#travel-transition-art");
   const overlayImage = overlay?.querySelector("img");
   const transition = { ...pending, crossfadeStarted: false, overlayActive: false };
@@ -880,10 +1067,32 @@ function beginTravelSceneTransition(expedition, scene, pending) {
 function advancePendingTravelScene(expedition, scene, activeEncounter) {
   const state = travelScenePresentationFor(expedition);
   const pending = state?.pending;
-  if (!state || !pending || state.transition || activeEncounter || !scene.classList.contains("is-moving")) {
+  if (!state || !pending || state.transition || activeEncounter) {
     if (pending) pending.lastSampleAt = performance.now();
     return;
   }
+  if (pending.tileMode) {
+    installTravelPendingTile(expedition, pending);
+    if (!scene.classList.contains("is-moving") || !pending.tileReady) return;
+    const track = currentTravelTrack();
+    const upcomingTile = travelUpcomingTile(track, expedition);
+    if (!track || !upcomingTile || upcomingTile.dataset.travelAssetId !== pending.assetId) return;
+    const art = document.querySelector("#travel-art");
+    const artBox = art?.getBoundingClientRect();
+    const travelers = scene.querySelector(".travelers")?.getBoundingClientRect();
+    const anchorX = travelers
+      ? travelers.left + travelers.width / 2
+      : artBox ? artBox.left + artBox.width / 2 : 0;
+    const seamX = expedition.direction === "returning"
+      ? upcomingTile.getBoundingClientRect().right
+      : upcomingTile.getBoundingClientRect().left;
+    const reachedAnchor = expedition.direction === "returning"
+      ? seamX >= anchorX
+      : seamX <= anchorX;
+    if (reachedAnchor) beginTravelSceneTransition(expedition, scene, pending);
+    return;
+  }
+  if (!scene.classList.contains("is-moving")) return;
   const now = performance.now();
   const elapsed = Math.min(250, Math.max(0, now - (pending.lastSampleAt ?? now)));
   pending.elapsedMs += elapsed;
@@ -894,12 +1103,7 @@ function advancePendingTravelScene(expedition, scene, activeEncounter) {
   const duration = Number(animation?.effect?.getComputedTiming?.().duration);
   const currentTime = Number(animation?.currentTime);
   let safe = false;
-  if (animation?.animationName === "travel-panorama-loop" && Number.isFinite(duration) && duration > 0 && Number.isFinite(currentTime)) {
-    const cycle = Math.floor(currentTime / duration);
-    const phase = ((currentTime % duration) + duration) % duration;
-    if (pending.queuedCycle === null) pending.queuedCycle = cycle;
-    safe = cycle > pending.queuedCycle && phase <= 180;
-  } else if (animation?.animationName === "travel-panorama-pan" && Number.isFinite(duration)) {
+  if (animation?.animationName === "travel-panorama-pan" && Number.isFinite(duration)) {
     safe = currentTime >= duration - 80 || pending.elapsedMs >= 1500;
   } else {
     safe = true;
@@ -991,7 +1195,7 @@ function syncTravelVisual(expedition, activeEncounter) {
         cancelTravelSceneTransition(expedition);
       }
     }
-    bindTravelImage(scene, currentImage);
+    bindTravelImage(scene, travelActiveTile(current, expedition) ?? currentImage);
     return;
   }
   if (current

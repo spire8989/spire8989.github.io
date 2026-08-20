@@ -3608,3 +3608,24 @@ The human developer supplied a focused guide for three transient `?debug` travel
 ### Verification and resulting prototype state
 
 Verified the debug-only controls and narrow encounter suppression path with the focused browser smoke checks, confirmed normal URL gating, and passed `git diff --check`. The debug overrides reset on reload and `Tools/` remains unchanged.
+
+## 2026-08-19 - Tile-Based Travel Scene Transitions
+
+### Goal
+
+Replace full-cycle loop-scene swaps with seam-aware in-place panorama transitions while preserving authored travel motion and interruption behavior.
+
+### Human prompt and direction
+
+The human developer supplied a focused guide for reworking Loop travel-scene transitions and requested a Grail-only implementation with local add/commit operations.
+
+### AI-assisted implementation
+
+- Reworked looping travel panoramas into direction-aware leading/upcoming tiles, preloading the pending scene into the upcoming tile while the active scene remains unchanged.
+- Detects the actual tile seam crossing the party/viewport anchor, then promotes the pending scene in place so the presentation becomes the new scene on both tiles without the old full-cycle track restart.
+- Preserved Pan transitions, pause behavior, return-direction ordering, encounter freeze/resume, optional transition artwork, and same-asset/same-motion continuity.
+- Kept pending scene state through encounter rerenders and updated the focused location assertion for the A/B-to-B/B seam transition.
+
+### Verification and resulting prototype state
+
+Verified focused outbound and returning A/B tile transitions, encounter preservation and Continue Journey restoration, same-asset continuity, Python test syntax, and `git diff --check`. `Tools/` remains unchanged.
