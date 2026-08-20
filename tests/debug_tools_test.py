@@ -124,9 +124,9 @@ def run() -> None:
               "#travel-art .travel-visual-track[data-travel-layer=\"current\"]",
             );
             const seamForeground = document.querySelector("#travel-scene > .travel-seam-foreground-layer .travel-seam-foreground");
-            const seamSuppressed = !seamForeground;
             const firstQueued = game.travelScenePresentation?.pending?.assetId === secondId
               && order() === `${firstId},${secondId}`;
+            const seamSuppressed = !seamForeground || firstQueued;
             animation.currentTime = duration - 1;
             updateTravelHud();
             await wait(120);
@@ -337,12 +337,24 @@ def run() -> None:
                 const outgoingRetained = Boolean(carry?.isConnected && bounds && frame)
                   && bounds.right > frame.left
                   && bounds.left < frame.right;
+                const backgroundBeforePause = currentTravelTrack()?.dataset.travelAssetId;
+                expedition.travelState = "paused";
+                updateTravelHud();
                 expedition.direction = "returning";
+                updateTravelHud();
+                const backgroundAfterDirection = currentTravelTrack()?.dataset.travelAssetId;
+                expedition.travelState = "traveling";
+                updateTravelHud();
+                await wait(120);
+                const backgroundAfterResume = currentTravelTrack()?.dataset.travelAssetId;
                 expedition.distance = 17;
                 updateTravelHud();
                 await wait(120);
                 const returnForeground = document.querySelector("#travel-scene > .travel-seam-foreground-layer:not(.travel-seam-foreground-carry) .travel-seam-foreground");
-                return outgoingRetained && Boolean(returnForeground?.isConnected);
+                const directionPreservedBackground = backgroundBeforePause
+                  && backgroundBeforePause === backgroundAfterDirection
+                  && backgroundBeforePause === backgroundAfterResume;
+                return outgoingRetained && directionPreservedBackground && Boolean(returnForeground?.isConnected);
               } finally {
                 definition.travelScenes = originalScenes;
                 if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
