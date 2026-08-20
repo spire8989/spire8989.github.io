@@ -33,7 +33,8 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
         visualAssetId: "expedition_old_forest_road_woodcut_2",
         motion: "loop"
       }
-    ]
+    ],
+    travelSeamForegroundAssetId: "expedition_old_forest_road_tree_trans_3"
   },
   fountain_of_barenton: Object.freeze({
     id: "fountain_of_barenton",

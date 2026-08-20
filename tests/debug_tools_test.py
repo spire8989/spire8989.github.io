@@ -88,9 +88,9 @@ def run() -> None:
           let result = false;
           try {
             definition.travelScenes = [
-              { minDistance: 0, visualAssetId: firstId, motion: "loop" },
-              { minDistance: 17.5, visualAssetId: secondId, motion: "loop" },
-              { minDistance: 40, visualAssetId: thirdId, motion: "loop" },
+              { minDistance: 0, visualAssetId: firstId, motion: "loop", showSeamForegroundBetweenLoops: false },
+              { minDistance: 17.5, visualAssetId: secondId, motion: "loop", showSeamForegroundBetweenLoops: false },
+              { minDistance: 40, visualAssetId: thirdId, motion: "loop", showSeamForegroundBetweenLoops: false },
             ];
             definition.travelSeamForegroundAssetId = firstId;
             const expedition = ExpeditionRules.createExpedition(game.player, {
@@ -124,14 +124,7 @@ def run() -> None:
               "#travel-art .travel-visual-track[data-travel-layer=\"current\"]",
             );
             const seamForeground = currentTrack?.querySelector(".travel-seam-foreground");
-            const seamBefore = seamForeground?.getBoundingClientRect().left;
-            animation.currentTime = duration * 0.7;
-            await wait(20);
-            const seamAfter = seamForeground?.getBoundingClientRect().left;
-            const seamAttached = seamForeground?.dataset.travelAssetId === firstId
-              && seamForeground?.parentElement === currentTrack
-              && getComputedStyle(seamForeground).pointerEvents === "none"
-              && Math.abs(seamAfter - seamBefore) > 0.5;
+            const seamSuppressed = !seamForeground;
             const firstQueued = game.travelScenePresentation?.pending?.assetId === secondId
               && order() === `${firstId},${secondId}`;
             animation.currentTime = duration - 1;
@@ -141,6 +134,7 @@ def run() -> None:
             const firstTransition = game.travelScenePresentation?.activeAssetId === secondId
               && !game.travelScenePresentation?.pending
               && order() === `${secondId},${secondId}`;
+            const seamShownForChange = Boolean(document.querySelector("#travel-art .travel-seam-foreground"));
             expedition.distance = 39;
             image = document.querySelector(
               "#travel-art .travel-visual-asset[data-travel-copy=\"primary\"]",
@@ -176,7 +170,7 @@ def run() -> None:
             renderExpedition();
             await waitForActive(document.querySelector(".travel-scene"));
             const seamFallback = !document.querySelector("#travel-art .travel-seam-foreground");
-            result = outboundTransitions && returnHeldCurrentArtwork && seamAttached && seamFallback;
+            result = outboundTransitions && returnHeldCurrentArtwork && seamSuppressed && seamShownForChange && seamFallback;
           } finally {
             definition.travelScenes = originalScenes;
             if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
