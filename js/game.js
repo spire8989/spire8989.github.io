@@ -2790,6 +2790,66 @@ function startExpedition() {
   showScreen("expedition");
 }
 
+const ENCOUNTER_PARTY_LAYOUT_FALLBACKS = Object.freeze({
+  arthur: Object.freeze({ x: 0.42, y: 0.66 }),
+  companion1: Object.freeze({ x: 0.58, y: 0.68 }),
+  companion2: Object.freeze({ x: 0.70, y: 0.64 }),
+});
+
+function encounterPartyLayoutPosition(encounter, slot) {
+  const fallback = ENCOUNTER_PARTY_LAYOUT_FALLBACKS[slot] ?? ENCOUNTER_PARTY_LAYOUT_FALLBACKS.arthur;
+  const authored = encounter?.encounterLayout?.[slot];
+  const x = Number(authored?.x);
+  const y = Number(authored?.y);
+  return {
+    x: clamp(Number.isFinite(x) ? x : fallback.x, 0, 1),
+    y: clamp(Number.isFinite(y) ? y : fallback.y, 0, 1),
+  };
+}
+
+function encounterPartyLayoutAttributes(encounter, slot) {
+  if (!encounter) return "";
+  const position = encounterPartyLayoutPosition(encounter, slot);
+  return ` data-encounter-layout-slot="${slot}" data-encounter-layout-x="${position.x}" data-encounter-layout-y="${position.y}" style="--encounter-party-x:${position.x * 100}%;--encounter-party-y:${position.y * 100}%"`;
+}
+
+function setEncounterPartyLayoutSlot(element, encounter, slot) {
+  if (!element) return;
+  if (!encounter) {
+    element.removeAttribute("data-encounter-layout-slot");
+    element.removeAttribute("data-encounter-layout-x");
+    element.removeAttribute("data-encounter-layout-y");
+    element.style.removeProperty("--encounter-party-x");
+    element.style.removeProperty("--encounter-party-y");
+    return;
+  }
+  const position = encounterPartyLayoutPosition(encounter, slot);
+  element.dataset.encounterLayoutSlot = slot;
+  element.dataset.encounterLayoutX = String(position.x);
+  element.dataset.encounterLayoutY = String(position.y);
+  element.style.setProperty("--encounter-party-x", `${position.x * 100}%`);
+  element.style.setProperty("--encounter-party-y", `${position.y * 100}%`);
+}
+
+function renderEncounterTravelers(companions, encounter) {
+  const companionsMarkup = companions.map((companion, index) => {
+    const slot = `companion${index + 1}`;
+    const marker = companion.type === "mount" ? "&#x265e;" : "&#x265c;";
+    return `<span class="companion companion-${companion.type}"${encounterPartyLayoutAttributes(encounter, slot)}>${marker}</span>`;
+  }).join("");
+  return `<div class="travelers${encounter ? " is-encounter-layout" : ""}" id="travelers" aria-hidden="true"><span class="arthur"${encounterPartyLayoutAttributes(encounter, "arthur")}>&#x265e;</span>${companionsMarkup}</div>`;
+}
+
+function applyEncounterPartyLayout(encounter) {
+  const travelers = document.querySelector("#travelers");
+  if (!travelers) return;
+  travelers.classList.toggle("is-encounter-layout", Boolean(encounter));
+  setEncounterPartyLayoutSlot(travelers.querySelector(".arthur"), encounter, "arthur");
+  [...travelers.querySelectorAll(".companion")].forEach((element, index) => {
+    setEncounterPartyLayoutSlot(element, encounter, `companion${index + 1}`);
+  });
+}
+
 function renderExpedition() {
   const expedition = game.expedition;
   const existingTravelScene = document.querySelector("#travel-scene");
@@ -2800,6 +2860,9 @@ function renderExpedition() {
   const hasDedicatedEncounterArtwork = Boolean(
     activeEncounter?.visualAssetId && AssetCatalog.imagePath(activeEncounter.visualAssetId),
   );
+  const companions = selectedCompanionIds(expedition)
+    .map((companionId) => COMPANION_DEFINITIONS[companionId])
+    .filter(Boolean);
   const preserveLiveTravelScene = Boolean(
     existingTravelScene
     && existingTravelTrack
@@ -2822,9 +2885,6 @@ function renderExpedition() {
     renderCamp(expedition);
     return;
   }
-  const companions = selectedCompanionIds(expedition)
-    .map((companionId) => COMPANION_DEFINITIONS[companionId])
-    .filter(Boolean);
   syncExpeditionAmbience(expedition, "travel", activeEncounter);
   const travelPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
   const travelVisualSnapshot = !preserveLiveTravelScene
@@ -2846,6 +2906,7 @@ function renderExpedition() {
         .filter((child) => child !== existingTravelScene)
         .forEach((child) => child.remove());
       expeditionScreen.insertAdjacentHTML("beforeend", expeditionPanelMarkup);
+      applyEncounterPartyLayout(activeEncounter);
       game.travelVisualState = null;
       updateTravelHud();
       return;
@@ -2859,9 +2920,7 @@ function renderExpedition() {
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
-        <div class="travelers" id="travelers" aria-hidden="true">
-          <span class="arthur">♞</span>${companions.map((companion) => `<span class="companion companion-${companion.type}">${companion.type === "mount" ? "♞" : "♜"}</span>`).join("")}
-        </div>
+        ${renderEncounterTravelers(companions, activeEncounter)}
         <div class="ground" aria-hidden="true"></div>
         ${renderTravelTransitionAsset(expedition)}
         <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>

@@ -2011,6 +2011,24 @@ button:active:not(:disabled) {
   animation-play-state: paused;
 }
 
+.travelers.is-encounter-layout {
+  inset: 0;
+  display: block;
+  transform: none;
+}
+
+.travelers.is-encounter-layout.is-returning {
+  transform: none;
+}
+
+.travelers.is-encounter-layout > span {
+  position: absolute;
+  top: var(--encounter-party-y);
+  left: var(--encounter-party-x);
+  transform: translate(-50%, -50%);
+  animation: none;
+}
+
 .travelers.is-moving > span {
   animation-play-state: running;
 }
@@ -3565,8 +3583,8 @@ button.combatant {
 }
 
 .hub-hotspot.town-hotspot-style-tag {
-  padding-right: 0.28rem;
-  padding-left: 0.28rem;
+  padding-right: 0.38rem;
+  padding-left: 0.38rem;
   border-color: rgb(244 221 160 / 34%);
   background: rgb(17 25 18 / 82%);
   box-shadow: 0 0.08rem 0.2rem rgb(0 0 0 / 28%);
@@ -3616,7 +3634,7 @@ button.combatant {
 }
 
 .hub-hotspot.town-hotspot-style-tag strong {
-  font-size: clamp(0.55rem, 2.35cqw, 0.72rem);
+  font-size: clamp(0.66rem, 2.82cqw, 0.86rem);
 }
 
 .hub-building-icon {
@@ -3627,7 +3645,7 @@ button.combatant {
 }
 
 .hub-hotspot.town-hotspot-style-tag .hub-building-icon {
-  font-size: clamp(0.76rem, 3.9cqw, 1.08rem);
+  font-size: clamp(0.86rem, 4.4cqw, 1.24rem);
 }
 
 .hub-hotspot.is-pressed,
