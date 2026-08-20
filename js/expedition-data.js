@@ -31,7 +31,8 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
       {
         minDistance: 40,
         visualAssetId: "expedition_old_forest_road_woodcut_2",
-        motion: "loop"
+        motion: "loop",
+        showSeamForegroundBetweenLoops: false
       }
     ],
     travelSeamForegroundAssetId: "expedition_old_forest_road_tree_trans_3"

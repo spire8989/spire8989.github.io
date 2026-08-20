@@ -123,7 +123,7 @@ def run() -> None:
             const currentTrack = document.querySelector(
               "#travel-art .travel-visual-track[data-travel-layer=\"current\"]",
             );
-            const seamForeground = currentTrack?.querySelector(".travel-seam-foreground");
+            const seamForeground = document.querySelector("#travel-scene > .travel-seam-foreground-layer .travel-seam-foreground");
             const seamSuppressed = !seamForeground;
             const firstQueued = game.travelScenePresentation?.pending?.assetId === secondId
               && order() === `${firstId},${secondId}`;
@@ -134,7 +134,13 @@ def run() -> None:
             const firstTransition = game.travelScenePresentation?.activeAssetId === secondId
               && !game.travelScenePresentation?.pending
               && order() === `${secondId},${secondId}`;
-            const seamShownForChange = Boolean(document.querySelector("#travel-art .travel-seam-foreground"));
+            const changeSeam = document.querySelector("#travel-scene > .travel-seam-foreground-layer .travel-seam-foreground");
+            const seamShownForChange = Boolean(changeSeam);
+            const seamCoversFrame = Boolean(changeSeam)
+              && changeSeam.getBoundingClientRect().height >= document.querySelector("#travel-scene").getBoundingClientRect().height;
+            const changeLayer = changeSeam?.closest(".travel-seam-foreground-layer");
+            const foregroundAboveTravelers = Boolean(changeLayer)
+              && Number(getComputedStyle(changeLayer).zIndex) > Number(getComputedStyle(document.querySelector(".travelers")).zIndex);
             expedition.distance = 39;
             image = document.querySelector(
               "#travel-art .travel-visual-asset[data-travel-copy=\"primary\"]",
@@ -169,8 +175,8 @@ def run() -> None:
             document.querySelector(".expedition-screen")?.remove();
             renderExpedition();
             await waitForActive(document.querySelector(".travel-scene"));
-            const seamFallback = !document.querySelector("#travel-art .travel-seam-foreground");
-            result = outboundTransitions && returnHeldCurrentArtwork && seamSuppressed && seamShownForChange && seamFallback;
+            const seamFallback = !document.querySelector("#travel-scene > .travel-seam-foreground-layer .travel-seam-foreground");
+            result = outboundTransitions && returnHeldCurrentArtwork && seamSuppressed && seamShownForChange && seamCoversFrame && foregroundAboveTravelers && seamFallback;
           } finally {
             definition.travelScenes = originalScenes;
             if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
@@ -186,6 +192,163 @@ def run() -> None:
         check(
             travel_lookahead_expression,
             "Travel lookahead did not stage and recycle both successive panorama scene changes without reverting the prior image",
+        )
+        check(
+            r"""
+            (async () => {
+              const definition = EXPEDITION_DEFINITIONS.old_forest_road;
+              const originalScenes = definition.travelScenes;
+              const originalSeamForeground = definition.travelSeamForegroundAssetId;
+              const originalExpedition = game.expedition;
+              const originalScreen = game.screen;
+              const firstId = "expedition_old_forest_road_woodcut";
+              const secondId = "expedition_old_forest_road_woodcut_3";
+              const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              const waitForActive = (frame) => new Promise((resolve) => {
+                let ticks = 0;
+                const poll = () => frame?.classList.contains("asset-image-active")
+                  || frame?.classList.contains("asset-load-failed")
+                  || ticks++ > 100
+                  ? resolve()
+                  : setTimeout(poll, 10);
+                poll();
+              });
+              try {
+                definition.travelScenes = [
+                  { minDistance: 0, visualAssetId: firstId, motion: "loop" },
+                  { minDistance: 17.5, visualAssetId: secondId, motion: "pan", showSeamForegroundBetweenLoops: false },
+                ];
+                definition.travelSeamForegroundAssetId = firstId;
+                const expedition = ExpeditionRules.createExpedition(game.player, {
+                  expeditionId: "old_forest_road",
+                  companions: [],
+                  provisions: 10,
+                  random: () => 0,
+                });
+                game.expedition = expedition;
+                game.screen = "expedition";
+                game.travelScenePresentation = null;
+                expedition.status = "visual-crossfade-test";
+                expedition.travelState = "traveling";
+                expedition.direction = "outbound";
+                expedition.distance = 17;
+                expedition.maxDistanceReached = 20;
+                renderExpedition();
+                await waitForActive(document.querySelector(".travel-scene"));
+                const image = document.querySelector("#travel-art .travel-visual-asset[data-travel-copy=\"primary\"]");
+                const animation = travelImageAnimation(image);
+                const duration = Number(animation?.effect?.getComputedTiming?.().duration);
+                if (!image || !animation || !Number.isFinite(duration) || duration <= 0) return false;
+                animation.currentTime = duration * 0.68;
+                const state = travelScenePresentationFor(expedition);
+                state.pending = {
+                  assetId: secondId,
+                  motion: "pan",
+                  sceneKey: "scene:1:17.5",
+                  showSeamForegroundBetweenLoops: false,
+                  tileMode: false,
+                  tileReady: false,
+                  tileInstallRequested: false,
+                  outgoingAssetId: firstId,
+                  seamCrossed: false,
+                };
+                const scene = document.querySelector(".travel-scene");
+                scene.dataset.travelDesiredAssetId = secondId;
+                scene.dataset.travelDesiredMotion = "pan";
+                beginTravelSceneTransition(expedition, scene, state.pending);
+                await wait(820);
+                const carry = document.querySelector("#travel-scene > .travel-seam-foreground-carry");
+                const oldTrack = [...document.querySelectorAll("#travel-art .travel-visual-track")]
+                  .find((track) => track.dataset.travelAssetId === firstId);
+                const carryForeground = carry?.querySelector(".travel-seam-foreground");
+                return Boolean(carry && carryForeground && carry.isConnected && !oldTrack?.isConnected);
+              } finally {
+                definition.travelScenes = originalScenes;
+                if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
+                else definition.travelSeamForegroundAssetId = originalSeamForeground;
+                game.expedition = originalExpedition;
+                game.screen = originalScreen;
+                game.travelScenePresentation = null;
+                renderScreen();
+              }
+            })()
+            """,
+            "Travel seam foreground was removed with the fading background instead of remaining until offscreen",
+        )
+        check(
+            r"""
+            (async () => {
+              const definition = EXPEDITION_DEFINITIONS.old_forest_road;
+              const originalScenes = definition.travelScenes;
+              const originalSeamForeground = definition.travelSeamForegroundAssetId;
+              const originalExpedition = game.expedition;
+              const firstId = "expedition_old_forest_road_woodcut";
+              const secondId = "expedition_old_forest_road_woodcut_3";
+              const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              const waitForActive = (frame) => new Promise((resolve) => {
+                let ticks = 0;
+                const poll = () => frame?.classList.contains("asset-image-active")
+                  || frame?.classList.contains("asset-load-failed")
+                  || ticks++ > 100
+                  ? resolve()
+                  : setTimeout(poll, 10);
+                poll();
+              });
+              try {
+                definition.travelScenes = [
+                  { minDistance: 0, visualAssetId: firstId, motion: "loop", showSeamForegroundBetweenLoops: true },
+                  { minDistance: 17.5, visualAssetId: secondId, motion: "loop", showSeamForegroundBetweenLoops: true },
+                ];
+                definition.travelSeamForegroundAssetId = firstId;
+                const expedition = ExpeditionRules.createExpedition(game.player, {
+                  expeditionId: "old_forest_road",
+                  companions: [],
+                  provisions: 10,
+                  random: () => 0,
+                });
+                game.expedition = expedition;
+                game.screen = "expedition";
+                game.travelScenePresentation = null;
+                expedition.status = "visual-same-loop-test";
+                expedition.travelState = "traveling";
+                expedition.direction = "outbound";
+                expedition.distance = 17;
+                expedition.maxDistanceReached = 20;
+                renderExpedition();
+                await waitForActive(document.querySelector(".travel-scene"));
+                const image = document.querySelector("#travel-art .travel-visual-asset[data-travel-copy=\"primary\"]");
+                const animation = travelImageAnimation(image);
+                const duration = Number(animation?.effect?.getComputedTiming?.().duration);
+                if (!image || !animation || !Number.isFinite(duration) || duration <= 0) return false;
+                const state = travelScenePresentationFor(expedition);
+                state.activeTileDistance = expedition.distance;
+                state.activeAnimationCycle = travelAnimationCycle(animation);
+                animation.currentTime = duration * 0.55;
+                updateTravelHud();
+                await wait(120);
+                animation.currentTime = duration - 1;
+                updateTravelHud();
+                await wait(120);
+                updateTravelHud();
+                const carry = document.querySelector("#travel-scene > .travel-seam-foreground-carry");
+                const foreground = carry?.querySelector(".travel-seam-foreground");
+                const frame = document.querySelector("#travel-art")?.getBoundingClientRect();
+                const bounds = foreground?.getBoundingClientRect();
+                return Boolean(carry?.isConnected && bounds && frame)
+                  && bounds.right > frame.left
+                  && bounds.left < frame.right;
+              } finally {
+                definition.travelScenes = originalScenes;
+                if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
+                else definition.travelSeamForegroundAssetId = originalSeamForeground;
+                game.expedition = originalExpedition;
+                game.screen = "campaign";
+                game.travelScenePresentation = null;
+                renderScreen();
+              }
+            })()
+            """,
+            "Loop seam foreground was removed before its outgoing tree fully left the travel frame",
         )
         check(
             "(() => { const definition=ENCOUNTER_DEFINITIONS.abandoned_camp; const base=resolveEncounterVisualState(definition,{}); const oldExpedition=game.expedition; const oldScreen=game.screen; const choice=definition.stages.start.choices.find(candidate=>candidate.id==='leave'); const oldOutcomes=choice.outcomes; const oldVisual=choice.visualOverride; const oldEnd=choice.endEncounter; choice.outcomes=[{type:'modifyResource',resource:'gold',amount:0}]; choice.visualOverride={backgroundAssetId:'expedition_old_forest_road_bg',encounterLayout:{arthur:{x:0.9,y:0.8}},hiddenSlots:['companion2']}; choice.endEncounter=true; const expedition=ExpeditionRules.createExpedition(SaveSystem.createDefaultPlayerState(),{expeditionId:'fountain_of_barenton',companions:['sir_kay','llamrei'],provisions:10}); EncounterManager.force(expedition,'abandoned_camp'); const resolved=EncounterManager.resolveChoice(expedition,SaveSystem.createDefaultPlayerState(),'leave'); const visual=resolveEncounterVisualState(definition,expedition.activeEncounter); game.expedition=expedition; game.screen='expedition'; renderScreen(); const image=document.querySelector('#travel-scene .travel-visual-track')?.dataset.travelAssetId; const members=[...document.querySelectorAll('#travelers > .companion')]; const rendered=members.length===2&&members[1].hidden&&document.querySelector('#travelers .arthur')?.dataset.encounterLayoutX==='0.9'&&Math.abs(Number(document.querySelector('#travelers .companion')?.dataset.encounterLayoutX)-base.layout.companion1.x)<0.0001; const inherited=visual.layout.companion1.x===base.layout.companion1.x&&visual.layout.companion2.y===base.layout.companion2.y; const stateUnchanged=expedition.selectedCompanions.length===2&&resolved.awaitingContinue; choice.outcomes=oldOutcomes; choice.visualOverride=oldVisual; choice.endEncounter=oldEnd; game.expedition=oldExpedition; game.screen=oldScreen; renderScreen(); return image==='expedition_old_forest_road_bg'&&resolved.resolved&&visual.hiddenSlots.has('companion2')&&inherited&&rendered&&stateUnchanged; })()",

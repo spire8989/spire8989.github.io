@@ -3629,3 +3629,29 @@ The human developer supplied a focused guide for reworking Loop travel-scene tra
 ### Verification and resulting prototype state
 
 Verified focused outbound and returning A/B tile transitions, encounter preservation and Continue Journey restoration, same-asset continuity, Python test syntax, and `git diff --check`. `Tools/` remains unchanged.
+
+## 2026-08-20 - Travel Seam Foreground Assets
+
+### Goal
+
+Add an optional transparent expedition foreground asset that travels with each
+panorama seam, allowing repeated joins to use authored trees or similar
+foreground landmarks without replacing the existing Travel Transition system.
+
+### AI-assisted implementation
+
+- Added `travelSeamForegroundAssetId` to expedition presentation data and a
+  Content Editor selector with transparent-image preview and normal save/load
+  behavior.
+- Rendered the selected foreground at panorama joins for outbound and return
+  travel, above the travel artwork and below travelers/UI, with graceful
+  fallback when the field or asset is missing.
+- Added per-loop `showSeamForegroundBetweenLoops` controls so authors can hide
+  the foreground between repeated copies of the same scene while retaining it
+  for scene changes.
+
+### Verification and resulting prototype state
+
+Verified focused seam-asset/editor coverage and the browser travel transition
+checks, including reverse travel and missing-asset fallback. `Tools/` remains
+unchanged by the runtime seam work.

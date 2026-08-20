@@ -1864,14 +1864,28 @@ button:active:not(:disabled) {
   margin-left: -1px;
 }
 
+.travel-seam-foreground-layer {
+  position: absolute;
+  z-index: 3;
+  top: -3%;
+  left: 0;
+  width: max-content;
+  height: 106%;
+  overflow: visible;
+  pointer-events: none;
+  will-change: transform;
+  animation: travel-panorama-loop var(--travel-loop-duration, 28s) linear infinite;
+  animation-play-state: paused;
+}
+
 .travel-seam-foreground {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   top: 50%;
   left: var(--travel-loop-distance, 0px);
   width: auto;
   max-width: none;
-  height: 106%;
+  height: 130%;
   object-fit: contain;
   object-position: center;
   transform: translate(-50%, -50%);
@@ -2130,6 +2144,11 @@ button:active:not(:disabled) {
 @keyframes travel-panorama-loop {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(calc(var(--travel-loop-distance, 0px) * -1), 0, 0); }
+}
+
+@keyframes travel-seam-foreground-exit {
+  from { transform: var(--travel-seam-exit-start, translate3d(0, 0, 0)); }
+  to { transform: var(--travel-seam-exit-end, translate3d(0, 0, 0)); }
 }
 
 @keyframes travel-panorama-pan {

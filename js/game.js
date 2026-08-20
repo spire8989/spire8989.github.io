@@ -477,25 +477,68 @@ function resolveTravelSeamForegroundAssetId(expedition = game.expedition) {
   return assetId && AssetCatalog.imagePath(assetId) ? assetId : null;
 }
 
+function removeTravelSeamForegroundLayer(track) {
+  const layer = track?._travelSeamForegroundLayer;
+  layer?.remove();
+  if (track) {
+    track._travelSeamForegroundLayer = null;
+    track._travelSeamForeground = null;
+  }
+}
+
+function syncTravelSeamForegroundLayer(track) {
+  const layer = track?._travelSeamForegroundLayer;
+  if (!layer?.isConnected) return;
+  const sourceAnimation = travelImageAnimation(track);
+  const sourceStyle = getComputedStyle(track);
+  const distance = sourceStyle.getPropertyValue("--travel-loop-distance").trim();
+  const duration = sourceStyle.getPropertyValue("--travel-loop-duration").trim();
+  if (distance) layer.style.setProperty("--travel-loop-distance", distance);
+  if (duration) layer.style.setProperty("--travel-loop-duration", duration);
+  layer.style.animationDirection = sourceStyle.animationDirection;
+  layer.style.animationPlayState = sourceStyle.animationPlayState;
+  const layerAnimation = travelImageAnimation(layer);
+  const currentTime = Number(sourceAnimation?.currentTime);
+  if (layerAnimation && Number.isFinite(currentTime)) layerAnimation.currentTime = currentTime;
+}
+
 function ensureTravelSeamForeground(image, panorama, motion, expedition = game.expedition) {
   const track = image?.closest(".travel-visual-track");
   if (!track) return;
+  const scene = track.closest(".travel-scene") ?? document.querySelector("#travel-scene");
   const showBetweenLoops = track.dataset.travelShowSeamBetweenLoops !== "false";
   const forceForSceneChange = track.dataset.travelSeamForegroundForce === "true";
   const assetId = track.dataset.travelKind !== "encounter" && panorama && motion === "loop"
     && (showBetweenLoops || forceForSceneChange)
     ? resolveTravelSeamForegroundAssetId(expedition)
     : null;
-  let foreground = track.querySelector(".travel-seam-foreground");
+  let layer = track._travelSeamForegroundLayer;
+  let foreground = track._travelSeamForeground;
+  if (!foreground) {
+    foreground = track.querySelector(".travel-seam-foreground");
+    if (foreground) {
+      layer = foreground.closest(".travel-seam-foreground-layer, .travel-seam-foreground-carry");
+    }
+  }
   if (!assetId) {
-    foreground?.remove();
+    removeTravelSeamForegroundLayer(track);
     return;
   }
   const path = AssetCatalog.imagePath(assetId);
   if (!path) {
-    foreground?.remove();
+    removeTravelSeamForegroundLayer(track);
     return;
   }
+  if (!scene) return;
+  if (!layer?.isConnected) {
+    layer = document.createElement("div");
+    layer.className = "travel-seam-foreground-layer is-loop-motion is-visible";
+    layer.dataset.travelSeamForegroundLayer = "true";
+    layer._travelSeamForegroundTrack = track;
+    scene.append(layer);
+    track._travelSeamForegroundLayer = layer;
+  }
+  if (foreground && foreground.parentNode !== layer) layer.append(foreground);
   if (!foreground) {
     foreground = document.createElement("img");
     foreground.className = "travel-seam-foreground";
@@ -511,8 +554,11 @@ function ensureTravelSeamForeground(image, panorama, motion, expedition = game.e
       foreground.dataset.travelAssetFailed = "true";
       foreground.hidden = true;
     });
-    track.append(foreground);
+    layer.append(foreground);
+    track._travelSeamForeground = foreground;
   }
+  track._travelSeamForeground = foreground;
+  layer.dataset.travelSeamForegroundForce = forceForSceneChange ? "true" : "false";
   if (foreground.dataset.travelAssetId !== assetId) {
     foreground.dataset.travelAssetId = assetId;
     foreground.dataset.travelAssetFailed = "false";
@@ -521,6 +567,7 @@ function ensureTravelSeamForeground(image, panorama, motion, expedition = game.e
   } else if (foreground.dataset.travelAssetFailed !== "true") {
     foreground.hidden = false;
   }
+  syncTravelSeamForegroundLayer(track);
 }
 
 function ensureTravelLoopCopies(image, panorama, motion) {
@@ -673,30 +720,50 @@ function installTravelPendingTile(expedition, pending) {
   }
 }
 
-function releaseTravelSeamForegroundAfterSceneChange(track, expedition) {
-  if (!track?.isConnected || track.dataset.travelSeamForegroundForce !== "true") return;
-  const foreground = track.querySelector(".travel-seam-foreground");
+function releaseTravelSeamForegroundAfterSceneChange(target, expedition) {
+  const isLayer = target?.classList?.contains("travel-seam-foreground-layer")
+    || target?.classList?.contains("travel-seam-foreground-carry");
+  const layer = isLayer ? target : target?._travelSeamForegroundLayer;
+  const track = isLayer ? layer?._travelSeamForegroundTrack : target;
+  const isCarry = layer?.dataset.travelSeamForegroundCarry === "true";
+  const force = track?.dataset.travelSeamForegroundForce === "true"
+    || layer?.dataset.travelSeamForegroundForce === "true";
+  if (!layer?.isConnected || (!isCarry && !force)) return;
+  const foreground = layer.querySelector(".travel-seam-foreground");
   const art = document.querySelector("#travel-art");
   if (!foreground || !art) return;
+  if (!foreground.complete || foreground.naturalWidth <= 0) {
+    window.requestAnimationFrame(() => releaseTravelSeamForegroundAfterSceneChange(layer, expedition));
+    return;
+  }
   if (foreground.hidden) {
-    delete track.dataset.travelSeamForegroundForce;
+    if (isCarry) layer.remove();
+    else {
+      delete track?.dataset.travelSeamForegroundForce;
+      removeTravelSeamForegroundLayer(track);
+    }
     return;
   }
   const seam = foreground.getBoundingClientRect();
   const frame = art.getBoundingClientRect();
-  const returning = expedition?.direction === "returning";
-  const offscreen = returning
-    ? seam.left >= frame.right
-    : seam.right <= frame.left;
+  const offscreen = seam.right <= frame.left
+    || seam.left >= frame.right
+    || seam.bottom <= frame.top
+    || seam.top >= frame.bottom;
   if (offscreen) {
-    delete track.dataset.travelSeamForegroundForce;
+    if (isCarry) {
+      layer.remove();
+      return;
+    }
+    delete track?.dataset.travelSeamForegroundForce;
+    removeTravelSeamForegroundLayer(track);
     const activeTile = travelActiveTile(track, expedition);
     if (activeTile) {
       ensureTravelSeamForeground(activeTile, isTravelPanorama(activeTile), travelMotionForImage(activeTile), expedition);
     }
     return;
   }
-  window.requestAnimationFrame(() => releaseTravelSeamForegroundAfterSceneChange(track, expedition));
+  window.requestAnimationFrame(() => releaseTravelSeamForegroundAfterSceneChange(layer, expedition));
 }
 
 function recycleTravelLoopScene(expedition, scene, pending) {
@@ -711,6 +778,10 @@ function recycleTravelLoopScene(expedition, scene, pending) {
     || upcomingTile.dataset.travelAssetId !== pending.assetId) return false;
   const returning = expedition?.direction === "returning";
   const changedBackground = pending.outgoingAssetId !== pending.assetId;
+  if (track._travelSeamForegroundLayer?.isConnected
+    && (changedBackground || pending.showSeamForegroundBetweenLoops !== false)) {
+    carryTravelSeamForeground(track, scene);
+  }
   let presentationImage;
   if (returning) {
     const replacement = upcomingTile.cloneNode(false);
@@ -794,6 +865,7 @@ function updateTravelImagePresentation(scene, image) {
   track?.style.setProperty("--travel-loop-distance", `${renderedWidth}px`);
   const loopSpeed = Number(scene.style.getPropertyValue("--travel-loop-speed")) || 72;
   track?.style.setProperty("--travel-loop-duration", `${Math.max(1, renderedWidth / loopSpeed)}s`);
+  syncTravelSeamForegroundLayer(track);
   if (renderedWidth <= frameWidth) {
     window.requestAnimationFrame(() => {
       if (image.isConnected) updateTravelImagePresentation(scene, image);
@@ -929,7 +1001,11 @@ function cancelTravelSceneTransition(expedition, preservePending = false) {
   clearTravelTransitionTimers(transition);
   state.transition = null;
   if (!preservePending) state.pending = null;
-  document.querySelector("#travel-art .travel-visual-track[data-travel-layer='next']")?.remove();
+  const nextTrack = document.querySelector("#travel-art .travel-visual-track[data-travel-layer='next']");
+  if (nextTrack) {
+    removeTravelSeamForegroundLayer(nextTrack);
+    nextTrack.remove();
+  }
   document.querySelector("#travel-transition-art")?.classList.remove("is-active");
 }
 
@@ -1068,6 +1144,83 @@ function markTravelImageFailed(scene, image) {
     art.dataset.travelAssetFailedId = failedId;
     art.querySelector("[data-travel-layer='next']")?.remove();
   }
+  scene.querySelectorAll(".travel-seam-foreground-layer").forEach((layer) => layer.remove());
+}
+
+function travelTransformX(element) {
+  const transform = getComputedStyle(element).transform;
+  if (!transform || transform === "none") return 0;
+  const matrix3d = transform.match(/^matrix3d\((.+)\)$/);
+  if (matrix3d) return Number(matrix3d[1].split(",")[12]) || 0;
+  const matrix = transform.match(/^matrix\((.+)\)$/);
+  return matrix ? Number(matrix[1].split(",")[4]) || 0 : 0;
+}
+
+function startTravelSeamForegroundExit(layer, track, expedition) {
+  const foreground = layer?.querySelector(".travel-seam-foreground");
+  if (!layer?.isConnected || !foreground) return;
+  const currentX = travelTransformX(layer);
+  const frame = document.querySelector("#travel-art")?.getBoundingClientRect();
+  const sourceStyle = getComputedStyle(track ?? layer);
+  const loopDistance = Number.parseFloat(sourceStyle.getPropertyValue("--travel-loop-distance"));
+  const durationValue = sourceStyle.getPropertyValue("--travel-loop-duration").trim();
+  const durationNumber = Number.parseFloat(durationValue);
+  const loopDurationMs = durationValue.endsWith("ms") ? durationNumber : durationNumber * 1000;
+  const direction = sourceStyle.animationDirection === "reverse"
+    || expedition?.direction === "returning"
+    ? 1
+    : -1;
+  const foregroundBox = foreground.getBoundingClientRect();
+  const exitDelta = direction < 0
+    ? (frame?.left ?? 0) - foregroundBox.right - 1
+    : (frame?.right ?? foregroundBox.left + foregroundBox.width) - foregroundBox.left + 1;
+  const exitDistance = Math.max(1, Math.abs(exitDelta));
+  const speed = Number.isFinite(loopDistance) && loopDistance > 0
+    && Number.isFinite(loopDurationMs) && loopDurationMs > 0
+    ? loopDistance / loopDurationMs
+    : 0.08;
+  const exitDuration = Math.max(180, exitDistance / speed);
+  layer.style.setProperty("--travel-seam-exit-start", `translate3d(${currentX}px, 0, 0)`);
+  layer.style.setProperty(
+    "--travel-seam-exit-end",
+    `translate3d(${currentX + (direction < 0 ? -exitDistance : exitDistance)}px, 0, 0)`,
+  );
+  layer.style.animation = `travel-seam-foreground-exit ${exitDuration}ms linear 1 both`;
+  layer.style.animationPlayState = "running";
+}
+
+function carryTravelSeamForeground(track, scene) {
+  const existingLayer = track?._travelSeamForegroundLayer;
+  if (existingLayer?.isConnected && scene) {
+    existingLayer.classList.add("travel-seam-foreground-carry");
+    existingLayer.dataset.travelSeamForegroundCarry = "true";
+    delete existingLayer.dataset.travelSeamForegroundForce;
+    track._travelSeamForegroundLayer = null;
+    track._travelSeamForeground = null;
+    startTravelSeamForegroundExit(existingLayer, track, game.expedition);
+    window.requestAnimationFrame(() => releaseTravelSeamForegroundAfterSceneChange(existingLayer, game.expedition));
+    return existingLayer;
+  }
+  const foreground = track?.querySelector(".travel-seam-foreground");
+  if (!foreground || !scene) return null;
+  const sourceAnimation = travelImageAnimation(track);
+  const sourceStyle = getComputedStyle(track);
+  const carry = document.createElement("div");
+  carry.className = "travel-seam-foreground-layer travel-seam-foreground-carry is-loop-motion is-visible";
+  carry.dataset.travelSeamForegroundCarry = "true";
+  carry.style.setProperty("--travel-loop-distance", sourceStyle.getPropertyValue("--travel-loop-distance"));
+  carry.style.setProperty("--travel-loop-duration", sourceStyle.getPropertyValue("--travel-loop-duration"));
+  carry.style.animationDirection = sourceStyle.animationDirection;
+  carry.style.animationPlayState = sourceStyle.animationPlayState;
+  carry.append(foreground);
+  scene.append(carry);
+  const carryAnimation = travelImageAnimation(carry);
+  if (carryAnimation && sourceAnimation) {
+    carryAnimation.currentTime = sourceAnimation.currentTime;
+  }
+  startTravelSeamForegroundExit(carry, track, game.expedition);
+  window.requestAnimationFrame(() => releaseTravelSeamForegroundAfterSceneChange(carry, game.expedition));
+  return carry;
 }
 
 function bindTravelImage(scene, image) {
@@ -1082,7 +1235,10 @@ function bindTravelImage(scene, image) {
     }
     const oldTrack = scene.querySelector(".travel-visual-track[data-travel-layer='current']");
     const isTransition = track?.dataset.travelLayer === "next" && oldTrack && oldTrack !== track;
-    if (isTransition) oldTrack.classList.add("is-fading-out");
+    if (isTransition) {
+      carryTravelSeamForeground(oldTrack, scene);
+      oldTrack.classList.add("is-fading-out");
+    }
     markTravelImageActive(scene, image);
     scene.dataset.travelAssetId = image.dataset.travelAssetId;
     scene.dataset.travelMotion = travelMotionForImage(image);
@@ -1106,6 +1262,9 @@ function bindTravelImage(scene, image) {
           }
           state.transition = null;
         }
+      }
+      if (track.dataset.travelSeamForegroundForce === "true") {
+        releaseTravelSeamForegroundAfterSceneChange(track, game.expedition);
       }
       window.setTimeout(() => {
         if (oldTrack?.isConnected && oldTrack !== track) oldTrack.remove();
@@ -1206,6 +1365,7 @@ function createTravelTrack(scene, art, expedition, presentation, activeEncounter
   next.dataset.travelAssetId = presentation.assetId;
   next.dataset.travelMotion = normalizeTravelMotion(presentation.motion);
   next.dataset.travelShowSeamBetweenLoops = presentation.showSeamForegroundBetweenLoops === false ? "false" : "true";
+  if (layer === "next" && !activeEncounter) next.dataset.travelSeamForegroundForce = "true";
   if (layer === "current") next.classList.add("is-visible");
   const image = document.createElement("img");
   image.className = "asset-image travel-visual-asset is-visible";
@@ -4457,6 +4617,7 @@ function updateTravelHud() {
       hard_push: "11s",
     }[expedition.paceId] ?? "16s");
     scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
+    syncTravelSeamForegroundLayer(currentTravelTrack());
     syncTravelVisual(expedition, activeEncounter);
     advancePendingTravelScene(expedition, scene, activeEncounter);
     preloadNextTravelScene(expedition);
