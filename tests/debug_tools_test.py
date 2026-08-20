@@ -297,7 +297,7 @@ def run() -> None:
               try {
                 definition.travelScenes = [
                   { minDistance: 0, visualAssetId: firstId, motion: "loop", showSeamForegroundBetweenLoops: true },
-                  { minDistance: 17.5, visualAssetId: secondId, motion: "loop", showSeamForegroundBetweenLoops: true },
+                  { minDistance: 17.5, visualAssetId: secondId, motion: "loop", showSeamForegroundBetweenLoops: false },
                 ];
                 definition.travelSeamForegroundAssetId = firstId;
                 const expedition = ExpeditionRules.createExpedition(game.player, {
@@ -334,9 +334,15 @@ def run() -> None:
                 const foreground = carry?.querySelector(".travel-seam-foreground");
                 const frame = document.querySelector("#travel-art")?.getBoundingClientRect();
                 const bounds = foreground?.getBoundingClientRect();
-                return Boolean(carry?.isConnected && bounds && frame)
+                const outgoingRetained = Boolean(carry?.isConnected && bounds && frame)
                   && bounds.right > frame.left
                   && bounds.left < frame.right;
+                expedition.direction = "returning";
+                expedition.distance = 17;
+                updateTravelHud();
+                await wait(120);
+                const returnForeground = document.querySelector("#travel-scene > .travel-seam-foreground-layer:not(.travel-seam-foreground-carry) .travel-seam-foreground");
+                return outgoingRetained && Boolean(returnForeground?.isConnected);
               } finally {
                 definition.travelScenes = originalScenes;
                 if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;

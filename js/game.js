@@ -549,6 +549,10 @@ function ensureTravelSeamForeground(image, panorama, motion, expedition = game.e
     foreground.addEventListener("load", () => {
       foreground.dataset.travelAssetFailed = "false";
       foreground.hidden = false;
+      syncTravelSeamForegroundLayer(track);
+      if (forceForSceneChange && !layer.dataset.travelSeamForegroundExitStarted) {
+        startTravelSeamForegroundExit(layer, track, expedition);
+      }
     });
     foreground.addEventListener("error", () => {
       foreground.dataset.travelAssetFailed = "true";
@@ -559,6 +563,7 @@ function ensureTravelSeamForeground(image, panorama, motion, expedition = game.e
   }
   track._travelSeamForeground = foreground;
   layer.dataset.travelSeamForegroundForce = forceForSceneChange ? "true" : "false";
+  if (!forceForSceneChange) delete layer.dataset.travelSeamForegroundExitStarted;
   if (foreground.dataset.travelAssetId !== assetId) {
     foreground.dataset.travelAssetId = assetId;
     foreground.dataset.travelAssetFailed = "false";
@@ -866,6 +871,10 @@ function updateTravelImagePresentation(scene, image) {
   const loopSpeed = Number(scene.style.getPropertyValue("--travel-loop-speed")) || 72;
   track?.style.setProperty("--travel-loop-duration", `${Math.max(1, renderedWidth / loopSpeed)}s`);
   syncTravelSeamForegroundLayer(track);
+  if (track?._travelSeamForegroundLayer?.dataset.travelSeamForegroundForce === "true"
+    && !track._travelSeamForegroundLayer.dataset.travelSeamForegroundExitStarted) {
+    startTravelSeamForegroundExit(track._travelSeamForegroundLayer, track, game.expedition);
+  }
   if (renderedWidth <= frameWidth) {
     window.requestAnimationFrame(() => {
       if (image.isConnected) updateTravelImagePresentation(scene, image);
@@ -1158,7 +1167,7 @@ function travelTransformX(element) {
 
 function startTravelSeamForegroundExit(layer, track, expedition) {
   const foreground = layer?.querySelector(".travel-seam-foreground");
-  if (!layer?.isConnected || !foreground) return;
+  if (!layer?.isConnected || !foreground || !foreground.complete || foreground.naturalWidth <= 0) return;
   const currentX = travelTransformX(layer);
   const frame = document.querySelector("#travel-art")?.getBoundingClientRect();
   const sourceStyle = getComputedStyle(track ?? layer);
@@ -1187,6 +1196,7 @@ function startTravelSeamForegroundExit(layer, track, expedition) {
   );
   layer.style.animation = `travel-seam-foreground-exit ${exitDuration}ms linear 1 both`;
   layer.style.animationPlayState = "running";
+  layer.dataset.travelSeamForegroundExitStarted = "true";
 }
 
 function carryTravelSeamForeground(track, scene) {
