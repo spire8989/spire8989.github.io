@@ -403,11 +403,11 @@ function orderedTravelScenes(definition) {
     .sort((left, right) => left.minDistance - right.minDistance || left._authoredIndex - right._authoredIndex);
 }
 
-function resolveTravelScene(expedition) {
+function resolveTravelSceneAtDistance(expedition, distance) {
   const definition = expeditionDefinition(expedition);
-  const distance = Math.max(0, Number(expedition?.distance) || 0);
+  const resolvedDistance = Math.max(0, Number(distance) || 0);
   const activeScene = orderedTravelScenes(definition)
-    .filter((scene) => scene.minDistance <= distance)
+    .filter((scene) => scene.minDistance <= resolvedDistance)
     .at(-1);
   if (activeScene) {
     return {
@@ -419,6 +419,10 @@ function resolveTravelScene(expedition) {
   return definition?.travelVisualAssetId
     ? { assetId: definition.travelVisualAssetId, motion: "loop", sceneKey: "legacy-default" }
     : null;
+}
+
+function resolveTravelScene(expedition) {
+  return resolveTravelSceneAtDistance(expedition, expedition?.distance);
 }
 
 function resolveTravelSceneAssetId(expedition) {
@@ -998,10 +1002,47 @@ function bindTravelImage(scene, image) {
   }
 }
 
+function travelSpeedForVisualLookahead(expedition) {
+  const paceMultiplier = EXPEDITION_TUNING.travelPaces?.[expedition?.paceId]?.speedMultiplier ?? 1;
+  const directionMultiplier = expedition?.direction === "returning"
+    ? EXPEDITION_TUNING.returnSpeedMultiplier
+    : 1;
+  const partyMultiplier = ExpeditionRules.travelSpeedMultiplier(expedition);
+  return EXPEDITION_TUNING.outboundTravelSpeed * paceMultiplier * directionMultiplier * partyMultiplier;
+}
+
+function travelNextTileDistance(expedition, track) {
+  if (!track || track.dataset.travelKind === "encounter") return null;
+  const scene = document.querySelector("#travel-scene");
+  if (!scene?.classList.contains("is-moving")) return null;
+  const animation = travelImageAnimation(track);
+  const duration = Number(animation?.effect?.getComputedTiming?.().duration);
+  const currentTime = Number(animation?.currentTime);
+  if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return null;
+  const elapsed = ((currentTime % duration) + duration) % duration;
+  const remainingSeconds = (duration - elapsed) / 1000;
+  const direction = expedition?.direction === "returning" ? -1 : 1;
+  return Math.max(
+    0,
+    (Number(expedition?.distance) || 0) + direction * remainingSeconds * travelSpeedForVisualLookahead(expedition),
+  );
+}
+
 function preloadNextTravelScene(expedition) {
   const definition = expeditionDefinition(expedition);
   const scenes = orderedTravelScenes(definition);
   if (!scenes.length) return;
+  const track = currentTravelTrack();
+  const projectedDistance = travelNextTileDistance(expedition, track);
+  if (Number.isFinite(projectedDistance)) {
+    const nextPresentation = resolveTravelSceneAtDistance(expedition, projectedDistance);
+    preloadTravelAsset(nextPresentation?.assetId);
+    const activeImage = travelActiveTile(track, expedition);
+    if (nextPresentation?.assetId && activeImage) {
+      queueTravelSceneTransition(expedition, nextPresentation, activeImage);
+    }
+    return;
+  }
   const distance = Math.max(0, Number(expedition?.distance) || 0);
   const activeIndex = scenes.reduce((index, scene, sceneIndex) => (
     scene.minDistance <= distance ? sceneIndex : index
