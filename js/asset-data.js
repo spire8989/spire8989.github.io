@@ -78,6 +78,26 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "encounter_abandoned_camp",
     path: "assets/images/encounter/abandoned_camp.webp",
     category: "encounter"
+  },
+  encounter_abandoned_cart: {
+    id: "encounter_abandoned_cart",
+    path: "assets/images/encounter/abandoned_cart.webp",
+    category: "encounter"
+  },
+  expedition_old_forest_road_woodcut: {
+    id: "expedition_old_forest_road_woodcut",
+    path: "assets/images/expedition/woodcut_old_forest_path.webp",
+    category: "expedition"
+  },
+  expedition_old_forest_road_woodcut_3: {
+    id: "expedition_old_forest_road_woodcut_3",
+    path: "assets/images/expedition/woodcut_old_forest_path_3.webp",
+    category: "expedition"
+  },
+  expedition_old_forest_road_woodcut_2: {
+    id: "expedition_old_forest_road_woodcut_2",
+    path: "assets/images/expedition/woodcut_old_forest_path_2.webp",
+    category: "expedition"
   }
 });
 

@@ -21,12 +21,17 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelScenes: [
       {
         minDistance: 0,
-        visualAssetId: "expedition_old_forest_road_wide_bg_loop"
+        visualAssetId: "expedition_old_forest_road_woodcut"
       },
       {
-        visualAssetId: "expedition_old_forest_road_50_bg",
+        visualAssetId: "expedition_old_forest_road_woodcut_3",
         motion: "loop",
-        minDistance: 15
+        minDistance: 17.5
+      },
+      {
+        minDistance: 40,
+        visualAssetId: "expedition_old_forest_road_woodcut_2",
+        motion: "loop"
       }
     ]
   },

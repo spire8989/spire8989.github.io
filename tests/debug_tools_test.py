@@ -66,6 +66,7 @@ def run() -> None:
         (async () => {
           const definition = EXPEDITION_DEFINITIONS.old_forest_road;
           const originalScenes = definition.travelScenes;
+          const originalSeamForeground = definition.travelSeamForegroundAssetId;
           const originalExpedition = game.expedition;
           const originalScreen = game.screen;
           const firstId = "expedition_old_forest_road_woodcut";
@@ -91,6 +92,7 @@ def run() -> None:
               { minDistance: 17.5, visualAssetId: secondId, motion: "loop" },
               { minDistance: 40, visualAssetId: thirdId, motion: "loop" },
             ];
+            definition.travelSeamForegroundAssetId = firstId;
             const expedition = ExpeditionRules.createExpedition(game.player, {
               expeditionId: "old_forest_road",
               companions: [],
@@ -118,6 +120,18 @@ def run() -> None:
             animation.currentTime = duration * 0.55;
             updateTravelHud();
             await wait(120);
+            const currentTrack = document.querySelector(
+              "#travel-art .travel-visual-track[data-travel-layer=\"current\"]",
+            );
+            const seamForeground = currentTrack?.querySelector(".travel-seam-foreground");
+            const seamBefore = seamForeground?.getBoundingClientRect().left;
+            animation.currentTime = duration * 0.7;
+            await wait(20);
+            const seamAfter = seamForeground?.getBoundingClientRect().left;
+            const seamAttached = seamForeground?.dataset.travelAssetId === firstId
+              && seamForeground?.parentElement === currentTrack
+              && getComputedStyle(seamForeground).pointerEvents === "none"
+              && Math.abs(seamAfter - seamBefore) > 0.5;
             const firstQueued = game.travelScenePresentation?.pending?.assetId === secondId
               && order() === `${firstId},${secondId}`;
             animation.currentTime = duration - 1;
@@ -155,10 +169,18 @@ def run() -> None:
             await wait(80);
             const returnHeldCurrentArtwork = game.travelScenePresentation?.activeAssetId === thirdId
               && order() === thirdId + "," + thirdId
-              && game.travelScenePresentation?.pending?.assetId !== secondId;
-            result = outboundTransitions && returnHeldCurrentArtwork;
+              && game.travelScenePresentation?.pending?.assetId !== secondId
+              && getComputedStyle(document.querySelector("#travel-art .travel-visual-track[data-travel-layer=\"current\"]")).animationDirection === "reverse";
+            definition.travelSeamForegroundAssetId = null;
+            document.querySelector(".expedition-screen")?.remove();
+            renderExpedition();
+            await waitForActive(document.querySelector(".travel-scene"));
+            const seamFallback = !document.querySelector("#travel-art .travel-seam-foreground");
+            result = outboundTransitions && returnHeldCurrentArtwork && seamAttached && seamFallback;
           } finally {
             definition.travelScenes = originalScenes;
+            if (originalSeamForeground === undefined) delete definition.travelSeamForegroundAssetId;
+            else definition.travelSeamForegroundAssetId = originalSeamForeground;
             game.expedition = originalExpedition;
             game.screen = originalScreen;
             game.travelScenePresentation = null;

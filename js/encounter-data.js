@@ -744,7 +744,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
-    }
+    },
+    visualAssetId: "encounter_abandoned_cart"
   },
   white_hart: {
     id: "white_hart",

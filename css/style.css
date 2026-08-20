@@ -1864,6 +1864,22 @@ button:active:not(:disabled) {
   margin-left: -1px;
 }
 
+.travel-seam-foreground {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: var(--travel-loop-distance, 0px);
+  width: auto;
+  max-width: none;
+  max-height: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  user-select: none;
+}
+
 .travel-scene.asset-image-active > .moon,
 .travel-scene.asset-image-active > .forest-far,
 .travel-scene.asset-image-active > .forest-near,

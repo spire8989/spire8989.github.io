@@ -463,6 +463,54 @@ function travelMotionForImage(image) {
   );
 }
 
+function resolveTravelSeamForegroundAssetId(expedition = game.expedition) {
+  const assetId = expeditionDefinition(expedition)?.travelSeamForegroundAssetId;
+  return assetId && AssetCatalog.imagePath(assetId) ? assetId : null;
+}
+
+function ensureTravelSeamForeground(image, panorama, motion, expedition = game.expedition) {
+  const track = image?.closest(".travel-visual-track");
+  if (!track) return;
+  const assetId = track.dataset.travelKind !== "encounter" && panorama && motion === "loop"
+    ? resolveTravelSeamForegroundAssetId(expedition)
+    : null;
+  let foreground = track.querySelector(".travel-seam-foreground");
+  if (!assetId) {
+    foreground?.remove();
+    return;
+  }
+  const path = AssetCatalog.imagePath(assetId);
+  if (!path) {
+    foreground?.remove();
+    return;
+  }
+  if (!foreground) {
+    foreground = document.createElement("img");
+    foreground.className = "travel-seam-foreground";
+    foreground.alt = "";
+    foreground.setAttribute("aria-hidden", "true");
+    foreground.loading = "eager";
+    foreground.decoding = "async";
+    foreground.addEventListener("load", () => {
+      foreground.dataset.travelAssetFailed = "false";
+      foreground.hidden = false;
+    });
+    foreground.addEventListener("error", () => {
+      foreground.dataset.travelAssetFailed = "true";
+      foreground.hidden = true;
+    });
+    track.append(foreground);
+  }
+  if (foreground.dataset.travelAssetId !== assetId) {
+    foreground.dataset.travelAssetId = assetId;
+    foreground.dataset.travelAssetFailed = "false";
+    foreground.hidden = false;
+    foreground.src = path;
+  } else if (foreground.dataset.travelAssetFailed !== "true") {
+    foreground.hidden = false;
+  }
+}
+
 function ensureTravelLoopCopies(image, panorama, motion) {
   const track = image.closest(".travel-visual-track");
   if (!track) return;
@@ -473,6 +521,7 @@ function ensureTravelLoopCopies(image, panorama, motion) {
   const imageCopy = image.dataset.travelCopy === "loop" ? "loop" : "primary";
   image.dataset.travelCopy = imageCopy;
   image.dataset.travelTile = imageCopy === "primary" ? "leading" : "trailing";
+  ensureTravelSeamForeground(image, panorama, motion);
   if (track.dataset.travelSnapshot === "true" && panorama && motion === "loop") {
     track.querySelectorAll(".travel-visual-asset").forEach((tile) => {
       tile.classList.add("is-panorama");
