@@ -429,9 +429,7 @@ function renderTravelVisualAsset(assetId, alt, motion = "loop", sceneKey = "", p
   const trackAssetId = visualSnapshot?.trackAssetId || visualSnapshot?.assetId || assetId;
   const trackMotion = normalizeTravelMotion(visualSnapshot?.trackMotion ?? visualSnapshot?.motion ?? motion);
   const trackSceneKey = visualSnapshot?.trackSceneKey ?? visualSnapshot?.activeSceneKey ?? sceneKey;
-  const trackStyle = visualSnapshot?.trackTransform && visualSnapshot.trackTransform !== "none"
-    ? ` style="transform:${assetAttribute(visualSnapshot.trackTransform)}"`
-    : "";
+  const isSnapshotTrack = Boolean(Array.isArray(visualSnapshot?.tiles) && visualSnapshot.tiles.length);
   const tiles = snapshotTiles.map((tile, index) => {
     const tileAssetId = tile?.assetId;
     const path = AssetCatalog.imagePath(tileAssetId);
@@ -441,7 +439,7 @@ function renderTravelVisualAsset(assetId, alt, motion = "loop", sceneKey = "", p
     return `<img class="asset-image travel-visual-asset is-visible" data-travel-copy="${copy}" data-travel-tile="${tileRole}" data-travel-motion="${assetAttribute(trackMotion)}" data-travel-asset-id="${assetAttribute(tileAssetId)}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)">`;
   }).filter(Boolean).join("");
   const image = tiles
-    ? `<div class="travel-visual-track is-visible"${trackStyle} data-travel-layer="current" data-travel-kind="${assetAttribute(presentationKind)}" data-travel-scene-key="${assetAttribute(trackSceneKey)}" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}">${tiles}</div>`
+    ? `<div class="travel-visual-track is-visible" data-travel-snapshot="${isSnapshotTrack ? "true" : "false"}" data-travel-layer="current" data-travel-kind="${assetAttribute(presentationKind)}" data-travel-scene-key="${assetAttribute(trackSceneKey)}" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}">${tiles}</div>`
     : "";
   return `<div class="travel-art" id="travel-art" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}">${image}</div>`;
 }
@@ -469,6 +467,12 @@ function ensureTravelLoopCopies(image, panorama, motion) {
   image.dataset.travelCopy = imageCopy;
   image.dataset.travelTile = imageCopy === "primary" ? "leading" : "trailing";
   const loopCopy = track.querySelector("[data-travel-copy='loop']");
+  const hasRestoredLoopComposition = track.dataset.travelSnapshot === "true"
+    && panorama
+    && motion === "loop"
+    && track.querySelector("[data-travel-copy='primary']")
+    && loopCopy;
+  if (hasRestoredLoopComposition) return;
   if (panorama && motion === "loop" && !loopCopy) {
     const copy = image.cloneNode(false);
     copy.removeAttribute("onload");
@@ -818,7 +822,6 @@ function captureTravelVisualState(expedition = game.expedition) {
     trackAssetId: track?.dataset.travelAssetId || image.dataset.travelAssetId || "",
     trackMotion,
     trackSceneKey: track?.dataset.travelSceneKey ?? "",
-    trackTransform: track ? getComputedStyle(track).transform : "",
     activeSceneKey: state?.activeSceneKey ?? "",
     tiles,
   };
