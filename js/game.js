@@ -849,7 +849,7 @@ function restoreTravelVisualState(image) {
     ? EncounterManager.definitionFor(expedition)
     : null;
   const hasDedicatedEncounterArtwork = Boolean(
-    encounter?.visualAssetId && AssetCatalog.imagePath(encounter.visualAssetId),
+    resolveEncounterVisualState(encounter, expedition?.activeEncounter).backgroundAssetId,
   );
   const isEncounterTravelFallback = Boolean(expedition?.activeEncounter)
     && !hasDedicatedEncounterArtwork
@@ -1197,9 +1197,8 @@ function syncTravelVisual(expedition, activeEncounter) {
   const art = document.querySelector("#travel-art");
   if (!scene || !art) return;
   const state = travelScenePresentationFor(expedition);
-  const encounterAssetId = activeEncounter?.visualAssetId && AssetCatalog.imagePath(activeEncounter.visualAssetId)
-    ? activeEncounter.visualAssetId
-    : null;
+  const encounterVisualState = resolveEncounterVisualState(activeEncounter, expedition?.activeEncounter);
+  const encounterAssetId = encounterVisualState.backgroundAssetId;
   const resolvedTravel = resolveTravelScene(expedition) ?? { assetId: null, motion: "loop", sceneKey: "" };
   const resolvedPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
   const current = currentTravelTrack();
@@ -1317,18 +1316,14 @@ function expeditionDefinition(expedition) {
 
 function resolveExpeditionVisualAssetId(expedition, mode = "travel", encounter = null) {
   const definition = expeditionDefinition(expedition);
-  const encounterAssetId = encounter?.visualAssetId && AssetCatalog.imagePath(encounter.visualAssetId)
-    ? encounter.visualAssetId
-    : null;
+  const encounterAssetId = resolveEncounterVisualState(encounter, expedition?.activeEncounter).backgroundAssetId;
   return encounterAssetId
     ?? (mode === "camp" ? definition.campVisualAssetId : resolveTravelSceneAssetId(expedition))
     ?? null;
 }
 
 function resolveExpeditionTravelPresentation(expedition, encounter = null) {
-  const encounterAssetId = encounter?.visualAssetId && AssetCatalog.imagePath(encounter.visualAssetId)
-    ? encounter.visualAssetId
-    : null;
+  const encounterAssetId = resolveEncounterVisualState(encounter, expedition?.activeEncounter).backgroundAssetId;
   if (encounterAssetId) {
     return { assetId: encounterAssetId, motion: "loop", sceneKey: "encounter", kind: "encounter" };
   }
@@ -2796,6 +2791,8 @@ const ENCOUNTER_PARTY_LAYOUT_FALLBACKS = Object.freeze({
   companion2: Object.freeze({ x: 0.70, y: 0.64 }),
 });
 
+const ENCOUNTER_PARTY_LAYOUT_SLOTS = Object.freeze(["arthur", "companion1", "companion2"]);
+
 function encounterPartyLayoutPosition(encounter, slot) {
   const fallback = ENCOUNTER_PARTY_LAYOUT_FALLBACKS[slot] ?? ENCOUNTER_PARTY_LAYOUT_FALLBACKS.arthur;
   const authored = encounter?.encounterLayout?.[slot];
@@ -2807,15 +2804,42 @@ function encounterPartyLayoutPosition(encounter, slot) {
   };
 }
 
-function encounterPartyLayoutAttributes(encounter, slot) {
-  if (!encounter) return "";
-  const position = encounterPartyLayoutPosition(encounter, slot);
+function resolveEncounterVisualState(encounter, activeEncounter = null) {
+  if (!encounter) {
+    return { backgroundAssetId: null, layout: {}, hiddenSlots: new Set() };
+  }
+  const outcomeVisual = activeEncounter?.outcomeVisual;
+  const authoredBackground = outcomeVisual?.backgroundAssetId;
+  const baseBackground = encounter.visualAssetId;
+  const backgroundAssetId = AssetCatalog.imagePath(authoredBackground)
+    ? authoredBackground
+    : AssetCatalog.imagePath(baseBackground)
+      ? baseBackground
+      : null;
+  const layout = Object.fromEntries(ENCOUNTER_PARTY_LAYOUT_SLOTS.map((slot) => {
+    const base = encounterPartyLayoutPosition(encounter, slot);
+    const override = outcomeVisual?.encounterLayout?.[slot];
+    return [slot, {
+      x: clamp(Number.isFinite(Number(override?.x)) ? Number(override.x) : base.x, 0, 1),
+      y: clamp(Number.isFinite(Number(override?.y)) ? Number(override.y) : base.y, 0, 1),
+    }];
+  }));
+  const hiddenSlots = new Set(
+    (Array.isArray(outcomeVisual?.hiddenSlots) ? outcomeVisual.hiddenSlots : [])
+      .filter((slot) => ENCOUNTER_PARTY_LAYOUT_SLOTS.includes(slot)),
+  );
+  return { backgroundAssetId, layout, hiddenSlots };
+}
+
+function encounterPartyLayoutAttributes(visualState, slot) {
+  if (!visualState?.layout?.[slot]) return "";
+  const position = visualState.layout[slot];
   return ` data-encounter-layout-slot="${slot}" data-encounter-layout-x="${position.x}" data-encounter-layout-y="${position.y}" style="--encounter-party-x:${position.x * 100}%;--encounter-party-y:${position.y * 100}%"`;
 }
 
-function setEncounterPartyLayoutSlot(element, encounter, slot) {
+function setEncounterPartyLayoutSlot(element, visualState, slot) {
   if (!element) return;
-  if (!encounter) {
+  if (!visualState?.layout?.[slot]) {
     element.removeAttribute("data-encounter-layout-slot");
     element.removeAttribute("data-encounter-layout-x");
     element.removeAttribute("data-encounter-layout-y");
@@ -2823,7 +2847,7 @@ function setEncounterPartyLayoutSlot(element, encounter, slot) {
     element.style.removeProperty("--encounter-party-y");
     return;
   }
-  const position = encounterPartyLayoutPosition(encounter, slot);
+  const position = visualState.layout[slot];
   element.dataset.encounterLayoutSlot = slot;
   element.dataset.encounterLayoutX = String(position.x);
   element.dataset.encounterLayoutY = String(position.y);
@@ -2831,22 +2855,30 @@ function setEncounterPartyLayoutSlot(element, encounter, slot) {
   element.style.setProperty("--encounter-party-y", `${position.y * 100}%`);
 }
 
-function renderEncounterTravelers(companions, encounter) {
+function renderEncounterTravelers(companions, encounter, activeEncounter = null) {
+  const visualState = resolveEncounterVisualState(encounter, activeEncounter);
   const companionsMarkup = companions.map((companion, index) => {
     const slot = `companion${index + 1}`;
     const marker = companion.type === "mount" ? "&#x265e;" : "&#x265c;";
-    return `<span class="companion companion-${companion.type}"${encounterPartyLayoutAttributes(encounter, slot)}>${marker}</span>`;
+    const hidden = visualState.hiddenSlots.has(slot) ? " hidden" : "";
+    return `<span class="companion companion-${companion.type}"${hidden}${encounterPartyLayoutAttributes(visualState, slot)}>${marker}</span>`;
   }).join("");
-  return `<div class="travelers${encounter ? " is-encounter-layout" : ""}" id="travelers" aria-hidden="true"><span class="arthur"${encounterPartyLayoutAttributes(encounter, "arthur")}>&#x265e;</span>${companionsMarkup}</div>`;
+  const arthurHidden = visualState.hiddenSlots.has("arthur") ? " hidden" : "";
+  return `<div class="travelers${encounter ? " is-encounter-layout" : ""}" id="travelers" aria-hidden="true"><span class="arthur"${arthurHidden}${encounterPartyLayoutAttributes(visualState, "arthur")}>&#x265e;</span>${companionsMarkup}</div>`;
 }
 
-function applyEncounterPartyLayout(encounter) {
+function applyEncounterPartyLayout(encounter, activeEncounter = null) {
   const travelers = document.querySelector("#travelers");
   if (!travelers) return;
+  const visualState = resolveEncounterVisualState(encounter, activeEncounter);
   travelers.classList.toggle("is-encounter-layout", Boolean(encounter));
-  setEncounterPartyLayoutSlot(travelers.querySelector(".arthur"), encounter, "arthur");
+  const arthur = travelers.querySelector(".arthur");
+  setEncounterPartyLayoutSlot(arthur, visualState, "arthur");
+  if (arthur) arthur.hidden = visualState.hiddenSlots.has("arthur");
   [...travelers.querySelectorAll(".companion")].forEach((element, index) => {
-    setEncounterPartyLayoutSlot(element, encounter, `companion${index + 1}`);
+    const slot = `companion${index + 1}`;
+    setEncounterPartyLayoutSlot(element, visualState, slot);
+    element.hidden = visualState.hiddenSlots.has(slot);
   });
 }
 
@@ -2858,7 +2890,7 @@ function renderExpedition() {
     ? EncounterManager.definitionFor(expedition)
     : null;
   const hasDedicatedEncounterArtwork = Boolean(
-    activeEncounter?.visualAssetId && AssetCatalog.imagePath(activeEncounter.visualAssetId),
+    resolveEncounterVisualState(activeEncounter, expedition?.activeEncounter).backgroundAssetId,
   );
   const companions = selectedCompanionIds(expedition)
     .map((companionId) => COMPANION_DEFINITIONS[companionId])
@@ -2906,7 +2938,7 @@ function renderExpedition() {
         .filter((child) => child !== existingTravelScene)
         .forEach((child) => child.remove());
       expeditionScreen.insertAdjacentHTML("beforeend", expeditionPanelMarkup);
-      applyEncounterPartyLayout(activeEncounter);
+      applyEncounterPartyLayout(activeEncounter, expedition.activeEncounter);
       game.travelVisualState = null;
       updateTravelHud();
       return;
@@ -2920,7 +2952,7 @@ function renderExpedition() {
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
-        ${renderEncounterTravelers(companions, activeEncounter)}
+        ${renderEncounterTravelers(companions, activeEncounter, expedition.activeEncounter)}
         <div class="ground" aria-hidden="true"></div>
         ${renderTravelTransitionAsset(expedition)}
         <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>

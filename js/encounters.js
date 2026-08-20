@@ -102,9 +102,36 @@ const EncounterRequirements = Object.freeze({
   },
 });
 
+const ENCOUNTER_VISUAL_SLOTS = Object.freeze(["arthur", "companion1", "companion2"]);
+
+function mergeEncounterOutcomeVisual(base, incoming) {
+  if (!incoming || typeof incoming !== "object") return base ?? null;
+  const merged = { ...(base ?? {}) };
+  if (typeof incoming.backgroundAssetId === "string" && incoming.backgroundAssetId) {
+    merged.backgroundAssetId = incoming.backgroundAssetId;
+  }
+  if (incoming.encounterLayout && typeof incoming.encounterLayout === "object") {
+    merged.encounterLayout = { ...(merged.encounterLayout ?? {}) };
+    ENCOUNTER_VISUAL_SLOTS.forEach((slot) => {
+      const position = incoming.encounterLayout[slot];
+      if (position && typeof position === "object") {
+        merged.encounterLayout[slot] = {
+          ...(merged.encounterLayout[slot] ?? {}),
+          ...(Number.isFinite(Number(position.x)) ? { x: Number(position.x) } : {}),
+          ...(Number.isFinite(Number(position.y)) ? { y: Number(position.y) } : {}),
+        };
+      }
+    });
+  }
+  if (Array.isArray(incoming.hiddenSlots)) {
+    merged.hiddenSlots = [...new Set(incoming.hiddenSlots.filter((slot) => ENCOUNTER_VISUAL_SLOTS.includes(slot)))];
+  }
+  return merged;
+}
+
 const EncounterOutcomes = Object.freeze({
   resolveAll(effects = [], context = {}) {
-    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null };
+    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null, outcomeVisual: null };
     for (let index = 0; index < effects.length; index += 1) {
       const effect = effects[index];
       const resolved = this.resolve(effect, context);
@@ -116,6 +143,7 @@ const EncounterOutcomes = Object.freeze({
         combined.combat = resolved.combat;
       }
       combined.rewards.push(...(resolved.rewards ?? []));
+      combined.outcomeVisual = mergeEncounterOutcomeVisual(combined.outcomeVisual, resolved.outcomeVisual);
       if (resolved.dialogue) {
         combined.dialogue = {
           ...resolved.dialogue,
@@ -144,6 +172,7 @@ const EncounterOutcomes = Object.freeze({
     let rewards = [];
     let resultText = effect.resultText ?? "";
     let combat = null;
+    let outcomeVisual = mergeEncounterOutcomeVisual(null, effect.outcomeVisual);
 
     switch (effect.type) {
       case "modifyResource": {
@@ -330,7 +359,8 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
-        if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "" };
+        outcomeVisual = mergeEncounterOutcomeVisual(outcomeVisual, resolved.outcomeVisual);
+        if (resolved.dialogue) return { ...resolved, outcomeVisual, resultText: resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "";
         break;
       }
@@ -341,7 +371,8 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
-        if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (succeeded ? effect.resultText : effect.elseResultText) || "" };
+        outcomeVisual = mergeEncounterOutcomeVisual(outcomeVisual, resolved.outcomeVisual);
+        if (resolved.dialogue) return { ...resolved, outcomeVisual, resultText: resolved.resultText || (succeeded ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText
           || (succeeded ? effect.resultText : effect.elseResultText)
           || "";
@@ -355,7 +386,8 @@ const EncounterOutcomes = Object.freeze({
           messages.push(...secondaryResolved.messages);
           rewards.push(...secondaryResolved.rewards);
           combat = secondaryResolved.combat ?? combat;
-          if (secondaryResolved.dialogue) return { ...secondaryResolved, messages, rewards, combat };
+          outcomeVisual = mergeEncounterOutcomeVisual(outcomeVisual, secondaryResolved.outcomeVisual);
+          if (secondaryResolved.dialogue) return { ...secondaryResolved, messages, rewards, combat, outcomeVisual };
           resultText = secondaryResolved.resultText
             || (secondarySucceeded ? secondary.resultText : secondary.elseResultText)
             || resultText;
@@ -377,7 +409,8 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
-        if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || selected.resultText || "" };
+        outcomeVisual = mergeEncounterOutcomeVisual(outcomeVisual, resolved.outcomeVisual);
+        if (resolved.dialogue) return { ...resolved, outcomeVisual, resultText: resolved.resultText || selected.resultText || "" };
         resultText = resolved.resultText || selected.resultText || "";
         break;
       }
@@ -394,6 +427,7 @@ const EncounterOutcomes = Object.freeze({
             rewards,
             resultText,
             combat,
+            outcomeVisual,
             dialogue: { dialogueId: effect.dialogueId, remainingEffects: [] },
           };
         }
@@ -403,7 +437,7 @@ const EncounterOutcomes = Object.freeze({
         break;
     }
 
-    return { messages, rewards, resultText, combat, dialogue: null };
+    return { messages, rewards, resultText, combat, outcomeVisual, dialogue: null };
   },
 });
 
@@ -445,6 +479,7 @@ function appendEncounterOutcome(active, resolved) {
   active.outcomeMessages.push(...(resolved.messages ?? []));
   active.rewards ??= [];
   active.rewards.push(...(resolved.rewards ?? []));
+  active.outcomeVisual = resolved.outcomeVisual ?? null;
 }
 
 function queueEncounterDialogue(expedition, player, dialogue, resume, callbacks = {}) {
@@ -774,6 +809,7 @@ const EncounterManager = Object.freeze({
     outcomeMessages.push(...resolvedOutcomes.messages);
     active.outcomeMessages.push(...outcomeMessages);
     active.rewards.push(...resolvedOutcomes.rewards);
+    active.outcomeVisual = resolvedOutcomes.outcomeVisual ?? null;
     const nextStageId = branch?.nextStage ?? choice.nextStage;
     const endEncounter = branch ? branch.endEncounter === true : choice.endEncounter;
     const authoredResultText = branch?.resultText || choice.resultText;

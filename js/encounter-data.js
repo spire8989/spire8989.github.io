@@ -103,9 +103,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     },
     visualAssetId: "encounter_abandoned_camp",
     encounterLayout: {
-      arthur: { x: 0.42, y: 0.66 },
-      companion1: { x: 0.58, y: 0.68 },
-      companion2: { x: 0.70, y: 0.64 }
+      arthur: {
+        x: 0.41718757152557373,
+        y: 0.5904513994852701
+      },
+      companion1: {
+        x: 0.6046875715255737,
+        y: 0.7154513994852701
+      },
+      companion2: {
+        x: 0.2328125238418579,
+        y: 0.637673642900255
+      }
     }
   },
   fork_in_the_road: {
