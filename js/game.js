@@ -659,6 +659,15 @@ function recycleTravelLoopScene(expedition, scene, pending) {
     scene.dataset.travelMotion = normalizeTravelMotion(pending.motion);
     scene.dataset.travelAssetFailedId = "";
   }
+  const activeTileDistance = Number(pending.tileDistance);
+  if (Number.isFinite(activeTileDistance)) {
+    state.activeTileDistance = activeTileDistance;
+  }
+  const activeAnimation = travelImageAnimation(presentationImage);
+  const activeAnimationCycle = travelAnimationCycle(activeAnimation);
+  if (Number.isFinite(activeAnimationCycle)) {
+    state.activeAnimationCycle = activeAnimationCycle;
+  }
   setActiveTravelPresentation(expedition, pending);
   const transition = state.transition;
   clearTravelTransitionTimers(transition);
@@ -713,6 +722,17 @@ function travelImageAnimation(image) {
   return null;
 }
 
+function travelAnimationCycle(animation) {
+  const timing = animation?.effect?.getComputedTiming?.();
+  const currentIteration = Number(timing?.currentIteration);
+  if (Number.isFinite(currentIteration)) return currentIteration;
+  const duration = Number(timing?.duration);
+  const currentTime = Number(animation?.currentTime);
+  return Number.isFinite(duration) && duration > 0 && Number.isFinite(currentTime)
+    ? Math.floor(currentTime / duration)
+    : null;
+}
+
 function travelScenePresentationFor(expedition = game.expedition) {
   if (!expedition) return null;
   const expeditionId = expedition.expeditionId ?? expedition.id ?? "";
@@ -724,6 +744,8 @@ function travelScenePresentationFor(expedition = game.expedition) {
       activeAssetId: null,
       activeMotion: null,
       activeSceneKey: null,
+      activeTileDistance: null,
+      activeAnimationCycle: null,
       pending: null,
       transition: null,
       failedAssetId: null,
@@ -765,6 +787,9 @@ function setActiveTravelPresentation(expedition, presentation) {
   state.activeAssetId = presentation.assetId;
   state.activeMotion = normalizeTravelMotion(presentation.motion);
   state.activeSceneKey = presentation.sceneKey ?? "";
+  if (!Number.isFinite(state.activeTileDistance)) {
+    state.activeTileDistance = Math.max(0, Number(expedition?.distance) || 0);
+  }
 }
 
 function preloadTravelAsset(assetId) {
@@ -1022,9 +1047,23 @@ function travelNextTileDistance(expedition, track) {
   const elapsed = ((currentTime % duration) + duration) % duration;
   const remainingSeconds = (duration - elapsed) / 1000;
   const direction = expedition?.direction === "returning" ? -1 : 1;
+  const state = travelScenePresentationFor(expedition);
+  const animationCycle = travelAnimationCycle(animation);
+  if (!Number.isFinite(state.activeTileDistance)) {
+    state.activeTileDistance = Math.max(0, Number(expedition?.distance) || 0);
+  }
+  if (Number.isFinite(animationCycle)) {
+    if (Number.isFinite(state.activeAnimationCycle) && animationCycle > state.activeAnimationCycle) {
+      state.activeTileDistance += (animationCycle - state.activeAnimationCycle)
+        * direction
+        * (duration / 1000)
+        * travelSpeedForVisualLookahead(expedition);
+    }
+    state.activeAnimationCycle = animationCycle;
+  }
   return Math.max(
     0,
-    (Number(expedition?.distance) || 0) + direction * remainingSeconds * travelSpeedForVisualLookahead(expedition),
+    state.activeTileDistance + direction * remainingSeconds * travelSpeedForVisualLookahead(expedition),
   );
 }
 
@@ -1032,6 +1071,8 @@ function preloadNextTravelScene(expedition) {
   const definition = expeditionDefinition(expedition);
   const scenes = orderedTravelScenes(definition);
   if (!scenes.length) return;
+  const state = travelScenePresentationFor(expedition);
+  if (state?.pending) return;
   const track = currentTravelTrack();
   const projectedDistance = travelNextTileDistance(expedition, track);
   if (Number.isFinite(projectedDistance)) {
@@ -1039,7 +1080,11 @@ function preloadNextTravelScene(expedition) {
     preloadTravelAsset(nextPresentation?.assetId);
     const activeImage = travelActiveTile(track, expedition);
     if (nextPresentation?.assetId && activeImage) {
-      queueTravelSceneTransition(expedition, nextPresentation, activeImage);
+      queueTravelSceneTransition(
+        expedition,
+        { ...nextPresentation, tileDistance: projectedDistance },
+        activeImage,
+      );
     }
     return;
   }
@@ -1116,11 +1161,15 @@ function queueTravelSceneTransition(expedition, desiredPresentation, currentImag
     assetId: desiredPresentation.assetId,
     motion: desiredMotion,
     sceneKey: desiredPresentation.sceneKey ?? "",
+    tileDistance: Number.isFinite(Number(desiredPresentation.tileDistance))
+      ? Number(desiredPresentation.tileDistance)
+      : null,
     tileMode: loop && desiredMotion === "loop",
     tileReady: false,
     tileInstallRequested: false,
     outgoingAssetId: currentAssetId,
     seamCrossed: false,
+    lastAnimationCycle: loop ? travelAnimationCycle(animation) : null,
     elapsedMs: 0,
     lastSampleAt: now,
   };
@@ -1177,6 +1226,13 @@ function advancePendingTravelScene(expedition, scene, activeEncounter) {
     const track = currentTravelTrack();
     const upcomingTile = travelUpcomingTile(track, expedition);
     if (!track || !upcomingTile || upcomingTile.dataset.travelAssetId !== pending.assetId) return;
+    const activeTile = travelActiveTile(track, expedition);
+    const animation = travelImageAnimation(activeTile);
+    const animationCycle = travelAnimationCycle(animation);
+    const loopAdvanced = Number.isFinite(animationCycle)
+      && Number.isFinite(pending.lastAnimationCycle)
+      && animationCycle > pending.lastAnimationCycle;
+    if (Number.isFinite(animationCycle)) pending.lastAnimationCycle = animationCycle;
     const art = document.querySelector("#travel-art");
     const artBox = art?.getBoundingClientRect();
     const travelers = scene.querySelector(".travelers")?.getBoundingClientRect();
@@ -1189,11 +1245,11 @@ function advancePendingTravelScene(expedition, scene, activeEncounter) {
     const reachedAnchor = expedition.direction === "returning"
       ? seamX >= anchorX
       : seamX <= anchorX;
-    if (!pending.seamCrossed && reachedAnchor) pending.seamCrossed = true;
+    if (!pending.seamCrossed && (reachedAnchor || loopAdvanced)) pending.seamCrossed = true;
     if (!pending.seamCrossed) return;
-    const outgoingTile = travelActiveTile(track, expedition);
+    const outgoingTile = activeTile;
     if (!outgoingTile || outgoingTile.dataset.travelAssetId !== pending.outgoingAssetId) return;
-    if (travelTileIsOffscreen(outgoingTile, scene.getBoundingClientRect(), expedition.direction === "returning")) {
+    if (loopAdvanced || travelTileIsOffscreen(outgoingTile, scene.getBoundingClientRect(), expedition.direction === "returning")) {
       recycleTravelLoopScene(expedition, scene, pending);
     }
     return;
@@ -1249,9 +1305,7 @@ function syncTravelVisual(expedition, activeEncounter) {
     ? { assetId: encounterAssetId, motion: "loop", sceneKey: "encounter", kind: "encounter" }
     : activeEncounter && currentPresentation
       ? currentPresentation
-      : (activeEncounter || state?.pending || state?.transition)
-        ? resolvedPresentation
-        : resolvedTravel;
+      : resolvedPresentation;
   const desiredAssetId = desiredPresentation.assetId;
   const desiredMotion = normalizeTravelMotion(desiredPresentation.motion);
   const desiredPath = AssetCatalog.imagePath(desiredAssetId);
@@ -1330,6 +1384,29 @@ function preserveTravelDirectionPosition(scene, returning) {
   const previousDirection = scene.dataset.travelDirection;
   scene.dataset.travelDirection = direction;
   if (!previousDirection || previousDirection === direction) return;
+  const state = travelScenePresentationFor(game.expedition);
+  const track = currentTravelTrack();
+  const currentTile = previousDirection === "returning"
+    ? travelTileFor(track, "loop")
+    : travelTileFor(track, "primary");
+  const otherTile = previousDirection === "returning"
+    ? travelTileFor(track, "primary")
+    : travelTileFor(track, "loop");
+  if (state?.pending && currentTile && otherTile && currentTile.dataset.travelAssetId) {
+    setTravelTileImage(
+      otherTile,
+      currentTile,
+      currentTile.dataset.travelAssetId,
+      track.dataset.travelMotion,
+      otherTile.dataset.travelCopy,
+    );
+    state.pending = null;
+  }
+  if (state?.transition) {
+    clearTravelTransitionTimers(state.transition);
+    state.transition = null;
+    document.querySelector("#travel-transition-art")?.classList.remove("is-active");
+  }
   scene.querySelectorAll(".travel-visual-asset[data-travel-copy='primary']").forEach((image) => {
     const animation = travelImageAnimation(image);
     const duration = Number(animation?.effect?.getComputedTiming?.().duration);
@@ -1340,6 +1417,12 @@ function preserveTravelDirectionPosition(scene, returning) {
     const targetPhase = isFinishedPan ? 0 : phase === 0 ? duration : duration - phase;
     animation.currentTime = currentTime - phase + targetPhase;
   });
+  if (state) {
+    state.activeTileDistance = Math.max(0, Number(game.expedition?.distance) || 0);
+    const activeTile = travelActiveTile(track, game.expedition);
+    const activeAnimation = travelImageAnimation(activeTile);
+    state.activeAnimationCycle = travelAnimationCycle(activeAnimation);
+  }
 }
 
 function renderPortraitAsset(assetId, initials, alt) {

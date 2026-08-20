@@ -62,9 +62,114 @@ def run() -> None:
             "(() => { const encounter={encounterLayout:{arthur:{x:0.25,y:0.75},companion1:{x:0.6,y:0.4}}}; const scene=document.createElement('div'); scene.style.cssText='position:relative;width:400px;height:225px'; scene.innerHTML=renderEncounterTravelers([{type:'mount'}],encounter); document.body.append(scene); const arthur=scene.querySelector('.arthur'); const companion=scene.querySelector('.companion'); const layout=scene.querySelector('.travelers'); const first=arthur.getBoundingClientRect(); const authored=Math.abs((first.left+first.width/2-scene.getBoundingClientRect().left)/400-0.25)<0.02&&Math.abs((first.top+first.height/2-scene.getBoundingClientRect().top)/225-0.75)<0.02&&arthur.dataset.encounterLayoutX==='0.25'&&companion.dataset.encounterLayoutY==='0.4'; const stationary=getComputedStyle(layout).transitionProperty==='none'&&getComputedStyle(layout).transform==='none'; scene.style.width='800px'; scene.style.height='450px'; const resized=arthur.getBoundingClientRect(); const responsive=Math.abs((resized.left+resized.width/2-scene.getBoundingClientRect().left)/800-0.25)<0.02&&Math.abs((resized.top+resized.height/2-scene.getBoundingClientRect().top)/450-0.75)<0.02; const fallback=document.createElement('div'); fallback.innerHTML=renderEncounterTravelers([],{}); const fallbackArthur=fallback.querySelector('.arthur'); const fallbackWorks=fallbackArthur.dataset.encounterLayoutX==='0.42'&&fallbackArthur.dataset.encounterLayoutY==='0.66'; const occupied=scene.querySelectorAll('.arthur,.companion').length===2; scene.remove(); return authored&&stationary&&responsive&&fallbackWorks&&occupied; })()",
             "Encounter party layout did not use normalized authored, fallback, responsive, or occupied slots",
         )
+        travel_lookahead_expression = r"""
+        (async () => {
+          const definition = EXPEDITION_DEFINITIONS.old_forest_road;
+          const originalScenes = definition.travelScenes;
+          const originalExpedition = game.expedition;
+          const originalScreen = game.screen;
+          const firstId = "expedition_old_forest_road_woodcut";
+          const secondId = "expedition_old_forest_road_woodcut_3";
+          const thirdId = "expedition_old_forest_road_woodcut_2";
+          const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const waitForActive = (frame) => new Promise((resolve) => {
+            let ticks = 0;
+            const poll = () => frame?.classList.contains("asset-image-active")
+              || frame?.classList.contains("asset-load-failed")
+              || ticks++ > 100
+              ? resolve()
+              : setTimeout(poll, 10);
+            poll();
+          });
+          const order = () => [...document.querySelectorAll(
+            "#travel-art .travel-visual-track[data-travel-layer=\"current\"] .travel-visual-asset",
+          )].map((tile) => tile.dataset.travelAssetId).join(",");
+          let result = false;
+          try {
+            definition.travelScenes = [
+              { minDistance: 0, visualAssetId: firstId, motion: "loop" },
+              { minDistance: 17.5, visualAssetId: secondId, motion: "loop" },
+              { minDistance: 40, visualAssetId: thirdId, motion: "loop" },
+            ];
+            const expedition = ExpeditionRules.createExpedition(game.player, {
+              expeditionId: "old_forest_road",
+              companions: [],
+              provisions: 10,
+              random: () => 0,
+            });
+            game.expedition = expedition;
+            game.screen = "expedition";
+            game.travelScenePresentation = null;
+            expedition.status = "visual-test";
+            expedition.travelState = "traveling";
+            expedition.direction = "outbound";
+            expedition.distance = 17;
+            expedition.maxDistanceReached = 40;
+            renderExpedition();
+            await waitForActive(document.querySelector(".travel-scene"));
+
+            let image = document.querySelector(
+              "#travel-art .travel-visual-asset[data-travel-copy=\"primary\"]",
+            );
+            let animation = travelImageAnimation(image);
+            let duration = Number(animation?.effect?.getComputedTiming?.().duration);
+            if (!image || !animation || !Number.isFinite(duration) || duration <= 0) return false;
+
+            animation.currentTime = duration * 0.55;
+            updateTravelHud();
+            await wait(120);
+            const firstQueued = game.travelScenePresentation?.pending?.assetId === secondId
+              && order() === `${firstId},${secondId}`;
+            animation.currentTime = duration - 1;
+            updateTravelHud();
+            await wait(120);
+            updateTravelHud();
+            const firstTransition = game.travelScenePresentation?.activeAssetId === secondId
+              && !game.travelScenePresentation?.pending
+              && order() === `${secondId},${secondId}`;
+            expedition.distance = 39;
+            image = document.querySelector(
+              "#travel-art .travel-visual-asset[data-travel-copy=\"primary\"]",
+            );
+            animation = travelImageAnimation(image);
+            duration = Number(animation?.effect?.getComputedTiming?.().duration);
+            if (!image || !animation || !Number.isFinite(duration) || duration <= 0) return false;
+            game.travelScenePresentation.activeTileDistance = expedition.distance;
+            game.travelScenePresentation.activeAnimationCycle = travelAnimationCycle(animation);
+            animation.currentTime = duration * 0.55;
+            updateTravelHud();
+            await wait(120);
+            const secondQueued = game.travelScenePresentation?.pending?.assetId === thirdId
+              && order() === `${secondId},${thirdId}`;
+            animation.currentTime = duration - 1;
+            updateTravelHud();
+            await wait(120);
+            updateTravelHud();
+            const secondTransition = game.travelScenePresentation?.activeAssetId === thirdId
+              && !game.travelScenePresentation?.pending
+              && order() === `${thirdId},${thirdId}`;
+            const outboundTransitions = firstQueued && firstTransition && secondQueued && secondTransition;
+            expedition.direction = "returning";
+            expedition.distance = 63.6;
+            updateTravelHud();
+            await wait(80);
+            const returnHeldCurrentArtwork = game.travelScenePresentation?.activeAssetId === thirdId
+              && order() === thirdId + "," + thirdId
+              && game.travelScenePresentation?.pending?.assetId !== secondId;
+            result = outboundTransitions && returnHeldCurrentArtwork;
+          } finally {
+            definition.travelScenes = originalScenes;
+            game.expedition = originalExpedition;
+            game.screen = originalScreen;
+            game.travelScenePresentation = null;
+            renderScreen();
+          }
+          return result;
+        })()
+        """
         check(
-            "(async () => { const definition=EXPEDITION_DEFINITIONS.old_forest_road; const originalScenes=definition.travelScenes; const originalExpedition=game.expedition; const originalScreen=game.screen; const firstId='expedition_old_forest_road_woodcut'; const secondId='expedition_old_forest_road_woodcut_3'; const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms)); const waitForActive=frame=>new Promise(resolve=>{let ticks=0; const poll=()=>frame?.classList.contains('asset-image-active')||frame?.classList.contains('asset-load-failed')||ticks++>100?resolve():setTimeout(poll,10); poll();}); let result=false; try { definition.travelScenes=[{minDistance:0,visualAssetId:firstId,motion:'loop'},{minDistance:17.5,visualAssetId:secondId,motion:'loop'}]; const expedition=ExpeditionRules.createExpedition(game.player,{expeditionId:'old_forest_road',companions:[],provisions:10,random:()=>0}); game.expedition=expedition; game.screen='expedition'; game.travelScenePresentation=null; expedition.status='visual-test'; expedition.travelState='traveling'; expedition.direction='outbound'; expedition.distance=15; expedition.maxDistanceReached=20; renderExpedition(); await waitForActive(document.querySelector('.travel-scene')); const image=document.querySelector('#travel-art .travel-visual-asset[data-travel-copy=\"primary\"]'); const animation=travelImageAnimation(image); const duration=Number(animation?.effect?.getComputedTiming?.().duration); if (!image||!animation||!Number.isFinite(duration)||duration<=0) return false; const lookaheadDistance=18; animation.currentTime=duration-((lookaheadDistance-expedition.distance)/travelSpeedForVisualLookahead(expedition))*1000; updateTravelHud(); await wait(120); const track=document.querySelector('#travel-art .travel-visual-track[data-travel-layer=\"current\"]'); const tiles=[...track.querySelectorAll('.travel-visual-asset')].map(tile=>tile.dataset.travelAssetId); result=game.travelScenePresentation?.pending?.assetId===secondId&&track.dataset.travelAssetId===firstId&&tiles.join(',')===`${firstId},${secondId}`; } finally { definition.travelScenes=originalScenes; game.expedition=originalExpedition; game.screen=originalScreen; game.travelScenePresentation=null; renderScreen(); } return result; })()",
-            "Travel lookahead did not stage the scene at the upcoming image tile distance",
+            travel_lookahead_expression,
+            "Travel lookahead did not stage and recycle both successive panorama scene changes without reverting the prior image",
         )
         check(
             "(() => { const definition=ENCOUNTER_DEFINITIONS.abandoned_camp; const base=resolveEncounterVisualState(definition,{}); const oldExpedition=game.expedition; const oldScreen=game.screen; const choice=definition.stages.start.choices.find(candidate=>candidate.id==='leave'); const oldOutcomes=choice.outcomes; const oldVisual=choice.visualOverride; const oldEnd=choice.endEncounter; choice.outcomes=[{type:'modifyResource',resource:'gold',amount:0}]; choice.visualOverride={backgroundAssetId:'expedition_old_forest_road_bg',encounterLayout:{arthur:{x:0.9,y:0.8}},hiddenSlots:['companion2']}; choice.endEncounter=true; const expedition=ExpeditionRules.createExpedition(SaveSystem.createDefaultPlayerState(),{expeditionId:'fountain_of_barenton',companions:['sir_kay','llamrei'],provisions:10}); EncounterManager.force(expedition,'abandoned_camp'); const resolved=EncounterManager.resolveChoice(expedition,SaveSystem.createDefaultPlayerState(),'leave'); const visual=resolveEncounterVisualState(definition,expedition.activeEncounter); game.expedition=expedition; game.screen='expedition'; renderScreen(); const image=document.querySelector('#travel-scene .travel-visual-track')?.dataset.travelAssetId; const members=[...document.querySelectorAll('#travelers > .companion')]; const rendered=members.length===2&&members[1].hidden&&document.querySelector('#travelers .arthur')?.dataset.encounterLayoutX==='0.9'&&Math.abs(Number(document.querySelector('#travelers .companion')?.dataset.encounterLayoutX)-base.layout.companion1.x)<0.0001; const inherited=visual.layout.companion1.x===base.layout.companion1.x&&visual.layout.companion2.y===base.layout.companion2.y; const stateUnchanged=expedition.selectedCompanions.length===2&&resolved.awaitingContinue; choice.outcomes=oldOutcomes; choice.visualOverride=oldVisual; choice.endEncounter=oldEnd; game.expedition=oldExpedition; game.screen=oldScreen; renderScreen(); return image==='expedition_old_forest_road_bg'&&resolved.resolved&&visual.hiddenSlots.has('companion2')&&inherited&&rendered&&stateUnchanged; })()",
