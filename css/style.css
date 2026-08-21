@@ -1901,6 +1901,35 @@ button:active:not(:disabled) {
   left: var(--travel-loop-distance, 0px);
 }
 
+.travel-parallax-layer {
+  position: absolute;
+  z-index: 2;
+  top: -3%;
+  left: 0;
+  width: max-content;
+  height: 106%;
+  display: flex;
+  align-items: stretch;
+  overflow: visible;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: travel-parallax-loop var(--travel-parallax-duration, 25.45s) linear infinite;
+  animation-play-state: paused;
+  transition: opacity 720ms ease;
+}
+
+.travel-parallax-foreground {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
+  pointer-events: none;
+  user-select: none;
+}
+
 .travel-scene.asset-image-active > .moon,
 .travel-scene.asset-image-active > .forest-far,
 .travel-scene.asset-image-active > .forest-near,
@@ -1959,7 +1988,15 @@ button:active:not(:disabled) {
   animation-play-state: running;
 }
 
+.travel-scene.is-moving .travel-parallax-layer.is-visible {
+  animation-play-state: running;
+}
+
 .travel-scene.is-returning .travel-visual-track.is-loop-motion.is-visible {
+  animation-direction: reverse;
+}
+
+.travel-scene.is-returning .travel-parallax-layer.is-visible {
   animation-direction: reverse;
 }
 
@@ -1972,6 +2009,10 @@ button:active:not(:disabled) {
 }
 
 .travel-scene.is-paused .travel-art .travel-visual-asset {
+  animation-play-state: paused;
+}
+
+.travel-scene.is-paused .travel-parallax-layer {
   animation-play-state: paused;
 }
 
@@ -2150,6 +2191,11 @@ button:active:not(:disabled) {
 }
 
 @keyframes travel-panorama-loop {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(calc(var(--travel-loop-distance, 0px) * -1), 0, 0); }
+}
+
+@keyframes travel-parallax-loop {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(calc(var(--travel-loop-distance, 0px) * -1), 0, 0); }
 }
@@ -4773,11 +4819,13 @@ button.combatant {
   .forest,
   .travelers,
   .travel-visual-track,
+  .travel-parallax-layer,
   .travel-art .travel-visual-asset,
   .progress-fill {
     transition: none;
   }
   .travel-visual-track.is-loop-motion.is-visible,
+  .travel-parallax-layer.is-visible,
   .travel-visual-track.is-pan-motion .travel-visual-asset.is-visible,
   .travel-transition-art.is-active .travel-transition-image,
   .travelers > span {

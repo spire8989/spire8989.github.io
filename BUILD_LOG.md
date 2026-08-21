@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-20 - Experimental Travel Foreground Parallax
+
+### Goal
+
+Prototype an optional faster-scrolling foreground cutout while leaving each
+travel panorama unchanged as the base layer.
+
+### AI-assisted implementation
+
+- Added an optional SAM JSON file to the GrailTools travel image import. The
+  importer applies the mask and its offset/bounds to a separate transparent
+  WebP, without storing or shipping the SAM JSON in Grail.
+- Added `travelParallaxAssetId` controls for legacy and distance-based travel
+  backgrounds. The game renders the ordinary generated image at 1.1x loop
+  speed, initially aligned with the base panorama and repeated horizontally.
+- Explicitly pause the foreground for Pause Travel and active encounters, and
+  preserve its visual phase when travel resumes or reverses direction.
+- Kept the existing seam-hiding/tree foreground path unchanged and retained
+  the exact prior behavior when no parallax image is assigned.
+
+### Verification and resulting prototype state
+
+Passed the focused GrailTools import/upload/editor checks (21 tests). Browser
+smoke coverage confirmed foreground pause, encounter pause, reverse direction,
+and the 1.1x duration ratio. The full location browser run currently stops
+before travel assertions at an unrelated Hall hotspot expectation mismatch in
+`tests/location_system_test.py`.
+
 ## 2026-08-19 - Preserve Pending Travel Scenes Through Encounters
 
 ### Goal

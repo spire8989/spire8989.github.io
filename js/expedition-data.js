@@ -21,7 +21,8 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelScenes: [
       {
         minDistance: 0,
-        visualAssetId: "expedition_old_forest_road_woodcut"
+        visualAssetId: "expedition_old_forest_road_woodcut",
+        travelParallaxAssetId: "expedition_old_forest_road_woodcut_parallax"
       },
       {
         visualAssetId: "expedition_old_forest_road_woodcut_3",

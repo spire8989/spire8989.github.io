@@ -108,6 +108,12 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "expedition_old_forest_road_tree_6",
     path: "assets/images/expedition/old_forest_tree_6.webp",
     category: "expedition"
+  },
+  expedition_old_forest_road_woodcut_parallax: {
+    id: "expedition_old_forest_road_woodcut_parallax",
+    path: "assets/images/expedition/woodcut_old_forest_path-parallax.webp",
+    category: "expedition",
+    generatedFromAssetId: "expedition_old_forest_road_woodcut"
   }
 });
 
