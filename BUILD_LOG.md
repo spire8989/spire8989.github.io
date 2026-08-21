@@ -18,6 +18,8 @@ the unchanged travel panorama while drawing above the traveling party.
 - The game renders that cropped foreground at the same 1.0x animation and
   phase as the panorama, with the party between the base image and cutout so
   foreground pixels can occlude travelers.
+- Raised the existing seam/tree transition layer above the aligned foreground
+  so seam-hiding artwork remains the top travel scenery layer.
 - Kept the existing seam-hiding/tree foreground path unchanged and retained
   the exact prior behavior when no parallax image is assigned.
 
