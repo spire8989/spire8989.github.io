@@ -1903,7 +1903,7 @@ button:active:not(:disabled) {
 
 .travel-parallax-layer {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   top: -3%;
   left: 0;
   width: max-content;
@@ -1913,19 +1913,23 @@ button:active:not(:disabled) {
   overflow: visible;
   pointer-events: none;
   will-change: transform, opacity;
-  animation: travel-parallax-loop var(--travel-parallax-duration, 25.45s) linear infinite;
+  animation: travel-panorama-loop var(--travel-loop-duration, 28s) linear infinite;
   animation-play-state: paused;
   transition: opacity 720ms ease;
 }
 
-.travel-parallax-foreground {
+.travel-parallax-tile {
   position: relative;
   flex: 0 0 auto;
-  width: auto;
-  max-width: none;
   height: 100%;
-  object-fit: contain;
-  object-position: left center;
+  overflow: visible;
+}
+
+.travel-parallax-foreground {
+  position: absolute;
+  max-width: none;
+  object-fit: fill;
+  object-position: left top;
   pointer-events: none;
   user-select: none;
 }
@@ -2191,11 +2195,6 @@ button:active:not(:disabled) {
 }
 
 @keyframes travel-panorama-loop {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(calc(var(--travel-loop-distance, 0px) * -1), 0, 0); }
-}
-
-@keyframes travel-parallax-loop {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(calc(var(--travel-loop-distance, 0px) * -1), 0, 0); }
 }

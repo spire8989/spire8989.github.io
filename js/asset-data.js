@@ -113,7 +113,12 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "expedition_old_forest_road_woodcut_parallax",
     path: "assets/images/expedition/woodcut_old_forest_path-parallax.webp",
     category: "expedition",
-    generatedFromAssetId: "expedition_old_forest_road_woodcut"
+    generatedFromAssetId: "expedition_old_forest_road_woodcut",
+    foregroundAlignment: {
+      offset: { x: 0, y: 605 },
+      canvas: { width: 2176, height: 720 },
+      size: { width: 2176, height: 115 }
+    }
   }
 });
 

@@ -479,62 +479,31 @@ function travelMotionForImage(image) {
   );
 }
 
-const TRAVEL_PARALLAX_SPEED_MULTIPLIER = 1.1;
-
 function removeTravelParallaxLayer(track) {
   track?._travelParallaxLayer?.remove();
   if (track) track._travelParallaxLayer = null;
 }
 
-function travelParallaxProgress(animation, direction, durationOverride = null) {
-  const duration = Number.isFinite(durationOverride)
-    ? durationOverride
-    : Number(animation?.effect?.getComputedTiming?.().duration);
-  const currentTime = Number(animation?.currentTime);
-  if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return null;
-  const phase = ((currentTime % duration) + duration) % duration / duration;
-  return direction === "reverse" ? 1 - phase : phase;
-}
-
-function setTravelParallaxProgress(animation, progress, direction, duration) {
-  if (!animation || !Number.isFinite(progress) || !Number.isFinite(duration) || duration <= 0) return;
-  const phase = direction === "reverse" ? 1 - progress : progress;
-  animation.currentTime = Math.max(0, Math.min(duration, phase * duration));
-}
-
 function syncTravelParallaxLayer(track) {
   const layer = track?._travelParallaxLayer;
   if (!layer?.isConnected) return;
-  const sourceAnimation = track.getAnimations?.().find((animation) => animation.animationName === "travel-panorama-loop");
+  const sourceAnimation = travelImageAnimation(track);
   const sourceStyle = getComputedStyle(track);
   const scene = track.closest(".travel-scene");
   const direction = sourceStyle.animationDirection === "reverse" ? "reverse" : "normal";
   const shouldPlay = Boolean(scene?.classList.contains("is-moving")) && !scene.classList.contains("is-paused");
   const distance = sourceStyle.getPropertyValue("--travel-loop-distance").trim();
-  const duration = Number.parseFloat(sourceStyle.getPropertyValue("--travel-loop-duration"));
   if (distance) layer.style.setProperty("--travel-loop-distance", distance);
-  const parallaxDuration = Number.isFinite(duration) && duration > 0
-    ? duration / TRAVEL_PARALLAX_SPEED_MULTIPLIER * 1000
-    : null;
-  const layerAnimation = layer.getAnimations?.().find((animation) => animation.animationName === "travel-parallax-loop");
-  const previousDirection = layer.dataset.travelParallaxDirection || direction;
-  const previousDuration = Number(layer.dataset.travelParallaxDuration);
-  const previousProgress = travelParallaxProgress(layerAnimation, previousDirection, previousDuration || null);
-  if (parallaxDuration) layer.style.animationDuration = `${parallaxDuration / 1000}s`;
+  const duration = sourceStyle.getPropertyValue("--travel-loop-duration").trim();
+  if (duration) layer.style.setProperty("--travel-loop-duration", duration);
   layer.style.animationDirection = direction;
   layer.style.animationPlayState = shouldPlay ? "running" : "paused";
   layer.style.opacity = sourceStyle.opacity;
-  const currentDuration = parallaxDuration ?? Number(layerAnimation?.effect?.getComputedTiming?.().duration);
-  if (layerAnimation && !layer.dataset.travelParallaxInitialized) {
-    const sourceProgress = travelParallaxProgress(sourceAnimation, direction);
-    setTravelParallaxProgress(layerAnimation, sourceProgress, direction, currentDuration);
-    layer.dataset.travelParallaxInitialized = "true";
-  } else if (layerAnimation && previousProgress !== null
-    && (previousDirection !== direction || previousDuration !== currentDuration)) {
-    setTravelParallaxProgress(layerAnimation, previousProgress, direction, currentDuration);
+  const layerAnimation = travelImageAnimation(layer);
+  const currentTime = Number(sourceAnimation?.currentTime);
+  if (layerAnimation && Number.isFinite(currentTime)) {
+    layerAnimation.currentTime = currentTime;
   }
-  layer.dataset.travelParallaxDirection = direction;
-  if (Number.isFinite(currentDuration) && currentDuration > 0) layer.dataset.travelParallaxDuration = String(currentDuration);
 }
 
 function ensureTravelParallaxForeground(image, panorama, motion) {
@@ -545,8 +514,8 @@ function ensureTravelParallaxForeground(image, panorama, motion) {
     return;
   }
   const path = AssetCatalog.imagePath(assetId);
-  const art = track.closest("#travel-art");
-  if (!path || !art) {
+  const scene = track.closest(".travel-scene");
+  if (!path || !scene) {
     removeTravelParallaxLayer(track);
     return;
   }
@@ -560,10 +529,24 @@ function ensureTravelParallaxForeground(image, panorama, motion) {
   layer.className = "travel-parallax-layer is-loop-motion is-visible";
   layer.dataset.travelParallaxAssetId = assetId;
   layer.dataset.travelSourceTrackLayer = track.dataset.travelLayer || "current";
+  const alignment = AssetCatalog.image(assetId)?.foregroundAlignment;
+  const canvasWidth = Number(alignment?.canvas?.width) || Number(image.naturalWidth) || 1;
+  const canvasHeight = Number(alignment?.canvas?.height) || Number(image.naturalHeight) || 1;
+  const offsetX = Number(alignment?.offset?.x) || 0;
+  const offsetY = Number(alignment?.offset?.y) || 0;
+  const foregroundWidth = Number(alignment?.size?.width) || canvasWidth;
+  const foregroundHeight = Number(alignment?.size?.height) || canvasHeight;
   const copies = track.querySelectorAll("[data-travel-copy]").length > 1 ? 2 : 1;
   for (let index = 0; index < copies; index += 1) {
+    const tile = document.createElement("div");
+    tile.className = "travel-parallax-tile";
+    tile.style.aspectRatio = `${canvasWidth} / ${canvasHeight}`;
     const foreground = document.createElement("img");
     foreground.className = "travel-parallax-foreground";
+    foreground.style.left = `${(offsetX / canvasWidth) * 100}%`;
+    foreground.style.top = `${(offsetY / canvasHeight) * 100}%`;
+    foreground.style.width = `${(foregroundWidth / canvasWidth) * 100}%`;
+    foreground.style.height = `${(foregroundHeight / canvasHeight) * 100}%`;
     foreground.src = path;
     foreground.alt = "";
     foreground.loading = "eager";
@@ -571,9 +554,10 @@ function ensureTravelParallaxForeground(image, panorama, motion) {
     foreground.setAttribute("aria-hidden", "true");
     foreground.dataset.travelCopy = index === 0 ? "primary" : "loop";
     foreground.addEventListener("error", () => removeTravelParallaxLayer(track), { once: true });
-    layer.append(foreground);
+    tile.append(foreground);
+    layer.append(tile);
   }
-  art.append(layer);
+  scene.append(layer);
   track._travelParallaxLayer = layer;
   syncTravelParallaxLayer(track);
 }

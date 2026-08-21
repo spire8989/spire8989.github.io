@@ -1,11 +1,11 @@
 # Build Log
 
-## 2026-08-20 - Experimental Travel Foreground Parallax
+## 2026-08-20 - Aligned Travel Foreground Cutouts
 
 ### Goal
 
-Prototype an optional faster-scrolling foreground cutout while leaving each
-travel panorama unchanged as the base layer.
+Prototype an optional SAM-selected foreground cutout that stays aligned with
+the unchanged travel panorama while drawing above the traveling party.
 
 ### AI-assisted implementation
 
@@ -13,20 +13,21 @@ travel panorama unchanged as the base layer.
   importer applies the mask and its offset/bounds to a separate transparent
   WebP, without storing or shipping the SAM JSON in Grail.
 - Added `travelParallaxAssetId` controls for legacy and distance-based travel
-  backgrounds. The game renders the ordinary generated image at 1.1x loop
-  speed, initially aligned with the base panorama and repeated horizontally.
-- Explicitly pause the foreground for Pause Travel and active encounters, and
-  preserve its visual phase when travel resumes or reverses direction.
+  backgrounds. GrailTools now crops the transparent SAM foreground to its
+  content bounds and records the source-space offset/canvas size.
+- The game renders that cropped foreground at the same 1.0x animation and
+  phase as the panorama, with the party between the base image and cutout so
+  foreground pixels can occlude travelers.
 - Kept the existing seam-hiding/tree foreground path unchanged and retained
   the exact prior behavior when no parallax image is assigned.
 
 ### Verification and resulting prototype state
 
-Passed the focused GrailTools import/upload/editor checks (21 tests). Browser
-smoke coverage confirmed foreground pause, encounter pause, reverse direction,
-and the 1.1x duration ratio. The full location browser run currently stops
-before travel assertions at an unrelated Hall hotspot expectation mismatch in
-`tests/location_system_test.py`.
+Passed the focused GrailTools import/upload/editor checks after adding cropped
+foreground alignment assertions. The location browser regression currently
+stops before travel assertions at an unrelated Hall hotspot expectation
+mismatch in `tests/location_system_test.py`; the aligned foreground assertion
+is retained immediately after the real travel-art check.
 
 ## 2026-08-19 - Preserve Pending Travel Scenes Through Encounters
 
