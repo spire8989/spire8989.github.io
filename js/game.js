@@ -487,6 +487,7 @@ function removeTravelParallaxLayer(track) {
 function syncTravelParallaxLayer(track) {
   const layer = track?._travelParallaxLayer;
   if (!layer?.isConnected) return;
+  syncTravelParallaxTiles(track, layer);
   const sourceAnimation = travelImageAnimation(track);
   const sourceStyle = getComputedStyle(track);
   const scene = track.closest(".travel-scene");
@@ -506,57 +507,103 @@ function syncTravelParallaxLayer(track) {
   }
 }
 
+function travelParallaxAssetForTile(track, tile) {
+  if (!tile) return "";
+  return tile.dataset.travelParallaxAssetId
+    || (tile.dataset.travelCopy === "primary" ? track?.dataset.travelParallaxAssetId || "" : "");
+}
+
+function syncTravelParallaxTile(track, layer, baseTile, copy) {
+  if (!track || !layer || !baseTile) return;
+  let tile = [...layer.querySelectorAll(".travel-parallax-tile")]
+    .find((candidate) => candidate.dataset.travelCopy === copy);
+  if (!tile) {
+    tile = document.createElement("div");
+    tile.className = "travel-parallax-tile";
+    tile.dataset.travelCopy = copy;
+    layer.append(tile);
+  }
+  let foreground = tile.querySelector(".travel-parallax-foreground");
+  if (!foreground) {
+    foreground = document.createElement("img");
+    foreground.className = "travel-parallax-foreground";
+    foreground.alt = "";
+    foreground.loading = "eager";
+    foreground.decoding = "async";
+    foreground.setAttribute("aria-hidden", "true");
+    foreground.addEventListener("load", () => {
+      foreground.hidden = false;
+    });
+    foreground.addEventListener("error", () => {
+      foreground.hidden = true;
+    });
+    tile.append(foreground);
+  }
+  foreground.dataset.travelCopy = copy;
+  foreground.dataset.travelParallaxAssetId = travelParallaxAssetForTile(track, baseTile);
+  const assetId = foreground.dataset.travelParallaxAssetId;
+  const alignment = AssetCatalog.image(assetId)?.foregroundAlignment;
+  const canvasWidth = Number(alignment?.canvas?.width) || Number(baseTile.naturalWidth) || 1;
+  const canvasHeight = Number(alignment?.canvas?.height) || Number(baseTile.naturalHeight) || 1;
+  const offsetX = Number(alignment?.offset?.x) || 0;
+  const offsetY = Number(alignment?.offset?.y) || 0;
+  const foregroundWidth = Number(alignment?.size?.width) || canvasWidth;
+  const foregroundHeight = Number(alignment?.size?.height) || canvasHeight;
+  tile.style.aspectRatio = `${canvasWidth} / ${canvasHeight}`;
+  foreground.style.left = `${(offsetX / canvasWidth) * 100}%`;
+  foreground.style.top = `${(offsetY / canvasHeight) * 100}%`;
+  foreground.style.width = `${(foregroundWidth / canvasWidth) * 100}%`;
+  foreground.style.height = `${(foregroundHeight / canvasHeight) * 100}%`;
+  const path = assetId ? AssetCatalog.imagePath(assetId) : null;
+  if (!path) {
+    foreground.hidden = true;
+    return;
+  }
+  foreground.hidden = false;
+  if (foreground.dataset.travelAssetId !== assetId) {
+    foreground.dataset.travelAssetId = assetId;
+    foreground.src = travelScenePreloadCache.get(assetId)?.currentSrc
+      || travelScenePreloadCache.get(assetId)?.src
+      || path;
+  }
+}
+
+function syncTravelParallaxTiles(track, layer) {
+  const baseTiles = [...(track?.querySelectorAll(".travel-visual-asset[data-travel-copy]") ?? [])];
+  const copies = new Set();
+  baseTiles.forEach((baseTile, index) => {
+    const copy = baseTile.dataset.travelCopy === "loop" || index > 0 ? "loop" : "primary";
+    copies.add(copy);
+    syncTravelParallaxTile(track, layer, baseTile, copy);
+  });
+  layer?.querySelectorAll(".travel-parallax-tile").forEach((tile) => {
+    if (!copies.has(tile.dataset.travelCopy)) tile.remove();
+  });
+  const primaryTile = baseTiles.find((tile) => tile.dataset.travelCopy !== "loop") || baseTiles[0];
+  layer.dataset.travelParallaxAssetId = travelParallaxAssetForTile(track, primaryTile);
+}
+
 function ensureTravelParallaxForeground(image, panorama, motion) {
   const track = image?.closest(".travel-visual-track");
-  const assetId = track?.dataset.travelParallaxAssetId || "";
-  if (!track || track.dataset.travelKind === "encounter" || !panorama || motion !== "loop" || !assetId) {
+  const baseTiles = [...(track?.querySelectorAll(".travel-visual-asset[data-travel-copy]") ?? [])];
+  const hasParallaxAsset = baseTiles.some((tile) => travelParallaxAssetForTile(track, tile));
+  if (!track || track.dataset.travelKind === "encounter" || !panorama || motion !== "loop" || !hasParallaxAsset) {
     removeTravelParallaxLayer(track);
     return;
   }
-  const path = AssetCatalog.imagePath(assetId);
   const scene = track.closest(".travel-scene");
-  if (!path || !scene) {
+  if (!scene) {
     removeTravelParallaxLayer(track);
     return;
   }
-  if (track._travelParallaxLayer?.isConnected
-    && track._travelParallaxLayer.dataset.travelParallaxAssetId === assetId) {
+  if (track._travelParallaxLayer?.isConnected) {
     syncTravelParallaxLayer(track);
     return;
   }
   removeTravelParallaxLayer(track);
   const layer = document.createElement("div");
   layer.className = "travel-parallax-layer is-loop-motion is-visible";
-  layer.dataset.travelParallaxAssetId = assetId;
   layer.dataset.travelSourceTrackLayer = track.dataset.travelLayer || "current";
-  const alignment = AssetCatalog.image(assetId)?.foregroundAlignment;
-  const canvasWidth = Number(alignment?.canvas?.width) || Number(image.naturalWidth) || 1;
-  const canvasHeight = Number(alignment?.canvas?.height) || Number(image.naturalHeight) || 1;
-  const offsetX = Number(alignment?.offset?.x) || 0;
-  const offsetY = Number(alignment?.offset?.y) || 0;
-  const foregroundWidth = Number(alignment?.size?.width) || canvasWidth;
-  const foregroundHeight = Number(alignment?.size?.height) || canvasHeight;
-  const copies = track.querySelectorAll("[data-travel-copy]").length > 1 ? 2 : 1;
-  for (let index = 0; index < copies; index += 1) {
-    const tile = document.createElement("div");
-    tile.className = "travel-parallax-tile";
-    tile.style.aspectRatio = `${canvasWidth} / ${canvasHeight}`;
-    const foreground = document.createElement("img");
-    foreground.className = "travel-parallax-foreground";
-    foreground.style.left = `${(offsetX / canvasWidth) * 100}%`;
-    foreground.style.top = `${(offsetY / canvasHeight) * 100}%`;
-    foreground.style.width = `${(foregroundWidth / canvasWidth) * 100}%`;
-    foreground.style.height = `${(foregroundHeight / canvasHeight) * 100}%`;
-    foreground.src = path;
-    foreground.alt = "";
-    foreground.loading = "eager";
-    foreground.decoding = "async";
-    foreground.setAttribute("aria-hidden", "true");
-    foreground.dataset.travelCopy = index === 0 ? "primary" : "loop";
-    foreground.addEventListener("error", () => removeTravelParallaxLayer(track), { once: true });
-    tile.append(foreground);
-    layer.append(tile);
-  }
   scene.append(layer);
   track._travelParallaxLayer = layer;
   syncTravelParallaxLayer(track);
@@ -795,6 +842,7 @@ function resetTravelPendingTile(expedition) {
     upcomingTile.dataset.travelCopy || (expedition?.direction === "returning" ? "primary" : "loop"),
     track.dataset.travelParallaxAssetId || "",
   );
+  syncTravelParallaxLayer(track);
 }
 
 function installTravelPendingTile(expedition, pending) {
@@ -804,8 +852,12 @@ function installTravelPendingTile(expedition, pending) {
   if (!state || state.pending !== pending || !track || track.dataset.travelKind === "encounter") return;
   const upcomingTile = travelUpcomingTile(track, expedition);
   const preloaded = preloadTravelAsset(pending.assetId);
+  const preloadedParallax = pending.travelParallaxAssetId
+    ? preloadTravelAsset(pending.travelParallaxAssetId)
+    : null;
   if (!upcomingTile || !preloaded) return;
-  if (upcomingTile.dataset.travelAssetId === pending.assetId) {
+  if (upcomingTile.dataset.travelAssetId === pending.assetId
+    && (upcomingTile.dataset.travelParallaxAssetId || "") === (pending.travelParallaxAssetId || "")) {
     pending.tileReady = true;
     return;
   }
@@ -816,7 +868,8 @@ function installTravelPendingTile(expedition, pending) {
   if (pending.tileInstallRequested) return;
   pending.tileInstallRequested = true;
   const install = () => {
-    if (state.pending !== pending || !upcomingTile.isConnected || !preloaded.naturalWidth) return;
+    if (state.pending !== pending || !upcomingTile.isConnected || !preloaded.naturalWidth
+      || (preloadedParallax && !preloadedParallax.complete)) return;
     setTravelTileImage(
       preloaded,
       preloaded,
@@ -838,12 +891,20 @@ function installTravelPendingTile(expedition, pending) {
     state.failedAssetId = pending.assetId;
   };
   if (preloaded.naturalWidth > 0) {
-    install();
+    if (!preloadedParallax || preloadedParallax.complete) install();
+    else {
+      preloadedParallax.addEventListener("load", install, { once: true });
+      preloadedParallax.addEventListener("error", install, { once: true });
+    }
   } else if (preloaded.complete) {
     fail();
   } else {
     preloaded.addEventListener("load", install, { once: true });
     preloaded.addEventListener("error", fail, { once: true });
+    if (preloadedParallax && !preloadedParallax.complete) {
+      preloadedParallax.addEventListener("load", install, { once: true });
+      preloadedParallax.addEventListener("error", install, { once: true });
+    }
   }
 }
 
@@ -1395,60 +1456,74 @@ function bindTravelImage(scene, image) {
   image.dataset.travelBound = "true";
   image.addEventListener("load", () => {
     const track = image.closest(".travel-visual-track");
-    if (!image.isConnected || (track?.dataset.travelLayer === "next"
-      && image.dataset.travelAssetId !== scene.dataset.travelDesiredAssetId)) {
-      if (track?.dataset.travelLayer === "next") track.remove();
-      return;
-    }
-    const oldTrack = scene.querySelector(".travel-visual-track[data-travel-layer='current']");
-    const isTransition = track?.dataset.travelLayer === "next" && oldTrack && oldTrack !== track;
-    if (isTransition) {
-      carryTravelSeamForeground(oldTrack, scene);
-      oldTrack.classList.add("is-fading-out");
-    }
-    markTravelImageActive(scene, image);
-    scene.dataset.travelAssetId = image.dataset.travelAssetId;
-    scene.dataset.travelMotion = travelMotionForImage(image);
-    if (track?.dataset.travelLayer === "next") {
-      track.dataset.travelLayer = "current";
-      const state = travelScenePresentationFor(game.expedition);
-      if (track.dataset.travelKind !== "encounter") {
+    const activate = () => {
+      if (!image.isConnected || (track?.dataset.travelLayer === "next"
+        && image.dataset.travelAssetId !== scene.dataset.travelDesiredAssetId)) {
+        if (track?.dataset.travelLayer === "next") track.remove();
+        return;
+      }
+      const oldTrack = scene.querySelector(".travel-visual-track[data-travel-layer='current']");
+      const isTransition = track?.dataset.travelLayer === "next" && oldTrack && oldTrack !== track;
+      if (isTransition) {
+        carryTravelSeamForeground(oldTrack, scene);
+        oldTrack.classList.add("is-fading-out");
+      }
+      markTravelImageActive(scene, image);
+      scene.dataset.travelAssetId = image.dataset.travelAssetId;
+      scene.dataset.travelMotion = travelMotionForImage(image);
+      if (track?.dataset.travelLayer === "next") {
+        track.dataset.travelLayer = "current";
+        const state = travelScenePresentationFor(game.expedition);
+        if (track.dataset.travelKind !== "encounter") {
+          setActiveTravelPresentation(game.expedition, {
+            assetId: image.dataset.travelAssetId,
+            travelParallaxAssetId: track.dataset.travelParallaxAssetId || image.dataset.travelParallaxAssetId || "",
+            motion: travelMotionForImage(image),
+            sceneKey: track.dataset.travelSceneKey,
+          });
+          if (state) {
+            const transition = state.transition;
+            state.pending = null;
+            if (transition?.overlayActive) {
+              if (transition.overlayTimer) window.clearTimeout(transition.overlayTimer);
+            } else {
+              clearTravelTransitionTimers(transition);
+              document.querySelector("#travel-transition-art")?.classList.remove("is-active");
+            }
+            state.transition = null;
+          }
+        }
+        if (track.dataset.travelSeamForegroundForce === "true"
+          && track.dataset.travelShowSeamBetweenLoops === "false") {
+          releaseTravelSeamForegroundAfterSceneChange(track, game.expedition);
+        }
+        window.setTimeout(() => {
+          if (oldTrack?.isConnected && oldTrack !== track) {
+            removeTravelParallaxLayer(oldTrack);
+            oldTrack.remove();
+          }
+        }, 760);
+      } else if (track?.dataset.travelKind !== "encounter") {
         setActiveTravelPresentation(game.expedition, {
           assetId: image.dataset.travelAssetId,
           travelParallaxAssetId: track.dataset.travelParallaxAssetId || image.dataset.travelParallaxAssetId || "",
           motion: travelMotionForImage(image),
           sceneKey: track.dataset.travelSceneKey,
         });
-        if (state) {
-          const transition = state.transition;
-          state.pending = null;
-          if (transition?.overlayActive) {
-            if (transition.overlayTimer) window.clearTimeout(transition.overlayTimer);
-          } else {
-            clearTravelTransitionTimers(transition);
-            document.querySelector("#travel-transition-art")?.classList.remove("is-active");
-          }
-          state.transition = null;
-        }
       }
-      if (track.dataset.travelSeamForegroundForce === "true"
-        && track.dataset.travelShowSeamBetweenLoops === "false") {
-        releaseTravelSeamForegroundAfterSceneChange(track, game.expedition);
+    };
+    const parallaxAssetId = track?.dataset.travelParallaxAssetId
+      || image.dataset.travelParallaxAssetId
+      || "";
+    if (track?.dataset.travelLayer === "next" && parallaxAssetId) {
+      const parallax = preloadTravelAsset(parallaxAssetId);
+      if (parallax && !parallax.complete) {
+        parallax.addEventListener("load", activate, { once: true });
+        parallax.addEventListener("error", activate, { once: true });
+        return;
       }
-      window.setTimeout(() => {
-        if (oldTrack?.isConnected && oldTrack !== track) {
-          removeTravelParallaxLayer(oldTrack);
-          oldTrack.remove();
-        }
-      }, 760);
-    } else if (track?.dataset.travelKind !== "encounter") {
-      setActiveTravelPresentation(game.expedition, {
-        assetId: image.dataset.travelAssetId,
-        travelParallaxAssetId: track.dataset.travelParallaxAssetId || image.dataset.travelParallaxAssetId || "",
-        motion: travelMotionForImage(image),
-        sceneKey: track.dataset.travelSceneKey,
-      });
     }
+    activate();
   });
   image.addEventListener("error", () => markTravelImageFailed(scene, image));
   if (image.complete) {
@@ -1508,6 +1583,7 @@ function preloadNextTravelScene(expedition) {
   if (Number.isFinite(projectedDistance)) {
     const nextPresentation = resolveTravelSceneAtDistance(expedition, projectedDistance);
     preloadTravelAsset(nextPresentation?.assetId);
+    preloadTravelAsset(nextPresentation?.travelParallaxAssetId);
     const activeImage = travelActiveTile(track, expedition);
     if (nextPresentation?.assetId && activeImage) {
       queueTravelSceneTransition(
@@ -1525,6 +1601,7 @@ function preloadNextTravelScene(expedition) {
   const nextIndex = expedition?.direction === "returning" ? activeIndex - 1 : activeIndex + 1;
   const nextScene = scenes[nextIndex];
   preloadTravelAsset(nextScene?.visualAssetId);
+  preloadTravelAsset(nextScene?.travelParallaxAssetId);
 }
 
 function createTravelTrack(scene, art, expedition, presentation, activeEncounter = null, layer = "next") {
@@ -1847,6 +1924,7 @@ function preserveTravelDirectionPosition(scene, returning) {
       otherTile.dataset.travelCopy,
       currentTile.dataset.travelParallaxAssetId || track.dataset.travelParallaxAssetId || "",
     );
+    syncTravelParallaxLayer(track);
     state.pending = null;
     delete track.dataset.travelSeamForegroundForce;
     ensureTravelSeamForeground(

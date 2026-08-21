@@ -1,5 +1,28 @@
 # Build Log
 
+## 2026-08-20 - Pair Incoming Travel Foreground Cutouts
+
+### Goal
+
+Keep a distance-based travel panorama's aligned foreground cutout visible with
+the incoming background as the scene transition approaches.
+
+### AI-assisted implementation
+
+- Preloaded each next scene's optional foreground asset alongside its panorama.
+- Made the foreground layer mirror the base track's primary and incoming loop
+  tiles independently, so the incoming crop is installed at the same handoff
+  as the incoming background.
+- Kept the existing 1.0x phase, pause/encounter handling, and seam/tree layer
+  ordering unchanged; scenes without a foreground still use the prior path.
+
+### Verification and resulting prototype state
+
+Focused browser smoke coverage confirmed that the incoming base and foreground
+tiles are paired while the first scene remains current. The location browser
+regression still stops before its travel assertions at the unrelated Hall
+hotspot expectation mismatch in `tests/location_system_test.py`.
+
 ## 2026-08-20 - Aligned Travel Foreground Cutouts
 
 ### Goal
