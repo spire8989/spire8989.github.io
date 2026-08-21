@@ -119,6 +119,46 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
       canvas: { width: 2176, height: 720 },
       size: { width: 2176, height: 115 }
     }
+  },
+  expedition_old_forest_road_woodcut_2_parallax: {
+    id: "expedition_old_forest_road_woodcut_2_parallax",
+    path: "assets/images/expedition/woodcut_old_forest_path_2-parallax.webp",
+    category: "expedition",
+    generatedFromAssetId: "expedition_old_forest_road_woodcut_2",
+    foregroundAlignment: {
+      offset: {
+        x: 0,
+        y: 500
+      },
+      canvas: {
+        width: 2176,
+        height: 720
+      },
+      size: {
+        width: 2176,
+        height: 194
+      }
+    }
+  },
+  expedition_old_forest_road_woodcut_3_parallax: {
+    id: "expedition_old_forest_road_woodcut_3_parallax",
+    path: "assets/images/expedition/woodcut_old_forest_path_3-parallax.webp",
+    category: "expedition",
+    generatedFromAssetId: "expedition_old_forest_road_woodcut_3",
+    foregroundAlignment: {
+      offset: {
+        x: 0,
+        y: 537
+      },
+      canvas: {
+        width: 2176,
+        height: 720
+      },
+      size: {
+        width: 2176,
+        height: 181
+      }
+    }
   }
 });
 

@@ -27,13 +27,15 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
       {
         visualAssetId: "expedition_old_forest_road_woodcut_3",
         motion: "loop",
-        minDistance: 17.5
+        minDistance: 17.5,
+        travelParallaxAssetId: "expedition_old_forest_road_woodcut_3_parallax"
       },
       {
         minDistance: 40,
         visualAssetId: "expedition_old_forest_road_woodcut_2",
         motion: "loop",
-        showSeamForegroundBetweenLoops: false
+        showSeamForegroundBetweenLoops: false,
+        travelParallaxAssetId: "expedition_old_forest_road_woodcut_2_parallax"
       }
     ],
     travelSeamForegroundAssetId: "expedition_old_forest_road_tree_6"
