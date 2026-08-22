@@ -1,5 +1,30 @@
 # Build Log
 
+## 2026-08-22 - Combat Pass 1 Battlefield and Combatant Presentation
+
+### Goal
+
+Rebuild the combat battlefield presentation around readable ally and enemy units while preserving all combat mechanics, targeting behavior, lower action UI, combat rules, simulation, and replay behavior.
+
+### Human prompt and direction
+
+The human developer requested a foundation pass that replaces the current nameplate columns with deterministic one-to-three combatant formations, makes the character visual primary, attaches compact HP/intent/status/ATB information to each unit, clarifies target and active states, and fixes combat-facing separator encoding. Slash effects, damage numbers, attack presentation, weapon-specific visuals, SFX, screen shake, and lower action UI redesign were explicitly deferred.
+
+### AI-assisted implementation
+
+- Replaced the combat scene's party/enemy columns with three-slot ally and enemy formation areas supporting centered one-unit layouts, upper/lower two-unit layouts, and top/middle/bottom three-unit layouts.
+- Rebuilt each combatant as a visual unit with an art-ready visual container, attached name/HP/HP-bar HUD, enemy intent, ATB gauge, and compact status line. Reused the travel marker language for Arthur, humanoid companions, and mounts when no combat visual asset exists.
+- Moved target emphasis from the old TARGET badge/nameplate treatment to unit visual rings, gold selection accents, hover/focus states, and distinct active-unit glow without changing target resolution.
+- Kept the combat log and lower action/submenu UI functionally unchanged, removed obsolete nameplate/token CSS, and normalized combat-facing separators and item quantity markup.
+
+### Manual changes
+
+The human developer supplied the combat presentation direction and required local add/commit operations. No separate manual source changes were reported.
+
+### Verification and resulting prototype state
+
+Focused local-HTTP Chrome checks passed for Wild Boar, Bandit Ambush, and Wolves across 1–3 allies and 1–3 enemies at 320px, 360px, and 768px widths. The checks confirmed no unit overlap, clipping, or horizontal overflow; attached enemy intent; target switching; ally-target mode; active and defeated states; ability and item submenus; no old TARGET badge; and no runtime console errors. Tier 1 combat passed 34 assertions, deterministic simulation passed 62 assertions, campaign/health/Inn passed 99 assertions, and `git diff --check` passed. No combat mechanics or simulation files were changed.
+
 ## 2026-08-22 - Expedition Travel, Encounter, Camp, and Return UX Pass
 
 ### Goal

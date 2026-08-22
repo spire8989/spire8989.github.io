@@ -3994,11 +3994,11 @@ function renderCombat(expedition, combat) {
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen combat-screen" aria-label="Combat">
       <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""}">
-        <div class="combat-side combat-party" aria-label="Party">
+        <div class="combat-formation combat-party formation-count-${combat.allies.length}" aria-label="Party">
           ${combat.allies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
-        <div class="combat-battlefield-space" aria-hidden="true"></div>
-        <div class="combat-side combat-enemies" aria-label="Enemies">
+        <div class="combat-battlefield-space" aria-hidden="true"><span></span></div>
+        <div class="combat-formation combat-enemies formation-count-${combat.enemies.length}" aria-label="Enemies">
           ${combat.enemies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
       </div>
@@ -4008,7 +4008,7 @@ function renderCombat(expedition, combat) {
             <p class="eyebrow">${awaitingAction ? "Current Turn" : "Battle in Progress"}</p>
             <strong>${activeActor ? `${activeActor.name}'s turn` : "Action gauges are filling"}</strong>
           </div>
-          <span class="combat-target-summary">Faith ${game.player.faith}/${game.player.maxFaith} Â· ${selectedEnemy ? `${selectedEnemy.name} selected` : choosingTarget ? "Choose a target" : "No target selected"}</span>
+          <span class="combat-target-summary">Faith ${game.player.faith}/${game.player.maxFaith} &middot; ${selectedEnemy ? `${selectedEnemy.name} selected` : choosingTarget ? "Choose a target" : "No target selected"}</span>
         </div>
         <div class="combat-controls">
           ${renderCombatControls(combat, activeActor)}
@@ -4041,7 +4041,7 @@ function renderCombatant(combatant, combat) {
     ))
     : [];
   const effects = [combatant.defending ? "DEFENDING" : "", combatant.interceding ? "INTERCEDING" : "", ...statuses]
-    .filter(Boolean).join(" · ");
+    .filter(Boolean).join(" &middot; ");
   const tag = selectable ? "button" : "article";
   const targetAttributes = selectable
     ? `type="button" data-action="combat-target" data-target-id="${combatant.id}" aria-label="Target ${combatant.name}"${combatant.side === "enemy" ? ` aria-pressed="${selected}"` : ""}`
@@ -4049,16 +4049,24 @@ function renderCombatant(combatant, combat) {
   const markup = `
     <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${selected ? "is-selected" : ""} ${wasHit ? "was-hit" : ""}"
       data-combatant-id="${combatant.id}" ${targetAttributes}>
-      <div data-asset-frame="combat" class="combatant-token" aria-hidden="true">${renderCombatVisual(combatant.visualAssetId, combatant.side === "ally" ? "♞" : "◆", combatant.name)}</div>
-      ${selected ? '<span class="combat-target-badge" aria-hidden="true">TARGET</span>' : ""}
-      <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
-      <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
-      ${intent}
+      <div class="combat-unit-hud">
+        ${intent}
+        <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
+        <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
+      </div>
+      <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant.visualAssetId, combatFallbackVisual(combatant), combatant.name)}</div>
       <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
-      ${effects ? `<small>${effects}</small>` : ""}
+      ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
     </${tag}>`;
   combatant.lastHitEvent = null;
   return markup;
+}
+
+function combatFallbackVisual(combatant) {
+  if (combatant.side === "enemy") return "&#x25c6;";
+  if (combatant.id === "arthur") return "&#x265e;";
+  const companion = COMPANION_DEFINITIONS[combatant.definitionId ?? combatant.id];
+  return companion?.type === "mount" ? "&#x265e;" : "&#x265c;";
 }
 
 function renderCombatControls(combat, activeActor) {
@@ -4082,8 +4090,8 @@ function renderCombatControls(combat, activeActor) {
           availability.cooldownRemaining > 0 ? `Cooldown ${availability.cooldownRemaining}` : "",
           availability.chargesRemaining !== null ? `${availability.chargesRemaining} charge${availability.chargesRemaining === 1 ? "" : "s"}` : "",
           availability.reason ? availability.reason.replaceAll("-", " ") : "Ready",
-        ].filter(Boolean).join(" Â· ");
-        const tags = Array.isArray(ability.tags) && ability.tags.length ? ` · ${ability.tags.join(", ")}` : "";
+        ].filter(Boolean).join(" &middot; ");
+        const tags = Array.isArray(ability.tags) && ability.tags.length ? ` &middot; ${ability.tags.join(", ")}` : "";
         return `<button type="button" data-action="combat-ability" data-ability-id="${ability.id}" ${availability.usable ? "" : "disabled"}><strong>${ability.name}</strong><span>${ability.description ?? ""}</span><small class="combat-ability-meta">${limits}${tags}</small></button>`;
       }).join("")
       : '<p class="combat-empty-menu">No usable abilities.</p>';
@@ -4092,7 +4100,7 @@ function renderCombatControls(combat, activeActor) {
   if (combat.interactionMode === "items") {
     const items = CombatSystem.availableItems(combat, game.expedition);
     const entries = items.length > 0
-      ? items.map((entry) => `<button type="button" data-action="combat-item" data-item-id="${entry.itemId}"><strong>${entry.item.name} ×${entry.quantity}</strong><span>${entry.item.effects.combat.description}</span></button>`).join("")
+      ? items.map((entry) => `<button type="button" data-action="combat-item" data-item-id="${entry.itemId}"><strong>${entry.item.name} &times;${entry.quantity}</strong><span>${entry.item.effects.combat.description}</span></button>`).join("")
       : '<p class="combat-empty-menu">No usable combat items.</p>';
     return `<div class="combat-submenu-heading"><p>${activeActor.name}'s Items</p><button type="button" data-action="combat-menu-back">Back</button></div><div class="combat-action-grid combat-submenu-list">${entries}</div>`;
   }
