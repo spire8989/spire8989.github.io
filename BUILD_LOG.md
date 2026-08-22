@@ -1,5 +1,30 @@
 # Build Log
 
+## 2026-08-22 - Combat Pass 1.5 Battlefield Refinement
+
+### Goal
+
+Refine the new unit-based combat battlefield before attack presentation work, keeping formation architecture, targeting, combat mechanics, lower action UI, simulation, and replay behavior unchanged.
+
+### Human prompt and direction
+
+The human developer requested free-standing, art-ready combat visuals; larger and more dominant unit presentation; compact differentiated HP, ATB, and Faith information; removal of the center ornament and global Faith/target badge treatment; clearer active and selected states; and a restrained hit reaction. Pass 2 attack effects, damage numbers, lunges, SFX, and other combat spectacle were explicitly deferred.
+
+### AI-assisted implementation
+
+- Removed circular character frames and the center battlefield ornament, leaving each unit as a free-standing visual with a subtle ground shadow and room for future transparent art assets.
+- Tightened each unit HUD into a centered compact column around its visual, keeping names, HP, enemy intent, resource details, and gauges from stretching across the battlefield. Three-row formations now fit cleanly at 320px portrait width.
+- Differentiated substantial red HP bars, thinner gold ATB bars, and the smaller Arthur-only Faith resource display; removed the global Faith summary while retaining selected-target and target-prompt context in the header.
+- Added restrained gold target/active emphasis and a reliable short red hit flash/nudge driven by transient presentation state only; no damage resolution or combat state rules changed.
+
+### Manual changes
+
+The human developer supplied the refinement guide, the follow-up centered-HUD direction, and required local add/commit operations. No separate manual source changes were reported.
+
+### Verification and resulting prototype state
+
+Focused local-HTTP Chrome checks passed at 320px, 360px, 390px, and 500px portrait widths for compact one-to-three-unit formations, including a 3v3 layout and long-name ellipsis without page overflow. The checks confirmed centered HUD bounds, Arthur-only Faith, no global Faith summary, no old TARGET badge, no unit overlap or clipping, target/active presentation, and attached enemy intent. Tier 1 combat passed 34 assertions, deterministic simulation passed 62 assertions, campaign/health/Inn passed 99 assertions, and `git diff --check` passed. No combat mechanics or simulation files were changed.
+
 ## 2026-08-22 - Combat Pass 1 Battlefield and Combatant Presentation
 
 ### Goal

@@ -3991,13 +3991,16 @@ function renderCombat(expedition, combat) {
   const awaitingAction = combat.status === "awaitingAction";
   const choosingTarget = ["enemyTarget", "allyTarget"].includes(combat.interactionMode);
   const selectedEnemy = combat.enemies.find((enemy) => enemy.id === combat.selectedEnemyId && enemy.hp > 0);
+  const targetSummary = selectedEnemy
+    ? `${selectedEnemy.name} selected`
+    : choosingTarget ? "Choose a target" : "";
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen combat-screen" aria-label="Combat">
       <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""}">
         <div class="combat-formation combat-party formation-count-${combat.allies.length}" aria-label="Party">
           ${combat.allies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
-        <div class="combat-battlefield-space" aria-hidden="true"><span></span></div>
+        <div class="combat-battlefield-space" aria-hidden="true"></div>
         <div class="combat-formation combat-enemies formation-count-${combat.enemies.length}" aria-label="Enemies">
           ${combat.enemies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
@@ -4008,7 +4011,7 @@ function renderCombat(expedition, combat) {
             <p class="eyebrow">${awaitingAction ? "Current Turn" : "Battle in Progress"}</p>
             <strong>${activeActor ? `${activeActor.name}'s turn` : "Action gauges are filling"}</strong>
           </div>
-          <span class="combat-target-summary">Faith ${game.player.faith}/${game.player.maxFaith} &middot; ${selectedEnemy ? `${selectedEnemy.name} selected` : choosingTarget ? "Choose a target" : "No target selected"}</span>
+          ${targetSummary ? `<span class="combat-target-summary">${targetSummary}</span>` : ""}
         </div>
         <div class="combat-controls">
           ${renderCombatControls(combat, activeActor)}
@@ -4025,7 +4028,7 @@ function renderCombat(expedition, combat) {
 function renderCombatant(combatant, combat) {
   const defeated = combatant.hp <= 0;
   const ready = combatant.id === combat.activeActorId;
-  const wasHit = Boolean(combatant.lastHitEvent);
+  const wasHit = combatantHitPresentationActive(combatant);
   const selectable = !defeated && (
     (["running", "awaitingAction"].includes(combat.status) && combat.interactionMode === "main" && combatant.side === "enemy")
     || (combat.interactionMode === "enemyTarget" && combatant.side === "enemy")
@@ -4042,6 +4045,7 @@ function renderCombatant(combatant, combat) {
     : [];
   const effects = [combatant.defending ? "DEFENDING" : "", combatant.interceding ? "INTERCEDING" : "", ...statuses]
     .filter(Boolean).join(" &middot; ");
+  const resource = combatResourceDisplay(combatant);
   const tag = selectable ? "button" : "article";
   const targetAttributes = selectable
     ? `type="button" data-action="combat-target" data-target-id="${combatant.id}" aria-label="Target ${combatant.name}"${combatant.side === "enemy" ? ` aria-pressed="${selected}"` : ""}`
@@ -4053,13 +4057,36 @@ function renderCombatant(combatant, combat) {
         ${intent}
         <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
         <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
+        ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
       </div>
       <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant.visualAssetId, combatFallbackVisual(combatant), combatant.name)}</div>
       <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
     </${tag}>`;
-  combatant.lastHitEvent = null;
   return markup;
+}
+
+function combatResourceDisplay(combatant) {
+  if (combatant.resourceDisplay) return combatant.resourceDisplay;
+  if (combatant.id !== "arthur") return null;
+  const maximum = Math.max(1, Number(game.player.maxFaith) || 1);
+  const current = Math.max(0, Number(game.player.faith) || 0);
+  return {
+    label: "Faith",
+    current,
+    maximum,
+    percent: clamp((current / maximum) * 100, 0, 100),
+  };
+}
+
+function combatantHitPresentationActive(combatant) {
+  const eventId = combatant.lastHitEvent;
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (eventId !== combatant.lastRenderedHitEvent) {
+    combatant.lastRenderedHitEvent = eventId;
+    combatant.hitPresentationUntil = eventId ? now + 220 : 0;
+  }
+  return Number(combatant.hitPresentationUntil) > now;
 }
 
 function combatFallbackVisual(combatant) {
