@@ -5238,6 +5238,11 @@ button.combatant {
 
 .preparation-heading-row .compact-heading { margin-bottom: 0; }
 
+.preparation-heading-row .screen-heading h1 {
+  font-size: clamp(1.05rem, 5cqw, 1.55rem);
+  white-space: nowrap;
+}
+
 .preparation-step {
   padding: 0;
 }
@@ -5313,6 +5318,87 @@ button.combatant {
   margin: 0.28rem 0 0.7rem;
   max-width: 34rem;
   line-height: 1.35;
+}
+
+/* Expedition follow-up polish: the resource renderer supplies a stable six-
+   stat HUD, while camp and encounters deliberately use its four-stat context. */
+.full-resources,
+.contextual-resources {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.full-resources .resource-card,
+.contextual-resources .resource-card {
+  min-width: 0;
+}
+
+.contextual-resources {
+  margin-bottom: 0.1rem;
+}
+
+.journey-controls.is-paused {
+  margin: 0.15rem 0 0.55rem;
+  padding: 0.65rem 0.65rem 0.7rem;
+  border: 1px solid rgb(217 189 114 / 28%);
+  border-left: 3px solid var(--gold);
+  border-radius: 0.35rem;
+  background: linear-gradient(135deg, rgb(76 67 35 / 16%), rgb(5 11 7 / 56%));
+}
+
+.journey-controls.is-paused .setting-row + .setting-row {
+  margin-top: 0.18rem;
+}
+
+.journey-controls.is-paused .paused-actions {
+  margin-top: 0.55rem;
+}
+
+.camp-resource-details {
+  margin: 0.25rem 0 0.1rem;
+}
+
+.camp-panel > .journey-log {
+  margin-top: 0.5rem;
+}
+
+.encounter-panel .encounter-choice.is-ordinary {
+  border-color: rgb(111 129 111 / 72%);
+  background: linear-gradient(105deg, #233829, #18251b);
+  color: #edf0d9;
+}
+
+.encounter-panel .encounter-choice.is-ordinary:hover:not(:disabled) {
+  border-color: var(--gold-bright);
+  background: linear-gradient(105deg, #304b35, #213124);
+}
+
+.encounter-panel .encounter-choice.is-dangerous {
+  border-color: rgb(244 221 160 / 58%);
+  background: linear-gradient(105deg, #693129, #432620);
+}
+
+.encounter-panel .encounter-choice.is-specific {
+  border-color: rgb(217 189 114 / 72%);
+  background: linear-gradient(105deg, #4d4529, #29281b);
+  color: #fff3c9;
+}
+
+.encounter-panel .encounter-choice.is-dangerous:hover:not(:disabled),
+.encounter-panel .encounter-choice.is-specific:hover:not(:disabled) {
+  border-color: var(--gold-bright);
+}
+
+.summary-reward-section.return-reward-section {
+  margin-top: 0.55rem;
+  padding: 0.65rem;
+  border: 1px solid rgb(244 221 160 / 36%);
+  border-top-color: rgb(244 221 160 / 62%);
+  border-radius: 0.35rem;
+  background: linear-gradient(135deg, rgb(76 67 35 / 22%), rgb(5 11 7 / 35%));
+}
+
+.return-reward-section .summary-reward-heading strong {
+  color: #fff3c9;
 }
 
 @media (prefers-reduced-motion: reduce) {

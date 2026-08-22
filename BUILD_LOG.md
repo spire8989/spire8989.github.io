@@ -1,5 +1,31 @@
 # Build Log
 
+## 2026-08-22 - Expedition Travel, Encounter, Camp, and Return UX Pass
+
+### Goal
+
+Give the active expedition flow a clearer mobile-first HUD and hierarchy across outbound travel, paused travel, camp, encounters, returning travel, and the final report without changing expedition rules, outcomes, inventories, simulation, or combat behavior.
+
+### Human prompt and direction
+
+The human developer requested a restrained visual/UX pass for travel and encounters: a six-stat travel/return HUD, contextual camp/encounter stats, clearer paused controls, stronger choice-state differentiation, more deliberate camp details, and a return report that promotes reward tiers and highlighted discoveries. Existing artwork, scrolling, portrait responsiveness, and the current combat presentation were to be preserved.
+
+### AI-assisted implementation
+
+- Reworked the shared expedition resource renderer into an exact six-stat 3x2 layout ordered Distance, Unsecured Loot, Provisions, Material Bag, Health, and Faith; removed Max reached from the primary HUD while retaining turnaround/farthest detail where useful.
+- Added a contextual four-stat subset for Camp and Encounter panels, with distance and unsecured loot available in Camp Expedition Details rather than competing with camp actions.
+- Removed the duplicate paused pace/ration summary and gave paused travel its own cohesive editable control panel with Brief Rest and Make Camp actions.
+- Added restrained encounter choice tones for ordinary, dangerous, and item/equipment/knowledge-specific choices without changing availability or outcome resolution.
+- Promoted return rewards before the ordinary expedition haul and placed highlighted discoveries before routine report groups; preserved the existing Return to Village action.
+
+### Manual changes
+
+The human developer supplied the visual direction and required local add/commit operations. The existing compact Prepare for Expedition title-fit tweak was preserved alongside this pass.
+
+### Verification and resulting prototype state
+
+Focused local-HTTP Chrome checks passed for outbound travel, paused pace/ration editing, Camp Rest/Cook/Craft tabs, encounter choices, returning travel details, and the return report. The six-stat and four-stat orders were verified, no console errors occurred, and 320px, 360px, 390px, and 430px portrait checks reported no horizontal overflow. Deterministic simulation passed 62 assertions, campaign/health/Inn passed 99 assertions, combat passed 34 assertions, and `git diff --check` passed. The existing location suite still stops before its UI assertions on the unchanged stale Hall hotspot coordinate expectation; no unrelated location data or test was changed.
+
 ## 2026-08-22 - Town Navigation and Preparation Stepper UX Pass
 
 ### Goal

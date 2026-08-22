@@ -3701,7 +3701,17 @@ function renderCamp(expedition) {
           <h1>Campfire</h1>
           <p>Arthur can sleep rough anywhere. The company can leave camp and remain paused until it is ready to travel.</p>
         </div>
-        ${renderExpeditionResources(expedition)}
+        ${renderExpeditionResources(expedition, { contextual: true })}
+        <details class="run-details expedition-details camp-resource-details">
+          <summary class="run-details-summary">
+            <span class="run-details-heading">Expedition Details</span>
+            <span class="run-details-summary-text">${formatDistance(expedition.distance)} traveled · ${unsecuredLootDisplayValue(expedition)} unsecured</span>
+          </summary>
+          <div class="run-details-content">
+            <p><span>Distance</span><strong>${formatDistance(expedition.distance)}</strong></p>
+            <p><span>Unsecured Loot</span><strong>${unsecuredLootDisplayValue(expedition)}</strong></p>
+          </div>
+        </details>
         ${renderJourneyLog(expedition)}
         <div class="camp-tabs" role="tablist" aria-label="Camp actions">${tabs}</div>
         ${tabContent}
@@ -3831,6 +3841,7 @@ function renderTravelPanel(expedition, companions, loadout) {
         <div class="run-details-content">
         <p><span>Company</span><strong>${companyLabel}</strong></p>
         <p><span>Path</span><strong id="path-value">${pathLabel(expedition.currentPathId)}</strong></p>
+        ${expedition.direction === "returning" ? `<p><span>Turned back at</span><strong>${formatDistance(expedition.maxDistanceReached)}</strong></p>` : ""}
         <div class="run-detail-collection"><span>Loadout</span><div class="run-item-list">${renderItemChips(loadout, "No equipment selected")}</div></div>
         <div class="run-detail-collection"><span>Carried</span><div class="run-item-list">${formatCarriedItems(expedition.carriedItems)}</div></div>
         <div class="run-detail-collection"><span>Material Bag</span><div class="run-item-list">${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
@@ -3858,13 +3869,13 @@ function renderTravelSettings(expedition) {
        <div class="setting-row"><span>Rations</span><div class="setting-buttons">${rationButtons}</div></div>`
     : "";
   return `
-    <section class="travel-settings journey-controls" aria-labelledby="journey-controls-title">
+    <section class="travel-settings journey-controls ${paused ? "is-paused" : ""}" aria-labelledby="journey-controls-title">
       <div class="journey-heading">
         <p class="eyebrow" id="journey-controls-title">Journey</p>
         <span class="journey-state">${paused ? "Paused" : expedition.direction === "returning" ? "Returning" : "Traveling"}</span>
       </div>
       ${settingControls}
-      <p class="journey-summary ${paused ? "is-editable-summary" : "is-compact-summary"}">${pace.name} pace &middot; ${ration.name} rations</p>
+      ${paused ? "" : `<p class="journey-summary is-compact-summary">${pace.name} pace &middot; ${ration.name} rations</p>`}
       ${paused
         ? `<div class="paused-actions">
              <p class="eyebrow">Paused Actions</p>
@@ -3882,7 +3893,7 @@ function renderEncounterPanel(expedition, encounter) {
   if (active.phase === "dialogue") {
     return `
       <div class="travel-panel encounter-panel encounter-dialogue-panel" aria-live="polite">
-        ${renderExpeditionResources(expedition)}
+        ${renderExpeditionResources(expedition, { contextual: true })}
         <div class="encounter-heading">
           <p class="eyebrow">Travel Paused · Dialogue</p>
           <h1>${encounter.title}</h1>
@@ -3907,7 +3918,7 @@ function renderEncounterPanel(expedition, encounter) {
 
   return `
     <div class="travel-panel encounter-panel" aria-live="polite">
-      ${renderExpeditionResources(expedition)}
+      ${renderExpeditionResources(expedition, { contextual: true })}
       <div class="encounter-heading">
         <p class="eyebrow">Travel Paused · ${pathLabel(expedition.currentPathId)}</p>
         <h1>${encounter.title}</h1>
@@ -3929,7 +3940,7 @@ function nonRewardOutcomeMessages(messages = []) {
 function renderEncounterPendingPanel(expedition, encounter, active) {
   return `
     <div class="travel-panel encounter-panel encounter-pending-panel" aria-live="polite" aria-busy="true">
-      ${renderExpeditionResources(expedition)}
+      ${renderExpeditionResources(expedition, { contextual: true })}
       <div class="encounter-heading">
         <p class="eyebrow">Action in Progress</p>
         <h1>${encounter.title}</h1>
@@ -3952,7 +3963,7 @@ function renderEncounterResultPanel(expedition, encounter, active) {
 
   return `
     <div class="travel-panel encounter-panel encounter-result-panel" aria-live="polite">
-      ${renderExpeditionResources(expedition)}
+      ${renderExpeditionResources(expedition, { contextual: true })}
       <div class="encounter-heading">
         <p class="eyebrow">Encounter Resolved</p>
         <h1>${encounter.title}</h1>
@@ -4139,21 +4150,34 @@ function unsecuredLootSummary(expedition) {
   return parts.length > 0 ? `Unsecured: ${parts.join(" · ")}` : "Unsecured: None";
 }
 
-function renderExpeditionResources(expedition) {
+function renderExpeditionResources(expedition, options = {}) {
   const materialBagUsed = MaterialRules.expeditionTotal(expedition);
   const provisionStatus = ExpeditionRules.returnProvisionStatus(expedition);
-  return `
-    <div class="resource-grid compact-resources">
-      <div class="resource-card"><span>Distance</span><strong id="distance-value">${formatDistance(expedition.distance)}</strong></div>
-      <div class="resource-card"><span>Max reached</span><strong id="max-distance-value">${formatDistance(expedition.maxDistanceReached)}</strong></div>
+  const contextual = options.contextual === true;
+  const resourceCard = (label, value, id = "", className = "") => `
+      <div class="resource-card ${className}"${id ? ` id="${id}-card"` : ""}>
+        <span>${label}</span><strong${id ? ` id="${id}"` : ""}>${value}</strong>
+      </div>`;
+  const cards = contextual
+    ? `
       <div id="provisions-card" class="resource-card provisions-card provision-state-${provisionStatus.state}" data-provision-state="${provisionStatus.state}">
-        <span>Provisions</span>
-        <strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
+        <span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
       </div>
-      <div class="resource-card"><span>Health</span><strong id="health-value">${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}</strong></div>
-      <div class="resource-card"><span>Faith</span><strong id="faith-value">${game.player.faith} / ${game.player.maxFaith}</strong></div>
-      <div class="resource-card material-bag-card"><span>Material Bag</span><strong id="material-bag-count">${materialBagUsed} / ${MaterialRules.capacity()}</strong></div>
-      <div class="resource-card"><span>Unsecured Loot</span><strong id="loot-count">${unsecuredLootDisplayValue(expedition)}</strong></div>
+      ${resourceCard("Material Bag", `${materialBagUsed} / ${MaterialRules.capacity()}`, "material-bag-count", "material-bag-card")}
+      ${resourceCard("Health", `${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}`, "health-value")}
+      ${resourceCard("Faith", `${game.player.faith} / ${game.player.maxFaith}`, "faith-value")}`
+    : `
+      ${resourceCard("Distance", formatDistance(expedition.distance), "distance-value")}
+      ${resourceCard("Unsecured Loot", unsecuredLootDisplayValue(expedition), "loot-count")}
+      <div id="provisions-card" class="resource-card provisions-card provision-state-${provisionStatus.state}" data-provision-state="${provisionStatus.state}">
+        <span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
+      </div>
+      ${resourceCard("Material Bag", `${materialBagUsed} / ${MaterialRules.capacity()}`, "material-bag-count", "material-bag-card")}
+      ${resourceCard("Health", `${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}`, "health-value")}
+      ${resourceCard("Faith", `${game.player.faith} / ${game.player.maxFaith}`, "faith-value")}`;
+  return `
+    <div class="resource-grid compact-resources ${contextual ? "contextual-resources" : "full-resources"}">
+      ${cards}
     </div>`;
 }
 
@@ -4186,12 +4210,28 @@ function renderEncounterChoice(choice, expedition) {
   }
 
   const locked = !availability.available;
+  const choiceTone = encounterChoiceTone(choice);
   return `
-    <button class="encounter-choice ${locked ? "is-locked" : ""}" type="button"
+    <button class="encounter-choice ${choiceTone} ${locked ? "is-locked" : ""}" type="button"
       data-action="encounter-choice" data-choice-id="${choice.id}" ${locked ? "disabled" : ""}>
       <strong>${choice.label}</strong>
       ${locked ? `<span>Locked — ${availability.reason}</span>` : ""}
     </button>`;
+}
+
+function encounterChoiceTone(choice) {
+  const requirements = choice.requirements ?? [];
+  const hasSpecificRequirement = requirements.some((requirement) => [
+    "availableExpeditionItem", "carriedItem", "equippedItem", "ownsItem", "companion", "knowledge",
+  ].includes(requirement.type));
+  const hasDangerousOutcome = (effects = []) => effects.some((effect) => {
+    if (effect.type === "startCombat") return true;
+    if (effect.type === "modifyResource" && effect.resource === "health" && Number(effect.amount) < 0) return true;
+    return hasDangerousOutcome(effect.effects) || (effect.options ?? []).some((option) => hasDangerousOutcome(option.effects));
+  });
+  if (hasDangerousOutcome([...(choice.outcomes ?? []), ...(choice.costs ?? [])])) return "is-dangerous";
+  if (hasSpecificRequirement) return "is-specific";
+  return "is-ordinary";
 }
 
 function updateExpedition(deltaSeconds) {
@@ -4788,8 +4828,10 @@ function renderSummaryRewardCollection(rewards = [], options = {}) {
     ["Gold", routineAndNotable.filter((reward) => reward.type === "gold")],
     ["Combat Abilities", routineAndNotable.filter((reward) => reward.type === "ability")],
   ].filter(([, group]) => group.length > 0);
-  return `<div class="summary-reward-collection">${groups.map(([label, group]) => `<div class="summary-reward-group"><h3>${label}</h3><ul class="summary-reward-list">${group.map(renderCompactRewardRow).join("")}</ul></div>`).join("")}
-    ${major.length > 0 ? `<div class="summary-major-rewards"><h3>Highlighted Discoveries</h3>${renderRewardCards(major, { variant: "summary" })}</div>` : ""}</div>`;
+  return `<div class="summary-reward-collection">
+    ${major.length > 0 ? `<div class="summary-major-rewards"><h3>Highlighted Discoveries</h3>${renderRewardCards(major, { variant: "summary" })}</div>` : ""}
+    ${groups.map(([label, group]) => `<div class="summary-reward-group"><h3>${label}</h3><ul class="summary-reward-list">${group.map(renderCompactRewardRow).join("")}</ul></div>`).join("")}
+  </div>`;
 }
 
 function renderSummary() {
@@ -4821,16 +4863,16 @@ function renderSummary() {
         <p><span>Provisions returned</span><strong>${summary.provisionsReturned}</strong></p>
         ${returned ? `<p><span>Return reward tier</span><strong>${capitalize(summary.returnRewardTier ?? "minor")}</strong></p>` : ""}
 
-        <section class="summary-reward-section" aria-labelledby="expedition-haul-title">
-          <div class="summary-reward-heading"><strong id="expedition-haul-title">Expedition Haul</strong><span>${returned ? "Secured on return" : "Lost with the expedition"}</span></div>
-          ${renderSummaryRewardCollection(expeditionRewards, { emptyMessage: returned ? "No discoveries from the expedition." : "No unsecured discoveries were lost." })}
-        </section>
-
         ${returned ? `
           <section class="summary-reward-section return-reward-section" aria-labelledby="return-reward-title">
             <div class="summary-reward-heading"><strong id="return-reward-title">${capitalize(summary.returnRewardTier ?? "minor")} Return Reward</strong><span>Distance-tier bonus</span></div>
             ${renderSummaryRewardCollection(returnRewards, { emptyMessage: "No additional return reward this time." })}
           </section>` : ""}
+
+        <section class="summary-reward-section" aria-labelledby="expedition-haul-title">
+          <div class="summary-reward-heading"><strong id="expedition-haul-title">Expedition Haul</strong><span>${returned ? "Secured on return" : "Lost with the expedition"}</span></div>
+          ${renderSummaryRewardCollection(expeditionRewards, { emptyMessage: returned ? "No discoveries from the expedition." : "No unsecured discoveries were lost." })}
+        </section>
 
         <p class="protected-note">Your original equipment and companion remain available.</p>
       </div>
