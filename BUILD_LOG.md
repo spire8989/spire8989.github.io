@@ -1,5 +1,29 @@
 # Build Log
 
+## 2026-08-22 - Combat Unit Spacing Cleanup
+
+### Goal
+
+Give the refined combat units a little more readable breathing room and separate each action gauge from its ground shadow without changing combat behavior.
+
+### Human prompt and direction
+
+The human developer reported that the centered combat HUD had become too compressed and that the action bar visually overlapped the unit shadow. The existing unit-based presentation, palette, mobile layout, and combat mechanics were to remain intact.
+
+### AI-assisted implementation
+
+- Added small scoped spacing between enemy intent, name/HP, Faith, and the attached bars while keeping each HUD centered around its visual.
+- Moved the ATB/action gauge down from the visual shadow and added a clear compact-width formation adjustment only for dense three-row layouts.
+- Preserved the normal 16:9 combat scene for ordinary formations and kept all targeting, state, and simulation behavior unchanged.
+
+### Manual changes
+
+The human developer supplied the visual feedback and requested local add/commit operations. No separate manual source changes were reported.
+
+### Verification and resulting prototype state
+
+Focused local-HTTP Chrome checks passed at 320px, 360px, 390px, and 500px portrait widths for ordinary and three-row formations: no overlap, clipping, horizontal overflow, or gauge/shadow collision. Deterministic simulation passed 62 assertions, campaign/health/Inn passed 99 assertions, combat passed 34 assertions, and `git diff --check` passed.
+
 ## 2026-08-22 - Combat Pass 1.5 Battlefield Refinement
 
 ### Goal
