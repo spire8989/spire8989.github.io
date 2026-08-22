@@ -1,5 +1,30 @@
 # Build Log
 
+## 2026-08-22 - Town Navigation and Preparation Stepper UX Pass
+
+### Goal
+
+Make a small usability pass on the current pre-expedition town UI without redesigning the screens or changing expedition behavior.
+
+### Human prompt and direction
+
+The human developer requested clearer Village back navigation, a scoped Inn Cook heading fix, direct interactive preparation-step navigation, and a compact preparation header. Progression, inventories, recipes, costs, validation, and simulation behavior were to remain unchanged.
+
+### AI-assisted implementation
+
+- Added one reusable dark green/gold Village secondary-button treatment to town interiors and Prepare for Expedition, including mobile sizing and hover/pressed states.
+- Added scoped spacing and a divider between Inn tabs and the Cook panel, with a responsive two-part heading for Cook for the Road and Town Materials → Provisions.
+- Converted the preparation stepper labels into accessible buttons with delegated `preparation-step` actions and direct Route/Gear/Company/Review navigation through the existing `setPreparationStep` scroll-reset path.
+- Kept final expedition validation in the existing Begin Expedition flow and placed the stronger Village control alongside the compact preparation heading.
+
+### Manual changes
+
+The human developer supplied the UX direction and requested local add/commit operations. No separate manual source changes were reported.
+
+### Verification and resulting prototype state
+
+Verified 28 focused local-HTTP Chrome checks covering Inn Rest/Cook switching, Cook scrolling and heading separation, Village returns from Inn and preparation, direct forward/backward preparation jumps, scroll reset, and 320px, 360px, 390px, and 430px portrait widths with no horizontal overflow. Python test syntax passed; deterministic simulation passed 62 assertions; campaign/health/Inn passed 99 assertions; and `git diff --check` passed. The existing location suite still stops before its UI assertions on the unchanged stale Hall hotspot coordinate expectation.
+
 ## 2026-08-22 - Pre-Expedition UI Polish Pass
 
 ### Goal

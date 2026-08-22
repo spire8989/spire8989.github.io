@@ -60,7 +60,7 @@ function handleAction(event) {
     return;
   }
 
-  const { action, itemId, materialId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId, abilityId } = control.dataset;
+  const { action, itemId, materialId, recipeId, companionId, choiceId, destinationId, slotIndex, expeditionId, abilityId, stepId } = control.dataset;
 
   // Replay playback owns an isolated game state. Keep the real gameplay
   // controls visible for faithful rendering, but do not let them mutate the
@@ -84,6 +84,9 @@ function handleAction(event) {
       break;
     case "show-location":
       showLocation();
+      break;
+    case "preparation-step":
+      setPreparationStep(stepId);
       break;
     case "open-destination":
       openDestination(destinationId);
@@ -2207,7 +2210,7 @@ function renderDestination() {
       </div>
       <div class="destination-panel">
         <header class="interaction-header">
-          <button class="interaction-back" type="button" data-action="show-location">← Village</button>
+          <button class="interaction-back village-back-button" type="button" data-action="show-location">← Village</button>
           <strong id="destination-title">${destination.name}</strong>
           <span>${Math.floor(game.player.currentGold)}g · ${game.player.provisions} food</span>
         </header>
@@ -2905,9 +2908,11 @@ function preparationStepper() {
   return `
     <ol class="preparation-stepper" aria-label="Expedition preparation steps">
       ${PREPARATION_STEPS.map((step, index) => `
-        <li class="preparation-step ${index === currentIndex ? "is-current" : ""} ${index < currentIndex ? "is-complete" : ""}" ${index === currentIndex ? 'aria-current="step"' : ""}>
-          <span class="preparation-step-number">${index + 1}</span>
-          <span>${step.label}</span>
+        <li class="preparation-step ${index === currentIndex ? "is-current" : ""} ${index < currentIndex ? "is-complete" : ""}">
+          <button class="preparation-step-button" type="button" data-action="preparation-step" data-step-id="${step.id}" ${index === currentIndex ? 'aria-current="step"' : ""}>
+            <span class="preparation-step-number">${index + 1}</span>
+            <span>${step.label}</span>
+          </button>
         </li>`).join("")}
     </ol>`;
 }
@@ -2946,10 +2951,12 @@ function renderPreparation() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen preparation-screen" aria-labelledby="preparation-title">
-      <button class="text-button preparation-back" type="button" data-action="show-location">← Village</button>
-      <div class="screen-heading compact-heading">
-        <p class="eyebrow">Chapter III — Brocéliande</p>
-        <h1 id="preparation-title">Prepare for Expedition</h1>
+      <div class="preparation-heading-row">
+        <button class="text-button preparation-back village-back-button" type="button" data-action="show-location">← Village</button>
+        <div class="screen-heading compact-heading">
+          <p class="eyebrow">Chapter III — Brocéliande</p>
+          <h1 id="preparation-title">Prepare for Expedition</h1>
+        </div>
       </div>
       ${preparationStepper()}
       <div class="preparation-step-heading">

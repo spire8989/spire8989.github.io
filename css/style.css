@@ -5184,6 +5184,137 @@ button.combatant {
   padding: 0.2rem 0.38rem;
 }
 
+/* Follow-up pass: navigation controls stay secondary, but read as controls
+   rather than passive labels on both building and preparation screens. */
+.village-back-button {
+  display: inline-flex;
+  min-width: 4.6rem;
+  min-height: 2.3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  padding: 0.4rem 0.62rem;
+  border: 1px solid #667966;
+  border-radius: 0.3rem;
+  background: linear-gradient(145deg, rgb(44 64 48 / 92%), rgb(28 43 31 / 94%));
+  color: #e7e8d1;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.6rem, 2.55cqw, 0.76rem);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.village-back-button:hover:not(:disabled) {
+  border-color: var(--gold-bright);
+  background: #3a543d;
+  color: #fff3c9;
+}
+
+.village-back-button:active:not(:disabled),
+.village-back-button.is-pressed {
+  border-color: var(--gold);
+  background: #263a2b;
+  transform: translateY(0.08rem) scale(0.98);
+}
+
+.preparation-heading-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.preparation-heading-row .preparation-back {
+  align-self: start;
+  margin: 0;
+}
+
+.preparation-heading-row .screen-heading {
+  min-width: 0;
+  text-align: left;
+}
+
+.preparation-heading-row .compact-heading { margin-bottom: 0; }
+
+.preparation-step {
+  padding: 0;
+}
+
+.preparation-step-button {
+  display: grid;
+  width: 100%;
+  min-height: 3.1rem;
+  justify-items: center;
+  gap: 0.22rem;
+  padding: 0.35rem 0.12rem;
+  border: 1px solid transparent;
+  border-radius: 0.28rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.1;
+  text-align: center;
+  cursor: pointer;
+}
+
+.preparation-step-button:hover:not(:disabled) {
+  border-color: rgb(217 189 114 / 35%);
+  background: rgb(217 189 114 / 8%);
+  color: #f6edcf;
+}
+
+.preparation-step.is-complete .preparation-step-button:hover:not(:disabled) {
+  border-color: rgb(134 169 141 / 58%);
+  background: rgb(134 169 141 / 10%);
+}
+
+.preparation-step.is-current .preparation-step-button {
+  border-color: rgb(217 189 114 / 18%);
+  background: rgb(217 189 114 / 7%);
+}
+
+.preparation-step-button:focus-visible {
+  border-color: var(--gold-bright);
+  outline: 2px solid #fff4c7;
+  outline-offset: 1px;
+}
+
+/* The Inn tabs finish with a divider; keep the cooking section visibly below
+   it and give its two-part heading enough room to wrap on narrow phones. */
+.inn-cooking-panel {
+  margin-top: 0.8rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgb(217 189 114 / 32%);
+}
+
+.inn-cooking-panel .section-title-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 44%);
+  align-items: start;
+  gap: 0.3rem 0.55rem;
+  margin: 0;
+}
+
+.inn-cooking-panel .section-title-row h2 {
+  min-width: 0;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.inn-cooking-panel .section-title-row > span {
+  min-width: 0;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.inn-cooking-panel .section-help {
+  margin: 0.28rem 0 0.7rem;
+  max-width: 34rem;
+  line-height: 1.35;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .combatant.was-hit,
   .combatant.is-selectable {
