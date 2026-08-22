@@ -314,12 +314,13 @@ function renderCampaign() {
     const stateLabel = completed ? "Completed" : playable ? "Available" : "Locked";
     const action = playable
       ? '<button class="game-button chapter-button" type="button" data-action="enter-location" data-location-id="broceliande_village">Enter</button>'
-      : `<span class="chapter-state">${stateLabel}</span>`;
+      : "";
 
     return `
       <article class="chapter-card ${stateClass}">
-        <div>
-          <p class="chapter-number">Chapter ${chapter.number}</p>
+        <span class="chapter-marker" aria-hidden="true">${chapter.number}</span>
+        <div class="chapter-copy">
+          <p class="chapter-number">Chapter ${chapter.number}<span class="chapter-state">${stateLabel}</span></p>
           <h2>${chapter.name}</h2>
         </div>
         ${action}
@@ -333,10 +334,16 @@ function renderCampaign() {
         <h1 id="campaign-title">Campaign</h1>
         <p>Choose the next chapter of the legend.</p>
       </div>
-      <div class="chapter-list">${chapters}</div>
-      <div class="campaign-stats">
-        <span>Best expedition <strong>${formatDistance(game.player.bestExpeditionDistance)}</strong></span>
-        <span>Treasury <strong>${Math.floor(game.player.currentGold)} gold</strong></span>
+      <div class="campaign-record">
+        <div class="campaign-record-heading">
+          <span>Chapter record</span>
+          <span>Arthur's progress</span>
+        </div>
+        <div class="chapter-list">${chapters}</div>
+        <div class="campaign-stats">
+          <span><small>Best expedition</small><strong>${formatDistance(game.player.bestExpeditionDistance)}</strong></span>
+          <span><small>Treasury</small><strong>${Math.floor(game.player.currentGold)} gold</strong></span>
+        </div>
       </div>
     </section>`;
 }

@@ -1,5 +1,31 @@
 # Build Log
 
+## 2026-08-22 - Pre-Expedition UI Polish Pass
+
+### Goal
+
+Polish the mobile-first pre-expedition UI into a finished illustrated indie-game presentation while preserving the existing art direction, functionality, progression, and responsive behavior.
+
+### Human prompt and direction
+
+The human developer requested a focused pass over Campaign Select, town interiors and shops, the persistent header, interior artwork presence, button states, typography/spacing, and cook/material tokens. Village hub label behavior, existing artwork, game logic, inventories, dialogue gating, and encounter systems were explicitly kept unchanged.
+
+### AI-assisted implementation
+
+- Reframed Campaign Select as a compact chapter record with a connected chronology, clearer completed/current/locked states, a restrained active Chapter III treatment, a persistent red Enter action, and integrated Best expedition/Treasury metrics.
+- Reduced the persistent header height and save-status prominence while keeping title, audio, and reset functionality available.
+- Applied a shared building-interior hierarchy: artwork, location rail, NPC/shop identity, tabs/actions, then scannable item/content rows. Shopkeeper and NPC identity blocks now use simple divider treatments while item rows remain cards.
+- Increased destination artwork presence from a 2:1 frame to a responsive 1.82:1 frame with the existing cover crop behavior, strengthened enabled secondary controls, clarified selected gold states, and dimmed disabled controls.
+- Standardized section/title spacing and subtly reshaped material and crafting requirement chips into compact inventory tokens without changing readability or behavior.
+
+### Manual changes
+
+The human developer supplied the visual direction and required local add/commit operations. No separate manual source changes were reported.
+
+### Verification and resulting prototype state
+
+Verified 39 focused local-HTTP Chrome UI checks covering Campaign Select, the village hub, Inn cooking/materials, Merchant, Blacksmith, Apothecary, Hall/dialogue, Prepare for Expedition, and 320px, 360px, 390px, and 430px portrait widths with no runtime exceptions or horizontal overflow. Python test syntax passed; deterministic simulation passed 62 assertions; campaign/health/Inn passed 99 assertions; and `git diff --check` passed. The existing location suite remains blocked before UI checks by its stale Hall hotspot coordinate expectation (`0.543269... / 0.458333...` versus the live `0.478846... / 0.434936...`); no unrelated test or content data was changed.
+
 ## 2026-08-20 - Pair Incoming Travel Foreground Cutouts
 
 ### Goal

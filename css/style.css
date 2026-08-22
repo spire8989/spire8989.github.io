@@ -4802,6 +4802,388 @@ button.combatant {
   font-style: italic;
 }
 
+/* Shared UI polish: the same quiet record-keeping language carries from the
+   Chronicle into the village interiors without changing the underlying flow. */
+.game-header {
+  height: 5.6%;
+  min-height: 2rem;
+  padding-inline: 3%;
+  background: linear-gradient(180deg, #142018, #101811);
+}
+
+.screen-root { height: calc(100% - max(5.6%, 2rem)); }
+
+.brand-button {
+  gap: 0.38rem;
+  padding-block: 0.2rem;
+  font-size: clamp(0.65rem, 2.75cqw, 0.88rem);
+}
+
+.brand-mark { font-size: 1.15em; }
+
+.header-actions { gap: 0.2rem; }
+
+.save-status {
+  color: #7f8d81;
+  font-size: clamp(0.48rem, 1.9cqw, 0.6rem);
+  opacity: 0.8;
+}
+
+.icon-button {
+  width: 1.65rem;
+  height: 1.65rem;
+  color: #c1c9b9;
+  font-size: 0.9rem;
+}
+
+.audio-settings { top: max(5.15%, 2rem); }
+
+.screen-heading h1 {
+  margin-bottom: 0.18em;
+  line-height: 0.98;
+}
+
+.screen-heading > p:last-child { line-height: 1.3; }
+
+.campaign-screen {
+  gap: clamp(0.65rem, 2.7cqh, 1.05rem);
+  padding-top: clamp(0.9rem, 3.5cqh, 1.7rem);
+}
+
+.campaign-record {
+  position: relative;
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.55rem 0.65rem 0.45rem 0.78rem;
+  border-top: 1px solid rgb(217 189 114 / 38%);
+  border-bottom: 1px solid rgb(217 189 114 / 25%);
+  background: linear-gradient(90deg, rgb(217 189 114 / 7%), transparent 70%);
+}
+
+.campaign-record::before {
+  position: absolute;
+  top: 0.8rem;
+  bottom: 0.7rem;
+  left: 0.87rem;
+  width: 1px;
+  background: linear-gradient(#d9bd72, rgb(217 189 114 / 15%));
+  content: "";
+}
+
+.campaign-record-heading,
+.campaign-stats,
+.chapter-number {
+  font-family: system-ui, sans-serif;
+}
+
+.campaign-record-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0 0.05rem 0.2rem;
+  color: #aab4a4;
+  font-size: clamp(0.5rem, 2.1cqw, 0.64rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.campaign-record-heading span:last-child {
+  color: var(--gold);
+  text-align: right;
+}
+
+.chapter-list { gap: 0; }
+
+.chapter-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.65rem minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: initial;
+  min-height: clamp(3.15rem, 7.4cqh, 4.35rem);
+  padding: 0.48rem 0.05rem 0.48rem 0;
+  border: 0;
+  border-bottom: 1px solid rgb(217 189 114 / 15%);
+  border-radius: 0;
+  background: transparent;
+}
+
+.chapter-card:last-child { border-bottom: 0; }
+
+.chapter-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border: 1px solid #7b8879;
+  border-radius: 50%;
+  background: #18251b;
+  color: #aab6a7;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(0.67rem, 3cqw, 0.82rem);
+}
+
+.chapter-copy { min-width: 0; }
+
+.chapter-number {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: 0 0 0.13rem;
+  color: var(--gold);
+  font-size: clamp(0.5rem, 2.05cqw, 0.64rem);
+  letter-spacing: 0.11em;
+}
+
+.chapter-card h2 {
+  overflow: hidden;
+  margin: 0;
+  color: #e8e0c4;
+  font-size: clamp(0.78rem, 3.4cqw, 1rem);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-state {
+  color: #839187;
+  font-size: 0.78em;
+  letter-spacing: 0.1em;
+}
+
+.chapter-card.is-complete .chapter-marker {
+  border-color: #719b78;
+  color: #a9d3ad;
+}
+
+.chapter-card.is-complete .chapter-number,
+.chapter-card.is-complete .chapter-state {
+  color: #8fa795;
+}
+
+.chapter-card.is-locked {
+  color: #737f75;
+  opacity: 0.52;
+}
+
+.chapter-card.is-locked .chapter-marker { border-style: dashed; }
+
+.chapter-card.is-playable {
+  border-bottom-color: rgb(217 189 114 / 52%);
+  background: linear-gradient(90deg, rgb(125 47 39 / 28%), transparent 82%);
+  box-shadow: inset 3px 0 var(--gold);
+}
+
+.chapter-card.is-playable .chapter-marker {
+  border-color: var(--gold-bright);
+  background: #5a3928;
+  color: #fff0c5;
+  box-shadow: 0 0 0.55rem rgb(217 189 114 / 20%);
+}
+
+.chapter-card.is-playable .chapter-number,
+.chapter-card.is-playable .chapter-state { color: var(--gold-bright); }
+
+.chapter-button {
+  min-width: 4.4rem;
+  min-height: 2.2rem;
+  margin-left: 0.45rem;
+  padding: 0.42em 0.72em;
+}
+
+.campaign-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.1rem;
+  padding: 0.55rem 0.05rem 0;
+  border-top: 1px solid rgb(217 189 114 / 18%);
+  color: #9da99d;
+  font-size: clamp(0.54rem, 2.25cqw, 0.68rem);
+}
+
+.campaign-stats span { display: grid; gap: 0.1rem; }
+.campaign-stats span:last-child { text-align: right; }
+
+.campaign-stats small {
+  color: #819082;
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.campaign-stats strong {
+  display: block;
+  margin: 0;
+  color: #f6edcf;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(0.7rem, 3cqw, 0.86rem);
+  font-weight: 400;
+}
+
+/* Secondary controls are readable at rest; selected controls keep the gold
+   language and primary actions remain the only red call to action. */
+.small-button:not(:disabled),
+.text-button:not(:disabled),
+.shop-tabs button:not(:disabled),
+.inn-tabs button:not(:disabled),
+.stepper button:not(:disabled),
+.setting-button:not(:disabled),
+.camp-tab:not(:disabled) {
+  border-color: #6f816f;
+  background-color: #2c4030;
+  color: #edf0d9;
+}
+
+.text-button:not(:disabled) { background-color: rgb(44 64 48 / 58%); }
+
+.small-button:hover:not(:disabled),
+.text-button:hover:not(:disabled),
+.shop-tabs button:hover:not(:disabled),
+.inn-tabs button:hover:not(:disabled),
+.stepper button:hover:not(:disabled),
+.setting-button:hover:not(:disabled),
+.camp-tab:hover:not(:disabled) {
+  border-color: var(--gold-bright);
+  background-color: #3a543d;
+}
+
+.small-button:disabled,
+.text-button:disabled,
+.shop-tabs button:disabled,
+.inn-tabs button:disabled,
+.stepper button:disabled,
+.setting-button:disabled,
+.camp-tab:disabled,
+.game-button:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.55);
+  opacity: 0.44;
+}
+
+.small-button.is-selected,
+.small-button.is-packed,
+.shop-tabs button.is-selected,
+.inn-tabs button.is-selected,
+.setting-button.is-selected,
+.camp-tab.is-selected {
+  border-color: var(--gold-bright);
+  background: linear-gradient(145deg, #604e2f, #4a3e27);
+  color: #fff3c9;
+  filter: none;
+  opacity: 1;
+}
+
+/* Building screens read as artwork first, then a simple location rail and
+   content rows. Only the rows that need scanning retain a card treatment. */
+.destination-visual {
+  aspect-ratio: 1.82 / 1;
+  padding: clamp(0.75rem, 4.6cqw, 1.5rem);
+}
+
+.destination-panel {
+  background:
+    radial-gradient(circle at 50% 0%, rgb(201 177 108 / 9%), transparent 30%),
+    linear-gradient(#1d2c20, #101711);
+}
+
+.interaction-header {
+  min-height: clamp(2.25rem, 9.2cqw, 3rem);
+  padding: 0.28rem clamp(0.65rem, 3cqw, 0.9rem);
+  border-bottom-color: rgb(217 189 114 / 36%);
+  background: linear-gradient(180deg, #1a2a1d, #152119);
+}
+
+.interaction-header > strong {
+  font-size: clamp(0.67rem, 2.85cqw, 0.84rem);
+  letter-spacing: 0.02em;
+}
+
+.interaction-scroll {
+  padding: clamp(0.65rem, 3.1cqw, 0.9rem) clamp(0.7rem, 3.5cqw, 1rem);
+}
+
+.destination-screen .npc-card,
+.destination-screen .shopkeeper-row {
+  margin: 0;
+  padding: 0.18rem 0 0.65rem;
+  border: 0;
+  border-bottom: 1px solid rgb(217 189 114 / 30%);
+  border-radius: 0;
+  background: transparent;
+}
+
+.destination-screen .npc-card { gap: 0.28rem; }
+
+.destination-screen .npc-card p {
+  max-width: 32rem;
+  color: #b8c3b7;
+}
+
+.destination-screen .npc-card > .small-button { margin-top: 0.22rem; }
+
+.destination-screen .shopkeeper-row > div,
+.destination-screen .npc-card > div { min-width: 0; }
+
+.destination-screen .shopkeeper-row > div strong,
+.destination-screen .npc-card > div strong {
+  color: #f1e7c6;
+  font-size: clamp(0.76rem, 3.2cqw, 0.96rem);
+  font-weight: 400;
+}
+
+.destination-screen .shopkeeper-row span,
+.destination-screen .npc-card span { color: #9eac9f; }
+
+.destination-screen .shop-tabs,
+.destination-screen .inn-tabs {
+  gap: 0.3rem;
+  margin: 0.58rem 0 0;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid rgb(217 189 114 / 18%);
+}
+
+.destination-screen .shop-tabs button,
+.destination-screen .inn-tabs button {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.35rem;
+  border-radius: 0.25rem;
+  font-weight: 600;
+}
+
+.destination-screen .interaction-actions { margin-top: 0.58rem; }
+
+.destination-screen .shop-list { margin-top: 0.65rem; }
+
+.destination-screen .provision-offer,
+.destination-screen .injury-panel,
+.destination-screen .inn-cooking-panel,
+.destination-screen .hall-objective {
+  border-radius: 0.28rem;
+}
+
+.material-chip,
+.crafting-requirement {
+  border-radius: 0.25rem;
+  background: linear-gradient(145deg, rgb(217 189 114 / 12%), rgb(24 38 27 / 72%));
+  box-shadow: inset 0 1px rgb(255 244 199 / 8%);
+}
+
+.material-chip {
+  min-height: 1.55rem;
+  padding: 0.2rem 0.4rem;
+  border-color: #61735f;
+}
+
+.material-chip strong { color: var(--gold-bright); }
+
+.crafting-requirement {
+  min-height: 1.45rem;
+  padding: 0.2rem 0.38rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .combatant.was-hit,
   .combatant.is-selectable {
