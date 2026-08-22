@@ -3088,21 +3088,29 @@ button:active:not(:disabled) {
   position: absolute;
   z-index: 0;
   inset: 0;
-  background-image:
-    linear-gradient(90deg, rgb(7 13 8 / 76%), rgb(7 13 8 / 30%) 35%, rgb(7 13 8 / 18%) 50%, rgb(7 13 8 / 30%) 65%, rgb(7 13 8 / 76%)),
-    linear-gradient(180deg, rgb(9 16 11 / 38%), rgb(9 16 11 / 20%) 48%, rgb(5 11 7 / 68%)),
-    var(--combat-background-image);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   filter: saturate(0.82) contrast(0.92);
+  pointer-events: none;
+}
+
+.combat-scene.has-combat-background::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgb(7 13 8 / 76%), rgb(7 13 8 / 30%) 35%, rgb(7 13 8 / 18%) 50%, rgb(7 13 8 / 30%) 65%, rgb(7 13 8 / 76%)),
+    linear-gradient(180deg, rgb(9 16 11 / 38%), rgb(9 16 11 / 20%) 48%, rgb(5 11 7 / 68%));
+  content: "";
   pointer-events: none;
 }
 
 .combat-scene > .combat-formation,
 .combat-scene > .combat-battlefield-space {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 /* Give the densest formation a little more vertical breathing room without
@@ -3156,11 +3164,11 @@ button:active:not(:disabled) {
 }
 
 .combat-formation.formation-count-2 .combatant:first-child {
-  top: 35%;
+  top: 38%;
 }
 
 .combat-formation.formation-count-2 .combatant:last-child {
-  top: 65%;
+  top: 62%;
 }
 
 .combat-battlefield-space {

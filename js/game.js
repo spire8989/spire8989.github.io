@@ -1984,12 +1984,15 @@ function expeditionDefinition(expedition) {
 }
 
 function validCombatBackgroundAssetId(assetId) {
-  return typeof assetId === "string" && Boolean(AssetCatalog.imagePath(assetId));
+  return typeof assetId === "string"
+    && AssetCatalog.image(assetId)?.category === "combat_scene"
+    && Boolean(AssetCatalog.imagePath(assetId));
 }
 
 function resolveCombatBackground(expedition, encounter = null) {
-  const activeOverride = expedition?.activeEncounter?.visualOverride?.combatBackgroundAssetId;
-  const encounterOverride = encounter?.combatBackgroundAssetId;
+  const activeOverride = expedition?.activeEncounter?.combatVisualAssetId
+    ?? null;
+  const encounterOverride = encounter?.combatVisualAssetId;
   if (validCombatBackgroundAssetId(activeOverride)) {
     return { assetId: activeOverride, source: "encounter-override" };
   }
@@ -1997,22 +2000,9 @@ function resolveCombatBackground(expedition, encounter = null) {
     return { assetId: encounterOverride, source: "encounter-override" };
   }
 
-  const definition = expeditionDefinition(expedition);
-  const pathId = expedition?.currentPathId ?? definition.pathId;
-  const pathDefinition = COMBAT_BACKGROUND_PATH_DEFINITIONS[pathId];
-  const distance = Math.max(0, Number(expedition?.distance) || 0);
-  const distanceBand = [...(pathDefinition?.distanceBands ?? [])]
-    .filter((band) => Number.isFinite(Number(band.minDistance)) && distance >= Number(band.minDistance))
-    .sort((left, right) => Number(right.minDistance) - Number(left.minDistance))
-    .find((band) => validCombatBackgroundAssetId(band.assetId));
-  if (distanceBand) {
-    return { assetId: distanceBand.assetId, source: "path-distance" };
-  }
-  if (validCombatBackgroundAssetId(pathDefinition?.defaultAssetId)) {
-    return { assetId: pathDefinition.defaultAssetId, source: "path-default" };
-  }
-  if (validCombatBackgroundAssetId(definition.combatBackgroundAssetId)) {
-    return { assetId: definition.combatBackgroundAssetId, source: "expedition-default" };
+  const expeditionDefault = expeditionDefinition(expedition)?.combatVisualAssetId;
+  if (validCombatBackgroundAssetId(expeditionDefault)) {
+    return { assetId: expeditionDefault, source: "expedition-default" };
   }
   return { assetId: null, source: "gradient-fallback" };
 }
@@ -4044,7 +4034,7 @@ function renderCombat(expedition, combat) {
       <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""} ${combatBackgroundPath ? "has-combat-background" : ""}"
         data-combat-background-source="${assetAttribute(combatBackground.source)}"
         data-combat-background-asset-id="${assetAttribute(combatBackground.assetId ?? "")}">
-        ${combatBackgroundPath ? `<div class="combat-background" aria-hidden="true" style="--combat-background-image:url(${assetAttribute(combatBackgroundPath)})"></div>` : ""}
+        ${combatBackgroundPath ? `<img class="combat-background" src="${assetAttribute(combatBackgroundPath)}" alt="" aria-hidden="true" loading="eager" decoding="async" onerror="this.hidden=true; this.closest('.combat-scene').classList.remove('has-combat-background')">` : ""}
         <div class="combat-formation combat-party formation-count-${combat.allies.length}" aria-label="Party">
           ${combat.allies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>

@@ -1,5 +1,31 @@
 # Build Log
 
+## 2026-08-22 - Authored Combat Battlefield Background Support
+
+### Goal
+
+Let combat use authored static battlefield scenes while preserving the existing combat mechanics, unit HUD, travel renderer, and generic gradient fallback.
+
+### Human prompt and direction
+
+The human developer requested optional `combatVisualAssetId` fields on expeditions and encounter definitions, encounter override priority over expedition defaults, static 16:9 rendering in `.combat-scene`, graceful image failure fallback, and matching GrailTools editor support. Battlefield art was to remain separate from transparent combat cutouts, with no standalone path database or combat-mechanics changes.
+
+### AI-assisted implementation
+
+- Added the encounter override → expedition default → gradient resolver used by `renderCombat()`. Authored assets are validated as `combat_scene` images, and failed image loads remove the authored layer so the existing CSS gradient remains visible.
+- Rendered static battlefield artwork as an object-fit-cover image beneath the formations and HUD, with a restrained dark edge overlay and open center for future FX.
+- Added the `combat_scene` asset category and Scene 16:9 import mapping in GrailTools. Expedition and encounter editors now expose Default Combat Background / Combat Background Override selectors with Upload New support and explanatory copy.
+- Extended editor reference/category validation and regression coverage. Null or absent fields remain valid; deleted or incompatible assets are rejected by the existing reference validation.
+- Preserved the authored Old Forest Road battlefield asset `combat_scene_old_forest_road_combat` and its expedition default once it appeared in the shared workspace; no travel image was reused as a combat background.
+
+### Manual changes
+
+The human developer supplied the combat-background direction, requested both repositories be updated, and provided the authored Old Forest Road battlefield asset during the pass. The final two-unit formation spacing was tuned to 38% / 62% after an additional visual check.
+
+### Verification and resulting prototype state
+
+Focused editor tests passed for selector rendering, compatible `combat_scene` references, null references, and incompatible travel-art references. The full Content Editor suite was attempted but exceeded the 120-second test limit and reported an unrelated pre-existing `abandoned_camp` encounter-layout fixture mismatch. Node.js is not installed in the environment, so JavaScript syntax was checked by source review and the game asset was verified as a 1280×720 WebP. `git diff --check` passed.
+
 ## 2026-08-22 - Combat Formation and Background Resolver Pass
 
 ### Goal

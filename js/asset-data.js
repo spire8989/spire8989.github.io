@@ -159,13 +159,18 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
         height: 181
       }
     }
+  },
+  combat_scene_old_forest_road_combat: {
+    id: "combat_scene_old_forest_road_combat",
+    path: "assets/images/combat_scene/old_forest_combat.webp",
+    category: "combat_scene"
   }
 });
 
 const AUDIO_ASSET_DEFINITIONS = Object.freeze({
 });
 
-const ASSET_IMAGE_CATEGORIES = Object.freeze(["location", "town", "expedition", "encounter", "combat", "portrait", "ui"]);
+const ASSET_IMAGE_CATEGORIES = Object.freeze(["location", "town", "expedition", "encounter", "combat", "combat_scene", "portrait", "ui"]);
 const ASSET_AUDIO_CATEGORIES = Object.freeze(["ambience", "sfx", "music"]);
 
 function validAssetPath(path, root) {
