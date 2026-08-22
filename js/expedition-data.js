@@ -13,6 +13,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     pathId: "old_forest_road",
     travelVisualAssetId: "expedition_old_forest_road_bg",
     campVisualAssetId: "expedition_old_forest_road_camp_bg",
+    combatBackgroundAssetId: "expedition_old_forest_road_bg",
     travelAmbienceAssetId: null,
     campAmbienceAssetId: null,
     kind: "normal",
@@ -49,6 +50,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     pathId: "fountain_of_barenton",
     travelVisualAssetId: null,
     campVisualAssetId: null,
+    combatBackgroundAssetId: null,
     travelAmbienceAssetId: null,
     campAmbienceAssetId: null,
     kind: "normal",
@@ -64,6 +66,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     pathId: "val_sans_retour",
     travelVisualAssetId: null,
     campVisualAssetId: null,
+    combatBackgroundAssetId: null,
     travelAmbienceAssetId: null,
     campAmbienceAssetId: null,
     kind: "normal",
@@ -79,12 +82,26 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     pathId: "search_for_merlin",
     travelVisualAssetId: null,
     campVisualAssetId: null,
+    combatBackgroundAssetId: null,
     travelAmbienceAssetId: null,
     campAmbienceAssetId: null,
     kind: "campaign",
     minimumObjectiveDistance: 120,
     campEventTableIds: ["deep_forest"],
     prerequisites: ["water_of_barenton", "morgans_token"],
+  }),
+});
+
+// Static battlefield backgrounds are separate from the scrolling travel scene
+// definitions. Distance bands are intentionally optional so future paths can
+// author a path default without coupling combat presentation to travel motion.
+const COMBAT_BACKGROUND_PATH_DEFINITIONS = Object.freeze({
+  old_forest_road: Object.freeze({
+    defaultAssetId: "expedition_old_forest_road_bg",
+    distanceBands: Object.freeze([
+      Object.freeze({ minDistance: 40, assetId: "expedition_old_forest_road_wide_bg" }),
+      Object.freeze({ minDistance: 17.5, assetId: "expedition_old_forest_road_1_bg" }),
+    ]),
   }),
 });
 

@@ -3069,6 +3069,8 @@ button:active:not(:disabled) {
 /* Combat presents units as formations first; their HUD stays attached to the
    visual so future transparent character art can replace the fallback in place. */
 .combat-scene {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(3.3rem, 0.48fr) minmax(0, 0.92fr);
   align-items: stretch;
@@ -3082,6 +3084,27 @@ button:active:not(:disabled) {
     linear-gradient(180deg, #3e5650, #1c3323 65%, #111b13);
 }
 
+.combat-background {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-image:
+    linear-gradient(90deg, rgb(7 13 8 / 76%), rgb(7 13 8 / 30%) 35%, rgb(7 13 8 / 18%) 50%, rgb(7 13 8 / 30%) 65%, rgb(7 13 8 / 76%)),
+    linear-gradient(180deg, rgb(9 16 11 / 38%), rgb(9 16 11 / 20%) 48%, rgb(5 11 7 / 68%)),
+    var(--combat-background-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  filter: saturate(0.82) contrast(0.92);
+  pointer-events: none;
+}
+
+.combat-scene > .combat-formation,
+.combat-scene > .combat-battlefield-space {
+  position: relative;
+  z-index: 1;
+}
+
 /* Give the densest formation a little more vertical breathing room without
    changing the usual 16:9 battlefield footprint. */
 .combat-scene:has(.combat-formation.formation-count-3) {
@@ -3089,8 +3112,12 @@ button:active:not(:disabled) {
 }
 
 @media (max-width: 340px) {
+  .combat-scene:has(.combat-formation.formation-count-2) {
+    aspect-ratio: 1.62;
+  }
+
   .combat-scene:has(.combat-formation.formation-count-3) {
-    aspect-ratio: 1.5;
+    aspect-ratio: 1.42;
   }
 }
 
@@ -3117,6 +3144,24 @@ button:active:not(:disabled) {
 .combat-formation.formation-count-3 .combatant:nth-child(1) { grid-row: 1; }
 .combat-formation.formation-count-3 .combatant:nth-child(2) { grid-row: 2; }
 .combat-formation.formation-count-3 .combatant:nth-child(3) { grid-row: 3; }
+
+.combat-formation.formation-count-2 {
+  display: block;
+}
+
+.combat-formation.formation-count-2 .combatant {
+  position: absolute;
+  inset-inline: 0;
+  translate: 0 -50%;
+}
+
+.combat-formation.formation-count-2 .combatant:first-child {
+  top: 35%;
+}
+
+.combat-formation.formation-count-2 .combatant:last-child {
+  top: 65%;
+}
 
 .combat-battlefield-space {
   position: relative;
@@ -3172,7 +3217,7 @@ button.combatant {
   gap: 0.25rem;
   min-width: 0;
   line-height: 0.95;
-  margin-bottom: 0.06rem;
+  margin-bottom: 0.12rem;
 }
 
 .combatant strong,
@@ -3193,7 +3238,7 @@ button.combatant {
 }
 
 .combat-intent {
-  margin: 0 0 0.08rem;
+  margin: 0 0 0.12rem;
   color: #ffe0a8;
   font-size: clamp(0.4rem, 1.8cqw, 0.54rem);
   font-weight: 900;
@@ -3276,7 +3321,7 @@ button.combatant {
 
 .combatant > .gauge-bar {
   margin-inline: auto;
-  margin-top: 0.22rem;
+  margin-top: 0.32rem;
 }
 
 .combat-bar span {
@@ -3306,7 +3351,7 @@ button.combatant {
   align-items: center;
   gap: 0.22rem;
   width: min(100%, 5.5rem);
-  margin-top: 0.08rem;
+  margin-top: 0.12rem;
   font-family: system-ui, sans-serif;
 }
 

@@ -65,6 +65,10 @@ const DebugTools = Object.freeze({
       combatState.innerHTML = renderCombatDebugReadout(game.expedition?.combat);
       restoreDebugPanelViewState(viewState);
     }
+    const combatBackground = debugToolsPanel.querySelector("#debug-combat-background");
+    if (combatBackground && game.expedition?.combat) {
+      combatBackground.outerHTML = renderCombatBackgroundDebugReadout(game.expedition);
+    }
     updateDebugAvailability();
   },
 
@@ -535,12 +539,14 @@ function renderDebugExpeditionSection() {
 
 function renderDebugCombatSection() {
   const combat = game.expedition?.combat;
+  const backgroundReadout = combat ? renderCombatBackgroundDebugReadout(game.expedition) : "";
   const enemies = combat?.enemies ?? [];
   const enemyOptions = enemies.filter((enemy) => enemy.hp > 0).map((enemy) => `<option value="${escapeDebugText(enemy.id)}" ${enemy.id === debugToolsState.combatEnemyId ? "selected" : ""}>${escapeDebugText(enemy.name)}</option>`).join("");
   const statusOptions = Object.values(COMBAT_STATUS_DEFINITIONS).map((status) => `<option value="${escapeDebugText(status.id)}" ${status.id === debugToolsState.combatStatusId ? "selected" : ""}>${escapeDebugText(status.name)} [${escapeDebugText(status.id)}]</option>`).join("");
   return `<details class="debug-section" data-debug-details="combat" open>
     <summary>Combat Debug</summary><div class="debug-section-content">
       <div id="debug-combat-state">${renderCombatDebugReadout(combat)}</div>
+      ${backgroundReadout}
       ${combat ? `<div class="debug-direct-row"><label>Enemy <select id="debug-combat-enemy">${enemyOptions || '<option disabled>No living enemies</option>'}</select></label><label>Status <select id="debug-combat-status">${statusOptions}</select></label><button type="button" data-debug-action="apply-combat-status">Apply</button></div>` : ""}
     </div>
   </details>`;
@@ -912,6 +918,17 @@ function renderCombatDebugReadout(combat) {
   const arthur = combat.allies?.find((ally) => ally.id === "arthur");
   const effects = arthur?.equippedCombatEffects ?? {};
   return `<p class="debug-muted">${escapeDebugText(combat.id)} · ${escapeDebugText(combat.status)} · active actor ${escapeDebugText(combat.activeActorId ?? "none")}</p><div class="debug-combatant-list">${rows}</div><details data-debug-details="combat-effects"><summary>Arthur equipment effects / charges</summary><pre>${escapeDebugText(JSON.stringify({ equipment: combat.expedition?.selectedEquipment ?? {}, sourceItems: arthur?.sourceItemIds ?? [], effects, charges: arthur?.combatCharges ?? {} }, null, 2))}</pre></details>`;
+}
+
+function renderCombatBackgroundDebugReadout(expedition) {
+  const encounter = expedition?.activeEncounter
+    ? EncounterManager.definitionFor(expedition)
+    : null;
+  const background = resolveCombatBackground(expedition, encounter);
+  const label = background.assetId
+    ? `${background.source} / ${background.assetId}`
+    : background.source;
+  return `<p id="debug-combat-background" class="debug-muted">Combat background: ${escapeDebugText(label)}</p>`;
 }
 
 function debugQuantityFrom(inputId) {

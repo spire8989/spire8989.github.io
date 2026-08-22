@@ -1,5 +1,30 @@
 # Build Log
 
+## 2026-08-22 - Combat Formation and Background Resolver Pass
+
+### Goal
+
+Refine the combat formation spacing and establish a data-driven static battlefield background path before Combat Pass 2 attack effects.
+
+### Human prompt and direction
+
+The human developer requested centered one-unit formations, two-unit formations around 35% and 65% of the battlefield, preserved one-to-three support, and a background priority of encounter override, path/distance, path default, expedition default, then the existing gradient fallback. Combat logic, HUD structure, scrolling travel presentation, and attack FX were unchanged. Debug tools were also required to reflect the new resolver.
+
+### AI-assisted implementation
+
+- Positioned two-unit formations directly at 35% and 65% using the existing formation containers; one-unit and three-unit layouts remain centered and top/middle/bottom respectively.
+- Added `COMBAT_BACKGROUND_PATH_DEFINITIONS` for static path/distance bands and a resolver that validates authored assets before falling through the requested priority chain.
+- Added a non-scrolling combat background layer with dark edge treatment and an open center for future FX, while retaining the generic gradient when no authored background is available.
+- Updated the debug combat panel to report the resolved background source and asset and refresh that readout with live state changes.
+
+### Manual changes
+
+The human developer supplied the formation/background direction, requested debug-tool coverage, and required local add/commit operations. No separate manual source changes were reported.
+
+### Verification and resulting prototype state
+
+Focused local-HTTP Chrome checks verified 1/2/3-unit formation placement, 35%/65% two-unit centers, static background rendering, 0/20/50 distance bands, encounter override priority, gradient fallback, no center obstruction, and no horizontal overflow at portrait widths. Combat passed 34 assertions, deterministic simulation passed 62 assertions, campaign/health/Inn passed 99 assertions, debug tools passed, and `git diff --check` passed. No combat mechanics or scrolling travel scenes were changed.
+
 ## 2026-08-22 - Combat Unit Spacing Cleanup
 
 ### Goal

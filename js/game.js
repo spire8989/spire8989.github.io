@@ -1983,6 +1983,44 @@ function expeditionDefinition(expedition) {
   return ExpeditionCatalog.get(expedition?.expeditionId ?? expedition?.id);
 }
 
+function validCombatBackgroundAssetId(assetId) {
+  return typeof assetId === "string" && Boolean(AssetCatalog.imagePath(assetId));
+}
+
+function resolveCombatBackground(expedition, encounter = null) {
+  const activeOverride = expedition?.activeEncounter?.visualOverride?.combatBackgroundAssetId;
+  const encounterOverride = encounter?.combatBackgroundAssetId;
+  if (validCombatBackgroundAssetId(activeOverride)) {
+    return { assetId: activeOverride, source: "encounter-override" };
+  }
+  if (validCombatBackgroundAssetId(encounterOverride)) {
+    return { assetId: encounterOverride, source: "encounter-override" };
+  }
+
+  const definition = expeditionDefinition(expedition);
+  const pathId = expedition?.currentPathId ?? definition.pathId;
+  const pathDefinition = COMBAT_BACKGROUND_PATH_DEFINITIONS[pathId];
+  const distance = Math.max(0, Number(expedition?.distance) || 0);
+  const distanceBand = [...(pathDefinition?.distanceBands ?? [])]
+    .filter((band) => Number.isFinite(Number(band.minDistance)) && distance >= Number(band.minDistance))
+    .sort((left, right) => Number(right.minDistance) - Number(left.minDistance))
+    .find((band) => validCombatBackgroundAssetId(band.assetId));
+  if (distanceBand) {
+    return { assetId: distanceBand.assetId, source: "path-distance" };
+  }
+  if (validCombatBackgroundAssetId(pathDefinition?.defaultAssetId)) {
+    return { assetId: pathDefinition.defaultAssetId, source: "path-default" };
+  }
+  if (validCombatBackgroundAssetId(definition.combatBackgroundAssetId)) {
+    return { assetId: definition.combatBackgroundAssetId, source: "expedition-default" };
+  }
+  return { assetId: null, source: "gradient-fallback" };
+}
+
+function resolveCombatBackgroundAssetId(expedition, encounter = null) {
+  return resolveCombatBackground(expedition, encounter).assetId;
+}
+
 function resolveExpeditionVisualAssetId(expedition, mode = "travel", encounter = null) {
   const definition = expeditionDefinition(expedition);
   const encounterAssetId = resolveEncounterVisualState(encounter, expedition?.activeEncounter).backgroundAssetId;
@@ -3987,6 +4025,13 @@ function renderEncounterResultPanel(expedition, encounter, active) {
 
 function renderCombat(expedition, combat) {
   syncExpeditionAmbience(expedition, "travel");
+  const encounter = expedition?.activeEncounter
+    ? EncounterManager.definitionFor(expedition)
+    : null;
+  const combatBackground = resolveCombatBackground(expedition, encounter);
+  const combatBackgroundPath = combatBackground.assetId
+    ? AssetCatalog.imagePath(combatBackground.assetId)
+    : null;
   const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
   const awaitingAction = combat.status === "awaitingAction";
   const choosingTarget = ["enemyTarget", "allyTarget"].includes(combat.interactionMode);
@@ -3996,7 +4041,10 @@ function renderCombat(expedition, combat) {
     : choosingTarget ? "Choose a target" : "";
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen combat-screen" aria-label="Combat">
-      <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""}">
+      <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""} ${combatBackgroundPath ? "has-combat-background" : ""}"
+        data-combat-background-source="${assetAttribute(combatBackground.source)}"
+        data-combat-background-asset-id="${assetAttribute(combatBackground.assetId ?? "")}">
+        ${combatBackgroundPath ? `<div class="combat-background" aria-hidden="true" style="--combat-background-image:url(${assetAttribute(combatBackgroundPath)})"></div>` : ""}
         <div class="combat-formation combat-party formation-count-${combat.allies.length}" aria-label="Party">
           ${combat.allies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
