@@ -2089,6 +2089,11 @@ button:active:not(:disabled) {
 }
 
 .travelers > span {
+  display: flex;
+  width: clamp(2.6rem, 13cqw, 3.8rem);
+  height: clamp(3.5rem, 22cqw, 5rem);
+  align-items: flex-end;
+  justify-content: center;
   animation: traveler-bob 1.9s ease-in-out infinite alternate;
   animation-play-state: paused;
 }
@@ -2127,19 +2132,23 @@ button:active:not(:disabled) {
 
 .character-sprite {
   position: relative;
-  display: block;
+  display: grid;
+  place-items: end center;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: visible;
   transform: scale(var(--character-visual-scale, 1));
   transform-origin: center bottom;
 }
 
 .character-sprite-canvas {
   display: block;
-  width: 100%;
+  width: auto;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 
@@ -2168,24 +2177,17 @@ button:active:not(:disabled) {
 }
 
 .travelers .traveler-character {
-  width: 1em;
-  height: 1em;
+  width: 100%;
+  height: 100%;
 }
 
 .travelers .traveler-character .character-sprite-fallback {
-  font-size: 1em;
+  font-size: clamp(1.8rem, 8cqw, 2.8rem);
 }
 
 .travelers .companion .traveler-character {
-  transform: scale(calc(0.82 * var(--character-visual-scale, 1)));
-}
-
-.travelers.is-encounter-layout.is-returning > span .character-sprite {
-  transform: scaleX(-1) scale(var(--character-visual-scale, 1));
-}
-
-.travelers.is-encounter-layout.is-returning > span.companion .character-sprite {
-  transform: scaleX(-1) scale(calc(0.82 * var(--character-visual-scale, 1)));
+  width: 90%;
+  height: 90%;
 }
 
 .direction-banner {
@@ -3325,11 +3327,10 @@ button.combatant {
   place-items: center;
   align-self: center;
   justify-self: center;
-  width: clamp(3rem, 17cqw, 5rem);
-  height: clamp(3rem, 15cqw, 5rem);
-  min-height: clamp(3rem, 15cqw, 5rem);
+  width: clamp(4.2rem, 21cqw, 6.2rem);
+  height: clamp(4.8rem, 23cqw, 6.8rem);
+  min-height: clamp(4.8rem, 23cqw, 6.8rem);
   margin: 0.02rem auto;
-  transform: scale(1.2);
   transition: filter 120ms ease, transform 120ms ease;
 }
 
@@ -3347,12 +3348,10 @@ button.combatant {
   transform: translateX(-50%);
 }
 
-.combatant.enemy .combat-unit-visual { transform: scale(1.2) scaleX(-1); }
-
 .combat-formation.formation-count-3 .combat-unit-visual {
-  width: clamp(2.55rem, 14cqw, 4.2rem);
-  height: clamp(2.65rem, 12.5cqw, 4.45rem);
-  min-height: clamp(2.65rem, 12.5cqw, 4.45rem);
+  width: clamp(3.6rem, 17cqw, 5.2rem);
+  height: clamp(4.2rem, 19cqw, 5.8rem);
+  min-height: clamp(4.2rem, 19cqw, 5.8rem);
 }
 
 .combat-visual-image {
@@ -3369,6 +3368,10 @@ button.combatant {
   font-size: clamp(1.55rem, 7.4cqw, 2.8rem);
   line-height: 1;
   opacity: 0.9;
+}
+
+.character-sprite.is-mirrored {
+  transform: scaleX(-1) scale(var(--character-visual-scale, 1));
 }
 
 .combat-unit-visual:has(.combat-visual-image) .combat-visual-fallback {
@@ -3490,10 +3493,10 @@ button.combatant {
 
 .combatant.is-ready .combat-unit-visual {
   filter: drop-shadow(0 0 0.58rem rgb(217 189 114 / 52%));
-  transform: translateY(-0.08rem) scale(1.24);
+  transform: translateY(-0.08rem);
 }
 
-.combatant.enemy.is-ready .combat-unit-visual { transform: translateY(-0.08rem) scale(1.24) scaleX(-1); }
+.combatant.enemy.is-ready .combat-unit-visual { transform: translateY(-0.08rem); }
 
 .combatant.is-ready .gauge-bar {
   height: 0.18rem;

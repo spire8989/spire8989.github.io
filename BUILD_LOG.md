@@ -3980,3 +3980,25 @@ The human developer supplied the Character Pass 2 guide and authorized adding an
 ### Verification and resulting prototype state
 
 The focused Content Editor character metadata tests and sprite-sheet pipeline test passed, the complete asset pipeline suite passed 19/19, and the debug browser suite passed 27 assertions including multi-row canvas slicing, state switching, authored Old Forest Road combat background resolution, and combat character rendering. The broader Content Editor suite retains one pre-existing encounter-layout coordinate fixture mismatch; the broader location browser suite stops on its pre-existing village hotspot fixture mismatch. `git diff --check` passed. Character art now uses authored runtime assets where assigned and graceful existing fallbacks everywhere else.
+
+## 2026-08-22 - Character Pass 2.1 Sprite Sizing and Transparent-Frame Normalization
+
+### Goal
+
+Refine the Character Pass 2 presentation so authored transparent sprite sheets render at stable, readable sizes across travel, combat, and editor previews without changing combat or expedition behavior.
+
+### AI-assisted implementation
+
+- Added alpha-aware per-frame metadata caching with stable maximum-height normalization, horizontal centering, and bottom alignment for game and Content Editor sprite rendering.
+- Preserved authored frame aspect ratios and added optional per-slot `scale` metadata, applied after the existing context and definition scales and validated from 0.25 through 3.
+- Reworked travel and combat containers to provide real portrait-mode display area, keep formations readable, keep fallback glyph sizing independent, and leave transform ownership with the inner character sprite rather than the outer combat layout.
+- Added explicit post-render sprite initialization for travel and combat screens while retaining image-load fallback behavior, including cached-image state switches.
+- Updated focused browser/editor coverage and documentation for normalized frames, slot scale, and reliable Arthur authored/fallback coexistence.
+
+### Manual changes
+
+The human developer supplied the Character Pass 2.1 guide and authorized adding and committing the finished files in both repositories. No new art assets, combat mechanics, progression rules, or simulation/replay behavior were changed.
+
+### Verification and resulting prototype state
+
+Focused character validation, editor save, sprite-sheet pipeline, and debug browser checks passed after the normalization changes. `git diff --check` passed in both repositories. Broader suites retain the previously documented unrelated encounter-layout and village-hotspot fixture limitations.

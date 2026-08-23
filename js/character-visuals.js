@@ -6,6 +6,7 @@
 const CHARACTER_VISUAL_SLOTS = Object.freeze(["idle", "walk", "attack"]);
 const CHARACTER_VISUAL_DEFAULT_FPS = Object.freeze({ idle: 6, walk: 10, attack: 12 });
 const characterSpriteInstances = new Set();
+const characterSpriteMetadataCache = new Map();
 let characterSpriteAnimationFrame = null;
 
 function characterVisualDefinition(definition) {
@@ -61,32 +62,84 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   const fps = frameCount > 1 ? (Number.isFinite(fpsValue) && fpsValue > 0 ? fpsValue : CHARACTER_VISUAL_DEFAULT_FPS[requestedSlot] ?? 8) : 0;
   const rows = Math.max(1, Math.ceil(frameCount / columns));
   const visualScale = Math.min(3, characterVisualNumber(definition?.visualScale, 1, 0.25));
-  return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale };
+  const slotScale = Math.min(3, characterVisualNumber(visual.scale, 1, 0.25));
+  return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, finalScale: visualScale * slotScale };
 }
 
 function characterSpriteFallback(root, visible = true) {
   root?.querySelector(".character-sprite-fallback")?.classList.toggle("is-visible", visible);
 }
 
-function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
-  const { root, image, canvas, config } = instance;
-  if (!root?.isConnected || !image?.naturalWidth || !image?.naturalHeight || !canvas) return;
+function characterSpriteMetadata(image, config) {
+  const key = `${config.assetId}|${config.frameCount}|${config.columns}`;
+  const cached = characterSpriteMetadataCache.get(key);
+  if (cached && cached.width === image.naturalWidth && cached.height === image.naturalHeight) return cached;
   const frameWidth = image.naturalWidth / config.columns;
   const frameHeight = image.naturalHeight / config.rows;
-  if (!(frameWidth > 0) || !(frameHeight > 0)) return;
+  const scanCanvas = document.createElement("canvas");
+  scanCanvas.width = image.naturalWidth;
+  scanCanvas.height = image.naturalHeight;
+  const scanContext = scanCanvas.getContext("2d", { willReadFrequently: true });
+  const frameBounds = [];
+  if (scanContext) {
+    scanContext.drawImage(image, 0, 0);
+    const pixels = scanContext.getImageData(0, 0, image.naturalWidth, image.naturalHeight).data;
+    for (let frame = 0; frame < config.frameCount; frame += 1) {
+      const column = frame % config.columns;
+      const row = Math.floor(frame / config.columns);
+      const left = Math.round(column * frameWidth);
+      const top = Math.round(row * frameHeight);
+      const right = Math.round((column + 1) * frameWidth);
+      const bottom = Math.round((row + 1) * frameHeight);
+      let minX = right;
+      let minY = bottom;
+      let maxX = left - 1;
+      let maxY = top - 1;
+      for (let y = top; y < bottom; y += 1) {
+        for (let x = left; x < right; x += 1) {
+          if (pixels[(y * image.naturalWidth + x) * 4 + 3] <= 8) continue;
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+      frameBounds.push(maxX >= minX
+        ? { x: minX - left, y: minY - top, width: maxX - minX + 1, height: maxY - minY + 1 }
+        : { x: 0, y: 0, width: frameWidth, height: frameHeight });
+    }
+  } else {
+    for (let frame = 0; frame < config.frameCount; frame += 1) frameBounds.push({ x: 0, y: 0, width: frameWidth, height: frameHeight });
+  }
+  const normalizedHeight = Math.max(...frameBounds.map((bounds) => bounds.height), 1);
+  const normalizedWidth = Math.max(...frameBounds.map((bounds) => bounds.width / Math.max(bounds.height, 1) * normalizedHeight), 1);
+  const metadata = { width: image.naturalWidth, height: image.naturalHeight, frameWidth, frameHeight, frameBounds, normalizedWidth: Math.ceil(normalizedWidth), normalizedHeight: Math.ceil(normalizedHeight) };
+  characterSpriteMetadataCache.set(key, metadata);
+  return metadata;
+}
+
+function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
+  const { root, image, canvas, config, metadata } = instance;
+  if (!root?.isConnected || !image?.naturalWidth || !image?.naturalHeight || !canvas || !metadata) return;
   const frame = Math.max(0, Math.min(config.frameCount - 1, Math.floor(frameIndex)));
-  const column = frame % config.columns;
-  const row = Math.floor(frame / config.columns);
-  const width = Math.max(1, Math.round(frameWidth));
-  const height = Math.max(1, Math.round(frameHeight));
+  const bounds = metadata.frameBounds[frame];
+  const scale = metadata.normalizedHeight / Math.max(bounds.height, 1);
+  const width = metadata.normalizedWidth;
+  const height = metadata.normalizedHeight;
   if (canvas.width !== width) canvas.width = width;
   if (canvas.height !== height) canvas.height = height;
   const context = canvas.getContext("2d");
   if (!context) return;
   context.clearRect(0, 0, width, height);
   context.imageSmoothingEnabled = true;
-  context.drawImage(image, column * frameWidth, row * frameHeight, frameWidth, frameHeight, 0, 0, width, height);
-  root.style.setProperty("--character-frame-aspect", `${frameWidth} / ${frameHeight}`);
+  const column = frame % config.columns;
+  const row = Math.floor(frame / config.columns);
+  const destinationWidth = bounds.width * scale;
+  const destinationHeight = bounds.height * scale;
+  const sourceX = column * metadata.frameWidth + bounds.x;
+  const sourceY = row * metadata.frameHeight + bounds.y;
+  context.drawImage(image, sourceX, sourceY, bounds.width, bounds.height, (width - destinationWidth) / 2, height - destinationHeight, destinationWidth, destinationHeight);
+  root.style.setProperty("--character-frame-aspect", `${width} / ${height}`);
   root.classList.add("is-ready");
   root.classList.remove("asset-load-failed");
   characterSpriteFallback(root, false);
@@ -127,18 +180,26 @@ function initializeCharacterSprite(root) {
   const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
   root._characterDefinition = definition;
   const config = characterVisualConfig(definition, root.dataset.characterRequestedSlot || "idle", { loop: root.dataset.characterLoop !== "false" });
-  root.style.setProperty("--character-visual-scale", String(config.visualScale));
+  root.style.setProperty("--character-visual-scale", String(config.finalScale));
   root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   if (!image || !canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
     root.classList.remove("is-ready");
     characterSpriteFallback(root, true);
     return;
   }
-  const instance = { root, image, canvas, config, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
+  const metadata = characterSpriteMetadata(image, config);
+  const instance = { root, image, canvas, config, metadata, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
   root._characterSpriteInstance = instance;
   characterSpriteInstances.add(instance);
   if (image.complete && image.naturalWidth) drawCharacterSprite(instance, 0);
   if (config.frameCount > 1 && config.fps > 0 && !instance.paused) scheduleCharacterSpriteAnimation();
+}
+
+function initializeCharacterSprites(root = document) {
+  const elements = root?.matches?.("[data-character-sprite]")
+    ? [root]
+    : [...(root?.querySelectorAll?.("[data-character-sprite]") || [])];
+  elements.forEach((element) => initializeCharacterSprite(element));
 }
 
 function handleCharacterSpriteImageError(image) {
@@ -178,7 +239,10 @@ function setCharacterVisualState(element, requestedSlot = "idle", options = {}) 
     if (image) {
       image.dataset.assetId = config.assetId || "";
       image.src = config.assetId ? AssetCatalog.imagePath(config.assetId) : "";
-      if (config.assetId) return;
+      if (config.assetId) {
+        if (image.complete && image.naturalWidth) initializeCharacterSprite(root);
+        return;
+      }
     }
   }
   if (assetChanged || stateChanged || !root._characterSpriteInstance) initializeCharacterSprite(root);

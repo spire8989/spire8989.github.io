@@ -1982,7 +1982,7 @@ function renderCombatVisual(combatant, fallback, alt) {
     "combat",
     fallback,
     alt,
-    { className: "combat-visual" },
+    { className: "combat-visual", mirror: combatant?.side === "enemy" },
   );
 }
 
@@ -3659,6 +3659,7 @@ function renderExpedition() {
         .filter((child) => child !== existingTravelScene)
         .forEach((child) => child.remove());
       expeditionScreen.insertAdjacentHTML("beforeend", expeditionPanelMarkup);
+      initializeCharacterSprites(expeditionScreen);
       applyEncounterPartyLayout(activeEncounter, expedition.activeEncounter);
       game.travelVisualState = null;
       updateTravelHud();
@@ -3680,6 +3681,7 @@ function renderExpedition() {
       </div>
       ${expeditionPanelMarkup}
     </section>`;
+  initializeCharacterSprites(ui.screenRoot);
   applyTravelVisualSnapshot(travelVisualSnapshot);
   updateTravelHud();
 }
@@ -4079,6 +4081,7 @@ function renderCombat(expedition, combat) {
         </div>
       </div>
     </section>`;
+  initializeCharacterSprites(ui.screenRoot);
   updateCombatHud();
 }
 
