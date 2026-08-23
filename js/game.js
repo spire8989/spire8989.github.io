@@ -3673,6 +3673,8 @@ function startExpedition() {
     expeditionId: game.player.selectedExpeditionId,
     packedMaterials: game.player.packedMaterials,
   });
+  preloadCharacterVisuals(PLAYER_CHARACTER_DEFINITION);
+  selectedCompanions.forEach((companionId) => preloadCharacterVisuals(COMPANION_DEFINITIONS[companionId]));
   savePlayer();
   showScreen("expedition");
 }
@@ -4788,6 +4790,12 @@ function startCombat(expedition, combatId, options = {}) {
     return false;
   }
   expedition.combat = combat;
+  [...combat.allies, ...combat.enemies].forEach((combatant) => {
+    preloadCharacterVisuals(
+      characterDefinitionForCombatant(combatant),
+      combatant.side === "enemy" ? ["idle", "attack"] : CHARACTER_VISUAL_SLOTS,
+    );
+  });
   AudioManager.playSemantic("encounter");
   return true;
 }

@@ -6,6 +6,7 @@
 const CHARACTER_VISUAL_SLOTS = Object.freeze(["idle", "walk", "attack"]);
 const CHARACTER_VISUAL_DEFAULT_FPS = Object.freeze({ idle: 6, walk: 10, attack: 12 });
 const characterSpriteInstances = new Set();
+const characterVisualImageCache = new Map();
 const characterSpriteMetadataCache = new Map();
 const characterSpriteMetadataPromises = new Map();
 const characterSpriteNormalizationCache = new Map();
@@ -23,6 +24,63 @@ function characterVisualAssetIsUsable(assetId) {
 function characterVisualSlotIsUsable(definition, slot) {
   const visual = characterVisualDefinition(definition)?.[slot];
   return Boolean(visual && typeof visual === "object" && characterVisualAssetIsUsable(visual.assetId));
+}
+
+function loadCharacterVisualImage(assetId) {
+  const assetPath = characterVisualAssetIsUsable(assetId) ? AssetCatalog.imagePath(assetId) : null;
+  if (!assetPath) return Promise.resolve(null);
+  const cached = characterVisualImageCache.get(assetId);
+  if (cached) return cached.promise;
+
+  const image = new Image();
+  const record = { image, loaded: false, failed: false, promise: null };
+  record.promise = new Promise((resolve) => {
+    image.onload = async () => {
+      if (typeof image.decode === "function") {
+        try {
+          await image.decode();
+        } catch (error) {
+          // The loaded image is still drawable when decode is unavailable or
+          // rejects after the browser has completed the resource load.
+        }
+      }
+      record.loaded = Boolean(image.naturalWidth && image.naturalHeight);
+      record.failed = !record.loaded;
+      resolve(record.loaded ? image : null);
+    };
+    image.onerror = () => {
+      record.failed = true;
+      resolve(null);
+    };
+    image.src = assetPath;
+  });
+  characterVisualImageCache.set(assetId, record);
+  return record.promise;
+}
+
+function preloadCharacterVisualSlot(definition, slot) {
+  const visual = characterVisualDefinition(definition)?.[slot];
+  if (!visual || typeof visual !== "object" || !characterVisualAssetIsUsable(visual.assetId)) {
+    return Promise.resolve(null);
+  }
+  const config = characterVisualConfig(definition, slot);
+  return loadCharacterVisualImage(config.assetId).then((image) => {
+    if (!image) return null;
+    let metadata;
+    try {
+      metadata = characterSpriteMetadata(image, config, definition);
+    } catch (error) {
+      return null;
+    }
+    return characterSpriteNormalization(definition, config, metadata)
+      .then((automaticSlotNormalization) => ({ image, metadata, automaticSlotNormalization }));
+  });
+}
+
+function preloadCharacterVisuals(definition, slots = CHARACTER_VISUAL_SLOTS) {
+  if (!definition) return Promise.resolve([]);
+  return Promise.all([...new Set(slots)].map((slot) => preloadCharacterVisualSlot(definition, slot)))
+    .catch(() => []);
 }
 
 function characterVisualCandidates(definition, requestedSlot = "idle") {
@@ -229,17 +287,13 @@ function loadCharacterSpriteMetadata(definition, config, image = null) {
     return Promise.resolve(characterSpriteMetadata(image, config, definition));
   }
   if (characterSpriteMetadataPromises.has(key)) return characterSpriteMetadataPromises.get(key);
-  const promise = new Promise((resolve) => {
-    const source = new Image();
-    source.onload = () => {
-      try {
-        resolve(characterSpriteMetadata(source, config, definition));
-      } catch (error) {
-        resolve(null);
-      }
-    };
-    source.onerror = () => resolve(null);
-    source.src = AssetCatalog.imagePath(config.assetId) || "";
+  const promise = loadCharacterVisualImage(config.assetId).then((cachedImage) => {
+    if (!cachedImage) return null;
+    try {
+      return characterSpriteMetadata(cachedImage, config, definition);
+    } catch (error) {
+      return null;
+    }
   }).finally(() => characterSpriteMetadataPromises.delete(key));
   characterSpriteMetadataPromises.set(key, promise);
   return promise;
@@ -284,6 +338,7 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   root.classList.add("is-ready");
   root.classList.remove("asset-load-failed");
   characterSpriteFallback(root, false);
+  root._characterSpriteHasRendered = true;
   instance.frameIndex = frame;
 }
 
@@ -336,34 +391,42 @@ function tickCharacterSprites(timestamp) {
   if (hasAnimation) scheduleCharacterSpriteAnimation();
 }
 
-function initializeCharacterSprite(root) {
-  if (!root) return;
-  const image = root.querySelector(".character-sprite-source");
+function characterSpriteStateKey(root, config) {
+  return `${config.assetId}|${config.frameCount}|${config.columns}|${root.dataset.characterRequestedSlot}|${root.dataset.characterLoop}|${root.dataset.characterMirror}`;
+}
+
+function finishCharacterSpriteTransitionFailure(root, stateKey) {
+  if (!root?.isConnected || root._characterSpritePendingKey !== stateKey) return;
+  root._characterSpritePendingKey = null;
+  root._characterSpriteRestartRequested = false;
+  const completion = root._characterSpriteCompletion;
+  root._characterSpriteCompletion = null;
+  if (!root._characterSpriteInstance && !root._characterSpriteHasRendered) {
+    root.classList.remove("is-ready");
+    root.classList.add("asset-load-failed");
+    characterSpriteFallback(root, true);
+  }
+  if (typeof completion?.onComplete === "function") completion.onComplete({ version: completion.version });
+}
+
+function activateCharacterSprite(root, image, definition, requestedSlot, config, stateKey) {
+  if (!root?.isConnected || root._characterSpritePendingKey !== stateKey) return;
   const canvas = root.querySelector(".character-sprite-canvas");
-  const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
-  root._characterDefinition = definition;
-  const requestedSlot = root.dataset.characterRequestedSlot || "idle";
-  const config = characterVisualConfig(definition, requestedSlot, { loop: root.dataset.characterLoop !== "false" });
+  if (!canvas || !image?.naturalWidth || !image?.naturalHeight) {
+    finishCharacterSpriteTransitionFailure(root, stateKey);
+    return;
+  }
   const isCombat = root.dataset.characterContext === "combat";
   const contextScale = isCombat ? 1 : characterVisualContextScale(root.dataset.characterContext, requestedSlot, root.dataset.characterContextScale);
-  root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
-  if (!image || !canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
-    root.classList.remove("is-ready");
-    characterSpriteFallback(root, true);
+  let metadata;
+  try {
+    metadata = characterSpriteMetadata(image, config, definition);
+  } catch (error) {
+    finishCharacterSpriteTransitionFailure(root, stateKey);
     return;
   }
-  if (!image.naturalWidth || !image.naturalHeight) {
-    root.classList.remove("is-ready");
-    characterSpriteFallback(root, true);
-    return;
-  }
-  const stateKey = `${config.assetId}|${config.frameCount}|${config.columns}|${root.dataset.characterRequestedSlot}|${root.dataset.characterLoop}|${root.dataset.characterMirror}`;
-  if (root._characterSpriteInstance?.stateKey === stateKey && root._characterSpriteInstance.image === image) return;
-  if (root._characterSpritePendingKey === stateKey) return;
-  stopCharacterSpriteInstance(root);
-  root._characterSpritePendingKey = stateKey;
-  const metadata = characterSpriteMetadata(image, config, definition);
   const completion = root._characterSpriteCompletion;
+  stopCharacterSpriteInstance(root);
   const instance = {
     root, image, canvas, config, metadata, automaticSlotNormalization: 1, stateKey, frameIndex: 0,
     startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false,
@@ -372,6 +435,8 @@ function initializeCharacterSprite(root) {
   };
   root._characterSpriteCompletion = null;
   root._characterSpritePendingKey = null;
+  root._characterSpriteRestartRequested = false;
+  root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   const combatScale = characterVisualCombatScale(definition, requestedSlot, config);
   root.style.setProperty("--character-visual-scale", String(isCombat ? combatScale : config.visualScale * config.slotScale * contextScale));
   syncCombatVisualLayout(root);
@@ -394,6 +459,39 @@ function initializeCharacterSprite(root) {
   });
 }
 
+function initializeCharacterSprite(root) {
+  if (!root) return;
+  const canvas = root.querySelector(".character-sprite-canvas");
+  const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
+  root._characterDefinition = definition;
+  const requestedSlot = root.dataset.characterRequestedSlot || "idle";
+  const config = characterVisualConfig(definition, requestedSlot, { loop: root.dataset.characterLoop !== "false" });
+  if (!canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
+    if (!root._characterSpriteInstance && !root._characterSpriteHasRendered) {
+      root.classList.remove("is-ready");
+      characterSpriteFallback(root, true);
+    }
+    return;
+  }
+  const stateKey = characterSpriteStateKey(root, config);
+  const cached = characterVisualImageCache.get(config.assetId);
+  if (!root._characterSpriteRestartRequested
+    && root._characterSpriteInstance?.stateKey === stateKey
+    && cached?.loaded
+    && root._characterSpriteInstance.image === cached.image) return;
+  if (root._characterSpritePendingKey === stateKey) return;
+  root._characterSpritePendingKey = stateKey;
+  preloadCharacterVisuals(definition);
+  loadCharacterVisualImage(config.assetId).then((image) => {
+    if (!root.isConnected || root._characterSpritePendingKey !== stateKey) return;
+    if (!image) {
+      finishCharacterSpriteTransitionFailure(root, stateKey);
+      return;
+    }
+    activateCharacterSprite(root, image, definition, requestedSlot, config, stateKey);
+  });
+}
+
 function initializeCharacterSprites(root = document) {
   const elements = root?.matches?.("[data-character-sprite]")
     ? [root]
@@ -404,7 +502,7 @@ function initializeCharacterSprites(root = document) {
 function handleCharacterSpriteImageError(image) {
   const root = image?.closest("[data-character-sprite]");
   if (!root) return;
-  stopCharacterSpriteInstance(root);
+  if (root._characterSpriteInstance || root._characterSpriteHasRendered) return;
   root.classList.remove("is-ready");
   root.classList.add("asset-load-failed");
   characterSpriteFallback(root, true);
@@ -430,24 +528,10 @@ function setCharacterVisualState(element, requestedSlot = "idle", options = {}) 
   root._characterSpriteCompletion = options.loop === false && (typeof options.onImpact === "function" || typeof options.onComplete === "function")
     ? { version: options.animationVersion ?? null, impactFrame: options.impactFrame, onImpact: options.onImpact, onComplete: options.onComplete }
     : null;
+  root._characterSpriteRestartRequested = options.restart === true;
   const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
   root._characterDefinition = definition;
-  const config = characterVisualConfig(definition, requestedSlot, options);
-  const image = root.querySelector(".character-sprite-source");
-  const assetChanged = !image || image.dataset.assetId !== (config.assetId || "");
-  if (assetChanged) {
-    stopCharacterSpriteInstance(root);
-    root.classList.remove("is-ready", "asset-load-failed");
-    characterSpriteFallback(root, true);
-    if (image) {
-      image.dataset.assetId = config.assetId || "";
-      image.src = config.assetId ? AssetCatalog.imagePath(config.assetId) : "";
-      if (config.assetId) {
-        return;
-      }
-    }
-  }
-  if (assetChanged || stateChanged || !root._characterSpriteInstance) initializeCharacterSprite(root);
+  if (stateChanged || !root._characterSpriteInstance) initializeCharacterSprite(root);
   else if (root._characterSpriteCompletion) {
     root._characterSpriteInstance.onImpact = root._characterSpriteCompletion.onImpact ?? null;
     root._characterSpriteInstance.impactFired = false;
@@ -493,6 +577,7 @@ function playCharacterVisualAction(element, requestedSlot = "attack", options = 
 
 function renderCharacterSprite(definition, requestedSlot = "idle", context = "combat", fallback = "", alt = "", options = {}) {
   const config = characterVisualConfig(definition, requestedSlot, options);
+  preloadCharacterVisuals(definition);
   const assetPath = config.assetId ? AssetCatalog.imagePath(config.assetId) : null;
   const definitionId = definition?.id || "character";
   const className = options.className || "";

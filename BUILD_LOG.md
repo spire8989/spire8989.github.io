@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Character Sprite Transition Cache / No-Pop Pass
+
+### Goal
+
+Eliminate visible sprite flashes during Walk ↔ Idle and Idle ↔ Attack transitions without changing authored presentation, combat choreography, layout, normalization, or gameplay.
+
+### Human prompt and direction
+
+The human developer supplied the Character Sprite Transition Cache / No-Pop guide: retain the current valid canvas during slot changes; share decoded images by asset ID; preload relevant party and combat slots plus metadata; keep the hidden source image out of transition ownership; preserve callback/version, mirror, scale, frame, FPS, offset, and normalization behavior; and verify repeated transitions under normal and throttled conditions.
+
+### AI-assisted implementation
+
+- Added a shared asset-ID image cache that reuses one decoded `Image` and one metadata/normalization path for authored Idle, Walk, and Attack slots. Relevant party visuals begin preloading at expedition start/render, and combat party/enemy visuals begin preloading when combat is created.
+- Refactored state changes to keep the same `.character-sprite` and canvas mounted. The prior valid frame remains ready while the requested cached image resolves; the new image draws frame 0 before the transition is considered active. Failed optional transitions retain valid prior art and only use fallback on initial/final asset failure.
+- Preserved Combat Presentation Pass 1 callbacks, impact timing, action version safety, authored scale/normalization, mirroring, offsets, frame counts, FPS, travel/combat layout, and gameplay systems.
+
+### Verification and resulting prototype state
+
+Normal cache/no-pop browser smoke, cached combat presentation smoke, and throttled uncached transition smoke passed with no console errors. Combat (34 assertions), deterministic simulation (62 assertions), campaign/health (99 assertions), and `git diff --check` passed. No GrailTools changes were needed; no authored data values were changed.
+
 ## 2026-08-23 - Combat Presentation Pass 1
 
 ### Goal
