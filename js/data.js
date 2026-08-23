@@ -921,10 +921,20 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   id: "arthur",
   name: "Arthur",
   portraitAssetId: null,
-  combatVisualAssetId: null,
+  combatVisualAssetId: "combat_arthur_idle_basesprite",
   provisionCapacity: 20,
   provisionConsumptionMultiplier: 1,
   combat: Object.freeze({ maxHp: 45, speed: 10 }),
+  visuals: {
+    idle: {
+      assetId: "combat_arthur_idle_basesprite"
+    },
+    walk: {
+      assetId: "combat_arthur_walk_basesprite_walk2",
+      frameCount: 14,
+      columns: 4
+    }
+  }
 });
 
 const COMPANION_DEFINITIONS = Object.freeze({

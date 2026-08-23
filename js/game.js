@@ -1975,8 +1975,15 @@ function renderPortraitAsset(assetId, initials, alt) {
   return `${renderImageAsset(assetId, "dialogue-portrait-image", alt)}<span class="portrait-fallback${fallbackVisibility}">${initials}</span>`;
 }
 
-function renderCombatVisual(assetId, fallback, alt) {
-  return `${renderImageAsset(assetId, "combat-visual-image", alt)}<span class="combat-visual-fallback">${fallback}</span>`;
+function renderCombatVisual(combatant, fallback, alt) {
+  return renderCharacterSprite(
+    characterDefinitionForCombatant(combatant),
+    "idle",
+    "combat",
+    fallback,
+    alt,
+    { className: "combat-visual" },
+  );
 }
 
 function expeditionDefinition(expedition) {
@@ -3563,10 +3570,22 @@ function renderEncounterTravelers(companions, encounter, activeEncounter = null)
     const slot = `companion${index + 1}`;
     const marker = companion.type === "mount" ? "&#x265e;" : "&#x265c;";
     const hidden = visualState.hiddenSlots.has(slot) ? " hidden" : "";
-    return `<span class="companion companion-${companion.type}"${hidden}${encounterPartyLayoutAttributes(visualState, slot)}>${marker}</span>`;
+    return `<span class="companion companion-${companion.type}"${hidden}${encounterPartyLayoutAttributes(visualState, slot)}>${renderCharacterSprite(companion, "idle", "travel", marker, companion.name, { className: "traveler-character" })}</span>`;
   }).join("");
   const arthurHidden = visualState.hiddenSlots.has("arthur") ? " hidden" : "";
-  return `<div class="travelers${encounter ? " is-encounter-layout" : ""}" id="travelers" aria-hidden="true"><span class="arthur"${arthurHidden}${encounterPartyLayoutAttributes(visualState, "arthur")}>&#x265e;</span>${companionsMarkup}</div>`;
+  return `<div class="travelers${encounter ? " is-encounter-layout" : ""}" id="travelers" aria-hidden="true"><span class="arthur"${arthurHidden}${encounterPartyLayoutAttributes(visualState, "arthur")}>${renderCharacterSprite(PLAYER_CHARACTER_DEFINITION, "idle", "travel", "&#x265e;", PLAYER_CHARACTER_DEFINITION.name, { className: "traveler-character" })}</span>${companionsMarkup}</div>`;
+}
+
+function syncTravelerCharacterVisuals(expedition, activeEncounter = null) {
+  const travelers = document.querySelector("#travelers");
+  if (!travelers || !expedition) return;
+  const moving = !activeEncounter && expedition.travelState === "traveling";
+  const requestedSlot = moving ? "walk" : "idle";
+  const mirrorInPlace = travelers.classList.contains("is-encounter-layout") && expedition.direction === "returning";
+  setCharacterVisualState(travelers.querySelector(".arthur"), requestedSlot, { loop: true, mirror: mirrorInPlace });
+  travelers.querySelectorAll(".companion").forEach((element) => {
+    setCharacterVisualState(element, requestedSlot, { loop: true, mirror: mirrorInPlace });
+  });
 }
 
 function applyEncounterPartyLayout(encounter, activeEncounter = null) {
@@ -4097,7 +4116,7 @@ function renderCombatant(combatant, combat) {
         <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
         ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
       </div>
-      <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant.visualAssetId, combatFallbackVisual(combatant), combatant.name)}</div>
+      <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant, combatFallbackVisual(combatant), combatant.name)}</div>
       <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
     </${tag}>`;
@@ -4998,6 +5017,7 @@ function updateTravelHud() {
   travelers?.classList.toggle("is-returning", returning);
   travelers?.classList.toggle("is-paused", Boolean(activeEncounter) || expedition.travelState !== "traveling");
   travelers?.classList.toggle("is-moving", isMoving);
+  syncTravelerCharacterVisuals(expedition, activeEncounter);
   if (returnButton) {
     returnButton.disabled = returning;
     returnButton.textContent = "Return";

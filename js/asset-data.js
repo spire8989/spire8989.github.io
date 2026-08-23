@@ -164,6 +164,16 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "combat_scene_old_forest_road_combat",
     path: "assets/images/combat_scene/old_forest_combat.webp",
     category: "combat_scene"
+  },
+  combat_arthur_idle_basesprite: {
+    id: "combat_arthur_idle_basesprite",
+    path: "assets/images/combat/basesprite.webp",
+    category: "combat"
+  },
+  combat_arthur_walk_basesprite_walk2: {
+    id: "combat_arthur_walk_basesprite_walk2",
+    path: "assets/images/combat/BaseSprite-Walk2.png",
+    category: "combat"
   }
 });
 

@@ -3954,3 +3954,29 @@ Correct Content Editor validation for the overloaded `combatVisualAssetId` field
 ### Verification and resulting prototype state
 
 Focused character and combat-background editor tests passed 2/2, including the Old Forest Road regression case. No game runtime or combat-background resolver files were changed.
+
+## 2026-08-22 - Character Pass 2 Runtime Visuals
+
+### Goal
+
+Make the optional Character Pass 1 visual slots work in the game and in GrailTools while preserving combat, travel, progression, simulation, and replay behavior.
+
+### Human prompt and direction
+
+The human developer supplied the Character Pass 2 guide and requested coordinated Game/Tools work: shared sprite-sheet playback, optional visual scale, authored import handling, travel/combat fallback states, reduced-motion support, and focused verification. Attack playback was prepared but not triggered; no Combat Pass 2 FX or choreography was added.
+
+### AI-assisted implementation
+
+- Replaced the data-only character visual helper with one shared canvas renderer for static and multi-row sprite-sheet assets. It derives rows from frame count and columns, plays left-to-right/top-to-bottom, applies authored FPS defaults, respects `prefers-reduced-motion`, cleans disconnected instances, and falls back through the requested slot, idle, static combat visual, and placeholder.
+- Wired travel travelers to Walk while moving and Idle while paused/camped, including returning-direction mirroring. Wired combatants to Idle while preserving HUD, selection, hit presentation, and combat simulation behavior.
+- Added optional `visualScale` editing/validation for player, companions, and enemies, plus the authored Arthur Idle/Walk assets and 14-frame, four-column Walk sheet already present in the project.
+- Added the Content Editor Character Visuals preview with animated Play/Pause controls and compact frame/columns/FPS fields. Character uploads select a transparent full-sheet Sprite Sheet profile; static character combat visuals remain on the Combat Cutout profile.
+- Added Sprite Sheet image processing with alpha preservation and no scene/travel/portrait/combat crop, plus round-trip and validation coverage.
+
+### Manual changes
+
+The human developer supplied the Character Pass 2 guide and authorized adding and committing the finished files in both repositories. No combat mechanics, progression rules, encounter resolution, inventories, simulation, or replay behavior were changed.
+
+### Verification and resulting prototype state
+
+The focused Content Editor character metadata tests and sprite-sheet pipeline test passed, the complete asset pipeline suite passed 19/19, and the debug browser suite passed 27 assertions including multi-row canvas slicing, state switching, authored Old Forest Road combat background resolution, and combat character rendering. The broader Content Editor suite retains one pre-existing encounter-layout coordinate fixture mismatch; the broader location browser suite stops on its pre-existing village hotspot fixture mismatch. `git diff --check` passed. Character art now uses authored runtime assets where assigned and graceful existing fallbacks everywhere else.

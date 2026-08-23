@@ -2125,6 +2125,69 @@ button:active:not(:disabled) {
   opacity: 0.9;
 }
 
+.character-sprite {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  transform: scale(var(--character-visual-scale, 1));
+  transform-origin: center bottom;
+}
+
+.character-sprite-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.character-sprite-source {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.character-sprite:not(.is-ready) .character-sprite-canvas {
+  visibility: hidden;
+}
+
+.character-sprite.is-ready .character-sprite-fallback {
+  visibility: hidden;
+}
+
+.character-sprite-fallback {
+  display: grid;
+  position: absolute;
+  inset: 0;
+  place-items: center;
+  line-height: 1;
+}
+
+.travelers .traveler-character {
+  width: 1em;
+  height: 1em;
+}
+
+.travelers .traveler-character .character-sprite-fallback {
+  font-size: 1em;
+}
+
+.travelers .companion .traveler-character {
+  transform: scale(calc(0.82 * var(--character-visual-scale, 1)));
+}
+
+.travelers.is-encounter-layout.is-returning > span .character-sprite {
+  transform: scaleX(-1) scale(var(--character-visual-scale, 1));
+}
+
+.travelers.is-encounter-layout.is-returning > span.companion .character-sprite {
+  transform: scaleX(-1) scale(calc(0.82 * var(--character-visual-scale, 1)));
+}
+
 .direction-banner {
   position: absolute;
   z-index: 5;
@@ -3262,8 +3325,9 @@ button.combatant {
   place-items: center;
   align-self: center;
   justify-self: center;
-  width: clamp(2.15rem, 11cqw, 3.5rem);
-  min-height: clamp(1.4rem, 5.2cqw, 2.5rem);
+  width: clamp(3rem, 17cqw, 5rem);
+  height: clamp(3rem, 15cqw, 5rem);
+  min-height: clamp(3rem, 15cqw, 5rem);
   margin: 0.02rem auto;
   transform: scale(1.2);
   transition: filter 120ms ease, transform 120ms ease;
@@ -3284,6 +3348,12 @@ button.combatant {
 }
 
 .combatant.enemy .combat-unit-visual { transform: scale(1.2) scaleX(-1); }
+
+.combat-formation.formation-count-3 .combat-unit-visual {
+  width: clamp(2.55rem, 14cqw, 4.2rem);
+  height: clamp(2.65rem, 12.5cqw, 4.45rem);
+  min-height: clamp(2.65rem, 12.5cqw, 4.45rem);
+}
 
 .combat-visual-image {
   position: absolute;
