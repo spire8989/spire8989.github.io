@@ -3911,3 +3911,30 @@ foreground landmarks without replacing the existing Travel Transition system.
 Verified focused seam-asset/editor coverage and the browser travel transition
 checks, including reverse travel and missing-asset fallback. `Tools/` remains
 unchanged by the runtime seam work.
+
+## 2026-08-22 - Character Pass 1
+
+### Goal
+
+Establish an editable, shared character-visual foundation across Arthur, companions, and enemies without changing combat, travel, progression, or runtime animation behavior.
+
+### Human prompt and direction
+
+The human developer supplied the Character Pass 1 guide for the Grail game and GrailTools repositories. The pass required separate player/companion/enemy definitions, optional Idle/Walk/Attack visual metadata, first-class companion editing, safe references, and preservation of existing static visual fallbacks.
+
+### AI-assisted implementation
+
+- Added `js/character-visuals.js` with the shared optional data-only visual-slot shape and a static asset resolver that preserves combat visual and placeholder fallbacks.
+- Wired Arthur, companions, and enemies through the resolver without adding playback, sprite-sheet processing, CSS animation, or combat-mechanics changes.
+- Added Player Character singleton and Companions categories to GrailTools, including Arthur stats, companion CRUD, current combat/provision fields, portrait/static combat visuals, and optional Idle/Walk/Attack selectors with frame metadata.
+- Extended the enemy editor with the same Character Visuals section and preserved its existing identity, combat, action-pattern, trait, and static visual fields.
+- Added source-aware validation for optional character visuals, image asset existence/category compatibility, malformed metadata, null slots, companion references, and singleton/player saves. Added `assetId` reverse-reference handling for future visual slots.
+- Updated GrailTools documentation and focused regression coverage for player singleton saves, companion edits/reference blocking, and character visual validation.
+
+### Manual changes
+
+The human developer supplied the character-pass guide and authorized adding and committing the finished files in both repositories. No new bitmap assets or gameplay definitions were invented; authored visual slots remain optional.
+
+### Verification and resulting prototype state
+
+The focused character editor tests passed 3/3, the real catalog load passed, Python source compilation passed, and `git diff --check` passed in both repositories. The broader editor/browser suite remains limited by the existing encounter-layout fixture failure and a later browser test timeout in this environment; those unrelated limitations are retained for handoff. No combat simulation or replay behavior was changed.

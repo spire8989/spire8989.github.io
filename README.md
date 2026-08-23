@@ -46,6 +46,7 @@ runs directly from a local HTTP server.
 - `index.html` defines the game page, persistent header, screen container, and script loading order. Think of it as the initial level/UI hierarchy.
 - `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, input feedback, and the reusable `--interaction-visual-aspect` value for 16:9 active visual frames.
 - `js/data.js` contains data-driven item, knowledge, companion, and placeholder chapter definitions with stable string IDs, including equipment-granted abilities and combat item effects.
+- `js/character-visuals.js` defines the shared optional data-only Idle/Walk/Attack visual-slot shape for Arthur, companions, and enemies; Character Pass 1 preserves existing static visuals and does not add playback.
 - `js/asset-data.js` is the centralized image/audio asset catalog; `js/audio.js` is the runtime audio manager with persisted settings and semantic hooks.
 - `js/crafting-data.js` defines rarity metadata, the separate material catalog, crafting providers, and recipes; `js/crafting-rules.js` owns generic quote and atomic craft mutations.
 - `js/loot-data.js` defines reusable/nested weighted loot tables and expedition-return tiers; `js/loot-rules.js` owns eligibility, cycle/depth protection, deterministic resolution, reward staging, and debug traces.
