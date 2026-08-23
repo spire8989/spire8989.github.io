@@ -927,7 +927,9 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   combat: Object.freeze({ maxHp: 45, speed: 10 }),
   visuals: {
     idle: {
-      assetId: "combat_arthur_idle_basesprite"
+      assetId: "combat_arthur_basesprite_idle_anim",
+      frameCount: 19,
+      columns: 5
     },
     walk: {
       assetId: "combat_arthur_walk_basesprite_walk2",

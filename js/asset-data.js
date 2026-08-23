@@ -174,6 +174,11 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "combat_arthur_walk_basesprite_walk2",
     path: "assets/images/combat/BaseSprite-Walk2.png",
     category: "combat"
+  },
+  combat_arthur_basesprite_idle_anim: {
+    id: "combat_arthur_basesprite_idle_anim",
+    path: "assets/images/combat/basesprite-idle.webp",
+    category: "combat"
   }
 });
 
