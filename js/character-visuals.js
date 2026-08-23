@@ -186,7 +186,7 @@ function characterVisualReferenceSlot(definition) {
 }
 
 function characterSpriteMetadataKey(definition, config) {
-  return `${definition?.id || "character"}|${config.assetId}|${config.frameCount}|${config.columns}`;
+  return `${definition?.id || "character"}|${config.assetId}|${config.frameCount}|${config.columns}|offset:${config.offsetX},${config.offsetY}`;
 }
 
 function characterSpriteFallback(root, visible = true) {
@@ -255,12 +255,27 @@ function characterSpriteMetadata(image, config, definition) {
       addFrame({ left, top, right, bottom }, { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) });
     }
   }
-  const maximumVisibleHeight = Math.max(...frameBounds.map((bounds) => bounds.height), 1);
-  const maximumVisibleWidth = Math.max(...frameBounds.map((bounds) => bounds.width), 1);
   const commonBottomGap = opaqueOffsets.length ? Math.min(...opaqueOffsets.map((offset) => offset.bottom)) : 0;
-  // The maximum opaque bounds define the logical animation box. Keep one
-  // natural render scale for every frame; never rescale the current pose.
+  // Keep one natural render scale for every frame; never rescale the current
+  // pose. The canvas itself is the union of all anchored frame extents.
   const sharedScale = 1;
+  const anchoredFrameExtents = frameBounds.map((bounds, frame) => {
+    const opaqueOffset = opaqueOffsets[frame];
+    const destinationWidth = bounds.width * sharedScale;
+    const destinationHeight = bounds.height * sharedScale;
+    const left = opaqueOffset.centerX * sharedScale - destinationWidth / 2 + config.offsetX;
+    const bottom = -(opaqueOffset.bottom - commonBottomGap) * sharedScale + config.offsetY;
+    return {
+      left,
+      top: bottom - destinationHeight,
+      right: left + destinationWidth,
+      bottom,
+    };
+  });
+  const unionMinX = Math.min(...anchoredFrameExtents.map((extent) => extent.left));
+  const unionMinY = Math.min(...anchoredFrameExtents.map((extent) => extent.top));
+  const unionMaxX = Math.max(...anchoredFrameExtents.map((extent) => extent.right));
+  const unionMaxY = Math.max(...anchoredFrameExtents.map((extent) => extent.bottom));
   const metadata = {
     width: image.naturalWidth,
     height: image.naturalHeight,
@@ -272,8 +287,13 @@ function characterSpriteMetadata(image, config, definition) {
       : { x: 0, y: 0 },
     commonBottomGap,
     sharedScale,
-    normalizedWidth: Math.ceil(maximumVisibleWidth * sharedScale),
-    normalizedHeight: Math.ceil(maximumVisibleHeight * sharedScale),
+    anchoredFrameExtents,
+    unionMinX,
+    unionMinY,
+    unionMaxX,
+    unionMaxY,
+    normalizedWidth: Math.max(1, Math.ceil(unionMaxX - unionMinX)),
+    normalizedHeight: Math.max(1, Math.ceil(unionMaxY - unionMinY)),
   };
   characterSpriteMetadataCache.set(key, metadata);
   return metadata;
@@ -331,8 +351,10 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   const destinationHeight = bounds.height * scale;
   // Crop transparent pixels for efficiency, but place the opaque rectangle at
   // its original frame-cell anchor instead of recentering each silhouette.
-  const destinationX = width / 2 + opaqueOffset.centerX * scale - destinationWidth / 2 + config.offsetX;
-  const destinationY = height - (opaqueOffset.bottom - metadata.commonBottomGap) * scale - destinationHeight + config.offsetY;
+  const anchoredLeft = opaqueOffset.centerX * scale - destinationWidth / 2 + config.offsetX;
+  const anchoredBottom = -(opaqueOffset.bottom - metadata.commonBottomGap) * scale + config.offsetY;
+  const destinationX = anchoredLeft - metadata.unionMinX;
+  const destinationY = anchoredBottom - destinationHeight - metadata.unionMinY;
   context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, destinationX, destinationY, destinationWidth, destinationHeight);
   root.style.setProperty("--character-frame-aspect", `${width} / ${height}`);
   root.classList.add("is-ready");

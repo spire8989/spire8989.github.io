@@ -1736,7 +1736,7 @@ function preloadNextTravelScene(expedition) {
   preloadTravelAsset(nextScene?.travelParallaxAssetId);
 }
 
-function createTravelTrack(scene, art, expedition, presentation, activeEncounter = null, layer = "next") {
+function createTravelTrack(scene, art, expedition, presentation, activeEncounter = null, layer = "next", reusedImage = null) {
   const path = AssetCatalog.imagePath(presentation?.assetId);
   if (!path) return null;
   const next = document.createElement("div");
@@ -1750,7 +1750,7 @@ function createTravelTrack(scene, art, expedition, presentation, activeEncounter
   next.dataset.travelParallaxAssetId = presentation.travelParallaxAssetId ?? "";
   next.dataset.travelShowSeamBetweenLoops = presentation.showSeamForegroundBetweenLoops === false ? "false" : "true";
   if (layer === "next" && !activeEncounter) next.dataset.travelSeamForegroundForce = "true";
-  const image = document.createElement("img");
+  const image = reusedImage ?? document.createElement("img");
   image.className = `asset-image travel-visual-asset${layer === "current" && assetReady ? " is-visible" : ""}`;
   image.dataset.travelCopy = "primary";
   image.dataset.travelAssetId = presentation.assetId;
@@ -1760,7 +1760,8 @@ function createTravelTrack(scene, art, expedition, presentation, activeEncounter
   image.loading = "eager";
   image.decoding = "async";
   image.fetchPriority = "high";
-  image.src = path;
+  if (!reusedImage) image.src = path;
+  image.hidden = false;
   next.append(image);
   art.append(next);
   if (layer === "current") {
@@ -2074,59 +2075,86 @@ function syncTravelVisual(expedition, activeEncounter) {
   createTravelTrack(scene, art, expedition, { ...desiredPresentation, kind: desiredKind }, activeEncounter, "current");
 }
 
+function resetTravelPresentationForDirectionChange(scene, expedition, direction) {
+  const art = scene?.querySelector("#travel-art");
+  if (!scene || !art || !expedition) return;
+
+  // The distance is gameplay state. Everything else below is rebuilt from the
+  // authored scene at that distance instead of carrying visual transition
+  // state across the outbound/returning direction change.
+  const currentDistance = Math.max(0, Number(expedition.distance) || 0);
+  const resolvedPresentation = resolveTravelScene(expedition);
+  const oldTrack = currentTravelTrack();
+  const reusableImage = resolvedPresentation?.assetId
+    ? [...(oldTrack?.querySelectorAll(".travel-visual-asset[data-travel-asset-id]") ?? [])]
+      .find((image) => image.dataset.travelAssetId === resolvedPresentation.assetId)
+    : null;
+  reusableImage?.remove();
+
+  const state = travelScenePresentationFor(expedition);
+  if (state?.transition) clearTravelTransitionTimers(state.transition);
+  if (state) {
+    state.pending = null;
+    state.transition = null;
+    state.sceneAssetLoad = null;
+    state.failedAssetId = null;
+    state.activeTileDistance = currentDistance;
+    state.activeAnimationCycle = null;
+  }
+  game.travelVisualState = null;
+
+  art.querySelectorAll(".travel-visual-track").forEach((track) => {
+    removeTravelSeamForegroundLayer(track);
+    removeTravelParallaxLayer(track);
+    track._travelSeamForegroundLayer = null;
+    track._travelSeamForeground = null;
+    track._travelSeamForegrounds = null;
+    track.remove();
+  });
+  scene.querySelectorAll(".travel-seam-foreground-layer, .travel-seam-foreground-carry, .travel-parallax-layer")
+    .forEach((layer) => layer.remove());
+  document.querySelector("#travel-transition-art")?.classList.remove("is-active");
+
+  scene.classList.toggle("is-returning", direction === "returning");
+  scene.classList.remove("asset-image-active", "asset-load-failed", "has-travel-panorama");
+  scene.dataset.travelAssetId = "";
+  scene.dataset.travelMotion = "";
+  scene.dataset.travelAssetFailedId = "";
+  art.dataset.travelAssetId = "";
+  art.dataset.travelMotion = "";
+  art.dataset.travelAssetFailedId = "";
+
+  if (!resolvedPresentation?.assetId) return;
+  art.dataset.travelDesiredAssetId = resolvedPresentation.assetId;
+  art.dataset.travelDesiredMotion = normalizeTravelMotion(resolvedPresentation.motion);
+  scene.dataset.travelDesiredAssetId = resolvedPresentation.assetId;
+  scene.dataset.travelDesiredMotion = normalizeTravelMotion(resolvedPresentation.motion);
+  preloadTravelAsset(resolvedPresentation.assetId);
+  preloadTravelAsset(resolvedPresentation.travelParallaxAssetId);
+  setActiveTravelPresentation(expedition, resolvedPresentation);
+  const image = createTravelTrack(
+    scene,
+    art,
+    expedition,
+    resolvedPresentation,
+    null,
+    "current",
+    reusableImage,
+  );
+  if (reusableImage && image) {
+    image.classList.add("is-visible");
+    image.hidden = false;
+    image.closest(".travel-visual-track")?.classList.add("is-visible");
+    markTravelImageActive(scene, image);
+  }
+}
+
 function preserveTravelDirectionPosition(scene, returning) {
   const direction = returning ? "returning" : "outbound";
   const previousDirection = scene.dataset.travelDirection;
   scene.dataset.travelDirection = direction;
   if (!previousDirection || previousDirection === direction) return;
-  const state = travelScenePresentationFor(game.expedition);
-  const track = currentTravelTrack();
-  const previousDirectionExpedition = { direction: previousDirection };
-  const currentTile = travelActiveTile(track, previousDirectionExpedition);
-  const otherTile = travelUpcomingTile(track, previousDirectionExpedition);
-  if (state?.pending && currentTile && otherTile && currentTile.dataset.travelAssetId) {
-    setTravelTileImage(
-      otherTile,
-      currentTile,
-      currentTile.dataset.travelAssetId,
-      track.dataset.travelMotion,
-      otherTile.dataset.travelCopy,
-      currentTile.dataset.travelParallaxAssetId || track.dataset.travelParallaxAssetId || "",
-    );
-    syncTravelParallaxLayer(track);
-    state.pending = null;
-    delete track.dataset.travelSeamForegroundForce;
-    ensureTravelSeamForeground(
-      currentTile,
-      isTravelPanorama(currentTile),
-      travelMotionForImage(currentTile),
-      game.expedition,
-    );
-  }
-  if (state?.transition) {
-    clearTravelTransitionTimers(state.transition);
-    state.transition = null;
-    document.querySelector("#travel-transition-art")?.classList.remove("is-active");
-  }
-  scene.classList.toggle("is-returning", returning);
-  scene.querySelectorAll(".travel-visual-asset[data-travel-copy='primary']").forEach((image) => {
-    const animation = travelImageAnimation(image);
-    const duration = Number(animation?.effect?.getComputedTiming?.().duration);
-    const currentTime = Number(animation?.currentTime);
-    if (!animation || !Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return;
-    const phase = ((currentTime % duration) + duration) % duration;
-    const isFinishedPan = animation.animationName === "travel-panorama-pan" && currentTime >= duration;
-    const targetPhase = animation.animationName === "travel-panorama-loop"
-      ? phase === 0 ? duration : duration - phase
-      : isFinishedPan ? 0 : phase === 0 ? duration : duration - phase;
-    animation.currentTime = currentTime - phase + targetPhase;
-  });
-  if (state) {
-    state.activeTileDistance = Math.max(0, Number(game.expedition?.distance) || 0);
-    const activeTile = travelActiveTile(track, game.expedition);
-    const activeAnimation = travelImageAnimation(activeTile);
-    state.activeAnimationCycle = travelAnimationCycle(activeAnimation);
-  }
+  resetTravelPresentationForDirectionChange(scene, game.expedition, direction);
 }
 
 function renderPortraitAsset(assetId, initials, alt) {

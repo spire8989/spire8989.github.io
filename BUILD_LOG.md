@@ -1,5 +1,24 @@
 # Build Log
 
+## 2026-08-23 - Combat Sprite Canvas and Return Travel Stability Repair
+
+### Goal
+
+Repair attack-sheet clipping and make the outbound-to-returning travel presentation rebuild from one coherent visual track without changing gameplay state or authored presentation data.
+
+### Human prompt and direction
+
+The human developer supplied the focused Combat Sprite Canvas + Return Travel Stability guide: union all anchored attack-frame extents into each sprite canvas, preserve existing scale/normalization/layout and mirroring, and clear stale return transitions, tiles, parallax, seam carry, and snapshots before rebuilding the correct scene at the current distance.
+
+### AI-assisted implementation
+
+- Changed cached sprite metadata to calculate anchored union bounds across every frame, include authored offsets in those bounds, store origin compensation, and draw each cropped frame relative to the compensated union origin. The existing asset cache, frame counts, FPS, normalization, scale, and layout APIs remain intact.
+- Added a dedicated direction-change visual reset that preserves only the expedition distance, cancels stale transition/preload state, removes all old tracks and transient seam/parallax layers, clears the outbound visual snapshot, and creates exactly one current returning track. A loaded current image is reused to avoid a blank reset frame; normal preload and loop/parallax setup continue through the existing renderer.
+
+### Verification and resulting prototype state
+
+Focused browser probes passed for Arthur, Sir Kay, and Bandit attack assets: every authored frame rendered into its union canvas with no fallback or clipping. A corrupted return-state probe passed the one-current-track/no-next/no-fading/no-carry invariant, correct returning asset/direction, valid loop/parallax/seam setup, and unchanged distance/health/provisions. Production HTTP startup, deterministic simulation (62 assertions), and campaign/health (99 assertions) passed. The broader location and debug suites still stop at existing stale fixture assertions for newer Hall/character data before reaching this change. `git diff --check` passed. No manual changes or Tools changes were added.
+
 ## 2026-08-23 - Expedition Departure Title Presentation
 
 ### Goal
