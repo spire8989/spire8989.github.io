@@ -745,7 +745,21 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     },
-    visualAssetId: "encounter_abandoned_cart"
+    visualAssetId: "encounter_abandoned_cart",
+    encounterLayout: {
+      arthur: {
+        x: 0.271484375,
+        y: 0.8580729166666666
+      },
+      companion1: {
+        x: 0.80859375,
+        y: 0.8059895833333334
+      },
+      companion2: {
+        x: 0.48828125,
+        y: 0.87890625
+      }
+    }
   },
   white_hart: {
     id: "white_hart",
