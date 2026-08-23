@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Character Pass 2.9 Runtime Fixes
+
+### Goal
+
+Keep ordinary encounter travelers in the normal visible travel formation and trigger the authored attack sprite slots during resolved combat actions without changing combat gameplay or sprite sizing.
+
+### Human prompt and direction
+
+The human developer supplied the Character Pass 2.9 fix guide: preserve ordinary travel formation and Idle presentation unless an encounter or visual override explicitly authors a layout slot; wire Arthur, Sir Kay, and Bandit attack assets through the existing renderer; use frame-count/FPS completion and rapid-action safety; preserve enemy mirroring, normalization, layout, and all combat timing; update only the Grail repository and commit the focused result.
+
+### AI-assisted implementation
+
+- Changed encounter layout activation to require an explicitly authored base or visual-override slot, while keeping live ordinary encounter positions and explicit hidden slots data-driven.
+- Extended the existing character sprite state API with frame-completion callbacks and action version tokens, then added Arthur/Sir Kay basic attack and Bandit `bandit_slash` transitions without a combat rerender for animation.
+- Kept missing attack assets on Idle and left combat HUD, HP, ATB, targeting, damage, RNG, AI, timing, mirroring, normalization, and layout behavior unchanged.
+
+### Verification and resulting prototype state
+
+Combat and simulation suites passed. A focused browser smoke check passed ordinary/authored layout behavior, hidden-slot handling, Arthur and Bandit attack playback, and missing-attack Idle fallback with no console errors. The existing debug suite still stops at its pre-existing stale character metadata assertion, and the broader location suite still stops at its documented Hall hotspot fixture mismatch. No manual changes were reported.
+
 ## 2026-08-22 - Character Pass 2.7 Combat HUD and Travel Party Continuity
 
 ### Goal

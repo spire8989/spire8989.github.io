@@ -20,6 +20,11 @@ function characterVisualAssetIsUsable(assetId) {
   return typeof AssetCatalog !== "undefined" && Boolean(assetId) && Boolean(AssetCatalog.imagePath(assetId));
 }
 
+function characterVisualSlotIsUsable(definition, slot) {
+  const visual = characterVisualDefinition(definition)?.[slot];
+  return Boolean(visual && typeof visual === "object" && characterVisualAssetIsUsable(visual.assetId));
+}
+
 function characterVisualCandidates(definition, requestedSlot = "idle") {
   const candidates = [];
   const visuals = characterVisualDefinition(definition);
@@ -267,6 +272,14 @@ function stopCharacterSpriteInstance(root) {
   if (root) root._characterSpriteInstance = null;
 }
 
+function completeCharacterSpriteInstance(instance) {
+  if (!instance || instance.completed) return;
+  instance.completed = true;
+  const onComplete = instance.onComplete;
+  instance.onComplete = null;
+  if (typeof onComplete === "function") onComplete({ version: instance.animationVersion });
+}
+
 function scheduleCharacterSpriteAnimation() {
   if (characterSpriteAnimationFrame === null) characterSpriteAnimationFrame = window.requestAnimationFrame(tickCharacterSprites);
 }
@@ -284,7 +297,10 @@ function tickCharacterSprites(timestamp) {
     const frame = Math.floor((Math.max(0, timestamp - instance.startedAt) / 1000) * instance.config.fps);
     const nextFrame = instance.config.loop ? frame % instance.config.frameCount : Math.min(frame, instance.config.frameCount - 1);
     if (nextFrame !== instance.frameIndex) drawCharacterSprite(instance, nextFrame);
-    if (!instance.config.loop && nextFrame >= instance.config.frameCount - 1) instance.paused = true;
+    if (!instance.config.loop && nextFrame >= instance.config.frameCount - 1) {
+      instance.paused = true;
+      completeCharacterSpriteInstance(instance);
+    }
   }
   if (hasAnimation) scheduleCharacterSpriteAnimation();
 }
@@ -316,13 +332,20 @@ function initializeCharacterSprite(root) {
   stopCharacterSpriteInstance(root);
   root._characterSpritePendingKey = stateKey;
   const metadata = characterSpriteMetadata(image, config, definition);
-  const instance = { root, image, canvas, config, metadata, automaticSlotNormalization: 1, stateKey, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
+  const completion = root._characterSpriteCompletion;
+  const instance = {
+    root, image, canvas, config, metadata, automaticSlotNormalization: 1, stateKey, frameIndex: 0,
+    startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false,
+    onComplete: completion?.callback ?? null, animationVersion: completion?.version ?? null, completed: false,
+  };
+  root._characterSpriteCompletion = null;
   root._characterSpritePendingKey = null;
   root.style.setProperty("--character-visual-scale", String(isCombat ? 1 : config.visualScale * config.slotScale * contextScale));
   syncCombatVisualLayout(root);
   root._characterSpriteInstance = instance;
   characterSpriteInstances.add(instance);
   drawCharacterSprite(instance, 0);
+  if (!config.loop && (config.frameCount <= 1 || instance.paused)) completeCharacterSpriteInstance(instance);
   if (config.frameCount > 1 && config.fps > 0 && !instance.paused) scheduleCharacterSpriteAnimation();
   characterSpriteNormalization(definition, config, metadata).then((automaticSlotNormalization) => {
     if (!root.isConnected || root._characterSpriteInstance !== instance) return;
@@ -365,8 +388,12 @@ function setCharacterVisualState(element, requestedSlot = "idle", options = {}) 
   const stateChanged = previousStateKey !== stateKey
     || previousSlot !== requestedSlot
     || previousLoop !== (options.loop !== false)
-    || previousMirror !== (options.mirror ?? previousMirror);
+    || previousMirror !== (options.mirror ?? previousMirror)
+    || options.restart === true;
   root.dataset.characterVisualStateKey = stateKey;
+  root._characterSpriteCompletion = options.loop === false && typeof options.onComplete === "function"
+    ? { version: options.animationVersion ?? null, callback: options.onComplete }
+    : null;
   const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
   root._characterDefinition = definition;
   const config = characterVisualConfig(definition, requestedSlot, options);
@@ -385,6 +412,36 @@ function setCharacterVisualState(element, requestedSlot = "idle", options = {}) 
     }
   }
   if (assetChanged || stateChanged || !root._characterSpriteInstance) initializeCharacterSprite(root);
+  else if (root._characterSpriteCompletion) {
+    root._characterSpriteInstance.onComplete = root._characterSpriteCompletion.callback;
+    root._characterSpriteInstance.animationVersion = root._characterSpriteCompletion.version;
+    root._characterSpriteInstance.completed = false;
+    root._characterSpriteCompletion = null;
+  }
+}
+
+function playCharacterVisualAction(element, requestedSlot = "attack", options = {}) {
+  const root = element?.matches?.("[data-character-sprite]") ? element : element?.querySelector?.("[data-character-sprite]");
+  if (!root) return false;
+  const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
+  root._characterDefinition = definition;
+  const version = (Number(root._characterVisualActionVersion) || 0) + 1;
+  root._characterVisualActionVersion = version;
+  if (!characterVisualSlotIsUsable(definition, requestedSlot)) {
+    setCharacterVisualState(root, "idle", { loop: true, mirror: options.mirror });
+    return false;
+  }
+  setCharacterVisualState(root, requestedSlot, {
+    loop: false,
+    mirror: options.mirror,
+    restart: true,
+    animationVersion: version,
+    onComplete: () => {
+      if (!root.isConnected || Number(root._characterVisualActionVersion) !== version) return;
+      setCharacterVisualState(root, "idle", { loop: true, mirror: options.mirror });
+    },
+  });
+  return true;
 }
 
 function renderCharacterSprite(definition, requestedSlot = "idle", context = "combat", fallback = "", alt = "", options = {}) {

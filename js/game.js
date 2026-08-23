@@ -2004,6 +2004,23 @@ function renderCombatVisual(combatant, fallback, alt) {
   );
 }
 
+function combatActionAnimationEvents(combat, events = []) {
+  return events.filter((event) => {
+    const actor = [...(combat?.allies ?? []), ...(combat?.enemies ?? [])]
+      .find((combatant) => combatant.id === event.actor);
+    if (!actor) return false;
+    if (actor.side === "ally") return ["arthur", "sir_kay"].includes(actor.id) && event.action === "attack";
+    return actor.definitionId === "bandit" && event.action === "bandit_slash";
+  });
+}
+
+function playCombatActionAnimations(combat, events = []) {
+  combatActionAnimationEvents(combat, events).forEach((event) => {
+    const combatant = document.querySelector(`[data-combatant-id="${event.actor}"]`);
+    if (combatant) playCharacterVisualAction(combatant, "attack");
+  });
+}
+
 function expeditionDefinition(expedition) {
   return ExpeditionCatalog.get(expedition?.expeditionId ?? expedition?.id);
 }
@@ -3532,12 +3549,14 @@ function encounterPartyLayoutPosition(encounter, slot) {
 }
 
 function encounterHasExplicitPartyLayout(encounter, activeEncounter = null) {
-  const authored = encounter?.encounterLayout;
-  const override = activeEncounter?.visualOverride?.encounterLayout;
-  return ENCOUNTER_PARTY_LAYOUT_SLOTS.some((slot) => {
-    const position = override?.[slot] ?? authored?.[slot];
-    return Number.isFinite(Number(position?.x)) || Number.isFinite(Number(position?.y));
-  });
+  const hasAuthoredSlot = (layout) => Boolean(
+    layout
+    && typeof layout === "object"
+    && !Array.isArray(layout)
+    && ENCOUNTER_PARTY_LAYOUT_SLOTS.some((slot) => Object.prototype.hasOwnProperty.call(layout, slot)),
+  );
+  return hasAuthoredSlot(encounter?.encounterLayout)
+    || hasAuthoredSlot(activeEncounter?.visualOverride?.encounterLayout);
 }
 
 function resolveEncounterVisualState(encounter, activeEncounter = null, livePartyLayout = null) {
@@ -3565,7 +3584,10 @@ function resolveEncounterVisualState(encounter, activeEncounter = null, livePart
     }];
   }));
   const hiddenSlots = new Set(
-    (Array.isArray(visualOverride?.hiddenSlots) ? visualOverride.hiddenSlots : [])
+    [
+      ...(Array.isArray(encounter.hiddenSlots) ? encounter.hiddenSlots : []),
+      ...(Array.isArray(visualOverride?.hiddenSlots) ? visualOverride.hiddenSlots : []),
+    ]
       .filter((slot) => ENCOUNTER_PARTY_LAYOUT_SLOTS.includes(slot)),
   );
   return { backgroundAssetId, layout, hiddenSlots };
@@ -3615,6 +3637,7 @@ function setEncounterPartyLayoutSlot(element, visualState, slot) {
 
 function renderEncounterTravelers(companions, encounter, activeEncounter = null, livePartyLayout = null) {
   const visualState = resolveEncounterVisualState(encounter, activeEncounter, livePartyLayout);
+  const hasAuthoredLayout = encounterHasExplicitPartyLayout(encounter, activeEncounter);
   const companionsMarkup = companions.map((companion, index) => {
     const slot = `companion${index + 1}`;
     const marker = companion.type === "mount" ? "&#x265e;" : "&#x265c;";
@@ -3622,7 +3645,7 @@ function renderEncounterTravelers(companions, encounter, activeEncounter = null,
     return `<span class="companion companion-${companion.type}"${hidden}${encounterPartyLayoutAttributes(visualState, slot)}>${renderCharacterSprite(companion, "idle", "travel", marker, companion.name, { className: "traveler-character" })}</span>`;
   }).join("");
   const arthurHidden = visualState.hiddenSlots.has("arthur") ? " hidden" : "";
-  return `<div class="travelers${encounter ? " is-encounter-layout" : ""}" id="travelers" aria-hidden="true"><span class="arthur"${arthurHidden}${encounterPartyLayoutAttributes(visualState, "arthur")}>${renderCharacterSprite(PLAYER_CHARACTER_DEFINITION, "idle", "travel", "&#x265e;", PLAYER_CHARACTER_DEFINITION.name, { className: "traveler-character" })}</span>${companionsMarkup}</div>`;
+  return `<div class="travelers${hasAuthoredLayout ? " is-encounter-layout" : ""}" id="travelers" aria-hidden="true"><span class="arthur"${arthurHidden}${encounterPartyLayoutAttributes(visualState, "arthur")}>${renderCharacterSprite(PLAYER_CHARACTER_DEFINITION, "idle", "travel", "&#x265e;", PLAYER_CHARACTER_DEFINITION.name, { className: "traveler-character" })}</span>${companionsMarkup}</div>`;
 }
 
 function syncTravelerCharacterVisuals(expedition, activeEncounter = null) {
@@ -3641,7 +3664,7 @@ function applyEncounterPartyLayout(encounter, activeEncounter = null, livePartyL
   const travelers = document.querySelector("#travelers");
   if (!travelers) return;
   const visualState = resolveEncounterVisualState(encounter, activeEncounter, livePartyLayout);
-  travelers.classList.toggle("is-encounter-layout", Boolean(encounter));
+  travelers.classList.toggle("is-encounter-layout", encounterHasExplicitPartyLayout(encounter, activeEncounter));
   const arthur = travelers.querySelector(".arthur");
   setEncounterPartyLayoutSlot(arthur, visualState, "arthur");
   if (arthur) arthur.hidden = visualState.hiddenSlots.has("arthur");
@@ -4615,8 +4638,9 @@ function chooseCombatAction(actionId) {
   if (!combat) {
     return;
   }
+  const eventStart = combat.events.length;
   const result = CombatSystem.chooseAction(combat, expedition, actionId);
-  handleCombatInteractionResult(expedition, combat, result);
+  handleCombatInteractionResult(expedition, combat, result, combat.events.slice(eventStart));
 }
 
 function chooseCombatTarget(targetId) {
@@ -4626,8 +4650,9 @@ function chooseCombatTarget(targetId) {
     return;
   }
   if (combat.pendingActionId) {
+    const eventStart = combat.events.length;
     const result = CombatSystem.choosePendingTarget(combat, expedition, targetId);
-    handleCombatInteractionResult(expedition, combat, result);
+    handleCombatInteractionResult(expedition, combat, result, combat.events.slice(eventStart));
     return;
   }
   if (CombatSystem.selectEnemyTarget(combat, targetId).selected) {
@@ -4651,19 +4676,21 @@ function chooseCombatAbility(abilityId) {
   const expedition = game.expedition;
   const combat = expedition?.combat;
   if (!combat) return;
+  const eventStart = combat.events.length;
   const result = CombatSystem.chooseAbility(combat, expedition, abilityId);
-  handleCombatInteractionResult(expedition, combat, result);
+  handleCombatInteractionResult(expedition, combat, result, combat.events.slice(eventStart));
 }
 
 function chooseCombatItem(itemId) {
   const expedition = game.expedition;
   const combat = expedition?.combat;
   if (!combat) return;
+  const eventStart = combat.events.length;
   const result = CombatSystem.chooseItem(combat, expedition, itemId);
-  handleCombatInteractionResult(expedition, combat, result);
+  handleCombatInteractionResult(expedition, combat, result, combat.events.slice(eventStart));
 }
 
-function handleCombatInteractionResult(expedition, combat, result) {
+function handleCombatInteractionResult(expedition, combat, result, actionEvents = []) {
   if (result?.menu || result?.needsTarget || result?.unavailable) {
     refreshCombat(expedition, combat);
     return;
@@ -4681,6 +4708,7 @@ function handleCombatInteractionResult(expedition, combat, result) {
       });
     }
     finishCombatResolution(expedition);
+    if (expedition.combat === combat && !combat.result) playCombatActionAnimations(combat, actionEvents);
   }
 }
 
@@ -4707,11 +4735,14 @@ function updateCombat(deltaSeconds) {
     return;
   }
   const beforePresentation = combatPresentationKey(combat);
+  const eventStart = combat.events.length;
   const update = CombatSystem.update(combat, expedition, deltaSeconds);
+  const actionEvents = combat.events.slice(eventStart);
   if (update.result) {
     finishCombatResolution(expedition);
   } else if (update.changed && beforePresentation !== combatPresentationKey(combat)) {
     refreshCombat(expedition, combat);
+    playCombatActionAnimations(combat, actionEvents);
   }
 }
 
