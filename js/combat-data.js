@@ -287,7 +287,21 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     maxHp: 20,
     speed: 12,
     defense: 1,
-    actionPattern: ["bandit_slash", "bandit_feint", "bandit_slash"]
+    actionPattern: ["bandit_slash", "bandit_feint", "bandit_slash"],
+    visuals: {
+      idle: {
+        assetId: "combat_bandit_idle",
+        frameCount: 24,
+        columns: 5,
+        scale: 1.5
+      },
+      attack: {
+        assetId: "combat_bandit_attack",
+        frameCount: 25,
+        columns: 5,
+        scale: 1.875
+      }
+    }
   },
   bandit_leader: Object.freeze({
     id: "bandit_leader",

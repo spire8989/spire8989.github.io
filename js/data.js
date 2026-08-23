@@ -928,17 +928,25 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   visuals: {
     idle: {
       assetId: "combat_arthur_basesprite_idle_anim",
-      frameCount: 19,
+      frameCount: 24,
       columns: 5,
       offsetX: 0,
-      offsetY: 0
+      offsetY: 0,
+      scale: 1.5
     },
     walk: {
       assetId: "combat_arthur_walk_basesprite_walk2",
-      frameCount: 14,
-      columns: 4,
+      frameCount: 24,
+      columns: 5,
       offsetX: 0,
-      offsetY: 0
+      offsetY: 0,
+      scale: 1.5
+    },
+    attack: {
+      assetId: "combat_arthur_attack",
+      frameCount: 25,
+      columns: 5,
+      scale: 1.875
     }
   }
 });
@@ -954,9 +962,42 @@ const COMPANION_DEFINITIONS = Object.freeze({
     provisionCapacityBonus: 10,
     provisionConsumptionBonus: 0.3,
     type: "knight",
-    capabilities: Object.freeze({ canUseItems: true, canDefend: true, canFlee: true }),
-    combat: Object.freeze({ maxHp: 50, speed: 9, defense: 2, basicDamage: Object.freeze({ minimum: 7, maximum: 10 }) }),
+    capabilities: {
+      canUseItems: true,
+      canDefend: true,
+      canFlee: true
+    },
+    combat: {
+      maxHp: 50,
+      speed: 9,
+      defense: 2,
+      basicDamage: {
+        minimum: 7,
+        maximum: 10
+      }
+    },
     combatAbilities: ["intercede"],
+    visuals: {
+      idle: {
+        assetId: "combat_sir_kay_idle",
+        frameCount: 24,
+        columns: 5,
+        scale: 1.5
+      },
+      walk: {
+        assetId: "combat_sir_kay_walk",
+        frameCount: 13,
+        columns: 5,
+        scale: 1.5
+      },
+      attack: {
+        assetId: "combat_sir_kay_attack",
+        frameCount: 24,
+        columns: 5,
+        scale: 1.875
+      }
+    },
+    visualScale: 1.1
   },
   llamrei: {
     id: "llamrei",

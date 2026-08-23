@@ -172,12 +172,42 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
   },
   combat_arthur_walk_basesprite_walk2: {
     id: "combat_arthur_walk_basesprite_walk2",
-    path: "assets/images/combat/BaseSprite-Walk2.png",
+    path: "assets/images/combat/BaseSprite-Walk2.webp",
     category: "combat"
   },
   combat_arthur_basesprite_idle_anim: {
     id: "combat_arthur_basesprite_idle_anim",
     path: "assets/images/combat/basesprite-idle.webp",
+    category: "combat"
+  },
+  combat_bandit_idle: {
+    id: "combat_bandit_idle",
+    path: "assets/images/combat/bandit-idle.webp",
+    category: "combat"
+  },
+  combat_sir_kay_idle: {
+    id: "combat_sir_kay_idle",
+    path: "assets/images/combat/sirkay-idle.webp",
+    category: "combat"
+  },
+  combat_sir_kay_walk: {
+    id: "combat_sir_kay_walk",
+    path: "assets/images/combat/sirkay-walk.webp",
+    category: "combat"
+  },
+  combat_arthur_attack: {
+    id: "combat_arthur_attack",
+    path: "assets/images/combat/wart-attack.webp",
+    category: "combat"
+  },
+  combat_sir_kay_attack: {
+    id: "combat_sir_kay_attack",
+    path: "assets/images/combat/sirkay-attack.webp",
+    category: "combat"
+  },
+  combat_bandit_attack: {
+    id: "combat_bandit_attack",
+    path: "assets/images/combat/bandit-attack2.webp",
     category: "combat"
   }
 });
