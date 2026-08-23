@@ -3938,3 +3938,19 @@ The human developer supplied the character-pass guide and authorized adding and 
 ### Verification and resulting prototype state
 
 The focused character editor tests passed 3/3, the real catalog load passed, Python source compilation passed, and `git diff --check` passed in both repositories. The broader editor/browser suite remains limited by the existing encounter-layout fixture failure and a later browser test timeout in this environment; those unrelated limitations are retained for handoff. No combat simulation or replay behavior was changed.
+
+## 2026-08-22 - Character Visual Asset Category Regression Fix
+
+### Goal
+
+Correct Content Editor validation for the overloaded `combatVisualAssetId` field without changing its existing game meaning or runtime rendering.
+
+### AI-assisted implementation
+
+- Made image-category validation source-aware: character definitions use `combat`, while expedition and encounter battlefield overrides use `combat_scene`.
+- Kept enemy `visualAssetId` and character visual-slot `assetId` validation on the `combat` category.
+- Preserved the existing Old Forest Road `combat_scene_old_forest_road_combat` assignment as valid and kept the corresponding editor selectors on their existing categories.
+
+### Verification and resulting prototype state
+
+Focused character and combat-background editor tests passed 2/2, including the Old Forest Road regression case. No game runtime or combat-background resolver files were changed.
