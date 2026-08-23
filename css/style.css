@@ -2116,12 +2116,20 @@ button:active:not(:disabled) {
   position: absolute;
   top: var(--encounter-party-y);
   left: var(--encounter-party-x);
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -100%);
   animation: none;
 }
 
 .travelers.is-encounter-layout .traveler-character {
-  translate: none;
+  translate: 0 var(--character-travel-offset-y, 0%);
+}
+
+.travelers.is-encounter-layout .character-sprite {
+  transform: scale(calc(var(--character-visual-scale, 1) * var(--encounter-party-scale, 1)));
+}
+
+.travelers.is-encounter-layout .character-sprite.is-mirrored {
+  transform: scaleX(-1) scale(calc(var(--character-visual-scale, 1) * var(--encounter-party-scale, 1)));
 }
 
 .travelers.is-moving > span {

@@ -1,5 +1,27 @@
 # Build Log
 
+## 2026-08-23 - Encounter Layout Editor Visual Preview Pass
+
+### Goal
+
+Make encounter authoring show the same grounded Idle character composition used by the game, while keeping normalized ground-anchor coordinates and editor-only companion preview choices clear and safe.
+
+### Human prompt and direction
+
+The human developer supplied the Encounter Layout Editor Visual Preview guide and directed the pass toward actual Arthur/companion Idle sprites, editor-only preview companion selection, grounded placement, optional facing/scale/layer/visibility controls, runtime compatibility, and surgical authoring saves. Follow-up visual direction clarified that the existing `travelOffsetY` framing correction must apply to authored encounters as well as ordinary travel.
+
+### AI-assisted implementation
+
+- Replaced marker-only encounter layout controls in the Content Editor with cached-alpha Idle previews, visible ground anchors, drag-to-place normalized coordinates, editor-only Sir Kay/Llamrei preview selectors, facing, scale, layer, visibility, reset, and ground-align controls.
+- Matched editor sprite metadata to the game’s anchored union canvas so multi-frame sheets stay bounded to the slot instead of expanding the yellow control behind the artwork; guarded unloaded images before alpha scanning.
+- Matched the editor’s preview slot dimensions to the game’s `cqw` traveler wrapper and mirrored the preview immediately when an authored left-facing value is selected, while keeping the layout scale separate from each character’s base visual scale.
+- Added encounter layout validation for optional facing/scale/layer fields and hidden slots, preserving partial visual overrides and existing save compatibility.
+- Extended game encounter visual-state resolution to merge optional layout properties per slot, apply facing and authored scale/layer, use the ground anchor for placement, and retain each definition’s `travelOffsetY` in authored encounters.
+
+### Verification and resulting prototype state
+
+Focused Content Editor Python tests, compile checks, the focused encounter-layout browser regression, and both repositories’ `git diff --check` completed successfully. A direct game browser probe confirmed authored encounter wrapper coordinates, per-slot scale, and Llamrei’s 38% travel offset. The broader legacy location/debug suites still stop on unrelated existing fixture assertions (town hotspot coordinates and a character-sheet expectation); no encounter-layout assertion failed after the ground-anchor expectation was updated. The editor now presents bounded, grounded Idle previews with the yellow anchor remaining the authoritative placement point.
+
 ## 2026-08-23 - Party Presentation Adjustment
 
 ### Goal

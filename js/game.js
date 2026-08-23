@@ -3977,6 +3977,19 @@ function encounterPartyLayoutPosition(encounter, slot) {
   };
 }
 
+function encounterPartyLayoutSlot(encounter, slot) {
+  const position = encounterPartyLayoutPosition(encounter, slot);
+  const authored = encounter?.encounterLayout?.[slot];
+  const scale = Number(authored?.scale);
+  const layer = Number(authored?.layer);
+  return {
+    ...position,
+    facing: authored?.facing === "left" || authored?.facing === "right" ? authored.facing : null,
+    scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+    layer: Number.isInteger(layer) ? layer : null,
+  };
+}
+
 function encounterHasExplicitPartyLayout(encounter, activeEncounter = null) {
   const hasAuthoredSlot = (layout) => Boolean(
     layout
@@ -4003,13 +4016,17 @@ function resolveEncounterVisualState(encounter, activeEncounter = null, livePart
   const useLivePartyLayout = !encounterHasExplicitPartyLayout(encounter, activeEncounter)
     && livePartyLayout?.layout;
   const layout = Object.fromEntries(ENCOUNTER_PARTY_LAYOUT_SLOTS.map((slot) => {
+    const authoredBase = encounterPartyLayoutSlot(encounter, slot);
     const base = useLivePartyLayout && livePartyLayout.layout[slot]
-      ? livePartyLayout.layout[slot]
-      : encounterPartyLayoutPosition(encounter, slot);
+      ? { ...authoredBase, ...livePartyLayout.layout[slot] }
+      : authoredBase;
     const override = visualOverride?.encounterLayout?.[slot];
     return [slot, {
       x: clamp(Number.isFinite(Number(override?.x)) ? Number(override.x) : base.x, 0, 1),
       y: clamp(Number.isFinite(Number(override?.y)) ? Number(override.y) : base.y, 0, 1),
+      facing: override?.facing === "left" || override?.facing === "right" ? override.facing : base.facing,
+      scale: Number.isFinite(Number(override?.scale)) && Number(override.scale) > 0 ? Number(override.scale) : base.scale,
+      layer: Number.isInteger(Number(override?.layer)) ? Number(override.layer) : base.layer,
     }];
   }));
   const hiddenSlots = new Set(
@@ -4043,7 +4060,9 @@ function captureTravelPartyLayout() {
 function encounterPartyLayoutAttributes(visualState, slot) {
   if (!visualState?.layout?.[slot]) return "";
   const position = visualState.layout[slot];
-  return ` data-encounter-layout-slot="${slot}" data-encounter-layout-x="${position.x}" data-encounter-layout-y="${position.y}" style="--encounter-party-x:${position.x * 100}%;--encounter-party-y:${position.y * 100}%"`;
+  const layer = position.layer === null ? "" : `;z-index:${position.layer}`;
+  const facing = position.facing ? ` data-encounter-layout-facing="${position.facing}"` : "";
+  return ` data-encounter-layout-slot="${slot}" data-encounter-layout-x="${position.x}" data-encounter-layout-y="${position.y}"${facing} style="--encounter-party-x:${position.x * 100}%;--encounter-party-y:${position.y * 100}%;--encounter-party-scale:${position.scale}${layer}"`;
 }
 
 function setEncounterPartyLayoutSlot(element, visualState, slot) {
@@ -4054,6 +4073,9 @@ function setEncounterPartyLayoutSlot(element, visualState, slot) {
     element.removeAttribute("data-encounter-layout-y");
     element.style.removeProperty("--encounter-party-x");
     element.style.removeProperty("--encounter-party-y");
+    element.style.removeProperty("--encounter-party-scale");
+    element.style.removeProperty("z-index");
+    delete element.dataset.encounterLayoutFacing;
     return;
   }
   const position = visualState.layout[slot];
@@ -4062,6 +4084,11 @@ function setEncounterPartyLayoutSlot(element, visualState, slot) {
   element.dataset.encounterLayoutY = String(position.y);
   element.style.setProperty("--encounter-party-x", `${position.x * 100}%`);
   element.style.setProperty("--encounter-party-y", `${position.y * 100}%`);
+  element.style.setProperty("--encounter-party-scale", String(position.scale));
+  if (position.layer === null) element.style.removeProperty("z-index");
+  else element.style.zIndex = String(position.layer);
+  if (position.facing) element.dataset.encounterLayoutFacing = position.facing;
+  else delete element.dataset.encounterLayoutFacing;
 }
 
 function renderEncounterTravelers(companions, encounter, activeEncounter = null, livePartyLayout = null) {
@@ -4083,9 +4110,14 @@ function syncTravelerCharacterVisuals(expedition, activeEncounter = null) {
   const moving = !activeEncounter && expedition.travelState === "traveling";
   const requestedSlot = moving ? "walk" : "idle";
   const mirrorInPlace = travelers.classList.contains("is-encounter-layout") && expedition.direction === "returning";
-  setCharacterVisualState(travelers.querySelector(".arthur"), requestedSlot, { loop: true, mirror: mirrorInPlace });
+  const visualState = resolveEncounterVisualState(activeEncounter, expedition.activeEncounter);
+  const mirrorForSlot = (slot) => visualState.layout?.[slot]?.facing
+    ? visualState.layout[slot].facing === "left"
+    : mirrorInPlace;
+  setCharacterVisualState(travelers.querySelector(".arthur"), requestedSlot, { loop: true, mirror: mirrorForSlot("arthur") });
   travelers.querySelectorAll(".companion").forEach((element) => {
-    setCharacterVisualState(element, requestedSlot, { loop: true, mirror: mirrorInPlace });
+    const index = [...travelers.querySelectorAll(".companion")].indexOf(element);
+    setCharacterVisualState(element, requestedSlot, { loop: true, mirror: mirrorForSlot(`companion${index + 1}`) });
   });
 }
 
