@@ -7,6 +7,8 @@ const CHARACTER_VISUAL_SLOTS = Object.freeze(["idle", "walk", "attack"]);
 const CHARACTER_VISUAL_DEFAULT_FPS = Object.freeze({ idle: 6, walk: 10, attack: 12 });
 const characterSpriteInstances = new Set();
 const characterSpriteMetadataCache = new Map();
+const characterSpriteMetadataPromises = new Map();
+const characterSpriteNormalizationCache = new Map();
 let characterSpriteAnimationFrame = null;
 
 function characterVisualDefinition(definition) {
@@ -66,16 +68,27 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, finalScale: visualScale * slotScale };
 }
 
+function characterVisualReferenceSlot(definition) {
+  const visuals = characterVisualDefinition(definition);
+  const preferred = ["walk", "idle", "attack"];
+  return preferred.find((slot) => {
+    const visual = visuals?.[slot];
+    return visual && typeof visual === "object" && characterVisualAssetIsUsable(visual.assetId);
+  }) || CHARACTER_VISUAL_SLOTS.find((slot) => visuals?.[slot]?.assetId && characterVisualAssetIsUsable(visuals[slot].assetId)) || "idle";
+}
+
+function characterSpriteMetadataKey(definition, config) {
+  return `${definition?.id || "character"}|${config.assetId}|${config.frameCount}|${config.columns}`;
+}
+
 function characterSpriteFallback(root, visible = true) {
   root?.querySelector(".character-sprite-fallback")?.classList.toggle("is-visible", visible);
 }
 
-function characterSpriteMetadata(image, config) {
-  const key = `${config.assetId}|${config.frameCount}|${config.columns}`;
+function characterSpriteMetadata(image, config, definition) {
+  const key = characterSpriteMetadataKey(definition, config);
   const cached = characterSpriteMetadataCache.get(key);
   if (cached && cached.width === image.naturalWidth && cached.height === image.naturalHeight) return cached;
-  const frameWidth = image.naturalWidth / config.columns;
-  const frameHeight = image.naturalHeight / config.rows;
   const scanCanvas = document.createElement("canvas");
   scanCanvas.width = image.naturalWidth;
   scanCanvas.height = image.naturalHeight;
@@ -87,10 +100,10 @@ function characterSpriteMetadata(image, config) {
     for (let frame = 0; frame < config.frameCount; frame += 1) {
       const column = frame % config.columns;
       const row = Math.floor(frame / config.columns);
-      const left = Math.round(column * frameWidth);
-      const top = Math.round(row * frameHeight);
-      const right = Math.round((column + 1) * frameWidth);
-      const bottom = Math.round((row + 1) * frameHeight);
+      const left = Math.floor(column * image.naturalWidth / config.columns);
+      const top = Math.floor(row * image.naturalHeight / config.rows);
+      const right = Math.floor((column + 1) * image.naturalWidth / config.columns);
+      const bottom = Math.floor((row + 1) * image.naturalHeight / config.rows);
       let minX = right;
       let minY = bottom;
       let maxX = left - 1;
@@ -105,11 +118,19 @@ function characterSpriteMetadata(image, config) {
         }
       }
       frameBounds.push(maxX >= minX
-        ? { x: minX - left, y: minY - top, width: maxX - minX + 1, height: maxY - minY + 1 }
-        : { x: 0, y: 0, width: frameWidth, height: frameHeight });
+        ? { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+        : { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) });
     }
   } else {
-    for (let frame = 0; frame < config.frameCount; frame += 1) frameBounds.push({ x: 0, y: 0, width: frameWidth, height: frameHeight });
+    for (let frame = 0; frame < config.frameCount; frame += 1) {
+      const column = frame % config.columns;
+      const row = Math.floor(frame / config.columns);
+      const left = Math.floor(column * image.naturalWidth / config.columns);
+      const top = Math.floor(row * image.naturalHeight / config.rows);
+      const right = Math.floor((column + 1) * image.naturalWidth / config.columns);
+      const bottom = Math.floor((row + 1) * image.naturalHeight / config.rows);
+      frameBounds.push({ x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) });
+    }
   }
   const maximumVisibleHeight = Math.max(...frameBounds.map((bounds) => bounds.height), 1);
   const maximumVisibleWidth = Math.max(...frameBounds.map((bounds) => bounds.width), 1);
@@ -119,8 +140,6 @@ function characterSpriteMetadata(image, config) {
   const metadata = {
     width: image.naturalWidth,
     height: image.naturalHeight,
-    frameWidth,
-    frameHeight,
     frameBounds,
     sharedScale,
     normalizedWidth: Math.ceil(maximumVisibleWidth * sharedScale),
@@ -128,6 +147,43 @@ function characterSpriteMetadata(image, config) {
   };
   characterSpriteMetadataCache.set(key, metadata);
   return metadata;
+}
+
+function loadCharacterSpriteMetadata(definition, config, image = null) {
+  const key = characterSpriteMetadataKey(definition, config);
+  const cached = characterSpriteMetadataCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  if (image?.naturalWidth && image?.naturalHeight) {
+    return Promise.resolve(characterSpriteMetadata(image, config, definition));
+  }
+  if (characterSpriteMetadataPromises.has(key)) return characterSpriteMetadataPromises.get(key);
+  const promise = new Promise((resolve) => {
+    const source = new Image();
+    source.onload = () => {
+      try {
+        resolve(characterSpriteMetadata(source, config, definition));
+      } catch (error) {
+        resolve(null);
+      }
+    };
+    source.onerror = () => resolve(null);
+    source.src = AssetCatalog.imagePath(config.assetId) || "";
+  }).finally(() => characterSpriteMetadataPromises.delete(key));
+  characterSpriteMetadataPromises.set(key, promise);
+  return promise;
+}
+
+function characterSpriteNormalization(definition, config, metadata) {
+  const referenceSlot = characterVisualReferenceSlot(definition);
+  const referenceConfig = characterVisualConfig(definition, referenceSlot);
+  const key = `${characterSpriteMetadataKey(definition, config)}|reference:${characterSpriteMetadataKey(definition, referenceConfig)}`;
+  if (characterSpriteNormalizationCache.has(key)) return characterSpriteNormalizationCache.get(key);
+  const promise = loadCharacterSpriteMetadata(definition, referenceConfig).then((referenceMetadata) => {
+    if (!referenceMetadata || !metadata?.normalizedHeight) return 1;
+    return Math.max(0.5, Math.min(2, referenceMetadata.normalizedHeight / metadata.normalizedHeight));
+  });
+  characterSpriteNormalizationCache.set(key, promise);
+  return promise;
 }
 
 function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
@@ -144,13 +200,9 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   if (!context) return;
   context.clearRect(0, 0, width, height);
   context.imageSmoothingEnabled = true;
-  const column = frame % config.columns;
-  const row = Math.floor(frame / config.columns);
   const destinationWidth = bounds.width * scale;
   const destinationHeight = bounds.height * scale;
-  const sourceX = column * metadata.frameWidth + bounds.x;
-  const sourceY = row * metadata.frameHeight + bounds.y;
-  context.drawImage(image, sourceX, sourceY, bounds.width, bounds.height, (width - destinationWidth) / 2, height - destinationHeight, destinationWidth, destinationHeight);
+  context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, (width - destinationWidth) / 2, height - destinationHeight, destinationWidth, destinationHeight);
   root.style.setProperty("--character-frame-aspect", `${width} / ${height}`);
   root.classList.add("is-ready");
   root.classList.remove("asset-load-failed");
@@ -160,6 +212,7 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
 
 function stopCharacterSpriteInstance(root) {
   for (const instance of characterSpriteInstances) if (instance.root === root) characterSpriteInstances.delete(instance);
+  if (root) root._characterSpriteInstance = null;
 }
 
 function scheduleCharacterSpriteAnimation() {
@@ -186,13 +239,11 @@ function tickCharacterSprites(timestamp) {
 
 function initializeCharacterSprite(root) {
   if (!root) return;
-  stopCharacterSpriteInstance(root);
   const image = root.querySelector(".character-sprite-source");
   const canvas = root.querySelector(".character-sprite-canvas");
   const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
   root._characterDefinition = definition;
   const config = characterVisualConfig(definition, root.dataset.characterRequestedSlot || "idle", { loop: root.dataset.characterLoop !== "false" });
-  root.style.setProperty("--character-visual-scale", String(config.finalScale));
   root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   if (!image || !canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
     root.classList.remove("is-ready");
@@ -204,12 +255,23 @@ function initializeCharacterSprite(root) {
     characterSpriteFallback(root, true);
     return;
   }
-  const metadata = characterSpriteMetadata(image, config);
-  const instance = { root, image, canvas, config, metadata, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
-  root._characterSpriteInstance = instance;
-  characterSpriteInstances.add(instance);
-  if (image.complete && image.naturalWidth) drawCharacterSprite(instance, 0);
-  if (config.frameCount > 1 && config.fps > 0 && !instance.paused) scheduleCharacterSpriteAnimation();
+  const stateKey = `${config.assetId}|${config.frameCount}|${config.columns}|${root.dataset.characterRequestedSlot}|${root.dataset.characterLoop}|${root.dataset.characterMirror}`;
+  if (root._characterSpriteInstance?.stateKey === stateKey && root._characterSpriteInstance.image === image) return;
+  if (root._characterSpritePendingKey === stateKey) return;
+  stopCharacterSpriteInstance(root);
+  root._characterSpritePendingKey = stateKey;
+  const metadata = characterSpriteMetadata(image, config, definition);
+  characterSpriteNormalization(definition, config, metadata).then((automaticSlotNormalization) => {
+    if (!root.isConnected || root._characterSpritePendingKey !== stateKey) return;
+    root._characterSpritePendingKey = null;
+    const finalScale = config.visualScale * automaticSlotNormalization * config.slotScale;
+    root.style.setProperty("--character-visual-scale", String(finalScale));
+    const instance = { root, image, canvas, config, metadata, automaticSlotNormalization, stateKey, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
+    root._characterSpriteInstance = instance;
+    characterSpriteInstances.add(instance);
+    drawCharacterSprite(instance, 0);
+    if (config.frameCount > 1 && config.fps > 0 && !instance.paused) scheduleCharacterSpriteAnimation();
+  });
 }
 
 function initializeCharacterSprites(root = document) {
@@ -257,7 +319,6 @@ function setCharacterVisualState(element, requestedSlot = "idle", options = {}) 
       image.dataset.assetId = config.assetId || "";
       image.src = config.assetId ? AssetCatalog.imagePath(config.assetId) : "";
       if (config.assetId) {
-        if (image.complete && image.naturalWidth) initializeCharacterSprite(root);
         return;
       }
     }

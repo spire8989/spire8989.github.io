@@ -4023,3 +4023,25 @@ The human developer supplied the Character Pass 2.2 guide and visual examples an
 ### Verification and resulting prototype state
 
 Focused character/editor checks, the sprite asset pipeline, and the debug browser regression suite pass after the shared-scale and combat-fit corrections. `git diff --check` passes in both repositories.
+
+## 2026-08-22 - Character Pass 2.3 Animation Continuity and Combat Unit Cleanup
+
+### Goal
+
+Finish the authored Idle/Walk presentation pass without reimporting the existing sprite sheets or changing combat behavior.
+
+### AI-assisted implementation
+
+- Made game and Content Editor sprite-sheet sampling use the same integer cell boundaries, absolute source bounds, direct source rectangles, shared animation metadata, and stable bottom-aligned canvases.
+- Added cached character-level reference-height normalization, preferring Walk, so Idle/Walk/Attack use comparable authored scale while retaining definition and per-slot scale controls.
+- Made sprite initialization idempotent so travel state updates and combat HUD updates do not reset an active animation back to frame 0. Arthur's authored 19-frame Idle sheet now continues in combat.
+- Reworked two-ally combat spacing and bounded unit sizing around the real sprite, keeping fallback glyphs independent and keeping HP/Faith, the action gauge, character art, and status content readable together.
+- Moved each combatant's action gauge into the HUD directly below HP/Faith and above the character visual, matching the intended visual hierarchy.
+
+### Manual changes
+
+The human developer supplied the Character Pass 2.3 guide and follow-up visual feedback and authorized adding and committing the finished files in both repositories. No sprite assets were reimported and no authored animation frames, combat mechanics, progression, simulation, replay behavior, or FX were changed.
+
+### Verification and resulting prototype state
+
+The debug browser suite passes 29 assertions, including Walk sheet frame metadata, Idle state switching, combat Idle continuity, authored battlefield rendering, and the mixed Arthur/Sir Kay two-ally layout. Focused Content Editor character/combat-background tests pass 4/4, and the asset pipeline suite passes 19/19. The broader Content Editor suite still has the existing abandoned-camp encounter-layout fixture mismatch; `git diff --check` passes in both repositories.

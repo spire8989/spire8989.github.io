@@ -4118,9 +4118,9 @@ function renderCombatant(combatant, combat) {
         <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
         <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
         ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
+        <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       </div>
       <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant, combatFallbackVisual(combatant), combatant.name)}</div>
-      <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
     </${tag}>`;
   return markup;
@@ -4648,12 +4648,35 @@ function updateCombat(deltaSeconds) {
   if (!combat) {
     return;
   }
+  const beforePresentation = combatPresentationKey(combat);
   const update = CombatSystem.update(combat, expedition, deltaSeconds);
   if (update.result) {
     finishCombatResolution(expedition);
-  } else if (update.changed) {
+  } else if (update.changed && beforePresentation !== combatPresentationKey(combat)) {
     refreshCombat(expedition, combat);
   }
+}
+
+function combatPresentationKey(combat) {
+  const combatants = [...(combat?.allies ?? []), ...(combat?.enemies ?? [])].map((combatant) => ({
+    id: combatant.id,
+    hp: combatant.hp,
+    intentId: combatant.intentId,
+    defending: combatant.defending,
+    interceding: combatant.interceding,
+    statuses: Object.fromEntries(Object.entries(combatant.statuses ?? {}).map(([id, status]) => [id, status.remainingActivations])),
+  }));
+  return JSON.stringify({
+    status: combat?.status,
+    result: combat?.result,
+    activeActorId: combat?.activeActorId,
+    interactionMode: combat?.interactionMode,
+    selectedEnemyId: combat?.selectedEnemyId,
+    pendingTargetPrompt: combat?.pendingTargetPrompt,
+    readyQueue: combat?.readyQueue,
+    logLength: combat?.log?.length,
+    combatants,
+  });
 }
 
 function finishCombatResolution(expedition) {
