@@ -466,6 +466,8 @@ function renderTravelVisualAsset(assetId, alt, motion = "loop", sceneKey = "", p
   const trackShowSeamForegroundBetweenLoops = visualSnapshot?.showSeamForegroundBetweenLoops
     ?? showSeamForegroundBetweenLoops;
   const isSnapshotTrack = Boolean(Array.isArray(visualSnapshot?.tiles) && visualSnapshot.tiles.length);
+  const trackReady = snapshotTiles.every((tile) => travelSceneAssetReady(tile?.assetId));
+  const visibleClass = trackReady ? " is-visible" : "";
   const tiles = snapshotTiles.map((tile, index) => {
     const tileAssetId = tile?.assetId;
     const path = AssetCatalog.imagePath(tileAssetId);
@@ -473,10 +475,10 @@ function renderTravelVisualAsset(assetId, alt, motion = "loop", sceneKey = "", p
     const copy = tile?.copy === "loop" || index > 0 ? "loop" : "primary";
     const tileRole = copy === "primary" ? "leading" : "trailing";
     const tileTravelParallaxAssetId = tile?.travelParallaxAssetId ?? trackTravelParallaxAssetId;
-    return `<img class="asset-image travel-visual-asset is-visible" data-travel-copy="${copy}" data-travel-tile="${tileRole}" data-travel-motion="${assetAttribute(trackMotion)}" data-travel-asset-id="${assetAttribute(tileAssetId)}" data-travel-parallax-asset-id="${assetAttribute(tileTravelParallaxAssetId ?? "")}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)">`;
+    return `<img class="asset-image travel-visual-asset${visibleClass}" data-travel-copy="${copy}" data-travel-tile="${tileRole}" data-travel-motion="${assetAttribute(trackMotion)}" data-travel-asset-id="${assetAttribute(tileAssetId)}" data-travel-parallax-asset-id="${assetAttribute(tileTravelParallaxAssetId ?? "")}" src="${assetAttribute(path)}" alt="${assetAttribute(alt)}" loading="eager" fetchpriority="high" decoding="async" onload="markTravelImageActive(this.closest('[data-asset-frame]'), this)" onerror="markTravelImageFailed(this.closest('[data-asset-frame]'), this)">`;
   }).filter(Boolean).join("");
   const image = tiles
-    ? `<div class="travel-visual-track is-visible" data-travel-snapshot="${isSnapshotTrack ? "true" : "false"}" data-travel-layer="current" data-travel-kind="${assetAttribute(presentationKind)}" data-travel-scene-key="${assetAttribute(trackSceneKey)}" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}" data-travel-parallax-asset-id="${assetAttribute(trackTravelParallaxAssetId ?? "")}" data-travel-show-seam-between-loops="${trackShowSeamForegroundBetweenLoops === false ? "false" : "true"}">${tiles}</div>`
+    ? `<div class="travel-visual-track${visibleClass}" data-travel-snapshot="${isSnapshotTrack ? "true" : "false"}" data-travel-layer="current" data-travel-kind="${assetAttribute(presentationKind)}" data-travel-scene-key="${assetAttribute(trackSceneKey)}" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}" data-travel-parallax-asset-id="${assetAttribute(trackTravelParallaxAssetId ?? "")}" data-travel-show-seam-between-loops="${trackShowSeamForegroundBetweenLoops === false ? "false" : "true"}">${tiles}</div>`
     : "";
   return `<div class="travel-art" id="travel-art" data-travel-asset-id="${assetAttribute(trackAssetId ?? "")}" data-travel-motion="${assetAttribute(trackMotion)}">${image}</div>`;
 }
@@ -573,12 +575,17 @@ function syncTravelParallaxTile(track, layer, baseTile, copy) {
     foreground.hidden = true;
     return;
   }
-  foreground.hidden = false;
+  const preloaded = travelScenePreloadCache.get(assetId);
+  const sourceReady = travelSceneAssetReady(assetId);
+  const sourceFailed = travelSceneAssetFailed(assetId);
   if (foreground.dataset.travelAssetId !== assetId) {
     foreground.dataset.travelAssetId = assetId;
-    foreground.src = travelScenePreloadCache.get(assetId)?.currentSrc
-      || travelScenePreloadCache.get(assetId)?.src
-      || path;
+    foreground.hidden = !(sourceReady || (!sourceFailed && foreground.complete && foreground.naturalWidth > 0));
+    foreground.src = preloaded?.currentSrc || preloaded?.src || path;
+  } else if (sourceFailed) {
+    foreground.hidden = true;
+  } else if (sourceReady || (foreground.complete && foreground.naturalWidth > 0)) {
+    foreground.hidden = false;
   }
 }
 
@@ -1139,6 +1146,7 @@ function travelScenePresentationFor(expedition = game.expedition) {
       activeAnimationCycle: null,
       pending: null,
       transition: null,
+      sceneAssetLoad: null,
       failedAssetId: null,
     };
   }
@@ -1195,9 +1203,90 @@ function preloadTravelAsset(assetId) {
   if (travelScenePreloadCache.has(assetId)) return travelScenePreloadCache.get(assetId);
   const image = new Image();
   image.decoding = "async";
+  let settled = false;
+  image._travelSceneReady = false;
+  image._travelSceneFailed = false;
+  image._travelSceneReadyPromise = new Promise((resolve) => {
+    const settle = async (failed = false) => {
+      if (settled) return;
+      if (failed || !image.naturalWidth || !image.naturalHeight) {
+        settled = true;
+        image._travelSceneFailed = true;
+        resolve(null);
+        return;
+      }
+      if (typeof image.decode === "function") {
+        try {
+          await image.decode();
+        } catch (error) {
+          // The image remains drawable when decode rejects after load.
+        }
+      }
+      if (settled) return;
+      settled = true;
+      image._travelSceneReady = true;
+      resolve(image);
+    };
+    image.addEventListener("load", () => settle(), { once: true });
+    image.addEventListener("error", () => settle(true), { once: true });
+  });
   image.src = path;
   travelScenePreloadCache.set(assetId, image);
   return image;
+}
+
+function preloadTravelSceneAsset(assetId) {
+  const image = preloadTravelAsset(assetId);
+  return image?._travelSceneReadyPromise ?? Promise.resolve(null);
+}
+
+function travelSceneAssetReady(assetId) {
+  const image = travelScenePreloadCache.get(assetId);
+  return Boolean(image?._travelSceneReady && image.naturalWidth > 0 && image.naturalHeight > 0);
+}
+
+function travelSceneAssetFailed(assetId) {
+  return Boolean(travelScenePreloadCache.get(assetId)?._travelSceneFailed);
+}
+
+function travelPresentationAssetsReady(presentation) {
+  return Boolean(
+    presentation?.assetId
+    && travelSceneAssetReady(presentation.assetId)
+    && (!presentation.travelParallaxAssetId
+      || travelSceneAssetReady(presentation.travelParallaxAssetId)
+      || travelSceneAssetFailed(presentation.travelParallaxAssetId)),
+  );
+}
+
+function waitForTravelPresentationAssets(expedition, presentation) {
+  const state = travelScenePresentationFor(expedition);
+  if (!state || !presentation?.assetId) return Promise.resolve(false);
+  if (travelPresentationAssetsReady(presentation)) return Promise.resolve(true);
+  const key = `${presentation.assetId}|${presentation.travelParallaxAssetId ?? ""}`;
+  if (state.sceneAssetLoad?.key === key) return state.sceneAssetLoad.promise;
+  const request = {
+    key,
+    assetId: presentation.assetId,
+    travelParallaxAssetId: presentation.travelParallaxAssetId ?? "",
+    promise: null,
+  };
+  const loads = [
+    preloadTravelSceneAsset(request.assetId),
+    request.travelParallaxAssetId ? preloadTravelSceneAsset(request.travelParallaxAssetId) : Promise.resolve(null),
+  ];
+  request.promise = Promise.allSettled(loads).then(() => {
+    if (state.sceneAssetLoad !== request) return false;
+    state.sceneAssetLoad = null;
+    if (!travelSceneAssetReady(request.assetId)) {
+      state.failedAssetId = request.assetId;
+      if (state.pending?.assetId === request.assetId) state.pending = null;
+      return false;
+    }
+    return travelPresentationAssetsReady(request);
+  });
+  state.sceneAssetLoad = request;
+  return request.promise;
 }
 
 function clearTravelTransitionTimers(transition) {
@@ -1495,17 +1584,12 @@ function bindTravelImage(scene, image) {
             motion: travelMotionForImage(image),
             sceneKey: track.dataset.travelSceneKey,
           });
-          if (state) {
-            const transition = state.transition;
-            state.pending = null;
-            if (transition?.overlayActive) {
-              if (transition.overlayTimer) window.clearTimeout(transition.overlayTimer);
-            } else {
-              clearTravelTransitionTimers(transition);
-              document.querySelector("#travel-transition-art")?.classList.remove("is-active");
-            }
-            state.transition = null;
-          }
+        }
+        if (state) {
+          clearTravelTransitionTimers(state.transition);
+          state.pending = null;
+          state.transition = null;
+          document.querySelector("#travel-transition-art")?.classList.remove("is-active");
         }
         if (track.dataset.travelSeamForegroundForce === "true"
           && track.dataset.travelShowSeamBetweenLoops === "false") {
@@ -1529,13 +1613,11 @@ function bindTravelImage(scene, image) {
     const parallaxAssetId = track?.dataset.travelParallaxAssetId
       || image.dataset.travelParallaxAssetId
       || "";
-    if (track?.dataset.travelLayer === "next" && parallaxAssetId) {
-      const parallax = preloadTravelAsset(parallaxAssetId);
-      if (parallax && !parallax.complete) {
-        parallax.addEventListener("load", activate, { once: true });
-        parallax.addEventListener("error", activate, { once: true });
-        return;
-      }
+    if (track?.dataset.travelLayer === "next" && parallaxAssetId && !travelSceneAssetReady(parallaxAssetId)) {
+      preloadTravelSceneAsset(parallaxAssetId).then(() => {
+        if (image.isConnected) activate();
+      });
+      return;
     }
     activate();
   });
@@ -1622,7 +1704,8 @@ function createTravelTrack(scene, art, expedition, presentation, activeEncounter
   const path = AssetCatalog.imagePath(presentation?.assetId);
   if (!path) return null;
   const next = document.createElement("div");
-  next.className = "travel-visual-track";
+  const assetReady = travelSceneAssetReady(presentation.assetId);
+  next.className = `travel-visual-track${layer === "current" && assetReady ? " is-visible" : ""}`;
   next.dataset.travelLayer = layer;
   next.dataset.travelKind = activeEncounter ? "encounter" : "travel";
   next.dataset.travelSceneKey = presentation.sceneKey ?? "";
@@ -1631,9 +1714,8 @@ function createTravelTrack(scene, art, expedition, presentation, activeEncounter
   next.dataset.travelParallaxAssetId = presentation.travelParallaxAssetId ?? "";
   next.dataset.travelShowSeamBetweenLoops = presentation.showSeamForegroundBetweenLoops === false ? "false" : "true";
   if (layer === "next" && !activeEncounter) next.dataset.travelSeamForegroundForce = "true";
-  if (layer === "current") next.classList.add("is-visible");
   const image = document.createElement("img");
-  image.className = "asset-image travel-visual-asset is-visible";
+  image.className = `asset-image travel-visual-asset${layer === "current" && assetReady ? " is-visible" : ""}`;
   image.dataset.travelCopy = "primary";
   image.dataset.travelAssetId = presentation.assetId;
   image.dataset.travelParallaxAssetId = presentation.travelParallaxAssetId ?? "";
@@ -1759,6 +1841,12 @@ function advancePendingTravelScene(expedition, scene, activeEncounter) {
     return;
   }
   if (pending.tileMode) {
+    if (!travelPresentationAssetsReady(pending)) {
+      waitForTravelPresentationAssets(expedition, pending).then((ready) => {
+        if (ready && game.expedition === expedition && game.screen === "expedition") updateTravelHud();
+      });
+      return;
+    }
     installTravelPendingTile(expedition, pending);
     if (!scene.classList.contains("is-moving") || !pending.tileReady) return;
     const track = currentTravelTrack();
@@ -1790,6 +1878,12 @@ function advancePendingTravelScene(expedition, scene, activeEncounter) {
     if (loopAdvanced || travelTileIsOffscreen(outgoingTile, scene.getBoundingClientRect(), expedition.direction === "returning")) {
       recycleTravelLoopScene(expedition, scene, pending);
     }
+    return;
+  }
+  if (!travelPresentationAssetsReady(pending)) {
+    waitForTravelPresentationAssets(expedition, pending).then((ready) => {
+      if (ready && game.expedition === expedition && game.screen === "expedition") updateTravelHud();
+    });
     return;
   }
   if (!scene.classList.contains("is-moving")) return;
@@ -1844,6 +1938,7 @@ function syncTravelVisual(expedition, activeEncounter) {
     : activeEncounter && currentPresentation
       ? currentPresentation
       : resolvedPresentation;
+  const desiredKind = desiredPresentation.kind ?? (activeEncounter && encounterAssetId ? "encounter" : "travel");
   const desiredAssetId = desiredPresentation.assetId;
   const desiredMotion = normalizeTravelMotion(desiredPresentation.motion);
   const desiredPath = AssetCatalog.imagePath(desiredAssetId);
@@ -1885,10 +1980,18 @@ function syncTravelVisual(expedition, activeEncounter) {
     return;
   }
   if (art.dataset.travelAssetFailedId === desiredAssetId) return;
+  if (state?.failedAssetId === desiredAssetId) return;
+  if (!travelPresentationAssetsReady(desiredPresentation)) {
+    waitForTravelPresentationAssets(expedition, desiredPresentation).then((ready) => {
+      if (ready && game.expedition === expedition && game.screen === "expedition") updateTravelHud();
+    });
+    return;
+  }
   if (current
     && current.dataset.travelAssetId === desiredAssetId
     && current.dataset.travelMotion === desiredMotion
     && (current.dataset.travelParallaxAssetId || "") === (desiredPresentation.travelParallaxAssetId ?? "")
+    && (current.dataset.travelKind || "travel") === desiredKind
     && currentImage
     && !currentImage.hidden) {
     if (!activeEncounter && state) {
@@ -1911,12 +2014,28 @@ function syncTravelVisual(expedition, activeEncounter) {
     if (state) state.pending = null;
     return;
   }
-  if (current && current.dataset.travelKind !== "encounter") {
-    if (!activeEncounter) queueTravelSceneTransition(expedition, resolvedTravel, currentImage);
+  if (current && current.dataset.travelKind !== "encounter" && !activeEncounter) {
+    queueTravelSceneTransition(expedition, resolvedTravel, currentImage);
+    return;
+  }
+  if (current
+    && ((current.dataset.travelAssetId || "") !== desiredAssetId
+      || (current.dataset.travelKind || "travel") !== desiredKind)) {
+    if (state?.transition?.assetId === desiredAssetId && state.transition.kind === desiredKind) return;
+    if (state?.transition) cancelTravelSceneTransition(expedition);
+    if (state) {
+      state.transition = {
+        ...desiredPresentation,
+        kind: desiredKind,
+        outgoingAssetId: current.dataset.travelAssetId || "",
+        crossfadeStarted: false,
+      };
+    }
+    createTravelTrack(scene, art, expedition, { ...desiredPresentation, kind: desiredKind }, activeEncounter, "next");
     return;
   }
   if (current && !scene.classList.contains("asset-image-active")) current.remove();
-  createTravelTrack(scene, art, expedition, desiredPresentation, activeEncounter, "current");
+  createTravelTrack(scene, art, expedition, { ...desiredPresentation, kind: desiredKind }, activeEncounter, "current");
 }
 
 function preserveTravelDirectionPosition(scene, returning) {
@@ -3681,9 +3800,14 @@ async function startExpedition() {
   });
   const startedExpedition = game.expedition;
   savePlayer();
+  const initialTravelScene = resolveTravelScene(startedExpedition);
   const initialVisualLoads = [
     preloadCharacterVisualSlot(PLAYER_CHARACTER_DEFINITION, "walk"),
     ...selectedCompanions.map((companionId) => preloadCharacterVisualSlot(COMPANION_DEFINITIONS[companionId], "walk")),
+    ...(initialTravelScene?.assetId ? [preloadTravelSceneAsset(initialTravelScene.assetId)] : []),
+    ...(initialTravelScene?.travelParallaxAssetId
+      ? [preloadTravelSceneAsset(initialTravelScene.travelParallaxAssetId)]
+      : []),
   ];
   await Promise.allSettled(initialVisualLoads);
   preloadCharacterVisuals(PLAYER_CHARACTER_DEFINITION);
@@ -3851,9 +3975,6 @@ function renderExpedition() {
   } else if (!activeEncounter) {
     game.travelPartyVisualState = null;
   }
-  const hasDedicatedEncounterArtwork = Boolean(
-    resolveEncounterVisualState(activeEncounter, expedition?.activeEncounter).backgroundAssetId,
-  );
   const companions = selectedCompanionIds(expedition)
     .map((companionId) => COMPANION_DEFINITIONS[companionId])
     .filter(Boolean);
@@ -3861,8 +3982,6 @@ function renderExpedition() {
     existingTravelScene
     && existingTravelTrack
     && game.travelScenePresentation?.expedition === expedition
-    && existingTravelTrack.dataset.travelKind !== "encounter"
-    && !hasDedicatedEncounterArtwork
     && !expedition?.combat
     && expedition?.travelState !== "camped",
   );
@@ -3881,6 +4000,7 @@ function renderExpedition() {
   }
   syncExpeditionAmbience(expedition, "travel", activeEncounter);
   const travelPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
+  const travelBaseReady = !travelPresentation.assetId || travelSceneAssetReady(travelPresentation.assetId);
   const travelVisualSnapshot = !preserveLiveTravelScene
     && game.travelVisualState?.expedition === expedition
     && travelPresentation.kind !== "encounter"
@@ -3910,7 +4030,7 @@ function renderExpedition() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
-      <div data-asset-frame="travel" class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}" id="travel-scene">
+      <div data-asset-frame="travel" class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}${travelBaseReady ? " asset-image-active" : ""}" id="travel-scene">
         ${renderTravelVisualAsset(travelPresentation.assetId, activeEncounter?.title ?? expeditionDefinition(expedition).name, travelPresentation.motion, travelPresentation.sceneKey, travelPresentation.kind ?? (activeEncounter ? "encounter" : "travel"), travelPresentation.showSeamForegroundBetweenLoops, travelVisualSnapshot, travelPresentation.travelParallaxAssetId)}
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>

@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - First-Load Travel Scene Readiness and Walk Activation
+
+### Goal
+
+Remove first-render travel/encounter scene popping and the initial frozen Walk pose while preserving the existing cached sprite and scene presentation systems.
+
+### Human prompt and direction
+
+The human developer supplied the first-load travel/encounter scene visual-popping guide and requested a focused cleanup: hold Preparation until the initial base travel scene, parallax, and selected-party Walk visuals are ready; keep old scene art during later scene loads; and ensure the first visible expedition frame already has a running Walk animation instance without changing FPS, frame counts, scale, normalization, layout, or gameplay timing.
+
+### AI-assisted implementation
+
+- Extended the existing `travelScenePreloadCache` entries with load/decode readiness and failure state, then gated initial expedition entry on the initial base/parallax scene assets alongside the selected party's Walk preload.
+- Kept the current scene until a later travel or dedicated encounter background is decoded, switching base and parallax presentation atomically and retaining the prior scene on base-art failure. Unready tracks remain hidden instead of exposing procedural fallback or parallax-first flashes.
+- Preserved the immediate character activation path (`startedAt`, instance registration, frame-zero draw, and scheduler call) and cleared only a stale pending marker when a completed cached image had no live instance, preventing cached Walk activation from being suppressed.
+
+### Verification and resulting prototype state
+
+Cold-cache initial-entry and dedicated-encounter browser smokes passed: Preparation remained visible until the initial scene art was ready, the expedition appeared with no fallback flash, Arthur/Kay Walk instances were active immediately, and frames advanced shortly after display. The focused combat (34 assertions), deterministic simulation (62 assertions), and campaign/health (99 assertions) suites passed. The debug suite remains stopped at its stale character metadata fixture assertion, and the broader location suite remains stopped at its existing Hall hotspot fixture mismatch before expedition coverage. `git diff --check` passed. No Tools changes or manual changes were reported.
+
 ## 2026-08-23 - Initial Expedition Walk Preload
 
 ### Goal

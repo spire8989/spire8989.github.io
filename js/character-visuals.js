@@ -479,7 +479,12 @@ function initializeCharacterSprite(root) {
     && root._characterSpriteInstance?.stateKey === stateKey
     && cached?.loaded
     && root._characterSpriteInstance.image === cached.image) return;
-  if (root._characterSpritePendingKey === stateKey) return;
+  if (root._characterSpritePendingKey === stateKey) {
+    // A completed cached image must never remain blocked behind a stale
+    // preload marker when no live animation instance was created.
+    if (root._characterSpriteInstance || !cached?.loaded) return;
+    root._characterSpritePendingKey = null;
+  }
   root._characterSpritePendingKey = stateKey;
   preloadCharacterVisuals(definition);
   loadCharacterVisualImage(config.assetId).then((image) => {
