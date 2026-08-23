@@ -1,5 +1,27 @@
 # Build Log
 
+## 2026-08-22 - Character Pass 2.7 Combat HUD and Travel Party Continuity
+
+### Goal
+
+Finish the presentation pass by giving combat HUDs readable independent width and a shared character anchor, preserving ordinary encounter positions, and making travel party order lead correctly in both directions.
+
+### Human prompt and direction
+
+The human developer supplied the Character Pass 2.7 guide: preserve the Pass 2.6 sprite/layout systems and combat size, avoid scene enlargement or renderer redesign, prevent normal names such as Wild Boar from truncating, keep HUDs centered over small and large characters, inherit live travel positions for encounters without authored layout, honor authored layout when present, and keep Arthur as the directional leader.
+
+### AI-assisted implementation
+
+- Reworked each combatant into one centered HUD → visual → status stack. HUD width is now independent of sprite width, normal names fit within the portrait viewport, and the actual visual remains centered on the same anchor.
+- Moved both combat formations modestly inward while preserving the central battlefield and current character sizing.
+- Added transient live travel-party position capture when entering an encounter. Ordinary encounters use those positions; authored encounter or visual-override layouts still take precedence. The snapshot is cleared when travel resumes.
+- Made the travel party use deterministic leader-first ordering with direction-aware row reversal and the existing return-facing mirror. Selected companion order remains data-driven.
+- Added regression checks for wide Wild Boar HUD readability/centering, ordinary encounter position inheritance, and outbound/return party ordering.
+
+### Verification and resulting prototype state
+
+The Grail debug browser suite passed 36 assertions. `git diff --check` passed. The broader location suite remains blocked at its pre-existing Hall hotspot fixture mismatch before reaching later combat checks. Focused GrailTools tests were not changed by this runtime-only pass. No sprite assets, normalization, authored encounter layouts, gameplay, attack animation, VFX, damage numbers, or combat sound were changed.
+
 ## 2026-08-22 - Character Pass 2.6 Combat Layout and Travel Scale Correction
 
 ### Goal

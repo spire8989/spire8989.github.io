@@ -24,6 +24,7 @@ const game = {
   lastTimestamp: null,
   hudAccumulator: 0,
   travelVisualState: null,
+  travelPartyVisualState: null,
   travelScenePresentation: null,
   craftingAction: null,
   restAction: null,
@@ -3530,7 +3531,16 @@ function encounterPartyLayoutPosition(encounter, slot) {
   };
 }
 
-function resolveEncounterVisualState(encounter, activeEncounter = null) {
+function encounterHasExplicitPartyLayout(encounter, activeEncounter = null) {
+  const authored = encounter?.encounterLayout;
+  const override = activeEncounter?.visualOverride?.encounterLayout;
+  return ENCOUNTER_PARTY_LAYOUT_SLOTS.some((slot) => {
+    const position = override?.[slot] ?? authored?.[slot];
+    return Number.isFinite(Number(position?.x)) || Number.isFinite(Number(position?.y));
+  });
+}
+
+function resolveEncounterVisualState(encounter, activeEncounter = null, livePartyLayout = null) {
   if (!encounter) {
     return { backgroundAssetId: null, layout: {}, hiddenSlots: new Set() };
   }
@@ -3542,8 +3552,12 @@ function resolveEncounterVisualState(encounter, activeEncounter = null) {
     : AssetCatalog.imagePath(baseBackground)
       ? baseBackground
       : null;
+  const useLivePartyLayout = !encounterHasExplicitPartyLayout(encounter, activeEncounter)
+    && livePartyLayout?.layout;
   const layout = Object.fromEntries(ENCOUNTER_PARTY_LAYOUT_SLOTS.map((slot) => {
-    const base = encounterPartyLayoutPosition(encounter, slot);
+    const base = useLivePartyLayout && livePartyLayout.layout[slot]
+      ? livePartyLayout.layout[slot]
+      : encounterPartyLayoutPosition(encounter, slot);
     const override = visualOverride?.encounterLayout?.[slot];
     return [slot, {
       x: clamp(Number.isFinite(Number(override?.x)) ? Number(override.x) : base.x, 0, 1),
@@ -3555,6 +3569,24 @@ function resolveEncounterVisualState(encounter, activeEncounter = null) {
       .filter((slot) => ENCOUNTER_PARTY_LAYOUT_SLOTS.includes(slot)),
   );
   return { backgroundAssetId, layout, hiddenSlots };
+}
+
+function captureTravelPartyLayout() {
+  const scene = document.querySelector("#travel-scene");
+  const travelers = scene?.querySelector("#travelers");
+  const sceneBox = scene?.getBoundingClientRect();
+  if (!scene || !travelers || !sceneBox?.width || !sceneBox?.height) return null;
+  const layout = Object.fromEntries([
+    ["arthur", travelers.querySelector(".arthur")],
+    ...[...travelers.querySelectorAll(".companion")].map((element, index) => [`companion${index + 1}`, element]),
+  ].filter(([, element]) => element && !element.hidden).map(([slot, element]) => {
+    const box = element.getBoundingClientRect();
+    return [slot, {
+      x: clamp((box.left + box.width / 2 - sceneBox.left) / sceneBox.width, 0, 1),
+      y: clamp((box.top + box.height / 2 - sceneBox.top) / sceneBox.height, 0, 1),
+    }];
+  }));
+  return { layout };
 }
 
 function encounterPartyLayoutAttributes(visualState, slot) {
@@ -3581,8 +3613,8 @@ function setEncounterPartyLayoutSlot(element, visualState, slot) {
   element.style.setProperty("--encounter-party-y", `${position.y * 100}%`);
 }
 
-function renderEncounterTravelers(companions, encounter, activeEncounter = null) {
-  const visualState = resolveEncounterVisualState(encounter, activeEncounter);
+function renderEncounterTravelers(companions, encounter, activeEncounter = null, livePartyLayout = null) {
+  const visualState = resolveEncounterVisualState(encounter, activeEncounter, livePartyLayout);
   const companionsMarkup = companions.map((companion, index) => {
     const slot = `companion${index + 1}`;
     const marker = companion.type === "mount" ? "&#x265e;" : "&#x265c;";
@@ -3605,10 +3637,10 @@ function syncTravelerCharacterVisuals(expedition, activeEncounter = null) {
   });
 }
 
-function applyEncounterPartyLayout(encounter, activeEncounter = null) {
+function applyEncounterPartyLayout(encounter, activeEncounter = null, livePartyLayout = null) {
   const travelers = document.querySelector("#travelers");
   if (!travelers) return;
-  const visualState = resolveEncounterVisualState(encounter, activeEncounter);
+  const visualState = resolveEncounterVisualState(encounter, activeEncounter, livePartyLayout);
   travelers.classList.toggle("is-encounter-layout", Boolean(encounter));
   const arthur = travelers.querySelector(".arthur");
   setEncounterPartyLayoutSlot(arthur, visualState, "arthur");
@@ -3627,6 +3659,11 @@ function renderExpedition() {
   const activeEncounter = expedition?.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
+  if (activeEncounter && !game.travelPartyVisualState) {
+    game.travelPartyVisualState = captureTravelPartyLayout();
+  } else if (!activeEncounter) {
+    game.travelPartyVisualState = null;
+  }
   const hasDedicatedEncounterArtwork = Boolean(
     resolveEncounterVisualState(activeEncounter, expedition?.activeEncounter).backgroundAssetId,
   );
@@ -3677,7 +3714,7 @@ function renderExpedition() {
         .forEach((child) => child.remove());
       expeditionScreen.insertAdjacentHTML("beforeend", expeditionPanelMarkup);
       initializeCharacterSprites(expeditionScreen);
-      applyEncounterPartyLayout(activeEncounter, expedition.activeEncounter);
+      applyEncounterPartyLayout(activeEncounter, expedition.activeEncounter, game.travelPartyVisualState);
       game.travelVisualState = null;
       updateTravelHud();
       return;
@@ -3691,7 +3728,7 @@ function renderExpedition() {
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
-        ${renderEncounterTravelers(companions, activeEncounter, expedition.activeEncounter)}
+        ${renderEncounterTravelers(companions, activeEncounter, expedition.activeEncounter, game.travelPartyVisualState)}
         <div class="ground" aria-hidden="true"></div>
         ${renderTravelTransitionAsset(expedition)}
         <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>
@@ -4132,15 +4169,17 @@ function renderCombatant(combatant, combat) {
   const markup = `
     <${tag} class="combatant ${combatant.side} ${defeated ? "is-defeated" : ""} ${ready ? "is-ready" : ""} ${selectable ? "is-selectable" : ""} ${selected ? "is-selected" : ""} ${wasHit ? "was-hit" : ""}"
       data-combatant-id="${combatant.id}" ${targetAttributes}>
-      <div class="combat-unit-hud">
-        ${intent}
-        <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
-        <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
-        ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
-        <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
+      <div class="combat-unit-anchor">
+        <div class="combat-unit-hud">
+          ${intent}
+          <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
+          <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
+          ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
+          <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
+        </div>
+        <div data-asset-frame="combat" class="combat-unit-visual" data-combat-base-scale="${combatLayoutScale}" style="--combat-character-layout-scale:${combatLayoutScale}" aria-hidden="true">${renderCombatVisual(combatant, combatFallbackVisual(combatant), combatant.name)}</div>
+        ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
       </div>
-      <div data-asset-frame="combat" class="combat-unit-visual" data-combat-base-scale="${combatLayoutScale}" style="--combat-character-layout-scale:${combatLayoutScale}" aria-hidden="true">${renderCombatVisual(combatant, combatFallbackVisual(combatant), combatant.name)}</div>
-      ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
     </${tag}>`;
   return markup;
 }
