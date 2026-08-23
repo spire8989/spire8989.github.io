@@ -209,6 +209,36 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "combat_bandit_attack",
     path: "assets/images/combat/bandit-attack2.webp",
     category: "combat"
+  },
+  combat_bandit_leader_idle: {
+    id: "combat_bandit_leader_idle",
+    path: "assets/images/combat/banditleader-idle.webp",
+    category: "combat"
+  },
+  combat_bandit_leader_attack: {
+    id: "combat_bandit_leader_attack",
+    path: "assets/images/combat/banditleader-attack.webp",
+    category: "combat"
+  },
+  combat_wild_boar_idle: {
+    id: "combat_wild_boar_idle",
+    path: "assets/images/combat/boar-idle.webp",
+    category: "combat"
+  },
+  combat_wild_boar_attack: {
+    id: "combat_wild_boar_attack",
+    path: "assets/images/combat/boar-attack.webp",
+    category: "combat"
+  },
+  combat_wolf_idle: {
+    id: "combat_wolf_idle",
+    path: "assets/images/combat/wolf-idle.webp",
+    category: "combat"
+  },
+  combat_wolf_attack: {
+    id: "combat_wolf_attack",
+    path: "assets/images/combat/wolf-attack.webp",
+    category: "combat"
   }
 });
 

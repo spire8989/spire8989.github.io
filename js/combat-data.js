@@ -265,22 +265,52 @@ const COMBAT_STATUS_DEFINITIONS = Object.freeze({
 });
 
 const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
-  wild_boar: Object.freeze({
+  wild_boar: {
     id: "wild_boar",
     name: "Wild Boar",
     maxHp: 32,
     speed: 11,
     defense: 1,
     actionPattern: ["boar_charge", "boar_gore", "boar_gore"],
-  }),
-  wolf: Object.freeze({
+    visuals: {
+      idle: {
+        assetId: "combat_wild_boar_idle",
+        frameCount: 17,
+        columns: 5,
+        fps: 16
+      },
+      attack: {
+        assetId: "combat_wild_boar_attack",
+        frameCount: 25,
+        columns: 5,
+        fps: 20
+      }
+    },
+    visualScale: 0.5
+  },
+  wolf: {
     id: "wolf",
     name: "Wolf",
     maxHp: 14,
     speed: 14,
     defense: 0,
     actionPattern: ["wolf_bite", "wolf_lunge", "wolf_bite"],
-  }),
+    visuals: {
+      idle: {
+        assetId: "combat_wolf_idle",
+        frameCount: 23,
+        columns: 5,
+        fps: 16
+      },
+      attack: {
+        assetId: "combat_wolf_attack",
+        frameCount: 25,
+        columns: 5,
+        fps: 20,
+        scale: 0.75
+      }
+    }
+  },
   bandit: {
     id: "bandit",
     name: "Bandit",
@@ -293,24 +323,44 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         assetId: "combat_bandit_idle",
         frameCount: 24,
         columns: 5,
-        scale: 1.5
+        scale: 1.5,
+        fps: 16
       },
       attack: {
         assetId: "combat_bandit_attack",
         frameCount: 25,
         columns: 5,
-        scale: 1.875
+        fps: 20,
+        scale: 2
       }
     }
   },
-  bandit_leader: Object.freeze({
+  bandit_leader: {
     id: "bandit_leader",
     name: "Bandit Leader",
     maxHp: 44,
     speed: 13,
     defense: 3,
     actionPattern: ["leader_strike", "leader_command", "leader_strike"],
-  }),
+    visuals: {
+      idle: {
+        assetId: "combat_bandit_leader_idle",
+        frameCount: 24,
+        columns: 5,
+        fps: 16,
+        scale: 1
+      },
+      attack: {
+        assetId: "combat_bandit_leader_attack",
+        frameCount: 24,
+        columns: 5,
+        scale: 1.25,
+        fps: 20
+      },
+      walk: {}
+    },
+    visualScale: 1.1
+  },
   summoned_guardian: {
     id: "summoned_guardian",
     name: "Morgan's Guardian",

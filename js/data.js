@@ -932,7 +932,8 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
       columns: 5,
       offsetX: 0,
       offsetY: 0,
-      scale: 1.5
+      scale: 1.5,
+      fps: 16
     },
     walk: {
       assetId: "combat_arthur_walk_basesprite_walk2",
@@ -940,13 +941,15 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
       columns: 5,
       offsetX: 0,
       offsetY: 0,
-      scale: 1.5
+      scale: 1.5,
+      fps: 12
     },
     attack: {
       assetId: "combat_arthur_attack",
       frameCount: 25,
       columns: 5,
-      scale: 1.875
+      scale: 1.875,
+      fps: 20
     }
   }
 });
@@ -982,19 +985,22 @@ const COMPANION_DEFINITIONS = Object.freeze({
         assetId: "combat_sir_kay_idle",
         frameCount: 24,
         columns: 5,
-        scale: 1.5
+        scale: 1.5,
+        fps: 16
       },
       walk: {
         assetId: "combat_sir_kay_walk",
         frameCount: 13,
         columns: 5,
-        scale: 1.5
+        scale: 1.5,
+        fps: 12
       },
       attack: {
         assetId: "combat_sir_kay_attack",
         frameCount: 24,
         columns: 5,
-        scale: 1.875
+        scale: 2,
+        fps: 20
       }
     },
     visualScale: 1.1
