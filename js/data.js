@@ -930,14 +930,14 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
       assetId: "combat_arthur_basesprite_idle_anim",
       frameCount: 19,
       columns: 5,
-      offsetX: 3,
+      offsetX: 0,
       offsetY: 0
     },
     walk: {
       assetId: "combat_arthur_walk_basesprite_walk2",
       frameCount: 14,
       columns: 4,
-      offsetX: 4,
+      offsetX: 0,
       offsetY: 0
     }
   }

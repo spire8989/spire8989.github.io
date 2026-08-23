@@ -1,5 +1,22 @@
 # Build Log
 
+## 2026-08-22 - Character Pass 2.4 Correction: Frame Anchors and Combat Clipping
+
+### Goal
+
+Correct the remaining Character Pass 2 regressions without changing the established character scale, frame counts, columns, or automatic height normalization.
+
+### AI-assisted implementation
+
+- Narrowed combat text truncation selectors so `.combatant span` no longer applies `overflow: hidden` to the animated `.character-sprite` root. Combat sprite roots and canvases explicitly remain visible.
+- Restored the two-ally combat scene aspect ratio to `1.2` in the base, narrow-width, and container rules. The real-character two-unit visual dimensions remain unchanged.
+- Extended sprite metadata with integer frame-cell bounds, opaque bounds, per-frame opaque offsets, a common frame-cell anchor, and a stable bottom gap. Alpha-cropped frames are now drawn at their authored frame-cell position instead of being independently recentered.
+- Reset Arthur's temporary Idle/Walk offset guesses to zero. Optional normalized `offsetX` / `offsetY` controls remain available in the game data and GrailTools preview for measured fine tuning.
+
+### Verification and resulting prototype state
+
+The Grail debug browser suite passed 32 assertions, including rendered Walk/Idle/Walk anchor checks, solo Arthur combat pixel-bound checks, two-ally full-body pixel-bound checks, visible HUD/gauge bounds, 1.2 battlefield ratio, Kay separation, and continuing Idle animation. Focused GrailTools character-visual tests, Python source parsing, and `git diff --check` were also run. No sprite assets, scale values, frame counts, columns, combat FX, or combat sound were changed.
+
 ## 2026-08-22 - Character Pass 2.4 Presentation Offsets and Two-Ally Fit
 
 ### Goal

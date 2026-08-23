@@ -109,6 +109,21 @@ function characterSpriteMetadata(image, config, definition) {
   scanCanvas.height = image.naturalHeight;
   const scanContext = scanCanvas.getContext("2d", { willReadFrequently: true });
   const frameBounds = [];
+  const frameCells = [];
+  const opaqueOffsets = [];
+  const addFrame = (cell, bounds) => {
+    frameCells.push(cell);
+    frameBounds.push(bounds);
+    const cellCenterX = (cell.left + cell.right) / 2;
+    const cellCenterY = (cell.top + cell.bottom) / 2;
+    opaqueOffsets.push({
+      x: bounds.x - cell.left,
+      y: bounds.y - cell.top,
+      centerX: bounds.x + bounds.width / 2 - cellCenterX,
+      centerY: bounds.y + bounds.height / 2 - cellCenterY,
+      bottom: cell.bottom - (bounds.y + bounds.height),
+    });
+  };
   if (scanContext) {
     scanContext.drawImage(image, 0, 0);
     const pixels = scanContext.getImageData(0, 0, image.naturalWidth, image.naturalHeight).data;
@@ -132,7 +147,7 @@ function characterSpriteMetadata(image, config, definition) {
           maxY = Math.max(maxY, y);
         }
       }
-      frameBounds.push(maxX >= minX
+      addFrame({ left, top, right, bottom }, maxX >= minX
         ? { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
         : { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) });
     }
@@ -144,11 +159,12 @@ function characterSpriteMetadata(image, config, definition) {
       const top = Math.floor(row * image.naturalHeight / config.rows);
       const right = Math.floor((column + 1) * image.naturalWidth / config.columns);
       const bottom = Math.floor((row + 1) * image.naturalHeight / config.rows);
-      frameBounds.push({ x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) });
+      addFrame({ left, top, right, bottom }, { x: left, y: top, width: Math.max(1, right - left), height: Math.max(1, bottom - top) });
     }
   }
   const maximumVisibleHeight = Math.max(...frameBounds.map((bounds) => bounds.height), 1);
   const maximumVisibleWidth = Math.max(...frameBounds.map((bounds) => bounds.width), 1);
+  const commonBottomGap = opaqueOffsets.length ? Math.min(...opaqueOffsets.map((offset) => offset.bottom)) : 0;
   // The maximum opaque bounds define the logical animation box. Keep one
   // natural render scale for every frame; never rescale the current pose.
   const sharedScale = 1;
@@ -156,6 +172,12 @@ function characterSpriteMetadata(image, config, definition) {
     width: image.naturalWidth,
     height: image.naturalHeight,
     frameBounds,
+    frameCells,
+    opaqueOffsets,
+    commonFrameCellAnchor: frameCells[0]
+      ? { x: (frameCells[0].left + frameCells[0].right) / 2, y: frameCells[0].bottom }
+      : { x: 0, y: 0 },
+    commonBottomGap,
     sharedScale,
     normalizedWidth: Math.ceil(maximumVisibleWidth * sharedScale),
     normalizedHeight: Math.ceil(maximumVisibleHeight * sharedScale),
@@ -206,6 +228,7 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   if (!root?.isConnected || !image?.naturalWidth || !image?.naturalHeight || !canvas || !metadata) return;
   const frame = Math.max(0, Math.min(config.frameCount - 1, Math.floor(frameIndex)));
   const bounds = metadata.frameBounds[frame];
+  const opaqueOffset = metadata.opaqueOffsets[frame];
   const scale = metadata.sharedScale;
   const width = metadata.normalizedWidth;
   const height = metadata.normalizedHeight;
@@ -217,9 +240,11 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   context.imageSmoothingEnabled = true;
   const destinationWidth = bounds.width * scale;
   const destinationHeight = bounds.height * scale;
-  // Offsets are authored in normalized canvas pixels. Apply them after the
-  // shared frame normalization and before the canvas is positioned by CSS.
-  context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, (width - destinationWidth) / 2 + config.offsetX, height - destinationHeight + config.offsetY, destinationWidth, destinationHeight);
+  // Crop transparent pixels for efficiency, but place the opaque rectangle at
+  // its original frame-cell anchor instead of recentering each silhouette.
+  const destinationX = width / 2 + opaqueOffset.centerX * scale - destinationWidth / 2 + config.offsetX;
+  const destinationY = height - (opaqueOffset.bottom - metadata.commonBottomGap) * scale - destinationHeight + config.offsetY;
+  context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, destinationX, destinationY, destinationWidth, destinationHeight);
   root.style.setProperty("--character-frame-aspect", `${width} / ${height}`);
   root.classList.add("is-ready");
   root.classList.remove("asset-load-failed");

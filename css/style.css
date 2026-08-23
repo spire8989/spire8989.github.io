@@ -3189,12 +3189,12 @@ button:active:not(:disabled) {
 }
 
 .combat-scene:has(.combat-formation.formation-count-2) {
-  aspect-ratio: 0.88;
+  aspect-ratio: 1.2;
 }
 
 @media (max-width: 340px) {
   .combat-scene:has(.combat-formation.formation-count-2) {
-    aspect-ratio: 0.88;
+    aspect-ratio: 1.2;
   }
 
   .combat-scene:has(.combat-formation.formation-count-3) {
@@ -3204,7 +3204,7 @@ button:active:not(:disabled) {
 
 @container (max-width: 360px) {
   .combat-scene:has(.combat-formation.formation-count-2) {
-    aspect-ratio: 0.88;
+    aspect-ratio: 1.2;
   }
 }
 
@@ -3311,11 +3311,19 @@ button.combatant {
 }
 
 .combatant strong,
-.combatant span,
-.combatant small {
+.combatant .combat-hp-label,
+.combatant .combat-resource-heading span,
+.combatant .combat-intent,
+.combatant .combatant-statuses {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.combatant .character-sprite {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .combatant strong { font-size: clamp(0.52rem, 2.3cqw, 0.7rem); line-height: 1; }
@@ -3350,6 +3358,16 @@ button.combatant {
   overflow: visible;
   margin: 0.24rem auto 0.3rem;
   transition: filter 120ms ease, transform 120ms ease;
+}
+
+.combat-unit-visual .character-sprite-canvas {
+  width: auto;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
 }
 
 .combat-unit-visual::after {
