@@ -1019,6 +1019,8 @@ const COMPANION_DEFINITIONS = Object.freeze({
     combat: Object.freeze({ maxHp: 36, speed: 12, defense: 1, basicDamage: Object.freeze({ minimum: 6, maximum: 9 }) }),
     combatAbilities: ["charge"],
     noPermanentDeath: true,
+    travelOffsetY: 38,
+    combatVisualScale: 2.1
   },
 });
 

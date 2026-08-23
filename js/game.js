@@ -2246,7 +2246,7 @@ function combatCharacterContextScale(formationCount) {
 function combatCharacterLayoutScale(combatant, formationCount) {
   const definition = characterDefinitionForCombatant(combatant);
   const config = characterVisualConfig(definition, "idle");
-  return combatCharacterContextScale(formationCount) * config.visualScale * config.slotScale;
+  return combatCharacterContextScale(formationCount) * (config.combatVisualScale ?? config.visualScale) * config.slotScale;
 }
 
 function renderCombatVisual(combatant, fallback, alt) {

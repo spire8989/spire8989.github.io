@@ -132,7 +132,9 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   const fps = frameCount > 1 ? (Number.isFinite(fpsValue) && fpsValue > 0 ? fpsValue : CHARACTER_VISUAL_DEFAULT_FPS[requestedSlot] ?? 8) : 0;
   const rows = Math.max(1, Math.ceil(frameCount / columns));
   const visualScale = Math.min(3, characterVisualNumber(definition?.visualScale, 1, 0.25));
+  const combatVisualScale = Math.min(3, characterVisualNumber(definition?.combatVisualScale, visualScale, 0.25));
   const slotScale = Math.min(3, characterVisualNumber(visual.scale, 1, 0.25));
+  const travelOffsetY = characterVisualOffset(definition?.travelOffsetY);
   const offsetX = characterVisualOffset(visual.offsetX);
   const offsetY = characterVisualOffset(visual.offsetY);
   const authoredImpactFrame = options.impactFrame ?? visual.impactFrame;
@@ -142,7 +144,22 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
     && Number(authoredImpactFrame) < frameCount
     ? Number(authoredImpactFrame)
     : defaultImpactFrame;
-  return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, offsetX, offsetY, impactFrame, finalScale: visualScale * slotScale };
+  return {
+    ...resolved,
+    frameCount,
+    columns,
+    rows,
+    fps,
+    loop: options.loop !== false,
+    visualScale,
+    combatVisualScale,
+    travelOffsetY,
+    slotScale,
+    offsetX,
+    offsetY,
+    impactFrame,
+    finalScale: visualScale * slotScale,
+  };
 }
 
 function characterVisualContextScale(context, requestedSlot, explicitScale = null) {
@@ -465,6 +482,7 @@ function activateCharacterSprite(root, image, definition, requestedSlot, config,
   root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   const combatScale = characterVisualCombatScale(definition, requestedSlot, config);
   root.style.setProperty("--character-visual-scale", String(isCombat ? combatScale : config.visualScale * config.slotScale * contextScale));
+  if (!isCombat) root.style.setProperty("--character-travel-offset-y", `${config.travelOffsetY}%`);
   syncCombatVisualLayout(root);
   root._characterSpriteInstance = instance;
   characterSpriteInstances.add(instance);
@@ -481,6 +499,7 @@ function activateCharacterSprite(root, image, definition, requestedSlot, config,
       syncCombatVisualLayout(root, automaticSlotNormalization, { lock: requestedSlot === "idle" });
     } else {
       root.style.setProperty("--character-visual-scale", String(config.visualScale * automaticSlotNormalization * config.slotScale * contextScale));
+      root.style.setProperty("--character-travel-offset-y", `${config.travelOffsetY}%`);
     }
   });
 }

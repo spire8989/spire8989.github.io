@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Party Presentation Adjustment
+
+### Goal
+
+Make the three-ally party read as Sir Kay/Companion 1, Arthur, Llamrei/Companion 2 in combat, keep Arthur centered without spreading the intentional overlap, modestly reduce Llamrei only in combat, and keep the travel party on one shared ground baseline.
+
+### Human prompt and direction
+
+The human developer requested a surgical presentation pass: preserve the Arthur-first gameplay/combatant order, current compact overlapping battlefield composition, authored slot scales, travel direction, and sprite normalization while correcting the three-ally visual rows and large-companion travel alignment.
+
+### AI-assisted implementation
+
+- Reassigned only the three-ally party grid rows in CSS, leaving the combat array and all combat rules unchanged: Sir Kay/Companion 1 above, Arthur in the middle, and Llamrei/Companion 2 below. The presentation layer is explicitly Kay behind Arthur behind Llamrei, so Arthur covers only the intended Kay overlap.
+- Added generic `combatVisualScale` support with a `visualScale` fallback and authored Llamrei's modest combat-only reduction; travel scale and per-slot scale multiplication remain unchanged.
+- Made travel wrapper bottom alignment explicit, widened only the normal-travel companion gap while keeping Arthur centered, and added the generic zero-default `travelOffsetY` presentation hook using Llamrei's source-framing correction without companion-index staggering or horse-specific CSS.
+
+### Verification and resulting prototype state
+
+Focused presentation probing confirmed the unchanged Arthur-first combat array, Kay/Arthur/Llamrei visual row order, retained overlap, shared travel wrapper bottom edge, and Llamrei's larger-but-reduced combat visual. Combat (34 assertions), deterministic simulation (62 assertions), campaign/health (99 assertions), production HTTP startup, and `git diff --check` passed. Existing unrelated Llamrei asset/data worktree changes were preserved and not included in this pass.
+
 ## 2026-08-23 - Encounter Seam Blocker Synchronization
 
 ### Goal
