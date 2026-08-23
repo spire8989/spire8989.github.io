@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Combat Presentation Pass 1
+
+### Goal
+
+Separate resolved combat simulation from authored attack presentation so attacks read as Idle → Attack → impact → Idle without changing combat timing, damage, targeting, AI, RNG, or ATB behavior.
+
+### Human prompt and direction
+
+The human developer supplied the Combat Presentation Pass 1 guide: use the existing sprite renderer for Arthur, Sir Kay, and Bandit attacks; honor authored frame-count/FPS completion and an optional impact frame; serialize lightweight presentation actions; keep target hit reaction and visible HP at impact; preserve mirroring, normalization, layout, and missing-art Idle fallback; add the editor field and commit only focused changes.
+
+### AI-assisted implementation
+
+- Extended the existing character sprite state API with optional impact-frame metadata, exactly-once impact/completion callbacks, and version-safe action callbacks. Combat attack scale now uses the authored attack-to-Idle ratio while the existing normalized combat layout is locked to the Idle anchor, preventing attack-sheet bounds from moving HUDs or feet.
+- Added a per-combat presentation queue keyed by resolved action events. Attack sprites run asynchronously through the existing renderer; characters without attack art advance immediately. Impact dispatches a generic `combat-presentation-impact` event, applies the existing target hit reaction, and reveals the already-resolved HP at the authored frame. Final combat teardown waits for queued presentation completion.
+- Added GrailTools Attack Impact frame editing and validation, with a default of about 60% of the authored frame count when omitted. No CombatSystem simulation code, sprite slicing, travel formation, or gameplay timing was changed.
+
+### Verification and resulting prototype state
+
+The focused browser presentation smoke, Tier 1 combat suite (34 assertions), deterministic simulation suite (62 assertions), campaign/health suite (99 assertions), and focused GrailTools Impact-frame tests passed. The full Tools suite ran 114 tests with two pre-existing encounter-layout fixture failures; those expected `arthur` normalized slot values differ from the current fixture and are unrelated to this pass. The temporary browser harness was removed, and no manual changes were reported.
+
 ## 2026-08-23 - Character Pass 2.9 Runtime Fixes
 
 ### Goal

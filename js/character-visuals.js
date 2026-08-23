@@ -77,7 +77,14 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   const slotScale = Math.min(3, characterVisualNumber(visual.scale, 1, 0.25));
   const offsetX = characterVisualOffset(visual.offsetX);
   const offsetY = characterVisualOffset(visual.offsetY);
-  return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, offsetX, offsetY, finalScale: visualScale * slotScale };
+  const authoredImpactFrame = options.impactFrame ?? visual.impactFrame;
+  const defaultImpactFrame = Math.max(0, Math.min(frameCount - 1, Math.floor(frameCount * 0.6)));
+  const impactFrame = Number.isInteger(Number(authoredImpactFrame))
+    && Number(authoredImpactFrame) >= 0
+    && Number(authoredImpactFrame) < frameCount
+    ? Number(authoredImpactFrame)
+    : defaultImpactFrame;
+  return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, offsetX, offsetY, impactFrame, finalScale: visualScale * slotScale };
 }
 
 function characterVisualContextScale(context, requestedSlot, explicitScale = null) {
@@ -86,9 +93,10 @@ function characterVisualContextScale(context, requestedSlot, explicitScale = nul
   return 1;
 }
 
-function syncCombatVisualLayout(root, automaticSlotNormalization = 1) {
+function syncCombatVisualLayout(root, automaticSlotNormalization = 1, options = {}) {
   if (root?.dataset.characterContext !== "combat") return;
   const visual = root.closest(".combat-unit-visual");
+  if (visual?.dataset.combatLayoutScaleLocked === "true" && options.lock !== true) return;
   const baseScale = Number(visual?.dataset.combatBaseScale);
   const normalization = Number(automaticSlotNormalization);
   if (!visual || !Number.isFinite(baseScale) || baseScale <= 0) return;
@@ -96,6 +104,18 @@ function syncCombatVisualLayout(root, automaticSlotNormalization = 1) {
     "--combat-character-layout-scale",
     String(baseScale * (Number.isFinite(normalization) && normalization > 0 ? normalization : 1)),
   );
+  if (options.lock === true) visual.dataset.combatLayoutScaleLocked = "true";
+}
+
+function characterVisualCombatScale(definition, requestedSlot, config) {
+  if (!config || requestedSlot === "idle") return 1;
+  const idleConfig = characterVisualConfig(definition, "idle");
+  if (!idleConfig?.assetId || !config?.assetId) return 1;
+  const idleScale = Number(idleConfig.finalScale);
+  const slotScale = Number(config.finalScale);
+  return Number.isFinite(idleScale) && idleScale > 0 && Number.isFinite(slotScale) && slotScale > 0
+    ? slotScale / idleScale
+    : 1;
 }
 
 function characterVisualReferenceSlot(definition) {
@@ -280,6 +300,16 @@ function completeCharacterSpriteInstance(instance) {
   if (typeof onComplete === "function") onComplete({ version: instance.animationVersion });
 }
 
+function dispatchCharacterSpriteImpact(instance) {
+  if (!instance || instance.impactFired) return;
+  instance.impactFired = true;
+  const onImpact = instance.onImpact;
+  instance.onImpact = null;
+  if (typeof onImpact === "function") {
+    onImpact({ version: instance.animationVersion, frame: instance.frameIndex, impactFrame: instance.config.impactFrame });
+  }
+}
+
 function scheduleCharacterSpriteAnimation() {
   if (characterSpriteAnimationFrame === null) characterSpriteAnimationFrame = window.requestAnimationFrame(tickCharacterSprites);
 }
@@ -297,6 +327,7 @@ function tickCharacterSprites(timestamp) {
     const frame = Math.floor((Math.max(0, timestamp - instance.startedAt) / 1000) * instance.config.fps);
     const nextFrame = instance.config.loop ? frame % instance.config.frameCount : Math.min(frame, instance.config.frameCount - 1);
     if (nextFrame !== instance.frameIndex) drawCharacterSprite(instance, nextFrame);
+    if (!instance.config.loop && nextFrame >= instance.config.impactFrame) dispatchCharacterSpriteImpact(instance);
     if (!instance.config.loop && nextFrame >= instance.config.frameCount - 1) {
       instance.paused = true;
       completeCharacterSpriteInstance(instance);
@@ -336,22 +367,27 @@ function initializeCharacterSprite(root) {
   const instance = {
     root, image, canvas, config, metadata, automaticSlotNormalization: 1, stateKey, frameIndex: 0,
     startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false,
-    onComplete: completion?.callback ?? null, animationVersion: completion?.version ?? null, completed: false,
+    onImpact: completion?.onImpact ?? null, onComplete: completion?.onComplete ?? null,
+    animationVersion: completion?.version ?? null, impactFired: false, completed: false,
   };
   root._characterSpriteCompletion = null;
   root._characterSpritePendingKey = null;
-  root.style.setProperty("--character-visual-scale", String(isCombat ? 1 : config.visualScale * config.slotScale * contextScale));
+  const combatScale = characterVisualCombatScale(definition, requestedSlot, config);
+  root.style.setProperty("--character-visual-scale", String(isCombat ? combatScale : config.visualScale * config.slotScale * contextScale));
   syncCombatVisualLayout(root);
   root._characterSpriteInstance = instance;
   characterSpriteInstances.add(instance);
   drawCharacterSprite(instance, 0);
-  if (!config.loop && (config.frameCount <= 1 || instance.paused)) completeCharacterSpriteInstance(instance);
+  if (!config.loop && (config.impactFrame === 0 || config.frameCount <= 1 || instance.paused)) {
+    dispatchCharacterSpriteImpact(instance);
+    if (config.frameCount <= 1 || instance.paused) completeCharacterSpriteInstance(instance);
+  }
   if (config.frameCount > 1 && config.fps > 0 && !instance.paused) scheduleCharacterSpriteAnimation();
   characterSpriteNormalization(definition, config, metadata).then((automaticSlotNormalization) => {
     if (!root.isConnected || root._characterSpriteInstance !== instance) return;
     instance.automaticSlotNormalization = automaticSlotNormalization;
     if (isCombat) {
-      syncCombatVisualLayout(root, automaticSlotNormalization);
+      syncCombatVisualLayout(root, automaticSlotNormalization, { lock: requestedSlot === "idle" });
     } else {
       root.style.setProperty("--character-visual-scale", String(config.visualScale * automaticSlotNormalization * config.slotScale * contextScale));
     }
@@ -391,8 +427,8 @@ function setCharacterVisualState(element, requestedSlot = "idle", options = {}) 
     || previousMirror !== (options.mirror ?? previousMirror)
     || options.restart === true;
   root.dataset.characterVisualStateKey = stateKey;
-  root._characterSpriteCompletion = options.loop === false && typeof options.onComplete === "function"
-    ? { version: options.animationVersion ?? null, callback: options.onComplete }
+  root._characterSpriteCompletion = options.loop === false && (typeof options.onImpact === "function" || typeof options.onComplete === "function")
+    ? { version: options.animationVersion ?? null, impactFrame: options.impactFrame, onImpact: options.onImpact, onComplete: options.onComplete }
     : null;
   const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
   root._characterDefinition = definition;
@@ -413,8 +449,13 @@ function setCharacterVisualState(element, requestedSlot = "idle", options = {}) 
   }
   if (assetChanged || stateChanged || !root._characterSpriteInstance) initializeCharacterSprite(root);
   else if (root._characterSpriteCompletion) {
-    root._characterSpriteInstance.onComplete = root._characterSpriteCompletion.callback;
+    root._characterSpriteInstance.onImpact = root._characterSpriteCompletion.onImpact ?? null;
+    root._characterSpriteInstance.impactFired = false;
+    root._characterSpriteInstance.onComplete = root._characterSpriteCompletion.onComplete ?? null;
     root._characterSpriteInstance.animationVersion = root._characterSpriteCompletion.version;
+    if (root._characterSpriteCompletion.impactFrame !== undefined) {
+      root._characterSpriteInstance.config.impactFrame = characterVisualConfig(definition, requestedSlot, root._characterSpriteCompletion).impactFrame;
+    }
     root._characterSpriteInstance.completed = false;
     root._characterSpriteCompletion = null;
   }
@@ -436,9 +477,15 @@ function playCharacterVisualAction(element, requestedSlot = "attack", options = 
     mirror: options.mirror,
     restart: true,
     animationVersion: version,
+    impactFrame: options.impactFrame,
+    onImpact: (detail) => {
+      if (!root.isConnected || Number(root._characterVisualActionVersion) !== version) return;
+      if (typeof options.onImpact === "function") options.onImpact({ ...detail, version });
+    },
     onComplete: () => {
       if (!root.isConnected || Number(root._characterVisualActionVersion) !== version) return;
       setCharacterVisualState(root, "idle", { loop: true, mirror: options.mirror });
+      if (typeof options.onComplete === "function") options.onComplete({ version });
     },
   });
   return true;

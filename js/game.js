@@ -36,6 +36,7 @@ const ui = {
 };
 
 let pendingEncounterActionTimer = null;
+const combatPresentationControllers = new WeakMap();
 
 function initializeGame() {
   if (!ui.screenRoot || !ui.saveStatus) {
@@ -2009,16 +2010,163 @@ function combatActionAnimationEvents(combat, events = []) {
     const actor = [...(combat?.allies ?? []), ...(combat?.enemies ?? [])]
       .find((combatant) => combatant.id === event.actor);
     if (!actor) return false;
-    if (actor.side === "ally") return ["arthur", "sir_kay"].includes(actor.id) && event.action === "attack";
-    return actor.definitionId === "bandit" && event.action === "bandit_slash";
+    if (actor.side === "ally") return event.action === "attack";
+    return typeof event.action === "string" && event.action.length > 0;
   });
 }
 
-function playCombatActionAnimations(combat, events = []) {
+function combatPresentationController(combat) {
+  let controller = combatPresentationControllers.get(combat);
+  if (!controller) {
+    controller = {
+      queue: [],
+      active: null,
+      version: 0,
+      impactCounter: 0,
+      presentationFinishPending: false,
+      enqueuedEvents: new Set(),
+      presentedEvents: new WeakSet(),
+    };
+    combatPresentationControllers.set(combat, controller);
+  }
+  return controller;
+}
+
+function combatPresentationEventTargets(event) {
+  if (Array.isArray(event?.targetIds)) return event.targetIds.filter(Boolean);
+  return event?.target ? [event.target] : [];
+}
+
+function combatPresentationHasPending(combat) {
+  const controller = combatPresentationControllers.get(combat);
+  return Boolean(controller?.active || controller?.queue.length);
+}
+
+function enqueueCombatActionPresentations(combat, events = []) {
+  if (!combat) return;
+  const controller = combatPresentationController(combat);
   combatActionAnimationEvents(combat, events).forEach((event) => {
-    const combatant = document.querySelector(`[data-combatant-id="${event.actor}"]`);
-    if (combatant) playCharacterVisualAction(combatant, "attack");
+    if (controller.enqueuedEvents.has(event)) return;
+    controller.enqueuedEvents.add(event);
+    controller.queue.push(event);
   });
+}
+
+function combatPresentationEventIsPending(combat, event) {
+  const controller = combatPresentationControllers.get(combat);
+  if (!controller || controller.presentedEvents.has(event)) return false;
+  return controller.active?.event === event || controller.queue.includes(event);
+}
+
+function combatPresentationDisplayedHp(combat, combatant) {
+  const maximum = Math.max(0, Number(combatant?.maxHp) || 0);
+  let hp = Number(combatant?.hp) || 0;
+  const controller = combatPresentationControllers.get(combat);
+  const pendingEvents = [controller?.active?.event, ...(controller?.queue ?? [])].filter(Boolean);
+  pendingEvents.forEach((event) => {
+    if (!combatPresentationEventIsPending(combat, event) || !combatPresentationEventTargets(event).includes(combatant.id)) return;
+    hp += Number(event.damage) || 0;
+    hp -= Number(event.healingAmount) || 0;
+  });
+  return clamp(hp, 0, maximum || hp);
+}
+
+function combatPresentationCombatantElement(combatantId) {
+  return [...document.querySelectorAll("[data-combatant-id]")]
+    .find((element) => element.dataset.combatantId === combatantId) || null;
+}
+
+function presentCombatImpact(expedition, combat, event, presentationVersion) {
+  if (!expedition || expedition.combat !== combat || !event) return;
+  const controller = combatPresentationController(combat);
+  if (controller.active?.event !== event || controller.active.version !== presentationVersion) return;
+  if (controller.presentedEvents.has(event)) return;
+  controller.presentedEvents.add(event);
+  controller.impactCounter += 1;
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const targetIds = combatPresentationEventTargets(event);
+  targetIds.forEach((targetId) => {
+    const target = [...combat.allies, ...combat.enemies].find((combatant) => combatant.id === targetId);
+    if (!target) return;
+    target.presentationHitEvent = controller.impactCounter;
+    target.presentationHitUntil = now + 220;
+    const element = combatPresentationCombatantElement(targetId);
+    if (!element) return;
+    element.classList.remove("was-hit");
+    void element.offsetWidth;
+    element.classList.add("was-hit");
+    const clearHit = () => {
+      if (!element.isConnected || element.dataset.combatantId !== targetId) return;
+      const until = Number(target.presentationHitUntil) || 0;
+      if (until > (typeof performance !== "undefined" ? performance.now() : Date.now())) {
+        window.requestAnimationFrame(clearHit);
+      } else {
+        element.classList.remove("was-hit");
+      }
+    };
+    window.requestAnimationFrame(clearHit);
+  });
+  updateCombatHud();
+  document.dispatchEvent(new CustomEvent("combat-presentation-impact", {
+    detail: {
+      attackerId: event.actor ?? null,
+      targetIds,
+      actionId: event.action ?? null,
+      abilityId: event.abilityId ?? null,
+      damage: Number(event.damage) || 0,
+      healingAmount: Number(event.healingAmount) || 0,
+      tags: event.tags ?? COMBAT_ABILITY_DEFINITIONS[event.abilityId ?? event.action]?.tags ?? [],
+      eventId: event.sequence ?? null,
+      presentationVersion,
+    },
+  }));
+}
+
+function pumpCombatPresentation(expedition, combat) {
+  if (!expedition || expedition.combat !== combat) return;
+  const controller = combatPresentationController(combat);
+  if (controller.active) return;
+  const event = controller.queue.shift();
+  if (!event) {
+    if (controller.presentationFinishPending) {
+      controller.presentationFinishPending = false;
+      finishCombatResolution(expedition);
+    }
+    return;
+  }
+  const presentationVersion = ++controller.version;
+  const active = { event, version: presentationVersion, finished: false };
+  controller.active = active;
+  const actor = [...combat.allies, ...combat.enemies].find((combatant) => combatant.id === event.actor);
+  const actorElement = combatPresentationCombatantElement(event.actor);
+  const definition = actor ? characterDefinitionForCombatant(actor) : null;
+  const finish = () => {
+    if (active.finished || controller.active !== active) return;
+    active.finished = true;
+    controller.active = null;
+    if (controller.queue.length > 0) {
+      refreshCombat(expedition, combat);
+      pumpCombatPresentation(expedition, combat);
+    } else if (controller.presentationFinishPending) {
+      finishCombatResolution(expedition);
+    } else {
+      refreshCombat(expedition, combat);
+    }
+  };
+  if (!actorElement || !definition || !characterVisualSlotIsUsable(definition, "attack")) {
+    presentCombatImpact(expedition, combat, event, presentationVersion);
+    finish();
+    return;
+  }
+  const started = playCharacterVisualAction(actorElement, "attack", {
+    mirror: actor.side === "enemy",
+    onImpact: () => presentCombatImpact(expedition, combat, event, presentationVersion),
+    onComplete: finish,
+  });
+  if (!started) {
+    presentCombatImpact(expedition, combat, event, presentationVersion);
+    finish();
+  }
 }
 
 function expeditionDefinition(expedition) {
@@ -4111,6 +4259,30 @@ function renderEncounterResultPanel(expedition, encounter, active) {
     </div>`;
 }
 
+function renderCombatPanelMarkup(combat) {
+  const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
+  const awaitingAction = combat.status === "awaitingAction";
+  const choosingTarget = ["enemyTarget", "allyTarget"].includes(combat.interactionMode);
+  const selectedEnemy = combat.enemies.find((enemy) => enemy.id === combat.selectedEnemyId && enemy.hp > 0);
+  const targetSummary = selectedEnemy
+    ? `${selectedEnemy.name} selected`
+    : choosingTarget ? "Choose a target" : "";
+  return `<div class="combat-state-line">
+          <div>
+            <p class="eyebrow">${awaitingAction ? "Current Turn" : "Battle in Progress"}</p>
+            <strong>${activeActor ? `${activeActor.name}'s turn` : "Action gauges are filling"}</strong>
+          </div>
+          ${targetSummary ? `<span class="combat-target-summary">${targetSummary}</span>` : ""}
+        </div>
+        <div class="combat-controls">
+          ${renderCombatControls(combat, activeActor)}
+        </div>
+        <div class="combat-log" aria-live="polite">
+          <strong class="combat-log-label">Combat Log</strong>
+          <div class="combat-log-entries">${combat.log.slice(-4).map((message) => `<p>${message}</p>`).join("")}</div>
+        </div>`;
+}
+
 function renderCombat(expedition, combat) {
   syncExpeditionAmbience(expedition, "travel");
   const encounter = expedition?.activeEncounter
@@ -4120,13 +4292,8 @@ function renderCombat(expedition, combat) {
   const combatBackgroundPath = combatBackground.assetId
     ? AssetCatalog.imagePath(combatBackground.assetId)
     : null;
-  const activeActor = combat.allies.find((ally) => ally.id === combat.activeActorId);
   const awaitingAction = combat.status === "awaitingAction";
   const choosingTarget = ["enemyTarget", "allyTarget"].includes(combat.interactionMode);
-  const selectedEnemy = combat.enemies.find((enemy) => enemy.id === combat.selectedEnemyId && enemy.hp > 0);
-  const targetSummary = selectedEnemy
-    ? `${selectedEnemy.name} selected`
-    : choosingTarget ? "Choose a target" : "";
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen combat-screen" aria-label="Combat">
       <div class="visual-frame combat-scene ${awaitingAction ? "is-paused" : ""} ${choosingTarget ? "is-choosing-target" : ""} ${combatBackgroundPath ? "has-combat-background" : ""}"
@@ -4141,29 +4308,15 @@ function renderCombat(expedition, combat) {
           ${combat.enemies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
       </div>
-      <div class="combat-panel">
-        <div class="combat-state-line">
-          <div>
-            <p class="eyebrow">${awaitingAction ? "Current Turn" : "Battle in Progress"}</p>
-            <strong>${activeActor ? `${activeActor.name}'s turn` : "Action gauges are filling"}</strong>
-          </div>
-          ${targetSummary ? `<span class="combat-target-summary">${targetSummary}</span>` : ""}
-        </div>
-        <div class="combat-controls">
-          ${renderCombatControls(combat, activeActor)}
-        </div>
-        <div class="combat-log" aria-live="polite">
-          <strong class="combat-log-label">Combat Log</strong>
-          <div class="combat-log-entries">${combat.log.slice(-4).map((message) => `<p>${message}</p>`).join("")}</div>
-        </div>
-      </div>
+      <div class="combat-panel">${renderCombatPanelMarkup(combat)}</div>
     </section>`;
   initializeCharacterSprites(ui.screenRoot);
   updateCombatHud();
 }
 
 function renderCombatant(combatant, combat) {
-  const defeated = combatant.hp <= 0;
+  const presentedHp = combatPresentationDisplayedHp(combat, combatant);
+  const defeated = presentedHp <= 0;
   const ready = combatant.id === combat.activeActorId;
   const wasHit = combatantHitPresentationActive(combatant);
   const selectable = !defeated && (
@@ -4195,8 +4348,8 @@ function renderCombatant(combatant, combat) {
       <div class="combat-unit-anchor">
         <div class="combat-unit-hud">
           ${intent}
-          <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(combatant.hp)} / ${combatant.maxHp}</span></div>
-          <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(combatant.hp / combatant.maxHp) * 100}%"></span></div>
+          <div class="combatant-heading"><strong>${combatant.name}</strong><span class="combat-hp-label" id="combat-hp-${combatant.id}">${Math.ceil(presentedHp)} / ${combatant.maxHp}</span></div>
+          <div class="combat-bar hp-bar"><span id="combat-hp-bar-${combatant.id}" style="width:${(presentedHp / combatant.maxHp) * 100}%"></span></div>
           ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
           <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
         </div>
@@ -4221,13 +4374,13 @@ function combatResourceDisplay(combatant) {
 }
 
 function combatantHitPresentationActive(combatant) {
-  const eventId = combatant.lastHitEvent;
+  const eventId = combatant.presentationHitEvent;
   const now = typeof performance !== "undefined" ? performance.now() : Date.now();
-  if (eventId !== combatant.lastRenderedHitEvent) {
-    combatant.lastRenderedHitEvent = eventId;
-    combatant.hitPresentationUntil = eventId ? now + 220 : 0;
+  if (eventId !== combatant.lastRenderedPresentationHitEvent) {
+    combatant.lastRenderedPresentationHitEvent = eventId;
+    combatant.presentationHitUntil = eventId ? Number(combatant.presentationHitUntil) || now + 220 : 0;
   }
-  return Number(combatant.hitPresentationUntil) > now;
+  return Number(combatant.presentationHitUntil) > now;
 }
 
 function combatFallbackVisual(combatant) {
@@ -4291,6 +4444,13 @@ function updateCombatHud() {
     return;
   }
   [...combat.allies, ...combat.enemies].forEach((combatant) => {
+    const presentedHp = combatPresentationDisplayedHp(combat, combatant);
+    const hpLabel = document.querySelector(`#combat-hp-${combatant.id}`);
+    const hpBar = document.querySelector(`#combat-hp-bar-${combatant.id}`);
+    if (hpLabel) hpLabel.textContent = `${Math.ceil(presentedHp)} / ${combatant.maxHp}`;
+    if (hpBar) hpBar.style.width = `${clamp((presentedHp / combatant.maxHp) * 100, 0, 100)}%`;
+    const element = combatPresentationCombatantElement(combatant.id);
+    if (element) element.classList.toggle("is-defeated", presentedHp <= 0);
     const gauge = document.querySelector(`#combat-gauge-${combatant.id}`);
     if (gauge) {
       gauge.style.width = `${combatGaugePercent(combatant)}%`;
@@ -4696,6 +4856,7 @@ function handleCombatInteractionResult(expedition, combat, result, actionEvents 
     return;
   }
   if (result?.resolved) {
+    enqueueCombatActionPresentations(combat, actionEvents);
     savePlayer();
     if (result.action === "item") {
       const item = ITEM_DEFINITIONS[result.itemId];
@@ -4708,7 +4869,7 @@ function handleCombatInteractionResult(expedition, combat, result, actionEvents 
       });
     }
     finishCombatResolution(expedition);
-    if (expedition.combat === combat && !combat.result) playCombatActionAnimations(combat, actionEvents);
+    if (expedition.combat === combat) pumpCombatPresentation(expedition, combat);
   }
 }
 
@@ -4738,11 +4899,13 @@ function updateCombat(deltaSeconds) {
   const eventStart = combat.events.length;
   const update = CombatSystem.update(combat, expedition, deltaSeconds);
   const actionEvents = combat.events.slice(eventStart);
+  enqueueCombatActionPresentations(combat, actionEvents);
   if (update.result) {
     finishCombatResolution(expedition);
-  } else if (update.changed && beforePresentation !== combatPresentationKey(combat)) {
+    pumpCombatPresentation(expedition, combat);
+  } else if (actionEvents.length > 0 || (update.changed && beforePresentation !== combatPresentationKey(combat))) {
     refreshCombat(expedition, combat);
-    playCombatActionAnimations(combat, actionEvents);
+    pumpCombatPresentation(expedition, combat);
   }
 }
 
@@ -4777,6 +4940,12 @@ function finishCombatResolution(expedition) {
     refreshCombat(expedition, combat);
     return;
   }
+  if (combatPresentationHasPending(combat)) {
+    const controller = combatPresentationController(combat);
+    controller.presentationFinishPending = true;
+    refreshCombat(expedition, combat);
+    return;
+  }
   if (combat.resultHandled) {
     return;
   }
@@ -4794,6 +4963,12 @@ function finishCombatResolution(expedition) {
 }
 
 function refreshCombat(expedition, combat) {
+  if (combatPresentationHasPending(combat) && document.querySelector(".combat-scene")) {
+    const panel = document.querySelector(".combat-panel");
+    if (panel) panel.innerHTML = renderCombatPanelMarkup(combat);
+    updateCombatHud();
+    return;
+  }
   rerenderPreservingScroll(".combat-panel", () => renderCombat(expedition, combat));
 }
 
