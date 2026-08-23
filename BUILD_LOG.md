@@ -1,5 +1,30 @@
 # Build Log
 
+## 2026-08-22 - Character Pass 2.4 Presentation Offsets and Two-Ally Fit
+
+### Goal
+
+Correct the remaining Character Pass 2 travel position shift and two-ally combat clipping without redesigning the sprite renderer or changing the established travel scale.
+
+### Human prompt and direction
+
+The human developer requested optional authored Idle/Walk/Attack presentation offsets, matching GrailTools controls and Scale Comparison preview updates, stable feet/body anchoring, removal of the icon-sized two-ally combat visual override, complete Arthur combat-body visibility, preserved 34% / 66% ally placement, and verification of the Arthur + Sir Kay encounter.
+
+### AI-assisted implementation
+
+- Added optional signed `offsetX` and `offsetY` values to the shared character visual configuration. Values use normalized canvas pixels, default to zero, and are applied after shared frame normalization before final canvas draw positioning.
+- Added Idle, Walk, and Attack Offset X / Offset Y controls to GrailTools, including live preview synchronization and Scale Comparison rendering, plus validation and round-trip coverage.
+- Authored Arthur's small per-sheet horizontal corrections (`idle: 3`, `walk: 4`) with zero vertical offset; scale and normalization behavior remain unchanged.
+- Replaced the two-ally `1.8–2.7rem` square visual rule with a modest real character-sized area and increased only the two-unit battlefield height enough to keep the complete HUD, character, and gauge bounds separated at the existing 34% / 66% anchors.
+
+### Manual changes
+
+The human developer supplied the focused Character Pass 2 presentation-fix guide and authorized updating and committing both repositories. No sprite assets were reimported, no attack FX or sound was added, and no combat mechanics or travel scale tuning was changed.
+
+### Verification and resulting prototype state
+
+Focused Content Editor offset validation and metadata round-trip tests passed. The Grail debug browser suite passed 30 assertions, including Arthur offset metadata, Idle/Walk state switching, Arthur combat Idle animation continuity, full-body two-ally bounds, and the authored battlefield. Python source parsing and `git diff --check` were also verified. Arthur now keeps a stable authored travel anchor when switching Walk and Idle, while Arthur + Sir Kay retain readable, non-overlapping full-body combat units.
+
 ## 2026-08-22 - Authored Combat Battlefield Background Support
 
 ### Goal

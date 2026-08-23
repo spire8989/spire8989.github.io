@@ -53,6 +53,11 @@ function characterVisualNumber(value, fallback, minimum = 0) {
   return Number.isFinite(number) && number >= minimum ? number : fallback;
 }
 
+function characterVisualOffset(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function characterVisualConfig(definition, requestedSlot, options = {}) {
   const resolved = resolveCharacterVisual(definition, requestedSlot);
   const visual = resolved.visual || {};
@@ -65,7 +70,9 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   const rows = Math.max(1, Math.ceil(frameCount / columns));
   const visualScale = Math.min(3, characterVisualNumber(definition?.visualScale, 1, 0.25));
   const slotScale = Math.min(3, characterVisualNumber(visual.scale, 1, 0.25));
-  return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, finalScale: visualScale * slotScale };
+  const offsetX = characterVisualOffset(visual.offsetX);
+  const offsetY = characterVisualOffset(visual.offsetY);
+  return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, offsetX, offsetY, finalScale: visualScale * slotScale };
 }
 
 function characterVisualContextScale(context, requestedSlot) {
@@ -210,7 +217,9 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   context.imageSmoothingEnabled = true;
   const destinationWidth = bounds.width * scale;
   const destinationHeight = bounds.height * scale;
-  context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, (width - destinationWidth) / 2, height - destinationHeight, destinationWidth, destinationHeight);
+  // Offsets are authored in normalized canvas pixels. Apply them after the
+  // shared frame normalization and before the canvas is positioned by CSS.
+  context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, (width - destinationWidth) / 2 + config.offsetX, height - destinationHeight + config.offsetY, destinationWidth, destinationHeight);
   root.style.setProperty("--character-frame-aspect", `${width} / ${height}`);
   root.classList.add("is-ready");
   root.classList.remove("asset-load-failed");

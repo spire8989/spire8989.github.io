@@ -3189,12 +3189,12 @@ button:active:not(:disabled) {
 }
 
 .combat-scene:has(.combat-formation.formation-count-2) {
-  aspect-ratio: 1.2;
+  aspect-ratio: 0.88;
 }
 
 @media (max-width: 340px) {
   .combat-scene:has(.combat-formation.formation-count-2) {
-    aspect-ratio: 1.2;
+    aspect-ratio: 0.88;
   }
 
   .combat-scene:has(.combat-formation.formation-count-3) {
@@ -3204,7 +3204,7 @@ button:active:not(:disabled) {
 
 @container (max-width: 360px) {
   .combat-scene:has(.combat-formation.formation-count-2) {
-    aspect-ratio: 1.2;
+    aspect-ratio: 0.88;
   }
 }
 
@@ -3373,9 +3373,9 @@ button.combatant {
 }
 
 .combat-formation.formation-count-2 .combat-unit-visual {
-  width: clamp(1.8rem, 9cqw, 2.7rem);
-  height: clamp(1.8rem, 9cqw, 2.7rem);
-  min-height: clamp(1.8rem, 9cqw, 2.7rem);
+  width: clamp(2.95rem, 15cqw, 4.35rem);
+  height: clamp(3.15rem, 16cqw, 4.7rem);
+  min-height: clamp(3.15rem, 16cqw, 4.7rem);
 }
 
 .combat-visual-image {
