@@ -1,5 +1,27 @@
 # Build Log
 
+## 2026-08-22 - Character Pass 2.6 Combat Layout and Travel Scale Correction
+
+### Goal
+
+Remove the remaining travel Idle scale exception and make combat HUD placement follow the real character visual layout without changing sprite slicing, normalization, assets, or the existing battlefield ratios.
+
+### Human prompt and direction
+
+The human developer supplied the Character Pass 2.6 guide after the prior presentation pass: Walk and Idle must use the same travel scale, combat sizing must affect DOM layout instead of permanent sprite transforms, Faith and ATB must be visually separated, and the current readable combat target must be preserved.
+
+### AI-assisted implementation
+
+- Removed the hardcoded travel Idle `0.82` context scale. Walk and Idle now use the same context scale and retain the existing frame-cell/bottom anchor path.
+- Added combat layout synchronization from the rendered sprite root to its `.combat-unit-visual`. Formation presentation scale, definition visual scale, slot scale, and asynchronous slot normalization now enlarge the real visual region; combat sprite roots remain at identity scale except for mirroring.
+- Changed combatants to normal HUD → visual → status rows so the HUD is positioned from the actual reserved character area. The two-unit presentation remains in the unchanged `1.2` scene ratio, with modestly reduced two-unit density to keep Arthur, Kay, their HUDs, and full bodies separated.
+- Restacked Faith as a readable heading/value plus blue bar, increased the resource bar thickness, and added separation before the thinner action gauge. Enemy HUDs continue to omit the resource row.
+- Updated the browser regression checks for equal Walk/Idle travel scale, identity combat sprite transforms, real combat visual layout, full-body bounds, HUD placement, two-unit ratio, fallback separation, and continuing Idle animation.
+
+### Verification and resulting prototype state
+
+The Grail debug browser suite passed 33 assertions. `git diff --check` passed. The broader location suite was attempted and still stops at its existing Hall hotspot fixture mismatch before reaching combat checks. No sprite assets, frame counts, columns, FPS, alpha bounds, frame-cell anchors, battlefield aspect ratios, gameplay, attack FX, or combat sound were changed.
+
 ## 2026-08-22 - Character Pass 2.5 Combat Readability and Pause Anchor Lock
 
 ### Goal

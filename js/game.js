@@ -1978,12 +1978,18 @@ function renderPortraitAsset(assetId, initials, alt) {
 function combatCharacterContextScale(formationCount) {
   return {
     1: 1.8,
-    2: 1.6,
+    2: 1.4,
     3: 1.35,
   }[Math.max(1, Math.min(3, Number(formationCount) || 1))] ?? 1.8;
 }
 
-function renderCombatVisual(combatant, combat, fallback, alt) {
+function combatCharacterLayoutScale(combatant, formationCount) {
+  const definition = characterDefinitionForCombatant(combatant);
+  const config = characterVisualConfig(definition, "idle");
+  return combatCharacterContextScale(formationCount) * config.visualScale * config.slotScale;
+}
+
+function renderCombatVisual(combatant, fallback, alt) {
   return renderCharacterSprite(
     characterDefinitionForCombatant(combatant),
     "idle",
@@ -1993,7 +1999,6 @@ function renderCombatVisual(combatant, combat, fallback, alt) {
     {
       className: "combat-visual",
       mirror: combatant?.side === "enemy",
-      contextScale: combatCharacterContextScale(combatant?.side === "ally" ? combat?.allies?.length : combat?.enemies?.length),
     },
   );
 }
@@ -4118,6 +4123,8 @@ function renderCombatant(combatant, combat) {
   const effects = [combatant.defending ? "DEFENDING" : "", combatant.interceding ? "INTERCEDING" : "", ...statuses]
     .filter(Boolean).join(" &middot; ");
   const resource = combatResourceDisplay(combatant);
+  const formationCount = combatant.side === "ally" ? combat.allies.length : combat.enemies.length;
+  const combatLayoutScale = combatCharacterLayoutScale(combatant, formationCount);
   const tag = selectable ? "button" : "article";
   const targetAttributes = selectable
     ? `type="button" data-action="combat-target" data-target-id="${combatant.id}" aria-label="Target ${combatant.name}"${combatant.side === "enemy" ? ` aria-pressed="${selected}"` : ""}`
@@ -4132,7 +4139,7 @@ function renderCombatant(combatant, combat) {
         ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
         <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       </div>
-      <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant, combat, combatFallbackVisual(combatant), combatant.name)}</div>
+      <div data-asset-frame="combat" class="combat-unit-visual" data-combat-base-scale="${combatLayoutScale}" style="--combat-character-layout-scale:${combatLayoutScale}" aria-hidden="true">${renderCombatVisual(combatant, combatFallbackVisual(combatant), combatant.name)}</div>
       ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
     </${tag}>`;
   return markup;

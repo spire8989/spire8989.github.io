@@ -3249,7 +3249,7 @@ button:active:not(:disabled) {
 }
 
 .combat-formation.formation-count-2 .combatant:first-child {
-  top: 28%;
+  top: 30%;
 }
 
 .combat-formation.formation-count-2 .combatant:last-child {
@@ -3265,7 +3265,7 @@ button:active:not(:disabled) {
 .combatant {
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(3.5rem, 1fr) auto;
+  grid-template-rows: auto auto auto;
   align-self: center;
   width: 100%;
   min-width: 0;
@@ -3351,14 +3351,15 @@ button.combatant {
 }
 
 .combat-unit-visual {
+  --combat-character-layout-scale: 1;
   position: relative;
   display: grid;
   place-items: center;
   align-self: center;
   justify-self: center;
-  width: clamp(3.2rem, 16cqw, 4.7rem);
-  height: clamp(3.4rem, 17cqw, 5.1rem);
-  min-height: clamp(3.4rem, 17cqw, 5.1rem);
+  width: calc(clamp(3.2rem, 16cqw, 4.7rem) * var(--combat-character-layout-scale));
+  height: calc(clamp(3.4rem, 17cqw, 5.1rem) * var(--combat-character-layout-scale));
+  min-height: calc(clamp(3.4rem, 17cqw, 5.1rem) * var(--combat-character-layout-scale));
   overflow: visible;
   margin: 0.24rem auto 0.3rem;
   transition: filter 120ms ease, transform 120ms ease;
@@ -3389,15 +3390,15 @@ button.combatant {
 }
 
 .combat-formation.formation-count-3 .combat-unit-visual {
-  width: clamp(2.9rem, 14cqw, 4.1rem);
-  height: clamp(3.1rem, 15cqw, 4.5rem);
-  min-height: clamp(3.1rem, 15cqw, 4.5rem);
+  width: calc(clamp(2.9rem, 14cqw, 4.1rem) * var(--combat-character-layout-scale));
+  height: calc(clamp(3.1rem, 15cqw, 4.5rem) * var(--combat-character-layout-scale));
+  min-height: calc(clamp(3.1rem, 15cqw, 4.5rem) * var(--combat-character-layout-scale));
 }
 
 .combat-formation.formation-count-2 .combat-unit-visual {
-  width: clamp(2.95rem, 15cqw, 4.35rem);
-  height: clamp(3.15rem, 16cqw, 4.7rem);
-  min-height: clamp(3.15rem, 16cqw, 4.7rem);
+  width: calc(clamp(2.95rem, 15cqw, 4.35rem) * var(--combat-character-layout-scale));
+  height: calc(clamp(3.15rem, 16cqw, 4.7rem) * var(--combat-character-layout-scale));
+  min-height: calc(clamp(3.15rem, 16cqw, 4.7rem) * var(--combat-character-layout-scale));
 }
 
 .combat-visual-image {
@@ -3473,10 +3474,7 @@ button.combatant {
 .gauge-bar span { background: linear-gradient(90deg, #a1843d, #f4dda0); }
 
 .combatant-resource {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.22rem;
+  display: block;
   width: min(100%, 5.5rem);
   margin-top: 0.12rem;
   font-family: system-ui, sans-serif;
@@ -3502,12 +3500,16 @@ button.combatant {
 
 .resource-bar {
   width: 100%;
-  height: 0.1rem;
-  margin-top: 0;
+  height: 0.18rem;
+  margin-top: 0.08rem;
   background: #293329;
 }
 
 .resource-bar span { background: linear-gradient(90deg, #637f9a, #b8d2e0); }
+
+.combatant .combatant-resource + .gauge-bar {
+  margin-top: 0.24rem;
+}
 
 .combatant-statuses {
   display: block;

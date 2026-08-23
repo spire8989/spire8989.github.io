@@ -78,11 +78,19 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
 function characterVisualContextScale(context, requestedSlot, explicitScale = null) {
   const contextScale = Number(explicitScale);
   if (Number.isFinite(contextScale) && contextScale > 0) return Math.min(3, contextScale);
-  // Travel and encounter art has more open scenic space than combat. Keep the
-  // authored Idle pose in the same apparent family as the traveling Walk pose;
-  // combat formation sizing is supplied explicitly by its presentation context.
-  if (context === "travel" && requestedSlot === "idle") return 0.82;
   return 1;
+}
+
+function syncCombatVisualLayout(root, automaticSlotNormalization = 1) {
+  if (root?.dataset.characterContext !== "combat") return;
+  const visual = root.closest(".combat-unit-visual");
+  const baseScale = Number(visual?.dataset.combatBaseScale);
+  const normalization = Number(automaticSlotNormalization);
+  if (!visual || !Number.isFinite(baseScale) || baseScale <= 0) return;
+  visual.style.setProperty(
+    "--combat-character-layout-scale",
+    String(baseScale * (Number.isFinite(normalization) && normalization > 0 ? normalization : 1)),
+  );
 }
 
 function characterVisualReferenceSlot(definition) {
@@ -289,7 +297,8 @@ function initializeCharacterSprite(root) {
   root._characterDefinition = definition;
   const requestedSlot = root.dataset.characterRequestedSlot || "idle";
   const config = characterVisualConfig(definition, requestedSlot, { loop: root.dataset.characterLoop !== "false" });
-  const contextScale = characterVisualContextScale(root.dataset.characterContext, requestedSlot, root.dataset.characterContextScale);
+  const isCombat = root.dataset.characterContext === "combat";
+  const contextScale = isCombat ? 1 : characterVisualContextScale(root.dataset.characterContext, requestedSlot, root.dataset.characterContextScale);
   root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   if (!image || !canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
     root.classList.remove("is-ready");
@@ -309,7 +318,8 @@ function initializeCharacterSprite(root) {
   const metadata = characterSpriteMetadata(image, config, definition);
   const instance = { root, image, canvas, config, metadata, automaticSlotNormalization: 1, stateKey, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
   root._characterSpritePendingKey = null;
-  root.style.setProperty("--character-visual-scale", String(config.visualScale * config.slotScale * contextScale));
+  root.style.setProperty("--character-visual-scale", String(isCombat ? 1 : config.visualScale * config.slotScale * contextScale));
+  syncCombatVisualLayout(root);
   root._characterSpriteInstance = instance;
   characterSpriteInstances.add(instance);
   drawCharacterSprite(instance, 0);
@@ -317,7 +327,11 @@ function initializeCharacterSprite(root) {
   characterSpriteNormalization(definition, config, metadata).then((automaticSlotNormalization) => {
     if (!root.isConnected || root._characterSpriteInstance !== instance) return;
     instance.automaticSlotNormalization = automaticSlotNormalization;
-    root.style.setProperty("--character-visual-scale", String(config.visualScale * automaticSlotNormalization * config.slotScale * contextScale));
+    if (isCombat) {
+      syncCombatVisualLayout(root, automaticSlotNormalization);
+    } else {
+      root.style.setProperty("--character-visual-scale", String(config.visualScale * automaticSlotNormalization * config.slotScale * contextScale));
+    }
   });
 }
 
