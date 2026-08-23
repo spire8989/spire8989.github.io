@@ -2215,6 +2215,62 @@ button:active:not(:disabled) {
   white-space: nowrap;
 }
 
+.departure-banner {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(82%, 24rem);
+  gap: 0.22rem;
+  padding: 0.9rem 1.35rem 1rem;
+  border: 1px solid rgb(244 221 160 / 48%);
+  border-radius: 0.18rem;
+  background:
+    linear-gradient(90deg, transparent, rgb(7 12 9 / 74%) 12%, rgb(7 12 9 / 74%) 88%, transparent),
+    rgb(7 12 9 / 28%);
+  box-shadow: 0 0.3rem 1.8rem rgb(0 0 0 / 22%), inset 0 1px rgb(255 248 218 / 12%);
+  color: #fff3d0;
+  opacity: 0;
+  pointer-events: none;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.departure-banner.is-visible {
+  animation: departure-title-card var(--departure-duration) ease both;
+}
+
+.departure-banner-title,
+.departure-banner-region {
+  margin: 0;
+}
+
+.departure-banner-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.1rem, 5.6cqw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  text-shadow: 0 0.1rem 0.35rem rgb(0 0 0 / 62%);
+}
+
+.departure-banner-region {
+  color: #d9bd72;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(0.7rem, 3.2cqw, 0.95rem);
+  letter-spacing: 0.16em;
+  line-height: 1.2;
+}
+
+@keyframes departure-title-card {
+  0% { opacity: 0; transform: translate(-50%, -47%); }
+  10% { opacity: 1; transform: translate(-50%, -50%); }
+  80% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -53%); }
+}
+
 .travel-panel {
   display: flex;
   flex: 1;
@@ -5740,6 +5796,10 @@ button.combatant {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .departure-banner.is-visible {
+    opacity: 1;
+    animation: none;
+  }
   .combatant.was-hit,
   .combatant.is-selectable {
     animation: none;

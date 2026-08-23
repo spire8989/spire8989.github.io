@@ -7,6 +7,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
   old_forest_road: {
     id: "old_forest_road",
     name: "Old Forest Road",
+    regionTitle: "Brocéliande",
     description: "A grounded road beneath increasingly ancient trees.",
     danger: 1,
     regionId: "broceliande",
@@ -44,6 +45,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
   fountain_of_barenton: Object.freeze({
     id: "fountain_of_barenton",
     name: "Fountain of Barenton",
+    regionTitle: "Brocéliande",
     description: "A dangerous route toward a fountain where stone, water, and storm answer one another.",
     danger: 2,
     regionId: "broceliande",
@@ -60,6 +62,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
   val_sans_retour: Object.freeze({
     id: "val_sans_retour",
     name: "Val sans Retour",
+    regionTitle: "Brocéliande",
     description: "An enchanted valley from which travelers rarely return unchanged.",
     danger: 2,
     regionId: "broceliande",
@@ -76,6 +79,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
   search_for_merlin: Object.freeze({
     id: "search_for_merlin",
     name: "Search for Merlin",
+    regionTitle: "Brocéliande",
     description: "A campaign route into the deepest reaches of Brocéliande.",
     danger: 3,
     regionId: "broceliande",

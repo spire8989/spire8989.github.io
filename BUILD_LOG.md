@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Expedition Departure Title Presentation
+
+### Goal
+
+Turn the deliberate first-load pause into a polished expedition departure card while giving the initial Idle and Walk animations a clean, intentional handoff into travel.
+
+### Human prompt and direction
+
+The human developer supplied the Expedition Departure Banner guide: preserve the existing cold-cache scene and character readiness gates, show the fully loaded party in actively animating Idle during a roughly two-second title card, keep distance/provisions/background motion and encounter processing paused, then transition once to normal traveling and Walk. The departure presentation must be normal-player-start-only, data-driven, replay/simulation-safe, accessible, and free of dialogue or new graphic assets.
+
+### AI-assisted implementation
+
+- Added a presentation-only `departure` state to the normal UI start path. It keeps the existing expedition scene paused, prevents travel rules from advancing distance, provisions, injuries, or encounters, and switches to `traveling` exactly once through an expedition-instance-guarded timer.
+- Preloaded selected-party Idle visuals alongside the existing Walk, base-scene, and parallax readiness gates. The first visible scene explicitly renders active Idle sprites, then performs the existing cache-backed Idle -> Walk transition without changing authored frame counts, FPS, scale, normalization, offsets, or layout.
+- Added optional expedition `regionTitle` metadata and a responsive HTML/CSS title card with an uppercase route title, muted-gold region subtitle, translucent Arthurian backing, pointer-event isolation, reduced-motion handling, and safe cancellation when navigation/reset/debug changes the active screen.
+
+### Verification and resulting prototype state
+
+The focused browser smoke passed the visible banner, active Idle animation, unchanged distance/provisions/background during departure, one-time Idle -> Walk/travel start, and later Pause -> Idle / Resume -> Walk flow. Combat (34 assertions), deterministic simulation (62 assertions), and campaign/health (99 assertions) passed. `git diff --check` passed. No dialogue, graphic asset, replay-data, or Tools changes were added; unrelated existing combat/data worktree changes were preserved.
+
 ## 2026-08-23 - First-Load Travel Scene Readiness and Walk Activation
 
 ### Goal

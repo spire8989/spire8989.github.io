@@ -6,6 +6,7 @@ const EXPEDITION_TUNING = Object.freeze({
   // presentation speed. Encounter spacing is rescaled with it below so the
   // real-time interruption cadence stays close to the existing feel.
   outboundTravelSpeed: 1,
+  departurePresentationDurationMs: 2000,
   returnSpeedMultiplier: 4,
   baseProvisionsPerDistance: 0.068,
   travelPaces: Object.freeze({

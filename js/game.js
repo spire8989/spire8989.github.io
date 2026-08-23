@@ -13,6 +13,7 @@ const game = {
   preparationMode: "expedition",
   preparationStep: "route",
   expeditionStartPending: false,
+  departurePresentation: null,
   activeDestinationId: null,
   shopTab: "buy",
   innTab: "rest",
@@ -283,8 +284,43 @@ function clearPressedState() {
 }
 
 function showScreen(screen) {
+  if (screen !== "expedition") cancelDeparturePresentation();
   game.screen = screen;
   renderScreen();
+}
+
+function cancelDeparturePresentation() {
+  const presentation = game.departurePresentation;
+  if (!presentation) return;
+  if (presentation.timerId !== null) window.clearTimeout(presentation.timerId);
+  if (presentation.frameId !== null) window.cancelAnimationFrame(presentation.frameId);
+  if (presentation.expedition === game.expedition
+    && presentation.expedition.status === "active"
+    && presentation.expedition.travelState === "departure") {
+    presentation.expedition.travelState = "paused";
+  }
+  game.departurePresentation = null;
+}
+
+function finishDeparturePresentation(presentation) {
+  const expedition = presentation?.expedition;
+  if (game.departurePresentation !== presentation
+    || game.screen !== "expedition"
+    || game.expedition !== expedition
+    || expedition?.status !== "active"
+    || expedition.travelState !== "departure") return;
+  document.querySelector(".departure-banner")?.remove();
+  expedition.travelState = "traveling";
+  game.departurePresentation = null;
+  renderExpedition();
+}
+
+function beginDeparturePresentation(expedition) {
+  cancelDeparturePresentation();
+  const duration = Math.max(0, Number(EXPEDITION_TUNING.departurePresentationDurationMs) || 0);
+  const presentation = { expedition, timerId: null, frameId: null };
+  game.departurePresentation = presentation;
+  presentation.timerId = window.setTimeout(() => finishDeparturePresentation(presentation), duration);
 }
 
 function renderScreen() {
@@ -3799,10 +3835,13 @@ async function startExpedition() {
     packedMaterials: game.player.packedMaterials,
   });
   const startedExpedition = game.expedition;
+  startedExpedition.travelState = "departure";
   savePlayer();
   const initialTravelScene = resolveTravelScene(startedExpedition);
   const initialVisualLoads = [
+    preloadCharacterVisualSlot(PLAYER_CHARACTER_DEFINITION, "idle"),
     preloadCharacterVisualSlot(PLAYER_CHARACTER_DEFINITION, "walk"),
+    ...selectedCompanions.map((companionId) => preloadCharacterVisualSlot(COMPANION_DEFINITIONS[companionId], "idle")),
     ...selectedCompanions.map((companionId) => preloadCharacterVisualSlot(COMPANION_DEFINITIONS[companionId], "walk")),
     ...(initialTravelScene?.assetId ? [preloadTravelSceneAsset(initialTravelScene.assetId)] : []),
     ...(initialTravelScene?.travelParallaxAssetId
@@ -3815,6 +3854,7 @@ async function startExpedition() {
   game.expeditionStartPending = false;
   if (game.screen !== "preparation" || game.expedition !== startedExpedition || startedExpedition.status !== "active") return;
   showScreen("expedition");
+  beginDeparturePresentation(startedExpedition);
 }
 
 const ENCOUNTER_PARTY_LAYOUT_FALLBACKS = Object.freeze({
@@ -4039,6 +4079,7 @@ function renderExpedition() {
         <div class="ground" aria-hidden="true"></div>
         ${renderTravelTransitionAsset(expedition)}
         <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>
+        ${expedition.travelState === "departure" ? renderExpeditionDepartureBanner(expedition) : ""}
       </div>
       ${expeditionPanelMarkup}
     </section>`;
@@ -4184,6 +4225,13 @@ function renderCampEventPanel(expedition, event) {
 }
 
 function renderExpeditionActionBar(expedition) {
+  if (expedition.travelState === "departure") {
+    return `
+      <div class="expedition-action-bar departure-action-bar" role="status" aria-live="polite">
+        <span class="departure-action-status">Preparing to depart...</span>
+        <button id="return-button" class="small-button travel-return-button" type="button" disabled>Return</button>
+      </div>`;
+  }
   return `
     <div class="expedition-action-bar" role="group" aria-label="Expedition travel actions">
       ${expedition.travelState === "paused"
@@ -4195,6 +4243,7 @@ function renderExpeditionActionBar(expedition) {
 
 function travelBannerText(expedition, activeEncounter = null) {
   const route = pathLabel(expedition.currentPathId);
+  if (!activeEncounter && expedition.travelState === "departure") return `${route} - Preparing to Depart`;
   if (activeEncounter) {
     return activeEncounter.eventKind === "camp"
       ? `Camped · ${route}`
@@ -4203,6 +4252,17 @@ function travelBannerText(expedition, activeEncounter = null) {
   if (expedition.travelState === "paused") return `${route} · Paused`;
   if (expedition.direction === "returning") return `${route} · Returning ←`;
   return `${route} · Traveling Outbound →`;
+}
+
+function renderExpeditionDepartureBanner(expedition) {
+  const definition = expeditionDefinition(expedition);
+  const title = definition?.departureTitle ?? definition?.name ?? pathLabel(expedition?.currentPathId);
+  const regionTitle = definition?.regionTitle;
+  const duration = Math.max(0, Number(EXPEDITION_TUNING.departurePresentationDurationMs) || 0);
+  return `<div class="departure-banner is-visible" style="--departure-duration:${duration}ms" aria-hidden="true">
+    <p class="departure-banner-title">${assetAttribute(title)}</p>
+    ${regionTitle ? `<p class="departure-banner-region">${assetAttribute(regionTitle)}</p>` : ""}
+  </div>`;
 }
 
 function journeyLogPreview(expedition) {
@@ -4274,6 +4334,7 @@ function renderTravelSettings(expedition) {
   const pace = ExpeditionRules.paceDefinition(expedition.paceId);
   const ration = ExpeditionRules.rationDefinition(expedition.rationId);
   const paused = expedition.travelState === "paused";
+  const departing = expedition.travelState === "departure";
   const settingControls = paused
     ? `<div class="setting-row"><span>Pace</span><div class="setting-buttons">${paceButtons}</div></div>
        <div class="setting-row"><span>Rations</span><div class="setting-buttons">${rationButtons}</div></div>`
@@ -4282,10 +4343,12 @@ function renderTravelSettings(expedition) {
     <section class="travel-settings journey-controls ${paused ? "is-paused" : ""}" aria-labelledby="journey-controls-title">
       <div class="journey-heading">
         <p class="eyebrow" id="journey-controls-title">Journey</p>
-        <span class="journey-state">${paused ? "Paused" : expedition.direction === "returning" ? "Returning" : "Traveling"}</span>
+        <span class="journey-state">${departing ? "Departing" : paused ? "Paused" : expedition.direction === "returning" ? "Returning" : "Traveling"}</span>
       </div>
       ${settingControls}
-      ${paused ? "" : `<p class="journey-summary is-compact-summary">${pace.name} pace &middot; ${ration.name} rations</p>`}
+      ${departing
+        ? '<p class="journey-summary is-compact-summary">The company is making ready.</p>'
+        : paused ? "" : `<p class="journey-summary is-compact-summary">${pace.name} pace &middot; ${ration.name} rations</p>`}
       ${paused
         ? `<div class="paused-actions">
              <p class="eyebrow">Paused Actions</p>
@@ -4747,7 +4810,8 @@ function beginReturn() {
   if (!expedition
     || expedition.status !== "active"
     || expedition.direction === "returning"
-    || expedition.activeEncounter) {
+    || expedition.activeEncounter
+    || !["traveling", "paused"].includes(expedition.travelState)) {
     return;
   }
 
@@ -4758,13 +4822,15 @@ function beginReturn() {
 
 function setExpeditionPace(paceId) {
   const expedition = game.expedition;
-  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) return;
+  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+    || !["traveling", "paused"].includes(expedition.travelState)) return;
   if (ExpeditionRules.setPace(expedition, paceId)) refreshExpedition();
 }
 
 function setExpeditionRations(rationId) {
   const expedition = game.expedition;
-  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) return;
+  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+    || !["traveling", "paused"].includes(expedition.travelState)) return;
   if (ExpeditionRules.setRation(expedition, rationId)) refreshExpedition();
 }
 
@@ -5680,6 +5746,10 @@ function clamp(value, minimum, maximum) {
 }
 
 function gameLoop(timestamp) {
+  if (game.departurePresentation
+    && (game.screen !== "expedition" || game.expedition !== game.departurePresentation.expedition)) {
+    cancelDeparturePresentation();
+  }
   if (game.lastTimestamp === null) {
     game.lastTimestamp = timestamp;
   }
