@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Initial Expedition Walk Preload
+
+### Goal
+
+Remove the remaining knight/rook placeholder flash when an expedition first opens, while keeping the existing transition cache and all authored character presentation unchanged.
+
+### Human prompt and direction
+
+The human developer supplied the initial expedition character placeholder guide: await only the selected party's Walk image, metadata, alpha bounds, and normalization before showing the expedition; tolerate failed optional art; guard repeated Start Expedition clicks; keep the Preparation screen visible during a short load; preserve background preloads and direct-entry fallback behavior; and do not alter sprite sizing, FPS, layout, combat, or gameplay timing.
+
+### AI-assisted implementation
+
+- Made the normal Start Expedition path await Arthur and each selected companion's `preloadCharacterVisualSlot(..., "walk")` with `Promise.allSettled`, so the first travel render can use the already prepared Walk cache.
+- Added a pending-start guard and subtle `Preparing...` button state, created the expedition exactly once, saved the committed player state before awaiting art, retained the existing broader Idle/Attack preload, and prevented a late async completion from overriding an alternate debug/test path.
+- Left the transition-cache renderer, direct `renderExpedition()` fallback behavior, authored metadata, scale, normalization, layout, animation, combat, and gameplay systems unchanged.
+
+### Verification and resulting prototype state
+
+The focused initial-entry browser smoke passed cold-start-style deferred Walk loading, duplicate-start protection, ready Arthur/Kay Walk canvases, and hidden fallbacks. Combat (34 assertions), deterministic simulation (62 assertions), campaign/health (99 assertions), and `git diff --check` passed. The broader location suite remains stopped at its pre-existing Hall hotspot fixture mismatch before reaching expedition-start coverage. No Tools changes or manual changes were reported.
+
 ## 2026-08-23 - Character Sprite Transition Cache / No-Pop Pass
 
 ### Goal

@@ -12,6 +12,7 @@ const game = {
   // is now always the unified expedition setup screen.
   preparationMode: "expedition",
   preparationStep: "route",
+  expeditionStartPending: false,
   activeDestinationId: null,
   shopTab: "buy",
   innTab: "rest",
@@ -71,6 +72,7 @@ function handleAction(event) {
     || (typeof CampaignReplayController !== "undefined" && CampaignReplayController.isActive())) {
     return;
   }
+  if (game.expeditionStartPending) return;
 
   AudioManager.unlock();
   AudioManager.playAction(action);
@@ -3138,7 +3140,8 @@ function preparationStepper() {
 function preparationCanStart() {
   const selectedCompanions = selectedCompanionIds(game.player);
   const provisionCapacity = partyProvisionCapacity(selectedCompanions);
-  return game.preparationSupplies > 0
+  return !game.expeditionStartPending
+    && game.preparationSupplies > 0
     && HealingRules.arthurHealth(game.player) > 0
     && ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId)
     && game.preparationSupplies <= game.player.provisions
@@ -3154,7 +3157,7 @@ function preparationFooter() {
     ? '<button class="text-button" type="button" data-action="preparation-back">Back</button>'
     : "";
   const primaryButton = isLastStep
-    ? `<button class="game-button" type="button" data-action="start-expedition" ${preparationCanStart() ? "" : "disabled"}>Begin Expedition</button>`
+    ? `<button class="game-button" type="button" data-action="start-expedition" ${preparationCanStart() ? "" : "disabled"}>${game.expeditionStartPending ? "Preparing..." : "Begin Expedition"}</button>`
     : `<button class="game-button preparation-next" type="button" data-action="preparation-continue" ${continueDisabled ? "disabled" : ""}>Continue to ${PREPARATION_STEPS[currentIndex + 1].label}</button>`;
 
   return `
@@ -3656,7 +3659,8 @@ function rerenderPreservingScroll(selector, render) {
   if (refreshedScroller) refreshedScroller.scrollTop = scrollTop;
 }
 
-function startExpedition() {
+async function startExpedition() {
+  if (game.expeditionStartPending) return;
   if (!isVillageUnlocked() || !ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId)) return;
   const selectedCompanions = selectedCompanionIds(game.player);
   const provisionCapacity = partyProvisionCapacity(selectedCompanions);
@@ -3667,15 +3671,25 @@ function startExpedition() {
     return;
   }
   const committedProvisions = game.preparationSupplies;
+  game.expeditionStartPending = true;
+  refreshPreparation();
   game.expedition = ExpeditionRules.startExpedition(game.player, {
     provisions: committedProvisions,
     companions: selectedCompanions,
     expeditionId: game.player.selectedExpeditionId,
     packedMaterials: game.player.packedMaterials,
   });
+  const startedExpedition = game.expedition;
+  savePlayer();
+  const initialVisualLoads = [
+    preloadCharacterVisualSlot(PLAYER_CHARACTER_DEFINITION, "walk"),
+    ...selectedCompanions.map((companionId) => preloadCharacterVisualSlot(COMPANION_DEFINITIONS[companionId], "walk")),
+  ];
+  await Promise.allSettled(initialVisualLoads);
   preloadCharacterVisuals(PLAYER_CHARACTER_DEFINITION);
   selectedCompanions.forEach((companionId) => preloadCharacterVisuals(COMPANION_DEFINITIONS[companionId]));
-  savePlayer();
+  game.expeditionStartPending = false;
+  if (game.screen !== "preparation" || game.expedition !== startedExpedition || startedExpedition.status !== "active") return;
   showScreen("expedition");
 }
 
@@ -5409,6 +5423,7 @@ function resetSave() {
 
   game.player = SaveSystem.reset();
   game.expedition = null;
+  game.expeditionStartPending = false;
   game.summary = null;
   game.activeDestinationId = null;
   game.preparationMode = "expedition";
