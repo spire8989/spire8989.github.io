@@ -1,5 +1,24 @@
 # Build Log
 
+## 2026-08-23 - Encounter Seam Blocker Synchronization
+
+### Goal
+
+Prevent travel seam trees from floating across stationary characters during encounters while preserving normal loop-boundary presentation and pause/resume behavior.
+
+### Human prompt and direction
+
+The human developer requested a focused seam-blocker repair: keep normal travel motion unchanged, pause seam foregrounds with the base and parallax layers during ordinary encounters and manual pauses, remove all travel-only seam layers over dedicated encounter artwork, and recreate synchronized seam handling when travel resumes.
+
+### AI-assisted implementation
+
+- Added encounter-aware seam-layer synchronization that freezes ordinary travel seam animation at the current base-track time, removes orphaned carry layers, and explicitly keeps seam animation play state paused whenever the scene is paused or an encounter is active.
+- Added dedicated-art cleanup for all seam foreground/carry layers, guarded transition carry creation during encounters, and resume-time re-evaluation through the existing current-track/active-tile path so normal seam flags and boundary behavior return without duplicate layers.
+
+### Verification and resulting prototype state
+
+Focused real-art browser coverage passed normal synchronized seam motion, ordinary Fallen Tree encounter pause/time hold, manual Pause/Resume synchronization, dedicated encounter artwork with no travel seam layers, and no duplicate carry layers. The production page loaded over local HTTP without runtime errors. Unrelated Llamrei assets/data changes were preserved and not staged. No Tools changes were added.
+
 ## 2026-08-23 - Character Sprite Stable Anchor Pass
 
 ### Goal

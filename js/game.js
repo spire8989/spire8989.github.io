@@ -681,6 +681,65 @@ function removeTravelSeamForegroundLayer(track) {
   }
 }
 
+function removeTravelSeamForegroundLayers(scene, { carryOnly = false } = {}) {
+  if (!scene) return;
+  const selector = carryOnly
+    ? ".travel-seam-foreground-carry"
+    : ".travel-seam-foreground-layer, .travel-seam-foreground-carry";
+  scene.querySelectorAll(selector).forEach((layer) => layer.remove());
+  scene.querySelectorAll(".travel-visual-track").forEach((track) => {
+    if (!track._travelSeamForegroundLayer?.isConnected) {
+      track._travelSeamForegroundLayer = null;
+      track._travelSeamForeground = null;
+      track._travelSeamForegrounds = null;
+    }
+  });
+}
+
+function freezeTravelSeamForegroundLayer(layer, sourceTrack = null) {
+  if (!layer?.isConnected) return;
+  const sourceAnimation = travelImageAnimation(sourceTrack);
+  const layerAnimation = travelImageAnimation(layer);
+  const sourceTime = Number(sourceAnimation?.currentTime);
+  const layerTime = Number(layerAnimation?.currentTime);
+  if (layerAnimation && Number.isFinite(sourceTime)) layerAnimation.currentTime = sourceTime;
+  else if (layerAnimation && Number.isFinite(layerTime)) layerAnimation.currentTime = layerTime;
+  layer.style.animationPlayState = "paused";
+}
+
+function syncTravelSeamForegroundPresentation(scene, expedition, activeEncounter = null) {
+  if (!scene || !expedition) return;
+  const encounter = activeEncounter ?? expedition.activeEncounter;
+  const encounterVisualState = resolveEncounterVisualState(activeEncounter, expedition.activeEncounter);
+  const currentTrack = currentTravelTrack();
+  if (encounter) {
+    if (encounterVisualState.backgroundAssetId) {
+      removeTravelSeamForegroundLayers(scene);
+      return;
+    }
+    removeTravelSeamForegroundLayers(scene, { carryOnly: true });
+    scene.querySelectorAll(".travel-seam-foreground-layer").forEach((layer) => {
+      freezeTravelSeamForegroundLayer(layer, currentTrack);
+    });
+    return;
+  }
+  if (!currentTrack || currentTrack.dataset.travelKind === "encounter") {
+    removeTravelSeamForegroundLayers(scene);
+    return;
+  }
+  const activeTile = travelActiveTile(currentTrack, expedition)
+    ?? currentTrack.querySelector(".travel-visual-asset[data-travel-copy='primary']");
+  if (activeTile) {
+    ensureTravelSeamForeground(
+      activeTile,
+      isTravelPanorama(activeTile),
+      travelMotionForImage(activeTile),
+      expedition,
+    );
+  }
+  syncTravelSeamForegroundLayer(currentTrack);
+}
+
 function syncTravelSeamForegroundLayer(track) {
   const layer = track?._travelSeamForegroundLayer;
   if (!layer?.isConnected) return;
@@ -691,7 +750,11 @@ function syncTravelSeamForegroundLayer(track) {
   if (distance) layer.style.setProperty("--travel-loop-distance", distance);
   if (duration) layer.style.setProperty("--travel-loop-duration", duration);
   layer.style.animationDirection = sourceStyle.animationDirection;
-  layer.style.animationPlayState = sourceStyle.animationPlayState;
+  const scene = track.closest(".travel-scene");
+  const shouldPlay = Boolean(scene?.classList.contains("is-moving"))
+    && !scene.classList.contains("is-paused")
+    && !game.expedition?.activeEncounter;
+  layer.style.animationPlayState = shouldPlay ? "running" : "paused";
   const layerAnimation = travelImageAnimation(layer);
   const currentTime = Number(sourceAnimation?.currentTime);
   if (layerAnimation && Number.isFinite(currentTime)) layerAnimation.currentTime = currentTime;
@@ -701,6 +764,10 @@ function ensureTravelSeamForeground(image, panorama, motion, expedition = game.e
   const track = image?.closest(".travel-visual-track");
   if (!track) return;
   const scene = track.closest(".travel-scene") ?? document.querySelector("#travel-scene");
+  if (expedition?.activeEncounter || track.dataset.travelKind === "encounter") {
+    removeTravelSeamForegroundLayer(track);
+    return;
+  }
   const showBetweenLoops = track.dataset.travelShowSeamBetweenLoops !== "false";
   const forceForSceneChange = track.dataset.travelSeamForegroundForce === "true";
   const assetId = track.dataset.travelKind !== "encounter" && panorama && motion === "loop"
@@ -1555,6 +1622,10 @@ function startTravelSeamForegroundExit(layer, track, expedition) {
 }
 
 function carryTravelSeamForeground(track, scene) {
+  if (game.expedition?.activeEncounter) {
+    removeTravelSeamForegroundLayers(scene);
+    return null;
+  }
   const existingLayer = track?._travelSeamForegroundLayer;
   if (existingLayer?.isConnected && scene) {
     existingLayer.classList.add("travel-seam-foreground-carry");
@@ -1604,10 +1675,12 @@ function bindTravelImage(scene, image) {
       const oldTrack = scene.querySelector(".travel-visual-track[data-travel-layer='current']");
       const isTransition = track?.dataset.travelLayer === "next" && oldTrack && oldTrack !== track;
       if (isTransition) {
-        carryTravelSeamForeground(oldTrack, scene);
+        if (game.expedition?.activeEncounter) removeTravelSeamForegroundLayers(scene);
+        else carryTravelSeamForeground(oldTrack, scene);
         oldTrack.classList.add("is-fading-out");
       }
       markTravelImageActive(scene, image);
+      syncTravelSeamForegroundPresentation(scene, game.expedition, game.expedition?.activeEncounter);
       scene.dataset.travelAssetId = image.dataset.travelAssetId;
       scene.dataset.travelMotion = travelMotionForImage(image);
       if (track?.dataset.travelLayer === "next") {
@@ -5568,8 +5641,8 @@ function updateTravelHud() {
       hard_push: "11s",
     }[expedition.paceId] ?? "16s");
     scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
-    syncTravelSeamForegroundLayer(currentTravelTrack());
     syncTravelVisual(expedition, activeEncounter);
+    syncTravelSeamForegroundPresentation(scene, expedition, activeEncounter);
     syncTravelParallaxLayer(currentTravelTrack());
     advancePendingTravelScene(expedition, scene, activeEncounter);
     preloadNextTravelScene(expedition);
