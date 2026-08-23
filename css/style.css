@@ -2153,7 +2153,7 @@ button:active:not(:disabled) {
 }
 
 .combat-screen .character-sprite-canvas {
-  filter: brightness(1.12) saturate(1.06) drop-shadow(0 0 0.16rem rgb(244 221 160 / 24%));
+  filter: brightness(1.32) contrast(1.08) saturate(1.08) drop-shadow(0 0 0.22rem rgb(244 221 160 / 42%));
 }
 
 .character-sprite-source {

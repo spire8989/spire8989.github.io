@@ -4061,3 +4061,18 @@ Correct the remaining visible mismatch between travel Idle, combat Idle, and the
 ### Verification and resulting prototype state
 
 The debug browser suite passes 29 assertions, focused character/combat-background editor coverage passes 4/4, and the asset pipeline passes 19/19. No sprite assets were reimported and no gameplay, simulation, replay, or combat rules changed.
+
+## 2026-08-22 - Character Pass 2.3 Mobile Scale Correction
+
+### Goal
+
+Match the authored Arthur presentation across traveling, paused/encounter, and combat contexts on narrow portrait screens.
+
+### AI-assisted implementation
+
+- Added an explicit travel/encounter Idle context scale so the paused and encounter pose does not visually enlarge relative to the established traveling Walk size; combat keeps its separate unit scale.
+- Increased only the restrained combat sprite readability treatment, preserving the authored sprite dimensions while giving the complete lower silhouette enough contrast against the dark battlefield.
+
+### Verification and resulting prototype state
+
+The debug browser suite passes 30 assertions after the mobile scale correction, including an explicit traveling Walk to paused Idle scale check. No sprite assets were reimported and no gameplay, simulation, replay, or combat rules changed.

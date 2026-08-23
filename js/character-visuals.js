@@ -68,6 +68,14 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, finalScale: visualScale * slotScale };
 }
 
+function characterVisualContextScale(context, requestedSlot) {
+  // Travel and encounter art has more open scenic space than combat. Keep the
+  // authored Idle pose in the same apparent family as the traveling Walk pose;
+  // combat retains its independent unit sizing.
+  if (context === "travel" && requestedSlot === "idle") return 0.82;
+  return 1;
+}
+
 function characterVisualReferenceSlot(definition) {
   const visuals = characterVisualDefinition(definition);
   const preferred = ["walk", "idle", "attack"];
@@ -243,7 +251,9 @@ function initializeCharacterSprite(root) {
   const canvas = root.querySelector(".character-sprite-canvas");
   const definition = root._characterDefinition || characterDefinitionForId(root.dataset.characterDefinitionId);
   root._characterDefinition = definition;
-  const config = characterVisualConfig(definition, root.dataset.characterRequestedSlot || "idle", { loop: root.dataset.characterLoop !== "false" });
+  const requestedSlot = root.dataset.characterRequestedSlot || "idle";
+  const config = characterVisualConfig(definition, requestedSlot, { loop: root.dataset.characterLoop !== "false" });
+  const contextScale = characterVisualContextScale(root.dataset.characterContext, requestedSlot);
   root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   if (!image || !canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
     root.classList.remove("is-ready");
@@ -263,7 +273,7 @@ function initializeCharacterSprite(root) {
   const metadata = characterSpriteMetadata(image, config, definition);
   const instance = { root, image, canvas, config, metadata, automaticSlotNormalization: 1, stateKey, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
   root._characterSpritePendingKey = null;
-  root.style.setProperty("--character-visual-scale", String(config.visualScale * config.slotScale));
+  root.style.setProperty("--character-visual-scale", String(config.visualScale * config.slotScale * contextScale));
   root._characterSpriteInstance = instance;
   characterSpriteInstances.add(instance);
   drawCharacterSprite(instance, 0);
@@ -271,7 +281,7 @@ function initializeCharacterSprite(root) {
   characterSpriteNormalization(definition, config, metadata).then((automaticSlotNormalization) => {
     if (!root.isConnected || root._characterSpriteInstance !== instance) return;
     instance.automaticSlotNormalization = automaticSlotNormalization;
-    root.style.setProperty("--character-visual-scale", String(config.visualScale * automaticSlotNormalization * config.slotScale));
+    root.style.setProperty("--character-visual-scale", String(config.visualScale * automaticSlotNormalization * config.slotScale * contextScale));
   });
 }
 
@@ -334,7 +344,7 @@ function renderCharacterSprite(definition, requestedSlot = "idle", context = "co
   const className = options.className || "";
   const mirror = options.mirror ? "true" : "false";
   const fallbackMarkup = `<span class="character-sprite-fallback ${context === "combat" ? "combat-visual-fallback" : ""}">${fallback}</span>`;
-  const root = `<span class="character-sprite ${className} ${context}${assetPath ? "" : " asset-load-failed"}" data-character-sprite data-character-definition-id="${assetAttribute(definitionId)}" data-character-requested-slot="${assetAttribute(requestedSlot)}" data-character-loop="${options.loop === false ? "false" : "true"}" data-character-mirror="${mirror}" aria-label="${assetAttribute(alt)}">`;
+  const root = `<span class="character-sprite ${className} ${context}${assetPath ? "" : " asset-load-failed"}" data-character-sprite data-character-context="${assetAttribute(context)}" data-character-definition-id="${assetAttribute(definitionId)}" data-character-requested-slot="${assetAttribute(requestedSlot)}" data-character-loop="${options.loop === false ? "false" : "true"}" data-character-mirror="${mirror}" aria-label="${assetAttribute(alt)}">`;
   if (!assetPath) return `${root}${fallbackMarkup}</span>`;
   const image = `<img class="character-sprite-source" data-asset-id="${assetAttribute(config.assetId)}" src="${assetAttribute(assetPath)}" alt="" aria-hidden="true" onload="initializeCharacterSprite(this.closest('[data-character-sprite]'))" onerror="handleCharacterSpriteImageError(this)">`;
   return `${root}<canvas class="character-sprite-canvas" aria-hidden="true"></canvas>${image}${fallbackMarkup}</span>`;
