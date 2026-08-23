@@ -921,7 +921,7 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   id: "arthur",
   name: "Arthur",
   portraitAssetId: null,
-  combatVisualAssetId: "combat_arthur_idle_basesprite",
+  combatVisualAssetId: null,
   provisionCapacity: 20,
   provisionConsumptionMultiplier: 1,
   combat: Object.freeze({ maxHp: 45, speed: 10 }),
