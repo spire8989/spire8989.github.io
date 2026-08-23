@@ -111,9 +111,21 @@ function characterSpriteMetadata(image, config) {
   } else {
     for (let frame = 0; frame < config.frameCount; frame += 1) frameBounds.push({ x: 0, y: 0, width: frameWidth, height: frameHeight });
   }
-  const normalizedHeight = Math.max(...frameBounds.map((bounds) => bounds.height), 1);
-  const normalizedWidth = Math.max(...frameBounds.map((bounds) => bounds.width / Math.max(bounds.height, 1) * normalizedHeight), 1);
-  const metadata = { width: image.naturalWidth, height: image.naturalHeight, frameWidth, frameHeight, frameBounds, normalizedWidth: Math.ceil(normalizedWidth), normalizedHeight: Math.ceil(normalizedHeight) };
+  const maximumVisibleHeight = Math.max(...frameBounds.map((bounds) => bounds.height), 1);
+  const maximumVisibleWidth = Math.max(...frameBounds.map((bounds) => bounds.width), 1);
+  // The maximum opaque bounds define the logical animation box. Keep one
+  // natural render scale for every frame; never rescale the current pose.
+  const sharedScale = 1;
+  const metadata = {
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    frameWidth,
+    frameHeight,
+    frameBounds,
+    sharedScale,
+    normalizedWidth: Math.ceil(maximumVisibleWidth * sharedScale),
+    normalizedHeight: Math.ceil(maximumVisibleHeight * sharedScale),
+  };
   characterSpriteMetadataCache.set(key, metadata);
   return metadata;
 }
@@ -123,7 +135,7 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   if (!root?.isConnected || !image?.naturalWidth || !image?.naturalHeight || !canvas || !metadata) return;
   const frame = Math.max(0, Math.min(config.frameCount - 1, Math.floor(frameIndex)));
   const bounds = metadata.frameBounds[frame];
-  const scale = metadata.normalizedHeight / Math.max(bounds.height, 1);
+  const scale = metadata.sharedScale;
   const width = metadata.normalizedWidth;
   const height = metadata.normalizedHeight;
   if (canvas.width !== width) canvas.width = width;
@@ -183,6 +195,11 @@ function initializeCharacterSprite(root) {
   root.style.setProperty("--character-visual-scale", String(config.finalScale));
   root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   if (!image || !canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
+    root.classList.remove("is-ready");
+    characterSpriteFallback(root, true);
+    return;
+  }
+  if (!image.naturalWidth || !image.naturalHeight) {
     root.classList.remove("is-ready");
     characterSpriteFallback(root, true);
     return;

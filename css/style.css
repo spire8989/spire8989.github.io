@@ -3229,11 +3229,11 @@ button:active:not(:disabled) {
 }
 
 .combat-formation.formation-count-2 .combatant:first-child {
-  top: 38%;
+  top: 16%;
 }
 
 .combat-formation.formation-count-2 .combatant:last-child {
-  top: 62%;
+  top: 84%;
 }
 
 .combat-battlefield-space {
@@ -3245,7 +3245,7 @@ button:active:not(:disabled) {
 .combatant {
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(1.8rem, 1fr) auto auto;
+  grid-template-rows: auto minmax(3.5rem, 1fr) auto auto;
   align-self: center;
   width: 100%;
   min-width: 0;
@@ -3327,10 +3327,10 @@ button.combatant {
   place-items: center;
   align-self: center;
   justify-self: center;
-  width: clamp(4.2rem, 21cqw, 6.2rem);
-  height: clamp(4.8rem, 23cqw, 6.8rem);
-  min-height: clamp(4.8rem, 23cqw, 6.8rem);
-  margin: 0.02rem auto;
+  width: clamp(3.2rem, 16cqw, 4.7rem);
+  height: clamp(3.4rem, 17cqw, 5.1rem);
+  min-height: clamp(3.4rem, 17cqw, 5.1rem);
+  margin: 0.24rem auto 0.3rem;
   transition: filter 120ms ease, transform 120ms ease;
 }
 
@@ -3349,9 +3349,9 @@ button.combatant {
 }
 
 .combat-formation.formation-count-3 .combat-unit-visual {
-  width: clamp(3.6rem, 17cqw, 5.2rem);
-  height: clamp(4.2rem, 19cqw, 5.8rem);
-  min-height: clamp(4.2rem, 19cqw, 5.8rem);
+  width: clamp(2.9rem, 14cqw, 4.1rem);
+  height: clamp(3.1rem, 15cqw, 4.5rem);
+  min-height: clamp(3.1rem, 15cqw, 4.5rem);
 }
 
 .combat-visual-image {
@@ -3365,7 +3365,7 @@ button.combatant {
 .combat-visual-fallback {
   display: block;
   color: var(--gold);
-  font-size: clamp(1.55rem, 7.4cqw, 2.8rem);
+  font-size: clamp(1.35rem, 6cqw, 2.2rem);
   line-height: 1;
   opacity: 0.9;
 }
@@ -3402,7 +3402,7 @@ button.combatant {
 
 .combatant > .gauge-bar {
   margin-inline: auto;
-  margin-top: 0.32rem;
+  margin-top: 0.08rem;
 }
 
 .combat-bar span {

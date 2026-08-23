@@ -4002,3 +4002,24 @@ The human developer supplied the Character Pass 2.1 guide and authorized adding 
 ### Verification and resulting prototype state
 
 Focused character validation, editor save, sprite-sheet pipeline, and debug browser checks passed after the normalization changes. `git diff --check` passed in both repositories. Broader suites retain the previously documented unrelated encounter-layout and village-hotspot fixture limitations.
+
+## 2026-08-22 - Character Pass 2.2 Shared Sprite Scale and Combat Fit
+
+### Goal
+
+Correct the remaining transparent-frame normalization pop and bring authored combat characters back into a bounded HUD-to-ATB unit layout while preserving the successful Character Pass 2.1 renderer and travel presentation.
+
+### AI-assisted implementation
+
+- Replaced per-frame visible-height rescaling with one cached shared animation scale; each frame now preserves its authored relative size while sharing a centered, bottom-aligned normalization box.
+- Added a live Content Editor Scale Comparison for Idle, Walk, and Attack, using the same normalized preview renderer and updating with per-slot scale edits.
+- Reduced only the normal combat visual context, added clearer HUD/visual/ATB separation, reduced the 3-unit context again, and kept fallback glyph sizing independent from authored sprite sizing.
+- Added regression coverage for Arthur's 14-frame, four-column Walk sheet ordering, stable canvas dimensions, complete frame metadata, and shared-scale behavior.
+
+### Manual changes
+
+The human developer supplied the Character Pass 2.2 guide and visual examples and authorized adding and committing the finished files in both repositories. No authored animation frames, combat mechanics, FX, simulation, replay behavior, travel sizing, or fallback rules were changed.
+
+### Verification and resulting prototype state
+
+Focused character/editor checks, the sprite asset pipeline, and the debug browser regression suite pass after the shared-scale and combat-fit corrections. `git diff --check` passes in both repositories.
