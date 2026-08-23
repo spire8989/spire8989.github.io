@@ -261,16 +261,17 @@ function initializeCharacterSprite(root) {
   stopCharacterSpriteInstance(root);
   root._characterSpritePendingKey = stateKey;
   const metadata = characterSpriteMetadata(image, config, definition);
+  const instance = { root, image, canvas, config, metadata, automaticSlotNormalization: 1, stateKey, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
+  root._characterSpritePendingKey = null;
+  root.style.setProperty("--character-visual-scale", String(config.visualScale * config.slotScale));
+  root._characterSpriteInstance = instance;
+  characterSpriteInstances.add(instance);
+  drawCharacterSprite(instance, 0);
+  if (config.frameCount > 1 && config.fps > 0 && !instance.paused) scheduleCharacterSpriteAnimation();
   characterSpriteNormalization(definition, config, metadata).then((automaticSlotNormalization) => {
-    if (!root.isConnected || root._characterSpritePendingKey !== stateKey) return;
-    root._characterSpritePendingKey = null;
-    const finalScale = config.visualScale * automaticSlotNormalization * config.slotScale;
-    root.style.setProperty("--character-visual-scale", String(finalScale));
-    const instance = { root, image, canvas, config, metadata, automaticSlotNormalization, stateKey, frameIndex: 0, startedAt: performance.now(), paused: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false };
-    root._characterSpriteInstance = instance;
-    characterSpriteInstances.add(instance);
-    drawCharacterSprite(instance, 0);
-    if (config.frameCount > 1 && config.fps > 0 && !instance.paused) scheduleCharacterSpriteAnimation();
+    if (!root.isConnected || root._characterSpriteInstance !== instance) return;
+    instance.automaticSlotNormalization = automaticSlotNormalization;
+    root.style.setProperty("--character-visual-scale", String(config.visualScale * automaticSlotNormalization * config.slotScale));
   });
 }
 

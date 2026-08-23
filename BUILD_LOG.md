@@ -4045,3 +4045,19 @@ The human developer supplied the Character Pass 2.3 guide and follow-up visual f
 ### Verification and resulting prototype state
 
 The debug browser suite passes 29 assertions, including Walk sheet frame metadata, Idle state switching, combat Idle continuity, authored battlefield rendering, and the mixed Arthur/Sir Kay two-ally layout. Focused Content Editor character/combat-background tests pass 4/4, and the asset pipeline suite passes 19/19. The broader Content Editor suite still has the existing abandoned-camp encounter-layout fixture mismatch; `git diff --check` passes in both repositories.
+
+## 2026-08-22 - Character Pass 2.3 Follow-up Render Stability
+
+### Goal
+
+Correct the remaining visible mismatch between travel Idle, combat Idle, and the GrailTools Idle preview without requiring asset reimport.
+
+### AI-assisted implementation
+
+- Changed game and editor character initialization to draw the authored frame immediately at its base/slot scale, then apply cached cross-slot normalization in place when the reference metadata is available.
+- Removed the normalization-promise delay that could leave the editor preview on “Preview unavailable” and could make a travel state transition feel like a visual resize.
+- Added restrained brightness/saturation and a soft silhouette treatment to combat character canvases so the complete authored body remains readable against the dark battlefield without changing sprite scale or artwork.
+
+### Verification and resulting prototype state
+
+The debug browser suite passes 29 assertions, focused character/combat-background editor coverage passes 4/4, and the asset pipeline passes 19/19. No sprite assets were reimported and no gameplay, simulation, replay, or combat rules changed.
