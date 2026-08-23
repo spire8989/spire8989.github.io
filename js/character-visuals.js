@@ -292,6 +292,8 @@ function characterSpriteMetadata(image, config, definition) {
     unionMinY,
     unionMaxX,
     unionMaxY,
+    canvasAnchorX: -unionMinX,
+    canvasAnchorY: -unionMinY,
     normalizedWidth: Math.max(1, Math.ceil(unionMaxX - unionMinX)),
     normalizedHeight: Math.max(1, Math.ceil(unionMaxY - unionMinY)),
   };
@@ -357,6 +359,8 @@ function drawCharacterSprite(instance, frameIndex = instance.frameIndex) {
   const destinationY = anchoredBottom - destinationHeight - metadata.unionMinY;
   context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, destinationX, destinationY, destinationWidth, destinationHeight);
   root.style.setProperty("--character-frame-aspect", `${width} / ${height}`);
+  root.style.setProperty("--character-canvas-anchor-x", `${(metadata.canvasAnchorX / width) * 100}%`);
+  root.style.setProperty("--character-canvas-anchor-y", `${(metadata.canvasAnchorY / height) * 100}%`);
   root.classList.add("is-ready");
   root.classList.remove("asset-load-failed");
   characterSpriteFallback(root, false);

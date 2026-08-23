@@ -2146,7 +2146,8 @@ button:active:not(:disabled) {
 
 .character-sprite-canvas {
   position: absolute;
-  bottom: 0;
+  top: 100%;
+  bottom: auto;
   left: 50%;
   display: block;
   width: auto;
@@ -2154,7 +2155,10 @@ button:active:not(:disabled) {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  transform: translateX(-50%);
+  transform: translate(
+    calc(0% - var(--character-canvas-anchor-x, 50%)),
+    calc(0% - var(--character-canvas-anchor-y, 100%))
+  );
 }
 
 .combat-screen .character-sprite-canvas {

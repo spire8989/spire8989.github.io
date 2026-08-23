@@ -1,5 +1,24 @@
 # Build Log
 
+## 2026-08-23 - Character Sprite Stable Anchor Pass
+
+### Goal
+
+Keep characters planted while switching between differently sized union canvases, especially when an authored Attack sheet extends asymmetrically around the body anchor.
+
+### Human prompt and direction
+
+The human developer supplied the Stable Anchor guide: retain the union-canvas clipping repair, do not change authored scale or offsets, map one internal character/ground anchor to the same combat/world anchor for Idle, Walk, and Attack, preserve mirrored enemy behavior, and verify combat and travel transitions.
+
+### AI-assisted implementation
+
+- Stored the logical anchor coordinates inside each union canvas as metadata and exposed their normalized positions through CSS custom properties.
+- Repositioned the shared sprite canvas from its internal anchor rather than centering its outer rectangle or attaching its bottom edge. Percentage-based transforms account for responsive rendered CSS scale and work for mirrored enemies without an Attack-specific compensation.
+
+### Verification and resulting prototype state
+
+Focused browser coverage passed Arthur, Sir Kay, and mirrored Bandit Idle → Attack → Idle: feet/world anchors and HUD geometry stayed stable, union canvases remained intact, and authored Attack motion remained visible. Walk ↔ Idle travel coverage passed with stable anchors and no fallback flash. Deterministic simulation (62 assertions), campaign/health (99 assertions), and `git diff --check` passed. Unrelated Llamrei asset/data worktree changes were preserved and not staged. No Tools changes were added.
+
 ## 2026-08-23 - Combat Sprite Canvas and Return Travel Stability Repair
 
 ### Goal
