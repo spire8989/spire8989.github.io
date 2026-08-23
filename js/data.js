@@ -1015,10 +1015,47 @@ const COMPANION_DEFINITIONS = Object.freeze({
     type: "mount",
     provisionCapacityBonus: 10,
     provisionConsumptionBonus: 0.1,
-    capabilities: Object.freeze({ canUseItems: false, canDefend: false, canFlee: false }),
-    combat: Object.freeze({ maxHp: 36, speed: 12, defense: 1, basicDamage: Object.freeze({ minimum: 6, maximum: 9 }) }),
+    capabilities: {
+      canUseItems: false,
+      canDefend: false,
+      canFlee: false
+    },
+    combat: {
+      maxHp: 36,
+      speed: 12,
+      defense: 1,
+      basicDamage: {
+        minimum: 6,
+        maximum: 9
+      }
+    },
     combatAbilities: ["charge"],
     noPermanentDeath: true,
+    visuals: {
+      idle: {
+        assetId: "combat_llamrei_idle",
+        frameCount: 24,
+        columns: 5,
+        fps: 16
+      },
+      attack: {
+        assetId: "combat_llamrei_attack",
+        frameCount: 17,
+        columns: 5,
+        fps: 16,
+        scale: 1,
+        offsetY: -20
+      },
+      walk: {
+        assetId: "combat_llamrei_walk",
+        frameCount: 15,
+        columns: 5,
+        fps: 12,
+        scale: 1.25,
+        offsetY: 20
+      }
+    },
+    visualScale: 2.5,
     travelOffsetY: 38,
     combatVisualScale: 2.1
   },

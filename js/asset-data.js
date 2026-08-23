@@ -239,6 +239,21 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "combat_wolf_attack",
     path: "assets/images/combat/wolf-attack.webp",
     category: "combat"
+  },
+  combat_llamrei_idle: {
+    id: "combat_llamrei_idle",
+    path: "assets/images/combat/llamrei-idle.webp",
+    category: "combat"
+  },
+  combat_llamrei_attack: {
+    id: "combat_llamrei_attack",
+    path: "assets/images/combat/llamrei-attack.webp",
+    category: "combat"
+  },
+  combat_llamrei_walk: {
+    id: "combat_llamrei_walk",
+    path: "assets/images/combat/llamrei-walk.webp",
+    category: "combat"
   }
 });
 
