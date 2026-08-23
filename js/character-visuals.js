@@ -75,10 +75,12 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   return { ...resolved, frameCount, columns, rows, fps, loop: options.loop !== false, visualScale, slotScale, offsetX, offsetY, finalScale: visualScale * slotScale };
 }
 
-function characterVisualContextScale(context, requestedSlot) {
+function characterVisualContextScale(context, requestedSlot, explicitScale = null) {
+  const contextScale = Number(explicitScale);
+  if (Number.isFinite(contextScale) && contextScale > 0) return Math.min(3, contextScale);
   // Travel and encounter art has more open scenic space than combat. Keep the
   // authored Idle pose in the same apparent family as the traveling Walk pose;
-  // combat retains its independent unit sizing.
+  // combat formation sizing is supplied explicitly by its presentation context.
   if (context === "travel" && requestedSlot === "idle") return 0.82;
   return 1;
 }
@@ -287,7 +289,7 @@ function initializeCharacterSprite(root) {
   root._characterDefinition = definition;
   const requestedSlot = root.dataset.characterRequestedSlot || "idle";
   const config = characterVisualConfig(definition, requestedSlot, { loop: root.dataset.characterLoop !== "false" });
-  const contextScale = characterVisualContextScale(root.dataset.characterContext, requestedSlot);
+  const contextScale = characterVisualContextScale(root.dataset.characterContext, requestedSlot, root.dataset.characterContextScale);
   root.classList.toggle("is-mirrored", root.dataset.characterMirror === "true");
   if (!image || !canvas || !config.assetId || !characterVisualAssetIsUsable(config.assetId)) {
     root.classList.remove("is-ready");
@@ -377,8 +379,12 @@ function renderCharacterSprite(definition, requestedSlot = "idle", context = "co
   const definitionId = definition?.id || "character";
   const className = options.className || "";
   const mirror = options.mirror ? "true" : "false";
+  const contextScale = Number(options.contextScale);
+  const contextScaleAttribute = Number.isFinite(contextScale) && contextScale > 0
+    ? ` data-character-context-scale="${Math.min(3, contextScale)}"`
+    : "";
   const fallbackMarkup = `<span class="character-sprite-fallback ${context === "combat" ? "combat-visual-fallback" : ""}">${fallback}</span>`;
-  const root = `<span class="character-sprite ${className} ${context}${assetPath ? "" : " asset-load-failed"}" data-character-sprite data-character-context="${assetAttribute(context)}" data-character-definition-id="${assetAttribute(definitionId)}" data-character-requested-slot="${assetAttribute(requestedSlot)}" data-character-loop="${options.loop === false ? "false" : "true"}" data-character-mirror="${mirror}" aria-label="${assetAttribute(alt)}">`;
+  const root = `<span class="character-sprite ${className} ${context}${assetPath ? "" : " asset-load-failed"}" data-character-sprite data-character-context="${assetAttribute(context)}"${contextScaleAttribute} data-character-definition-id="${assetAttribute(definitionId)}" data-character-requested-slot="${assetAttribute(requestedSlot)}" data-character-loop="${options.loop === false ? "false" : "true"}" data-character-mirror="${mirror}" aria-label="${assetAttribute(alt)}">`;
   if (!assetPath) return `${root}${fallbackMarkup}</span>`;
   const image = `<img class="character-sprite-source" data-asset-id="${assetAttribute(config.assetId)}" src="${assetAttribute(assetPath)}" alt="" aria-hidden="true" onload="initializeCharacterSprite(this.closest('[data-character-sprite]'))" onerror="handleCharacterSpriteImageError(this)">`;
   return `${root}<canvas class="character-sprite-canvas" aria-hidden="true"></canvas>${image}${fallbackMarkup}</span>`;

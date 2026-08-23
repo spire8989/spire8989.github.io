@@ -2144,12 +2144,16 @@ button:active:not(:disabled) {
 }
 
 .character-sprite-canvas {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
   display: block;
   width: auto;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  transform: translateX(-50%);
 }
 
 .combat-screen .character-sprite-canvas {
@@ -3245,11 +3249,11 @@ button:active:not(:disabled) {
 }
 
 .combat-formation.formation-count-2 .combatant:first-child {
-  top: 34%;
+  top: 28%;
 }
 
 .combat-formation.formation-count-2 .combatant:last-child {
-  top: 66%;
+  top: 72%;
 }
 
 .combat-battlefield-space {
@@ -3326,22 +3330,22 @@ button.combatant {
   white-space: normal;
 }
 
-.combatant strong { font-size: clamp(0.52rem, 2.3cqw, 0.7rem); line-height: 1; }
+.combatant strong { font-size: clamp(0.68rem, 3cqw, 0.9rem); line-height: 1; }
 
 .combatant .combat-hp-label,
 .combatant small {
   color: #c8cdbd;
-  font-size: clamp(0.4rem, 1.75cqw, 0.52rem);
-  line-height: 0.86;
+  font-size: clamp(0.52rem, 2.2cqw, 0.68rem);
+  line-height: 0.92;
 }
 
 .combat-intent {
-  margin: 0 0 0.12rem;
+  margin: 0 0 0.16rem;
   color: #ffe0a8;
-  font-size: clamp(0.4rem, 1.8cqw, 0.54rem);
+  font-size: clamp(0.52rem, 2.3cqw, 0.7rem);
   font-weight: 900;
   letter-spacing: 0.1em;
-  line-height: 0.86;
+  line-height: 0.92;
   text-align: center;
   text-transform: uppercase;
 }
@@ -3455,7 +3459,7 @@ button.combatant {
 }
 
 .hp-bar {
-  height: 0.24rem;
+  height: 0.32rem;
   background: #293329;
 }
 
@@ -3463,7 +3467,7 @@ button.combatant {
 
 .gauge-bar {
   width: min(60%, 6.5rem);
-  height: 0.12rem;
+  height: 0.17rem;
 }
 
 .gauge-bar span { background: linear-gradient(90deg, #a1843d, #f4dda0); }
@@ -3490,7 +3494,7 @@ button.combatant {
   justify-content: space-between;
   gap: 0.25rem;
   color: #c8cdbd;
-  font-size: clamp(0.38rem, 1.7cqw, 0.5rem);
+  font-size: clamp(0.5rem, 2.1cqw, 0.66rem);
   line-height: 0.92;
 }
 
@@ -4789,7 +4793,10 @@ button.combatant {
 .combat-target-summary,
 .combatant .combat-hp-label,
 .combatant small,
-.combat-intent,
+.combat-intent {
+  font-size: clamp(0.68rem, 2.8cqw, 0.84rem);
+}
+
 .combat-action-grid button span,
 .run-details-summary-text {
   font-size: clamp(0.6rem, 2.5cqw, 0.7rem);

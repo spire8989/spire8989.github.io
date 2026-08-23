@@ -1,5 +1,26 @@
 # Build Log
 
+## 2026-08-22 - Character Pass 2.5 Combat Readability and Pause Anchor Lock
+
+### Goal
+
+Increase combat readability without changing authored travel/encounter scale, and stop the Walk-to-Idle pause transition from moving Arthur's rendered feet or world anchor.
+
+### Human prompt and direction
+
+The human developer supplied the focused Character Pass 2.5 guide: preserve normalization and the current two-unit battlefield size, add a combat-only character/HUD presentation scale, verify one-, two-, and three-unit formations, and lock/reuse the existing traveler element during pause/resume state changes.
+
+### AI-assisted implementation
+
+- Added explicit combat context scale metadata separate from `visualScale` and slot scale: 1.8 for one-unit formations, 1.6 for two-unit formations, and 1.35 for three-unit formations. Travel, pause, encounter, and authored scale values remain unchanged.
+- Increased combat-only name, HP, Faith, intent, resource, HP-bar, and action-gauge readability without changing the battlefield aspect ratios.
+- Anchored the sprite canvas absolutely to the bottom-center of its existing traveler/unit root. Walk and Idle sheets retain their current authored sizes while no longer extending from different top/bottom positions when their aspect ratios change.
+- Kept pause/resume on the existing live travel scene and added a browser regression check for the outer traveler left/bottom/size across Walk → Idle → Walk. Two-unit party anchors were adjusted to 28% / 72% to give the larger bodies room in the unchanged battlefield.
+
+### Verification and resulting prototype state
+
+The Grail debug browser suite passed 33 assertions, including the outer traveler anchor lock, rendered Walk/Idle/Walk feet position, solo Arthur combat scale, two-ally full-body separation, readable HUD/gauge bounds, unchanged 1.2 two-unit scene ratio, and continuing Idle animation. Python source parsing and `git diff --check` passed. The broader location suite was attempted but stopped on its existing Hall hotspot fixture mismatch before reaching combat checks. No sprite assets, normalization values, travel/encounter scales, attack FX, or combat sound were changed.
+
 ## 2026-08-22 - Character Pass 2.4 Correction: Frame Anchors and Combat Clipping
 
 ### Goal

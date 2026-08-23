@@ -1975,14 +1975,26 @@ function renderPortraitAsset(assetId, initials, alt) {
   return `${renderImageAsset(assetId, "dialogue-portrait-image", alt)}<span class="portrait-fallback${fallbackVisibility}">${initials}</span>`;
 }
 
-function renderCombatVisual(combatant, fallback, alt) {
+function combatCharacterContextScale(formationCount) {
+  return {
+    1: 1.8,
+    2: 1.6,
+    3: 1.35,
+  }[Math.max(1, Math.min(3, Number(formationCount) || 1))] ?? 1.8;
+}
+
+function renderCombatVisual(combatant, combat, fallback, alt) {
   return renderCharacterSprite(
     characterDefinitionForCombatant(combatant),
     "idle",
     "combat",
     fallback,
     alt,
-    { className: "combat-visual", mirror: combatant?.side === "enemy" },
+    {
+      className: "combat-visual",
+      mirror: combatant?.side === "enemy",
+      contextScale: combatCharacterContextScale(combatant?.side === "ally" ? combat?.allies?.length : combat?.enemies?.length),
+    },
   );
 }
 
@@ -4120,7 +4132,7 @@ function renderCombatant(combatant, combat) {
         ${resource ? `<div class="combatant-resource"><div class="combat-resource-heading"><span>${resource.label}</span><strong>${resource.current} / ${resource.maximum}</strong></div><div class="combat-bar resource-bar"><span style="width:${resource.percent}%"></span></div></div>` : ""}
         <div class="combat-bar gauge-bar"><span id="combat-gauge-${combatant.id}" style="width:${combatGaugePercent(combatant)}%"></span></div>
       </div>
-      <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant, combatFallbackVisual(combatant), combatant.name)}</div>
+      <div data-asset-frame="combat" class="combat-unit-visual" aria-hidden="true">${renderCombatVisual(combatant, combat, combatFallbackVisual(combatant), combatant.name)}</div>
       ${effects ? `<small class="combatant-statuses">${effects}</small>` : ""}
     </${tag}>`;
   return markup;
