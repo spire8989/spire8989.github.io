@@ -4615,6 +4615,27 @@ function renderCombatPanelMarkup(combat) {
         </div>`;
 }
 
+const COMBAT_HUMANOID_ENEMY_IDS = new Set([
+  "bandit",
+  "bandit_leader",
+  "summoned_guardian",
+  "fountain_knight",
+  "false_knight",
+  "leper_knight",
+  "morgans_huntsman",
+  "briar_knight",
+  "bound_warden",
+]);
+
+function combatEnemyFormationClass(combat) {
+  if (combat?.enemies?.length !== 3) return "";
+  const isHumanoidFormation = combat.enemies.every((combatant) => {
+    const definitionId = combatant.definitionId ?? combatant.id?.replace(/_\d+$/, "");
+    return COMBAT_HUMANOID_ENEMY_IDS.has(definitionId);
+  });
+  return isHumanoidFormation ? " formation-three-humanoid" : "";
+}
+
 function renderCombat(expedition, combat) {
   syncExpeditionAmbience(expedition, "travel");
   const encounter = expedition?.activeEncounter
@@ -4636,7 +4657,7 @@ function renderCombat(expedition, combat) {
           ${combat.allies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
         <div class="combat-battlefield-space" aria-hidden="true"></div>
-        <div class="combat-formation combat-enemies formation-count-${combat.enemies.length}" aria-label="Enemies">
+        <div class="combat-formation combat-enemies formation-count-${combat.enemies.length}${combatEnemyFormationClass(combat)}" aria-label="Enemies">
           ${combat.enemies.map((combatant) => renderCombatant(combatant, combat)).join("")}
         </div>
       </div>

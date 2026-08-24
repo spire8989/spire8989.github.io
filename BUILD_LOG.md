@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Compact Combat Formation Stagger
+
+### Goal
+
+Make the three-ally combat composition read as a compact inward stagger without changing combatant order, authored character scales, gameplay, or sprite normalization.
+
+### Human prompt and direction
+
+The human developer requested modest combatant-anchor offsets: Arthur inward/right, Sir Kay slightly down, and Llamrei slightly up. The HUD must follow each anchor. A mirrored middle-enemy stagger should apply only to three-humanoid formations; the existing three-wolf composition should remain unchanged.
+
+### AI-assisted implementation
+
+- Added presentation-only `translate` offsets to the existing three-ally combatant row rules, preserving their grid rows and z-order while moving the HUD and visual together through the combatant anchor.
+- Added an explicit humanoid enemy whitelist and a three-humanoid formation class; only the middle enemy receives a modest inward offset, while wolves and other large-creature formations retain their current layout.
+- Added focused browser coverage for the three-ally anchor offsets, HUD/visual alignment, wolf exclusion, and temporary three-humanoid enemy verification.
+
+### Verification and resulting prototype state
+
+The focused combat browser suite passed 35 Tier 1 assertions. The browser probe confirmed Arthur `25.6px` inward, Kay `-5.6px / +5.6px`, Llamrei `-5.6px / -5.6px`, aligned HUD/visual anchors, no humanoid class on wolves, and a `-12px` middle-only shift for three humanoid enemies. `git diff --check` passed after the implementation and documentation updates.
+
 ## 2026-08-23 - Encounter Layout Editor Visual Preview Pass
 
 ### Goal

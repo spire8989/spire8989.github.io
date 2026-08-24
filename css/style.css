@@ -3328,14 +3328,24 @@ button:active:not(:disabled) {
 .combat-formation.combat-party.formation-count-3 .combatant:nth-child(1) {
   grid-row: 2;
   z-index: 2;
+  translate: 1.6rem 0;
 }
 .combat-formation.combat-party.formation-count-3 .combatant:nth-child(2) {
   grid-row: 1;
   z-index: 1;
+  translate: -0.35rem 0.35rem;
 }
 .combat-formation.combat-party.formation-count-3 .combatant:nth-child(3) {
   grid-row: 3;
   z-index: 3;
+  translate: -0.35rem -0.35rem;
+}
+
+/* Keep three humanoid enemies from collapsing into one vertical lane. The
+   middle slot steps inward while the outer slots retain the normal enemy
+   anchor; large-creature formations such as wolves stay untouched. */
+.combat-formation.combat-enemies.formation-count-3.formation-three-humanoid .combatant:nth-child(2) {
+  translate: -0.75rem 0;
 }
 
 .combat-formation.formation-count-2 {
