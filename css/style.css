@@ -2149,6 +2149,10 @@ button:active:not(:disabled) {
   translate: -1.25rem 0;
 }
 
+.travelers:not(.is-encounter-layout) > .companion:nth-of-type(3) {
+  translate: -2rem 0;
+}
+
 .character-sprite {
   position: relative;
   display: grid;

@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Companion 2 Back-Slot Travel Spacing
+
+### Goal
+
+Give the final travel companion slot a little more room behind the party while retaining the prior Arthur and Companion 1 travel positions.
+
+### Human prompt and direction
+
+The human developer confirmed the general companion spacing was better and requested only Companion 2, the back slot, move slightly farther back.
+
+### AI-assisted implementation
+
+- Added an additional normal-travel-only offset to the final companion slot, changing its effective horizontal translation from `-1.25rem` to `-2rem`.
+- Left Arthur, Companion 1, encounter-authored layouts, combat formation offsets, and character scales unchanged.
+- Added focused browser coverage confirming Companion 2 is farther back than Companion 1.
+
+### Verification and resulting prototype state
+
+The slot-specific travel spacing check is included with the existing travel-party regression; the debug suite continues to stop later on its unrelated character-sprite fixture assertion.
+
 ## 2026-08-23 - Travel Companion Spacing
 
 ### Goal
