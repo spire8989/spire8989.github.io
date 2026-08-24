@@ -12,7 +12,7 @@ The human developer confirmed the top and bottom framing now read correctly and 
 
 ### AI-assisted implementation
 
-- Increased only Arthur's three-ally horizontal combatant-anchor offset from `1.95rem` to `2.55rem`.
+- Increased only Arthur's three-ally horizontal combatant-anchor offset from `2.55rem` to `3rem`.
 - Preserved the three-ally formation Y framing, density scale, top/bottom slot offsets, z-order, HUD anchors, character scales, and all enemy layouts.
 
 ### Verification and resulting prototype state
