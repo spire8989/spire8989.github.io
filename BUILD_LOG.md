@@ -1,5 +1,45 @@
 # Build Log
 
+## 2026-08-23 - Arthur Inward Tuning
+
+### Goal
+
+Finish the three-ally framing pass by moving only Arthur a little farther toward the battlefield center after the vertical composition was confirmed.
+
+### Human prompt and direction
+
+The human developer confirmed the top and bottom framing now read correctly and requested a small additional rightward adjustment for Arthur, with Kay and Llamrei left unchanged.
+
+### AI-assisted implementation
+
+- Increased only Arthur's three-ally horizontal combatant-anchor offset from `1.95rem` to `2.55rem`.
+- Preserved the three-ally formation Y framing, density scale, top/bottom slot offsets, z-order, HUD anchors, character scales, and all enemy layouts.
+
+### Verification and resulting prototype state
+
+The focused combat regression remains the verification gate for the complete three-ally framing pass; no one-ally, two-ally, or enemy presentation rule was changed.
+
+## 2026-08-23 - Three-Ally Combat Vertical Framing
+
+### Goal
+
+Reframe the compact three-ally combat party so its top HUD has reliable headroom and its bottom visual remains inside the battlefield, without changing density scale, enemy layout, or the established horizontal stagger.
+
+### Human prompt and direction
+
+The human developer clarified from the combat screenshot that Arthur needed a little more inward/right movement and a slight downward shift, the top ally needed to come down substantially, and the bottom ally needed to move upward modestly. The adjustment must work when either Sir Kay or Llamrei occupies the top slot.
+
+### AI-assisted implementation
+
+- Added a three-ally-only `0.6rem` downward formation translation, leaving one-ally, two-ally, and enemy formation anchors unchanged.
+- Preserved the existing z-order and horizontal offsets while nudging Arthur farther inward and down, moving the top row down, and compensating the bottom row upward so the large visual stays framed.
+- Kept the combat density multiplier, authored character scales, HUD markup, and enemy positioning untouched.
+- Added browser coverage for both Sir Kay-top and Llamrei-top party orders, top HUD headroom, in-frame visual bounds, and retained stagger directions.
+
+### Verification and resulting prototype state
+
+The focused combat browser suite passed 37 Tier 1 assertions. Both three-ally orders keep the top HUD inside the combat scene, retain Arthur's inward position, keep the compact overlap, and keep all party visuals within the frame.
+
 ## 2026-08-23 - Three-Unit Combat Density Scale
 
 ### Goal

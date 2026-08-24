@@ -3307,6 +3307,10 @@ button:active:not(:disabled) {
   translate: 1.1rem 0;
 }
 
+.combat-formation.combat-party.formation-count-3 {
+  translate: 1.1rem 0.6rem;
+}
+
 .combat-formation.combat-enemies {
   translate: -1.1rem 0;
 }
@@ -3328,17 +3332,17 @@ button:active:not(:disabled) {
 .combat-formation.combat-party.formation-count-3 .combatant:nth-child(1) {
   grid-row: 2;
   z-index: 2;
-  translate: 1.6rem 0;
+  translate: 2.55rem 0.05rem;
 }
 .combat-formation.combat-party.formation-count-3 .combatant:nth-child(2) {
   grid-row: 1;
   z-index: 1;
-  translate: -0.35rem 0.35rem;
+  translate: -0.35rem 2.05rem;
 }
 .combat-formation.combat-party.formation-count-3 .combatant:nth-child(3) {
   grid-row: 3;
   z-index: 3;
-  translate: -0.35rem -0.35rem;
+  translate: -0.35rem -2.8rem;
 }
 
 /* Keep three humanoid enemies from collapsing into one vertical lane. The
