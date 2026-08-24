@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Three-Unit Combat Density Scale
+
+### Goal
+
+Give three-unit combat formations modest visual breathing room while preserving the latest staggered anchors, HUD sizing, character-level combat scales, and the existing one- and two-unit presentation.
+
+### Human prompt and direction
+
+The human developer requested an additional presentation-only density factor of `1.0` for one or two units and approximately `0.87` for three units on either side. The factor should reduce sprite visuals only, preserve Llamrei's relative size, and leave the existing Arthur/Kay/Llamrei offsets unchanged.
+
+### AI-assisted implementation
+
+- Added `combatFormationDensityScale()` to the existing combat visual scale pipeline and multiplied it after the current formation context normalization, before authored character visual and slot scales are applied.
+- Kept the density factor off the combatant/HUD anchor, so names, HP/Faith/ATB bars, anchor offsets, and formation positions remain unchanged.
+- Added focused coverage confirming one/two-unit density stays at `1`, three-unit density is `0.87`, per-character relative scale is preserved, and the existing three-unit stagger remains active.
+
+### Verification and resulting prototype state
+
+The focused combat browser suite passed 36 Tier 1 assertions. The three-unit party retains the inward Arthur and vertical Kay/Llamrei offsets while all three visual scale values receive the same density multiplier; one- and two-unit scale factors remain unchanged.
+
 ## 2026-08-23 - Compact Combat Formation Stagger
 
 ### Goal

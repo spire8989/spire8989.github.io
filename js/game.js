@@ -2243,10 +2243,21 @@ function combatCharacterContextScale(formationCount) {
   }[Math.max(1, Math.min(3, Number(formationCount) || 1))] ?? 1.8;
 }
 
+function combatFormationDensityScale(formationCount) {
+  return {
+    1: 1,
+    2: 1,
+    3: 0.87,
+  }[Math.max(1, Math.min(3, Number(formationCount) || 1))] ?? 1;
+}
+
 function combatCharacterLayoutScale(combatant, formationCount) {
   const definition = characterDefinitionForCombatant(combatant);
   const config = characterVisualConfig(definition, "idle");
-  return combatCharacterContextScale(formationCount) * (config.combatVisualScale ?? config.visualScale) * config.slotScale;
+  return combatCharacterContextScale(formationCount)
+    * combatFormationDensityScale(formationCount)
+    * (config.combatVisualScale ?? config.visualScale)
+    * config.slotScale;
 }
 
 function renderCombatVisual(combatant, fallback, alt) {

@@ -54,6 +54,10 @@ def run() -> None:
             "Three-ally combat anchors did not stagger the party with its HUDs, or the humanoid-only enemy stagger was applied incorrectly",
         )
         check(
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=['llamrei']; const e=ExpeditionRules.createExpedition(p,{companions:['llamrei'],provisions:5,random:()=>0}); const c=CombatSystem.create(e,'wolves',{random:()=>0}); const arthur=c.allies.find(ally=>ally.id==='arthur'); const llamrei=c.allies.find(ally=>ally.id==='llamrei'); const scale=(unit,count)=>combatCharacterLayoutScale(unit,count); const a1=scale(arthur,1),a2=scale(arthur,2),a3=scale(arthur,3),l1=scale(llamrei,1),l3=scale(llamrei,3); return combatFormationDensityScale(1)===1&&combatFormationDensityScale(2)===1&&Math.abs(combatFormationDensityScale(3)-.87)<.0001&&Math.abs(a2/a1-combatCharacterContextScale(2)/combatCharacterContextScale(1))<.0001&&Math.abs(a3/a1-combatCharacterContextScale(3)*.87/combatCharacterContextScale(1))<.0001&&Math.abs(l3/a3-l1/a1)<.0001; })()",
+            "Formation density scaling did not reduce only three-unit visuals or preserve per-character relative size",
+        )
+        check(
             "COMBAT_ABILITY_DEFINITIONS.pommel_strike.kind==='active'&&Array.isArray(COMBAT_ABILITY_DEFINITIONS.pommel_strike.effects)&&COMBAT_ABILITY_DEFINITIONS.pommel_strike.effects.length===2",
             "Pommel Strike did not expose the shared active/effect schema",
         )
