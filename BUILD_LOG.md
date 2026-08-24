@@ -1,5 +1,25 @@
 # Build Log
 
+## 2026-08-23 - Travel Companion Spacing
+
+### Goal
+
+Give the two ordinary-travel companions more breathing room while keeping Arthur's travel anchor fixed and leaving authored encounter layouts unchanged.
+
+### Human prompt and direction
+
+The human developer requested a decent increase to both companion gaps in the travel scene, with Arthur remaining where he is.
+
+### AI-assisted implementation
+
+- Added a normal-travel-only `-1.25rem` horizontal translation to companion wrappers, moving both companions farther behind Arthur without changing the parent travel anchor.
+- Excluded `.is-encounter-layout`, preserving authored encounter coordinates and editor-driven placement.
+- Added focused browser coverage confirming both companions receive the offset while Arthur remains unshifted.
+
+### Verification and resulting prototype state
+
+The new travel spacing check passed in the debug browser suite. That suite then stopped on its existing unrelated character-sprite fixture assertion; no travel-spacing assertion failed.
+
 ## 2026-08-23 - Arthur Inward Tuning
 
 ### Goal
