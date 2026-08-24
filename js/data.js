@@ -932,7 +932,7 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
       columns: 5,
       offsetX: 0,
       offsetY: 0,
-      scale: 1.5,
+      scale: 1,
       fps: 16
     },
     walk: {
@@ -941,17 +941,18 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
       columns: 5,
       offsetX: 0,
       offsetY: 0,
-      scale: 1.5,
+      scale: 1,
       fps: 12
     },
     attack: {
       assetId: "combat_arthur_attack",
       frameCount: 25,
       columns: 5,
-      scale: 1.875,
+      scale: 1.25,
       fps: 20
     }
-  }
+  },
+  visualScale: 1.5
 });
 
 const COMPANION_DEFINITIONS = Object.freeze({
@@ -985,25 +986,25 @@ const COMPANION_DEFINITIONS = Object.freeze({
         assetId: "combat_sir_kay_idle",
         frameCount: 24,
         columns: 5,
-        scale: 1.5,
+        scale: 1,
         fps: 16
       },
       walk: {
         assetId: "combat_sir_kay_walk",
         frameCount: 13,
         columns: 5,
-        scale: 1.5,
+        scale: 1,
         fps: 12
       },
       attack: {
         assetId: "combat_sir_kay_attack",
         frameCount: 24,
         columns: 5,
-        scale: 2,
+        scale: 1.25,
         fps: 20
       }
     },
-    visualScale: 1.1
+    visualScale: 1.6
   },
   llamrei: {
     id: "llamrei",
@@ -1056,8 +1057,8 @@ const COMPANION_DEFINITIONS = Object.freeze({
       }
     },
     visualScale: 2.5,
-    travelOffsetY: 38,
-    combatVisualScale: 2.1
+    travelOffsetY: 40,
+    combatVisualScale: 1.5
   },
 });
 

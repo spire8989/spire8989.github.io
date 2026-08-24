@@ -104,16 +104,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     visualAssetId: "encounter_abandoned_camp",
     encounterLayout: {
       arthur: {
-        x: 0.609375,
-        y: 0.7990451388888888
+        x: 0.203125,
+        y: 0.7573784722222222
       },
       companion1: {
-        x: 0.86328125,
-        y: 0.7087673611111112
+        x: 0.6484375,
+        y: 0.8441840277777778,
+        facing: "left"
       },
       companion2: {
-        x: 0.158203125,
-        y: 0.6809895833333334
+        x: 0.412109375,
+        y: 0.6393229166666666,
+        scale: 0.75
       }
     }
   },
@@ -512,6 +514,21 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
+    },
+    visualAssetId: "encounter_woodland_stream",
+    encounterLayout: {
+      arthur: {
+        x: 0.43359375,
+        y: 0.6809895833333334
+      },
+      companion2: {
+        x: 0.271484375,
+        y: 1
+      },
+      companion1: {
+        x: 0.65625,
+        y: 0.9587673611111112
+      }
     }
   },
   woodland_foraging: {
@@ -748,16 +765,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     visualAssetId: "encounter_abandoned_cart",
     encounterLayout: {
       arthur: {
-        x: 0.271484375,
-        y: 0.8580729166666666
+        x: 0.595703125,
+        y: 0.7747395833333334,
+        facing: "left"
       },
       companion1: {
-        x: 0.80859375,
-        y: 0.8059895833333334
+        x: 0.873046875,
+        y: 0.9552951388888888,
+        facing: "left"
       },
       companion2: {
-        x: 0.48828125,
-        y: 0.87890625
+        x: 0.193359375,
+        y: 0.9934895833333334
       }
     }
   },
@@ -1750,6 +1769,22 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true
           }
         ]
+      }
+    },
+    visualAssetId: "encounter_broken_bridge",
+    encounterLayout: {
+      arthur: {
+        x: 0.302734375,
+        y: 0.7330729166666666
+      },
+      companion2: {
+        x: 0.126953125,
+        y: 0.8407118055555556
+      },
+      companion1: {
+        x: 0.5234375,
+        y: 0.9657118055555556,
+        facing: "left"
       }
     }
   },

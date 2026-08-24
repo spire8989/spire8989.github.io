@@ -254,6 +254,16 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "combat_llamrei_walk",
     path: "assets/images/combat/llamrei-walk.webp",
     category: "combat"
+  },
+  encounter_broken_bridge: {
+    id: "encounter_broken_bridge",
+    path: "assets/images/encounter/broken_bridge_bg.webp",
+    category: "encounter"
+  },
+  encounter_woodland_stream: {
+    id: "encounter_woodland_stream",
+    path: "assets/images/encounter/woodland_stream.webp",
+    category: "encounter"
   }
 });
 
