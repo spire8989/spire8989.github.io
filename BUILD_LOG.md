@@ -12,7 +12,7 @@ The human developer confirmed the general companion spacing was better and reque
 
 ### AI-assisted implementation
 
-- Added an additional normal-travel-only offset to the final companion slot, changing its effective horizontal translation from `-1.25rem` to `-2rem`.
+- Added an additional normal-travel-only offset to the final companion slot, changing its effective horizontal translation from `-2rem` to `-5rem`.
 - Left Arthur, Companion 1, encounter-authored layouts, combat formation offsets, and character scales unchanged.
 - Added focused browser coverage confirming Companion 2 is farther back than Companion 1.
 

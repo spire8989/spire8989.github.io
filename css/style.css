@@ -2150,7 +2150,7 @@ button:active:not(:disabled) {
 }
 
 .travelers:not(.is-encounter-layout) > .companion:nth-of-type(3) {
-  translate: -2rem 0;
+  translate: -5rem 0;
 }
 
 .character-sprite {
