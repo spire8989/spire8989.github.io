@@ -1955,6 +1955,20 @@ button:active:not(:disabled) {
   background: #101711;
 }
 
+#expedition-panel-host {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#expedition-panel-host > .travel-panel,
+#expedition-panel-host > .encounter-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .travel-scene {
   --travel-offset: 0px;
   position: relative;
