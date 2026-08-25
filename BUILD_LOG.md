@@ -1,5 +1,33 @@
 # Build Log
 
+## 2026-08-25 - Content Editor Starting State
+
+### Goal
+
+Make the player's new-campaign resources, materials, items, loadout, progress,
+position, and companion selection editable without mixing those defaults into
+Arthur's reusable character definition.
+
+### AI-assisted implementation
+
+- Promoted the authored portion of SaveSystem.createDefaultPlayerState() to
+  the canonical STARTING_PLAYER_STATE source in js/storage.js; Arthur health,
+  companion health, and injury snapshots remain derived at runtime.
+- Added the Content Editor's singleton Starting State category with typed
+  resource, item, material, ability, recipe, knowledge, companion, expedition,
+  and location controls plus an advanced JSON escape hatch.
+- Added source-aware validation for quantities, ownership/equipment
+  relationships, packed contents, known references, and loadout/unlock
+  relationships, preserving surgical writes, source hashes, and backups.
+
+### Verification and resulting prototype state
+
+- Added a Content Editor regression covering Starting State loading, validation,
+  resource/material/item round-trip saving, source backup creation, and the
+  editor surface.
+- python -m py_compile Tools/ContentEditor/content_editor_core.py passed.
+- Temporary-project Starting State save/load round trip passed.
+
 ## 2026-08-24 - Expedition Rest Timing and Camp Interruption
 
 ### Goal
