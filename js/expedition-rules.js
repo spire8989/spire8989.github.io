@@ -154,14 +154,9 @@ const ExpeditionRules = Object.freeze({
   },
 
   briefRest(expedition) {
-    if (!expedition || expedition.status !== "active" || expedition.travelState !== "paused"
-      || expedition.activeEncounter || expedition.combat) {
-      return { applied: false, reason: "not-paused" };
-    }
-    const cost = EXPEDITION_TUNING.briefRest.provisionCost;
-    if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
-    const benefit = this.briefRestBenefit(expedition);
-    if (!benefit.meaningful) return { applied: false, reason: "no-benefit", cost, ...benefit };
+    const quote = this.briefRestQuote(expedition);
+    if (!quote.available) return { applied: false, ...quote };
+    const { cost } = quote;
     this.adjustProvisions(expedition, -cost);
     const healing = HealingRules.restExpeditionParty(
       expedition,
@@ -178,6 +173,20 @@ const ExpeditionRules = Object.freeze({
     ));
     JourneyLog.add(expedition, "The company took a brief roadside rest.", { category: "rest" });
     return { applied: true, cost, ...healing, injuriesTreated, recoveryAccelerated };
+  },
+
+  briefRestQuote(expedition) {
+    if (!expedition || expedition.status !== "active" || expedition.travelState !== "paused"
+      || expedition.activeEncounter || expedition.combat) {
+      return { available: false, reason: "not-paused" };
+    }
+    const cost = EXPEDITION_TUNING.briefRest.provisionCost;
+    if (expedition.provisions < cost) {
+      return { available: false, reason: "insufficient-provisions", cost };
+    }
+    const benefit = this.briefRestBenefit(expedition);
+    if (!benefit.meaningful) return { available: false, reason: "no-benefit", cost, ...benefit };
+    return { available: true, cost, ...benefit };
   },
 
   briefRestBenefit(expedition) {
@@ -218,6 +227,27 @@ const ExpeditionRules = Object.freeze({
   },
 
   restAtCamp(expedition, player) {
+    const preparation = this.prepareCampRest(expedition, player);
+    if (!preparation.applied) return preparation;
+    const result = this.commitCampRest(expedition, player, preparation);
+    if (result.applied && preparation.eventId) {
+      CampRules.startPreparedCampEvent(expedition, preparation.eventId);
+    }
+    return result;
+  },
+
+  prepareCampRest(expedition, player) {
+    if (!expedition || expedition.status !== "active" || expedition.travelState !== "camped"
+      || expedition.activeEncounter || expedition.combat) {
+      return { applied: false, reason: "not-at-camp" };
+    }
+    const cost = EXPEDITION_TUNING.campRest.provisionCost;
+    if (expedition.provisions < cost) return { applied: false, reason: "insufficient-provisions", cost };
+    const event = !expedition.campEventRolled ? CampRules.prepareCampEvent(expedition, player) : null;
+    return { applied: true, cost, eventId: event?.id ?? null };
+  },
+
+  commitCampRest(expedition, player, preparation = {}) {
     if (!expedition || expedition.status !== "active" || expedition.travelState !== "camped"
       || expedition.activeEncounter || expedition.combat) {
       return { applied: false, reason: "not-at-camp" };
@@ -229,7 +259,6 @@ const ExpeditionRules = Object.freeze({
       expedition,
       Math.round(EXPEDITION_TUNING.campRest.healing * InjuryRules.restHealingMultiplier(expedition)),
     );
-    const event = !expedition.campEventRolled ? CampRules.rollForCampEvent(expedition, player) : null;
     const injuriesTreated = expedition.rationId !== "sparse"
       ? selectedPartyIds(expedition).map((id) => InjuryRules.recoverExhaustion(expedition, id, "camp-rest"))
         .filter((result) => result.applied)
@@ -240,7 +269,14 @@ const ExpeditionRules = Object.freeze({
       )
     ));
     JourneyLog.add(expedition, "The company rested at camp.", { category: "rest" });
-    return { applied: true, cost, ...healing, injuriesTreated, recoveryAccelerated, eventId: event?.id ?? null };
+    return {
+      applied: true,
+      cost,
+      ...healing,
+      injuriesTreated,
+      recoveryAccelerated,
+      eventId: preparation.eventId ?? null,
+    };
   },
 
   provisionCostForDistance(distance, consumptionMultiplier) {

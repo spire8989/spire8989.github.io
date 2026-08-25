@@ -68,11 +68,13 @@ const EXPEDITION_TUNING = Object.freeze({
     provisionCost: 1,
     healing: 4,
     recoveryDistanceReduction: 2,
+    actionDurationMs: 1000,
   }),
   campRest: Object.freeze({
     provisionCost: 2,
     healing: 8,
     recoveryDistanceReduction: 8,
+    actionDurationMs: 2000,
   }),
   travelInjuryCheckDistance: 12,
   travelInjuryBaseChance: 0.12,

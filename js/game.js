@@ -32,6 +32,7 @@ const game = {
   rewardPresentationContextId: 0,
   craftingAction: null,
   restAction: null,
+  restActionVersion: 0,
 };
 
 const ui = {
@@ -304,6 +305,11 @@ function clearPressedState() {
 
 function showScreen(screen) {
   if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel();
+  const restAction = game.restAction;
+  if (restAction && (restAction.screen !== screen
+    || (screen === "destination" && restAction.destinationId !== game.activeDestinationId))) {
+    cancelRestAction({ silent: true });
+  }
   if (screen !== "expedition" && game.screen === "expedition") {
     bumpTravelPresentationGeneration(game.expedition, "expedition-screen-exit");
   }
@@ -3138,6 +3144,64 @@ function renderInnRestProgress(action) {
   return `<div class="inn-rest-progress" aria-live="polite"><div class="inn-rest-progress-heading"><strong>Resting...</strong><span>${percent}%</span></div><div class="crafting-progress-track"><div class="crafting-progress-fill" style="width:${percent}%"></div></div><p>Healing and recovery apply when the rest is complete.</p></div>`;
 }
 
+function renderExpeditionRestProgress(action, label, message) {
+  const percent = Math.round((action.progress ?? 0) * 100);
+  return `<div class="crafting-progress expedition-rest-progress" data-rest-token="${action.token}" aria-live="polite"><div class="crafting-progress-heading"><strong>${label}</strong><span>${percent}%</span></div><div class="crafting-progress-track"><div class="crafting-progress-fill" style="width:${percent}%"></div></div><p>${message}</p></div>`;
+}
+
+function cancelRestAction({ silent = true } = {}) {
+  const action = game.restAction;
+  if (!action) return;
+  if (action.interruptionTimerId !== null && action.interruptionTimerId !== undefined) {
+    window.clearTimeout(action.interruptionTimerId);
+    action.interruptionTimerId = null;
+  }
+  action.interruptionState = "cancelled";
+  game.restAction = null;
+  if (!silent) {
+    showToast({ title: "Rest Cancelled", message: "The resting place is no longer available.", type: "warning" });
+  }
+}
+
+function isCurrentRestAction(action) {
+  if (!action || game.restAction !== action || action.token !== game.restActionVersion) return false;
+  if (game.screen !== action.screen) return false;
+  if (action.context === "inn-rest") {
+    return game.activeDestinationId === action.destinationId;
+  }
+  return game.expedition === action.expedition
+    && action.expedition?.status === "active"
+    && action.expedition?.activeEncounter == null
+    && action.expedition?.combat == null;
+}
+
+function beginRestAction(context, options = {}) {
+  if (game.restAction || game.craftingAction) return null;
+  const action = {
+    token: game.restActionVersion + 1,
+    context,
+    expedition: options.expedition ?? null,
+    screen: options.screen ?? game.screen,
+    destinationId: options.destinationId ?? null,
+    startedAt: performance.now(),
+    durationMs: Math.max(0, Number(options.durationMs) || 0),
+    progress: 0,
+    eventId: options.eventId ?? null,
+    eventDelayMs: options.eventDelayMs ?? null,
+    interruptionState: options.eventId ? "scheduled" : "none",
+    interruptionTimerId: null,
+  };
+  game.restActionVersion = action.token;
+  game.restAction = action;
+  if (action.eventId) {
+    action.interruptionTimerId = window.setTimeout(
+      () => interruptCampRest(action),
+      Math.max(0, Number(action.eventDelayMs) || 0),
+    );
+  }
+  return action;
+}
+
 function beginInnRest() {
   if (game.activeDestinationId !== "inn") return;
   if (game.restAction || game.craftingAction) return;
@@ -3146,11 +3210,11 @@ function beginInnRest() {
     restAtInn();
     return;
   }
-  game.restAction = {
-    startedAt: performance.now(),
+  beginRestAction("inn-rest", {
+    screen: "destination",
+    destinationId: game.activeDestinationId,
     durationMs: HEALING_TUNING.innRestDurationMs,
-    progress: 0,
-  };
+  });
   refreshDestination();
 }
 
@@ -4622,6 +4686,26 @@ function refreshExpedition() {
   if (refreshedPanel) {
     refreshedPanel.scrollTop = scrollTop;
   }
+  lockExpeditionRestControls();
+}
+
+function lockExpeditionRestControls() {
+  const action = game.restAction;
+  if (!action?.expedition || game.screen !== "expedition") return;
+  document.querySelectorAll([
+    '[data-action="pause-travel"]',
+    '[data-action="resume-travel"]',
+    '[data-action="return-to-safety"]',
+    '[data-action="brief-rest"]',
+    '[data-action="make-camp"]',
+    '[data-action="set-pace"]',
+    '[data-action="set-rations"]',
+    '[data-action="abandon-expedition"]',
+  ].join(",")).forEach((control) => {
+    control.disabled = true;
+  });
+  const briefRestButton = document.querySelector('[data-action="brief-rest"]');
+  if (briefRestButton) briefRestButton.closest(".paused-action-buttons")?.setAttribute("hidden", "");
 }
 
 function renderCamp(expedition) {
@@ -4647,11 +4731,12 @@ function renderCamp(expedition) {
     updateTravelHud();
     return;
   }
+  const actionBusy = game.restAction?.expedition === expedition || Boolean(game.craftingAction);
   const tabs = [
     ["rest", "Rest"],
     ["cook", "Cook"],
     ["craft", "Craft"],
-  ].map(([tabId, label]) => `<button class="camp-tab ${game.campTab === tabId ? "is-selected" : ""}" type="button" data-action="camp-tab" data-tab="${tabId}" aria-pressed="${game.campTab === tabId}" ${game.craftingAction ? "disabled" : ""}>${label}</button>`).join("");
+  ].map(([tabId, label]) => `<button class="camp-tab ${game.campTab === tabId ? "is-selected" : ""}" type="button" data-action="camp-tab" data-tab="${tabId}" aria-pressed="${game.campTab === tabId}" ${actionBusy ? "disabled" : ""}>${label}</button>`).join("");
   const tabContent = game.campTab === "cook"
     ? renderCampCookPanel(expedition)
     : game.campTab === "craft"
@@ -4689,7 +4774,7 @@ function renderCamp(expedition) {
         ${tabContent}
       </div>
       <div class="footer-actions camp-actions">
-        <button class="text-button" type="button" data-action="leave-camp">Leave Camp</button>
+        <button class="text-button" type="button" data-action="leave-camp" ${actionBusy ? "disabled" : ""}>Leave Camp</button>
       </div>
     </section>`;
   updateTravelHud();
@@ -4697,7 +4782,12 @@ function renderCamp(expedition) {
 
 function renderCampRestPanel(expedition) {
   const cost = EXPEDITION_TUNING.campRest.provisionCost;
-  const canRest = expedition.provisions >= cost;
+  const restAction = game.restAction?.context === "camp-rest"
+    && game.restAction.expedition === expedition
+    ? game.restAction
+    : null;
+  const actionBusy = Boolean(restAction || game.craftingAction);
+  const canRest = expedition.provisions >= cost && !actionBusy;
   const eventStatus = expedition.campEventRolled
     ? expedition.lastCampEventResult
       ? `<p class="camp-event-status">This camp's event has resolved: ${expedition.lastCampEventResult}</p>`
@@ -4707,8 +4797,10 @@ function renderCampRestPanel(expedition) {
     <section class="camp-content camp-rest-content" aria-labelledby="camp-rest-title">
       <div class="section-title-row"><h2 id="camp-rest-title">Rest at Camp</h2><span>Costs ${cost} provisions</span></div>
       <p class="section-help">A camp rest restores more health than a brief roadside pause and can trigger one event for this camp cycle.</p>
-      ${eventStatus}
-      <button class="game-button" type="button" data-action="camp-rest" ${canRest ? "" : "disabled"}>${canRest ? `Rest · ${cost} Provisions` : `Need ${cost} Provisions`}</button>
+      ${restAction
+        ? renderExpeditionRestProgress(restAction, "Resting at Camp...", "Healing and recovery apply when the rest is complete.")
+        : `${eventStatus}
+          <button class="game-button" type="button" data-action="camp-rest" ${canRest ? "" : "disabled"}>${canRest ? `Rest · ${cost} Provisions` : `Need ${cost} Provisions`}</button>`}
     </section>`;
 }
 
@@ -4746,6 +4838,7 @@ function renderCampEventPanel(expedition, event) {
 }
 
 function renderExpeditionActionBar(expedition) {
+  const restBusy = game.restAction?.expedition === expedition;
   if (expedition.travelState === "departure") {
     return `
       <div class="expedition-action-bar departure-action-bar" role="status" aria-live="polite">
@@ -4756,9 +4849,9 @@ function renderExpeditionActionBar(expedition) {
   return `
     <div class="expedition-action-bar" role="group" aria-label="Expedition travel actions">
       ${expedition.travelState === "paused"
-        ? `<button id="resume-button" class="game-button travel-action-primary" type="button" data-action="resume-travel">Resume Travel</button>`
-        : `<button id="pause-button" class="game-button travel-action-primary" type="button" data-action="pause-travel">Pause Travel</button>`}
-      <button id="return-button" class="small-button travel-return-button" type="button" data-action="return-to-safety">Return</button>
+        ? `<button id="resume-button" class="game-button travel-action-primary" type="button" data-action="resume-travel" ${restBusy ? "disabled" : ""}>Resume Travel</button>`
+        : `<button id="pause-button" class="game-button travel-action-primary" type="button" data-action="pause-travel" ${restBusy ? "disabled" : ""}>Pause Travel</button>`}
+      <button id="return-button" class="small-button travel-return-button" type="button" data-action="return-to-safety" ${restBusy ? "disabled" : ""}>Return</button>
     </div>`;
 }
 
@@ -4811,6 +4904,7 @@ function renderJourneyLog(expedition) {
 function renderTravelPanel(expedition, companions, loadout) {
   const companyLabel = [PLAYER_CHARACTER_DEFINITION.name, ...companions.map((companion) => companion.name)].join(" &amp; ");
   const carriedQuantity = Object.values(expedition.carriedItems ?? {}).reduce((sum, quantity) => sum + (Number(quantity) || 0), 0);
+  const restBusy = game.restAction?.expedition === expedition;
 
   return `
     <div class="travel-panel">
@@ -4839,18 +4933,23 @@ function renderTravelPanel(expedition, companions, loadout) {
         <div class="run-detail-collection"><span>Unsecured</span><div class="unsecured-detail"><p class="unsecured-detail-summary">${unsecuredLootSummary(expedition)}</p><div id="loot-list" class="loot-list">${renderDiscoveryList(expedition)}</div></div></div>
         </div>
         <div class="run-details-actions">
-          <button class="text-button danger-button abandon-button" type="button" data-action="abandon-expedition">Abandon Expedition</button>
+          <button class="text-button danger-button abandon-button" type="button" data-action="abandon-expedition" ${restBusy ? "disabled" : ""}>Abandon Expedition</button>
         </div>
       </details>
     </div>`;
 }
 
 function renderTravelSettings(expedition) {
+  const restBusy = game.restAction?.expedition === expedition;
+  const briefRestAction = game.restAction?.context === "brief-rest"
+    && game.restAction.expedition === expedition
+    ? game.restAction
+    : null;
   const paceButtons = Object.values(EXPEDITION_TUNING.travelPaces).map((pace) => (
-    `<button class="setting-button ${expedition.paceId === pace.id ? "is-selected" : ""}" type="button" data-action="set-pace" data-pace-id="${pace.id}" aria-pressed="${expedition.paceId === pace.id}" title="${pace.description}">${pace.name}</button>`
+    `<button class="setting-button ${expedition.paceId === pace.id ? "is-selected" : ""}" type="button" data-action="set-pace" data-pace-id="${pace.id}" aria-pressed="${expedition.paceId === pace.id}" title="${pace.description}" ${restBusy ? "disabled" : ""}>${pace.name}</button>`
   )).join("");
   const rationButtons = Object.values(EXPEDITION_TUNING.rationLevels).map((ration) => (
-    `<button class="setting-button ${expedition.rationId === ration.id ? "is-selected" : ""}" type="button" data-action="set-rations" data-ration-id="${ration.id}" aria-pressed="${expedition.rationId === ration.id}" title="${ration.description}">${ration.name}</button>`
+    `<button class="setting-button ${expedition.rationId === ration.id ? "is-selected" : ""}" type="button" data-action="set-rations" data-ration-id="${ration.id}" aria-pressed="${expedition.rationId === ration.id}" title="${ration.description}" ${restBusy ? "disabled" : ""}>${ration.name}</button>`
   )).join("");
   const pace = ExpeditionRules.paceDefinition(expedition.paceId);
   const ration = ExpeditionRules.rationDefinition(expedition.rationId);
@@ -4879,6 +4978,9 @@ function renderTravelSettings(expedition) {
              </div>
            </div>`
          : ""}
+      ${briefRestAction
+        ? renderExpeditionRestProgress(briefRestAction, "Resting...", "Healing and recovery apply when the rest is complete.")
+        : ""}
     </section>`;
 }
 
@@ -5352,6 +5454,7 @@ function beginReturn() {
   if (!expedition
     || expedition.status !== "active"
     || expedition.direction === "returning"
+    || game.restAction
     || expedition.activeEncounter
     || !["traveling", "paused"].includes(expedition.travelState)) {
     return;
@@ -5365,36 +5468,45 @@ function beginReturn() {
 function setExpeditionPace(paceId) {
   const expedition = game.expedition;
   if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
-    || !["traveling", "paused"].includes(expedition.travelState)) return;
+    || game.restAction || !["traveling", "paused"].includes(expedition.travelState)) return;
   if (ExpeditionRules.setPace(expedition, paceId)) refreshExpedition();
 }
 
 function setExpeditionRations(rationId) {
   const expedition = game.expedition;
   if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
-    || !["traveling", "paused"].includes(expedition.travelState)) return;
+    || game.restAction || !["traveling", "paused"].includes(expedition.travelState)) return;
   if (ExpeditionRules.setRation(expedition, rationId)) refreshExpedition();
 }
 
 function pauseTravel() {
+  if (game.restAction) return;
   if (ExpeditionRules.pause(game.expedition)) refreshExpedition();
 }
 
 function resumeTravel() {
+  if (game.restAction) return;
   if (ExpeditionRules.resume(game.expedition)) refreshExpedition();
 }
 
 function briefRest() {
-  const result = ExpeditionRules.briefRest(game.expedition);
-  if (!result.applied) {
-    showToast({ title: "Cannot Rest", message: result.reason === "insufficient-provisions" ? "There are not enough provisions for a brief rest." : "Brief Rest is only available while paused.", type: "warning" });
+  const expedition = game.expedition;
+  if (game.restAction || game.craftingAction) return;
+  const quote = ExpeditionRules.briefRestQuote(expedition);
+  if (!quote.available) {
+    showToast({ title: "Cannot Rest", message: quote.reason === "insufficient-provisions" ? "There are not enough provisions for a brief rest." : "Brief Rest is only available while paused.", type: "warning" });
     return;
   }
-  showToast({ title: "Brief Rest", message: `The company recovers ${result.totalHealingAmount} health for ${result.cost} provision.`, type: "success" });
+  beginRestAction("brief-rest", {
+    expedition,
+    screen: "expedition",
+    durationMs: EXPEDITION_TUNING.briefRest.actionDurationMs,
+  });
   refreshExpedition();
 }
 
 function makeCamp() {
+  if (game.restAction) return;
   if (ExpeditionRules.enterCamp(game.expedition)) {
     game.campTab = "rest";
     refreshExpedition();
@@ -5402,23 +5514,84 @@ function makeCamp() {
 }
 
 function setCampTab(tabId) {
-  if (!["rest", "cook", "craft"].includes(tabId) || game.expedition?.travelState !== "camped") return;
+  if (!["rest", "cook", "craft"].includes(tabId) || game.expedition?.travelState !== "camped" || game.restAction) return;
   game.campTab = tabId;
   refreshExpedition();
 }
 
 function campRest() {
-  const result = ExpeditionRules.restAtCamp(game.expedition, game.player);
-  if (!result.applied) {
-    showToast({ title: "Cannot Rest", message: result.reason === "insufficient-provisions" ? "There are not enough provisions for a camp rest." : "The company is not settled at camp.", type: "warning" });
+  const expedition = game.expedition;
+  if (game.restAction || game.craftingAction) return;
+  const preparation = ExpeditionRules.prepareCampRest(expedition, game.player);
+  if (!preparation.applied) {
+    showToast({ title: "Cannot Rest", message: preparation.reason === "insufficient-provisions" ? "There are not enough provisions for a camp rest." : "The company is not settled at camp.", type: "warning" });
     return;
   }
-  showToast({ title: "Camp Rest", message: result.eventId ? "The night's rest draws attention from the surrounding forest." : `The company recovers ${result.totalHealingAmount} health.`, type: "success" });
+  const durationMs = Math.max(0, Number(EXPEDITION_TUNING.campRest.actionDurationMs) || 0);
+  const eventDelayMs = preparation.eventId
+    ? durationMs * (0.25 + Math.random() * 0.6)
+    : null;
+  beginRestAction("camp-rest", {
+    expedition,
+    screen: "expedition",
+    durationMs,
+    eventId: preparation.eventId,
+    eventDelayMs,
+  });
   refreshExpedition();
 }
 
 function leaveCamp() {
+  if (game.restAction) return;
   if (ExpeditionRules.leaveCamp(game.expedition)) refreshExpedition();
+}
+
+function completeExpeditionRestAction(action) {
+  if (!isCurrentRestAction(action) || !["brief-rest", "camp-rest"].includes(action.context)) {
+    if (game.restAction === action) cancelRestAction();
+    return;
+  }
+  if (action.interruptionTimerId !== null) {
+    window.clearTimeout(action.interruptionTimerId);
+    action.interruptionTimerId = null;
+  }
+  action.interruptionState = "completed";
+  game.restAction = null;
+  const result = action.context === "brief-rest"
+    ? ExpeditionRules.briefRest(action.expedition)
+    : ExpeditionRules.commitCampRest(action.expedition, game.player, { eventId: action.eventId });
+  if (!result.applied) {
+    showToast({
+      title: "Rest Cancelled",
+      message: action.context === "brief-rest"
+        ? "The company could not complete its brief rest."
+        : "The company could not complete its camp rest.",
+      type: "warning",
+    });
+    refreshExpedition();
+    return;
+  }
+  if (action.context === "brief-rest") {
+    showToast({ title: "Brief Rest", message: `The company recovers ${result.totalHealingAmount} health for ${result.cost} provision.`, type: "success" });
+  } else {
+    showToast({ title: "Camp Rest", message: `The company recovers ${result.totalHealingAmount} health.`, type: "success" });
+  }
+  refreshExpedition();
+}
+
+function interruptCampRest(action) {
+  if (!isCurrentRestAction(action) || action.context !== "camp-rest" || !action.eventId) return;
+  if (action.interruptionTimerId !== null) {
+    window.clearTimeout(action.interruptionTimerId);
+    action.interruptionTimerId = null;
+  }
+  action.interruptionState = "interrupted";
+  game.restAction = null;
+  if (!CampRules.startPreparedCampEvent(action.expedition, action.eventId)) {
+    refreshExpedition();
+    return;
+  }
+  renderExpedition();
 }
 
 function cookRecipe(recipeId) {
@@ -5750,6 +5923,7 @@ function triggerDebugEncounter() {
   if (!DEBUG_TOOLS_ENABLED || !game.expedition || game.expedition.activeEncounter) {
     return;
   }
+  cancelRestAction();
   const encounterId = document.querySelector("#debug-encounter-select")?.value;
   if (EncounterManager.force(game.expedition, encounterId)) {
     renderExpedition();
@@ -5769,6 +5943,7 @@ function startDebugCombat() {
   if (!DEBUG_TOOLS_ENABLED || !expedition || expedition.activeEncounter || expedition.combat) {
     return;
   }
+  cancelRestAction();
   const combatId = document.querySelector("#debug-combat-select")?.value ?? "wild_boar";
   if (COMBAT_DEFINITIONS[combatId] && startCombat(expedition, combatId)) {
     renderExpedition();
@@ -5778,6 +5953,7 @@ function startDebugCombat() {
 function completeReturn() {
   const expedition = game.expedition;
   clearPendingEncounterActionTimer();
+  cancelRestAction();
   expedition.combat = null;
   expedition.status = "returned";
   ExpeditionRules.settle(game.player, expedition, true);
@@ -5814,6 +5990,7 @@ function failExpedition(reason) {
   }
 
   clearPendingEncounterActionTimer();
+  cancelRestAction();
   expedition.combat = null;
   expedition.status = "failed";
   ExpeditionRules.settle(game.player, expedition, false);
@@ -6251,6 +6428,7 @@ function resetSave() {
     return;
   }
 
+  cancelRestAction();
   game.player = SaveSystem.reset();
   if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel({ resetSeen: true });
   game.expedition = null;
@@ -6404,7 +6582,7 @@ function gameLoop(timestamp) {
   game.elapsedSeconds += deltaSeconds;
 
   updateCraftingProgress(timestamp);
-  updateInnRestProgress(timestamp);
+  updateRestProgress(timestamp);
 
   if (typeof CampaignReplayController !== "undefined" && CampaignReplayController.isActive()) {
     CampaignReplayController.update(deltaSeconds);
@@ -6449,18 +6627,42 @@ function updateCraftingProgress(timestamp) {
   if (action.progress >= 1) completeCraftingAction();
 }
 
-function updateInnRestProgress(timestamp) {
+function updateRestProgress(timestamp) {
   const action = game.restAction;
   if (!action) return;
+  if (!isCurrentRestAction(action)) {
+    if (game.restAction === action) cancelRestAction();
+    return;
+  }
+  const elapsedMs = timestamp - action.startedAt;
+  if (action.context === "camp-rest"
+    && action.eventId
+    && Number.isFinite(action.eventDelayMs)
+    && elapsedMs >= action.eventDelayMs) {
+    interruptCampRest(action);
+    return;
+  }
   action.progress = clamp((timestamp - action.startedAt) / action.durationMs, 0, 1);
-  const progressFill = document.querySelector(".inn-rest-progress .crafting-progress-fill");
-  const progressLabel = document.querySelector(".inn-rest-progress-heading span");
+  const progressRoot = action.context === "inn-rest"
+    ? document.querySelector(".inn-rest-progress")
+    : document.querySelector(`[data-rest-token="${action.token}"]`);
+  const progressFill = progressRoot?.querySelector(".crafting-progress-fill");
+  const progressLabel = progressRoot?.querySelector(".crafting-progress-heading span");
   if (progressFill) progressFill.style.width = `${Math.round(action.progress * 100)}%`;
   if (progressLabel) progressLabel.textContent = `${Math.round(action.progress * 100)}%`;
   if (action.progress >= 1) {
-    game.restAction = null;
-    restAtInn();
+    if (action.context === "inn-rest") {
+      game.restAction = null;
+      action.interruptionState = "completed";
+      restAtInn();
+    } else {
+      completeExpeditionRestAction(action);
+    }
   }
+}
+
+function updateInnRestProgress(timestamp) {
+  updateRestProgress(timestamp);
 }
 
 initializeGame();

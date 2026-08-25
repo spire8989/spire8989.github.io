@@ -36,12 +36,22 @@ const CampRules = Object.freeze({
     return selected ? CAMP_EVENT_DEFINITIONS[selected.eventId] : null;
   },
 
-  rollForCampEvent(expedition, player) {
+  prepareCampEvent(expedition, player) {
     if (!expedition || expedition.travelState !== "camped" || expedition.campEventRolled) return null;
     expedition.campEventRolled = true;
     const event = this.selectEvent(expedition, player);
     expedition.campEventId = event?.id ?? null;
-    if (event) EncounterManager.beginCamp(expedition, event.id);
+    return event;
+  },
+
+  startPreparedCampEvent(expedition, eventId) {
+    if (!expedition || !eventId || expedition.campEventId !== eventId) return false;
+    return EncounterManager.beginCamp(expedition, eventId);
+  },
+
+  rollForCampEvent(expedition, player) {
+    const event = this.prepareCampEvent(expedition, player);
+    if (event) this.startPreparedCampEvent(expedition, event.id);
     return event;
   },
 });

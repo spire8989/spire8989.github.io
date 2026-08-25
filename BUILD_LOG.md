@@ -1,5 +1,36 @@
 # Build Log
 
+## 2026-08-24 - Expedition Rest Timing and Camp Interruption
+
+### Goal
+
+Give Brief Rest and Camp Rest visible, time-based presentation while allowing the existing one-per-camp contextual event to interrupt a Camp Rest without changing rest costs, healing values, travel pacing, or simulation throughput.
+
+### Human prompt and direction
+
+The human developer supplied the Expedition Rest Timing / Camp Interruption guide and requested a Grail-only implementation, build-log update, verification, and local commit. The guide required reuse of the existing delayed-action loop, 1000 ms Brief Rest and 2000 ms Camp Rest tuning, deterministic event preparation with presentation-only interruption randomness, clean cancellation/token safety, and unchanged automated simulation/replay behavior.
+
+Reported manual changes: None.
+
+### AI-assisted implementation
+
+- Extended the existing rest action state and elapsed-time update loop to cover Inn Rest, Brief Rest, and Camp Rest with unique tokens, context/expedition ownership, progress presentation, and stale-action cancellation.
+- Added tunable `actionDurationMs` values to expedition tuning and rendered `Resting...` / `Resting at Camp...` progress without rerendering the scene each frame.
+- Split camp rest preparation from commitment: the existing deterministic camp-event selection is consumed once at action start, while provisions, healing, injury recovery, and the rest log are committed only after an uninterrupted rest completes.
+- Scheduled an already-prepared camp event at a presentation-only randomized 25%-85% point, stopping the progress and entering the existing CampRules/EncounterManager path without charging the interrupted rest or resuming it afterward.
+- Locked incompatible expedition/camp controls, prevented duplicate actions, and cancelled pending work on navigation, reset, return, failure, debug context changes, and stale expedition ownership.
+- Kept the immediate rules path used by simulation and replay, so automated runs do not wait for wall-clock presentation time.
+
+### Verification and resulting prototype state
+
+- `python tests/simulation_system_test.py` - passed 62 deterministic simulation assertions.
+- `python tests/campaign_system_test.py` - passed 99 campaign/health/Inn assertions.
+- Targeted local browser smoke - passed Brief Rest timing, Camp Rest timing, no-benefit-before-interruption, one-time camp-event interruption, post-event return to Camp, and second-rest completion checks.
+- `git diff --check` passed; `Tools/` was unchanged.
+- `python tests/location_system_test.py` still stops at the pre-existing village hotspot coordinate fixture mismatch before reaching later expedition assertions.
+
+Brief Rest now visibly resolves after approximately one second. Camp Rest visibly resolves after approximately two seconds when uninterrupted, or yields once to its prepared camp event during the rest and can then be attempted again normally.
+
 ## 2026-08-24 - Reward Reveal Presentation Pass
 
 ### Goal
