@@ -29,6 +29,7 @@ const game = {
   travelPartyVisualState: null,
   travelScenePresentation: null,
   travelPresentationGeneration: 0,
+  rewardPresentationContextId: 0,
   craftingAction: null,
   restAction: null,
 };
@@ -86,6 +87,12 @@ function handleAction(event) {
     return;
   }
   if (game.expeditionStartPending) return;
+
+  if (typeof RewardRevealSystem !== "undefined"
+    && RewardRevealSystem.isBlocking()
+    && ["continue-journey", "return-to-safety", "new-expedition"].includes(action)) {
+    return;
+  }
 
   AudioManager.unlock();
   AudioManager.playAction(action);
@@ -296,6 +303,7 @@ function clearPressedState() {
 }
 
 function showScreen(screen) {
+  if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel();
   if (screen !== "expedition" && game.screen === "expedition") {
     bumpTravelPresentationGeneration(game.expedition, "expedition-screen-exit");
   }
@@ -339,6 +347,7 @@ function beginDeparturePresentation(expedition) {
 }
 
 function renderScreen() {
+  if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel();
   if (game.screen !== "expedition") AudioManager.stopAmbience();
   switch (game.screen) {
     case "campaign":
@@ -3634,6 +3643,9 @@ function applyDialogueResult(result, returnContext = null) {
     game.dialogueSession = null;
     if ((result.effects ?? []).length > 0) savePlayer();
     if (completed.resolved && game.expedition.status === "active") {
+      if (!completed.combatStarted && !completed.dialogueStarted) {
+        queueEncounterRewardReveal(game.expedition, "dialogue");
+      }
       renderExpedition();
     }
     return;
@@ -4271,6 +4283,8 @@ async function startExpedition() {
     return;
   }
   const committedProvisions = game.preparationSupplies;
+  game.rewardPresentationContextId += 1;
+  if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel({ resetSeen: true });
   game.expeditionStartPending = true;
   refreshPreparation();
   game.expedition = ExpeditionRules.startExpedition(game.player, {
@@ -4942,7 +4956,7 @@ function renderEncounterResultPanel(expedition, encounter, active) {
   });
 
   return `
-    <div class="travel-panel encounter-panel encounter-result-panel" aria-live="polite">
+    <div class="travel-panel encounter-panel encounter-result-panel" aria-live="off">
       ${renderExpeditionResources(expedition, { contextual: true })}
       <div class="encounter-heading">
         <p class="eyebrow">Encounter Resolved</p>
@@ -5456,6 +5470,7 @@ function resolveEncounterChoice(choiceId) {
     return;
   }
 
+  const rewardStartIndex = expedition.activeEncounter.rewards?.length ?? 0;
   const result = EncounterManager.resolveChoice(expedition, game.player, choiceId, {
     failExpedition,
     startCombat: (combatId) => startCombat(expedition, combatId),
@@ -5483,16 +5498,16 @@ function resolveEncounterChoice(choiceId) {
           startDialogue: (dialogueId) => startEncounterDialogue(pendingExpedition, dialogueId),
         },
       );
-      finishEncounterResolution(completed, pendingExpedition);
+      finishEncounterResolution(completed, pendingExpedition, rewardStartIndex);
     }, result.delayMs);
     renderExpedition();
     return;
   }
 
-  finishEncounterResolution(result, expedition);
+  finishEncounterResolution(result, expedition, rewardStartIndex);
 }
 
-function finishEncounterResolution(result, expedition) {
+function finishEncounterResolution(result, expedition, rewardStartIndex = null) {
   if (!result.resolved || expedition.status !== "active") {
     return;
   }
@@ -5504,6 +5519,10 @@ function finishEncounterResolution(result, expedition) {
   if (expedition.provisions <= 0) {
     failExpedition("The company exhausted its provisions during the encounter.");
     return;
+  }
+
+  if (!result.combatStarted && !result.dialogueStarted) {
+    queueEncounterRewardReveal(expedition, "encounter", rewardStartIndex);
   }
 
   renderExpedition();
@@ -5689,11 +5708,14 @@ function finishCombatResolution(expedition) {
   const result = combat.result;
   if (result === "victory") AudioManager.playSemantic("victory");
   expedition.combat = null;
-  EncounterManager.completeCombat(expedition, game.player, result, {
+  const completed = EncounterManager.completeCombat(expedition, game.player, result, {
     failExpedition,
     startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
   });
   if (expedition.status === "active") {
+    if (!completed.combatStarted && !completed.dialogueStarted) {
+      queueEncounterRewardReveal(expedition, "combat");
+    }
     renderExpedition();
   }
 }
@@ -5717,6 +5739,7 @@ function clearPendingEncounterActionTimer() {
 
 function continueJourney() {
   const expedition = game.expedition;
+  if (typeof RewardRevealSystem !== "undefined" && RewardRevealSystem.isBlocking()) return;
   if (!expedition || !EncounterManager.continueJourney(expedition)) {
     return;
   }
@@ -5775,6 +5798,13 @@ function completeReturn() {
     provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
+  queueRewardRevealPresentation(
+    rewardBucketEntries(expedition.returnRewardContents),
+    {
+      source: "return",
+      eventId: `return:${game.rewardPresentationContextId}:${expedition.returnRewardTier ?? "none"}`,
+    },
+  );
 }
 
 function failExpedition(reason) {
@@ -5848,7 +5878,8 @@ function rewardIconKind(reward) {
 function rewardPresentation(reward) {
   const definition = rewardDefinition(reward);
   const rarityRank = RARITY_DEFINITIONS[definition?.rarity ?? "common"]?.rank ?? 0;
-  if (reward.type === "recipe" || definition?.questItem || definition?.category === "relic" || rarityRank >= 3
+  if (reward.type === "recipe" || definition?.questItem || definition?.category === "quest"
+    || definition?.category === "relic" || rarityRank >= 3
     || (rarityRank >= 2 && definition?.category !== "valuable" && reward.type !== "material")) {
     return "major";
   }
@@ -5856,6 +5887,79 @@ function rewardPresentation(reward) {
     return "notable";
   }
   return "routine";
+}
+
+function rewardRevealTier(reward) {
+  return ({ routine: "minor", notable: "normal", major: "major" })[rewardPresentation(reward)] ?? "minor";
+}
+
+function rewardRevealLabel(reward, tier, definition) {
+  if (tier !== "major") return "FOUND";
+  if (reward.type === "recipe") return "RECIPE LEARNED";
+  if (reward.type === "ability") return "ABILITY LEARNED";
+  if (definition?.questItem || definition?.category === "quest") return "QUEST ITEM SECURED";
+  if (definition?.category === "relic") return "RELIC FOUND";
+  return "DISCOVERY FOUND";
+}
+
+function rewardRevealAnnouncement(reward, name) {
+  const quantity = Math.max(0, Math.floor(Number(reward.quantity) || 0));
+  if (reward.type === "recipe") return `Learned the ${name} recipe.`;
+  if (reward.type === "ability") return `Learned ${name}.`;
+  return `Found ${quantity > 1 ? `${quantity} ` : ""}${name}.`;
+}
+
+function rewardRevealModel(reward) {
+  if (!rewardHasCollectedQuantity(reward)) return null;
+  const definition = rewardDefinition(reward);
+  const rarity = definition?.rarity ?? "common";
+  const tier = rewardRevealTier(reward);
+  const name = rewardDisplayName(reward);
+  return {
+    type: reward.type,
+    itemId: reward.itemId,
+    materialId: reward.materialId,
+    recipeId: reward.recipeId,
+    abilityId: reward.abilityId,
+    visualAssetId: reward.visualAssetId ?? definition?.visualAssetId ?? null,
+    name,
+    quantity: Math.max(0, Math.floor(Number(reward.quantity) || 0)),
+    tier,
+    rarity,
+    rarityName: RARITY_DEFINITIONS[rarity]?.name ?? capitalize(rarity),
+    categoryLabel: rewardCategoryLabel(reward),
+    description: reward.type === "gold"
+      ? "Coins recovered from the journey."
+      : definition?.description ?? "A useful discovery from the road.",
+    iconHtml: categoryIcon(rewardIconKind(reward)),
+    revealLabel: rewardRevealLabel(reward, tier, definition),
+    announcement: rewardRevealAnnouncement(reward, name),
+    soundRole: tier === "major" ? "majorLoot" : "loot",
+  };
+}
+
+function queueRewardRevealPresentation(rewards = [], options = {}) {
+  if (typeof RewardRevealSystem === "undefined") return false;
+  const models = rewards.map(rewardRevealModel).filter(Boolean);
+  if (models.length === 0) return false;
+  return RewardRevealSystem.queue(models, {
+    contextKey: `expedition:${game.rewardPresentationContextId}`,
+    eventId: options.eventId ?? `${options.source ?? "reward"}:${game.rewardPresentationContextId}`,
+  });
+}
+
+function queueEncounterRewardReveal(expedition, source = "encounter", rewardStartIndex = null) {
+  const active = expedition?.activeEncounter;
+  if (!active || !Array.isArray(active.rewards)) return false;
+  const cursor = Number.isInteger(active.rewardRevealCursor) ? active.rewardRevealCursor : 0;
+  const requestedStart = Number.isInteger(rewardStartIndex) ? rewardStartIndex : cursor;
+  const start = Math.max(cursor, requestedStart, 0);
+  const rewards = active.rewards.slice(start);
+  if (rewards.length === 0) return false;
+  const eventId = `${source}:${game.rewardPresentationContextId}:${active.eventKind ?? "encounter"}:${active.encounterId}:${start}:${active.rewards.length}`;
+  const queued = queueRewardRevealPresentation(rewards, { source, eventId });
+  if (queued) active.rewardRevealCursor = active.rewards.length;
+  return queued;
 }
 
 function rewardDisplayName(reward) {
@@ -6148,6 +6252,7 @@ function resetSave() {
   }
 
   game.player = SaveSystem.reset();
+  if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel({ resetSeen: true });
   game.expedition = null;
   game.expeditionStartPending = false;
   game.summary = null;

@@ -1,5 +1,35 @@
 # Build Log
 
+## 2026-08-24 - Reward Reveal Presentation Pass
+
+### Goal
+
+Make newly received items, materials, gold, recipes, and other discoveries feel like a brief authored moment while preserving the existing persistent reward cards and game flow.
+
+### Human prompt and direction
+
+The human developer requested the attached Reward Reveal Presentation guide be followed across encounter discoveries, combat rewards, travel-facing discoveries, and appropriate major return rewards. The pass was to remain presentation-only, avoid changing simulation or travel rendering, update this build log, and commit the finished game changes.
+
+Reported manual changes: None.
+
+### AI-assisted implementation
+
+- Added a stable `#reward-reveal-host` presentation layer with a reusable queued reveal system and event-token deduplication.
+- Added data-driven minor, normal, and major tiers from the existing reward category, rarity, quest, relic, recipe, and equipment metadata.
+- Grouped minor quantities into compact non-blocking chips; normal and major rewards use centered framed medallions, subtle dimming, one-shot gold shimmer, concise labels, and restrained enter/hold/exit timing.
+- Hooked newly appended authoritative rewards from encounter, dialogue, and combat completion paths, plus distance-tier return rewards, without replaying on rerender or changing loot amounts, RNG, inventory rules, simulation, or travel scene lifecycle.
+- Added an accessibility announcement path, reduced-motion timing/style behavior, temporary interaction protection for normal/major reveals, and a future-ready `visualAssetId` field in the presentation model.
+- Added the semantic `majorLoot` audio hook without adding an audio asset.
+- Added focused browser coverage for the Glint in the Mud reveal, queue grouping/deduplication, major reveal treatment, locking, and cancellation.
+
+### Verification and resulting prototype state
+
+- `python tests/reward_reveal_system_test.py` — passed 10 assertions.
+- `python tests/combat_system_test.py` — passed 37 Tier 1 assertions.
+- `python tests/travel_stability_test.py` — passed.
+- Production page startup through local HTTP — passed; no runtime exceptions reported by the focused reveal test.
+- `asset_audio_system_test.py` and `location_system_test.py` stop at pre-existing workspace baseline assertions before reaching this pass: the former expects empty asset catalogs while authored assets are present, and the latter expects older village hotspot coordinates.
+
 ## 2026-08-23 - Companion 2 Back-Slot Travel Spacing
 
 ### Goal

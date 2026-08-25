@@ -13,6 +13,7 @@ const AUDIO_SEMANTIC_ASSET_IDS = Object.freeze({
   confirm: "sfx_ui_confirm",
   coins: "sfx_coins",
   loot: "sfx_loot",
+  majorLoot: "sfx_major_loot",
   crafting: "sfx_crafting",
   cooking: "sfx_cooking",
   encounter: "sfx_encounter_sting",

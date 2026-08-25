@@ -610,6 +610,272 @@ button:focus-visible {
   pointer-events: none;
 }
 
+/* The reward reveal is a stable presentation layer. It sits above whichever
+   expedition panel is currently rendered without owning or rebuilding that
+   panel. */
+.reward-reveal-host {
+  position: absolute;
+  z-index: 30;
+  top: 6.5%;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  padding: 5% 7%;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.reward-reveal-host::before {
+  position: absolute;
+  inset: 0;
+  background: rgb(3 8 4 / 14%);
+  content: "";
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.reward-reveal-host.is-visible {
+  visibility: visible;
+}
+
+.reward-reveal-host.is-blocking {
+  pointer-events: auto;
+}
+
+.reward-reveal-host.is-blocking::before {
+  opacity: 1;
+}
+
+.reward-reveal-host.is-minor {
+  align-items: end;
+  padding-bottom: 7%;
+}
+
+.reward-reveal-minor-chip,
+.reward-reveal-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgb(217 189 114 / 58%);
+  box-shadow: 0 0.55rem 1.7rem rgb(0 0 0 / 42%);
+  color: #f7edcf;
+  opacity: 0;
+  transform: translateY(0.3rem) scale(0.96);
+}
+
+.reward-reveal-host.is-presented .reward-reveal-minor-chip,
+.reward-reveal-host.is-presented .reward-reveal-card {
+  animation: reward-reveal-enter 220ms ease-out both;
+}
+
+.reward-reveal-host.is-exiting .reward-reveal-minor-chip,
+.reward-reveal-host.is-exiting .reward-reveal-card {
+  animation: reward-reveal-exit 220ms ease-in both;
+}
+
+.reward-reveal-minor-chip {
+  display: grid;
+  width: min(100%, 24rem);
+  gap: 0.28rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.45rem;
+  background: linear-gradient(135deg, rgb(13 28 17 / 97%), rgb(27 45 29 / 96%));
+  font-family: system-ui, sans-serif;
+}
+
+.reward-reveal-minor-kicker,
+.reward-reveal-kicker {
+  color: var(--gold-bright);
+  font-size: clamp(0.52rem, 2.1cqw, 0.66rem);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.reward-reveal-minor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  justify-content: center;
+}
+
+.reward-reveal-minor-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: #f1e5c5;
+  font-size: clamp(0.58rem, 2.45cqw, 0.74rem);
+  white-space: nowrap;
+}
+
+.reward-reveal-minor-item strong {
+  color: #fff2bf;
+  font-size: 1.12em;
+}
+
+.reward-reveal-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  place-items: center;
+  color: var(--gold-bright);
+}
+
+.reward-reveal-icon .category-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.reward-reveal-card {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 20rem);
+  min-height: 14rem;
+  padding: 1.05rem 1rem 0.9rem;
+  overflow: hidden;
+  border-radius: 0.52rem;
+  background: linear-gradient(145deg, rgb(11 25 15 / 98%), rgb(27 43 28 / 97%));
+  text-align: center;
+}
+
+.reward-reveal-card::after {
+  position: absolute;
+  inset: -35% auto -35% -25%;
+  width: 16%;
+  background: linear-gradient(90deg, transparent, rgb(244 221 160 / 62%), transparent);
+  content: "";
+  opacity: 0;
+  transform: skewX(-18deg);
+  pointer-events: none;
+}
+
+.reward-reveal-host.is-presented .reward-reveal-card::after {
+  animation: reward-reveal-sweep 760ms ease-out 90ms both;
+}
+
+.reward-reveal-card.tier-major {
+  min-height: 15.2rem;
+  border-color: rgb(244 221 160 / 78%);
+  background: linear-gradient(145deg, rgb(27 30 19 / 99%), rgb(57 50 27 / 98%));
+  box-shadow: 0 0.65rem 2rem rgb(0 0 0 / 52%), 0 0 1.3rem rgb(217 189 114 / 14%);
+}
+
+.reward-reveal-card.rarity-uncommon {
+  border-color: rgb(159 191 141 / 74%);
+}
+
+.reward-reveal-card.rarity-rare,
+.reward-reveal-card.rarity-epic,
+.reward-reveal-card.rarity-legendary {
+  border-color: rgb(244 221 160 / 78%);
+}
+
+.reward-reveal-medallion {
+  display: grid;
+  width: 5.1rem;
+  height: 5.1rem;
+  margin: 0.65rem 0 0.52rem;
+  place-items: center;
+  border: 1px solid rgb(244 221 160 / 62%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(217 189 114 / 20%), rgb(8 18 11 / 74%) 72%);
+  color: var(--gold-bright);
+  box-shadow: inset 0 0 0 0.25rem rgb(16 27 17 / 62%), inset 0 0 0 0.31rem rgb(217 189 114 / 25%);
+}
+
+.tier-major .reward-reveal-medallion {
+  width: 5.7rem;
+  height: 5.7rem;
+  border-color: var(--gold-bright);
+  box-shadow: inset 0 0 0 0.28rem rgb(44 38 20 / 74%), inset 0 0 0 0.35rem rgb(244 221 160 / 38%);
+}
+
+.reward-reveal-icon.is-large {
+  width: 3.1rem;
+  height: 3.1rem;
+}
+
+.reward-reveal-name {
+  max-width: 100%;
+  color: #fff2c9;
+  font-size: clamp(0.95rem, 4.1cqw, 1.28rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.reward-reveal-meta {
+  margin-top: 0.28rem;
+  color: #c5c9b7;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.52rem, 2.1cqw, 0.66rem);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.reward-reveal-quantity {
+  margin-top: 0.4rem;
+  color: var(--gold-bright);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.72rem, 3cqw, 0.92rem);
+}
+
+.reward-reveal-description {
+  max-width: 17rem;
+  margin: 0.55rem 0 0;
+  color: #cbd0c1;
+  font-family: system-ui, sans-serif;
+  font-size: clamp(0.56rem, 2.25cqw, 0.7rem);
+  line-height: 1.4;
+}
+
+@keyframes reward-reveal-enter {
+  from { opacity: 0; transform: translateY(0.3rem) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes reward-reveal-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-0.15rem) scale(1); }
+}
+
+@keyframes reward-reveal-sweep {
+  0% { left: -25%; opacity: 0; }
+  12% { opacity: 1; }
+  100% { left: 125%; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reward-reveal-host::before {
+    transition: none;
+  }
+
+  .reward-reveal-host.is-presented .reward-reveal-minor-chip,
+  .reward-reveal-host.is-presented .reward-reveal-card,
+  .reward-reveal-host.is-exiting .reward-reveal-minor-chip,
+  .reward-reveal-host.is-exiting .reward-reveal-card {
+    animation: none;
+    transform: none;
+  }
+
+  .reward-reveal-host.is-presented .reward-reveal-minor-chip,
+  .reward-reveal-host.is-presented .reward-reveal-card {
+    opacity: 1;
+  }
+
+  .reward-reveal-host.is-exiting .reward-reveal-minor-chip,
+  .reward-reveal-host.is-exiting .reward-reveal-card {
+    opacity: 0;
+    transition: opacity 80ms ease-out;
+  }
+
+  .reward-reveal-host.is-presented .reward-reveal-card::after {
+    animation: none;
+  }
+}
+
 .toast {
   display: grid;
   grid-template-columns: 1.35rem 1fr;
