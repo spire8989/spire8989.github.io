@@ -353,6 +353,19 @@ const CampaignSimulationRunner = Object.freeze({
         startingStateIsAuthoritative: true,
         startingState: deepCampaignClone(player),
         campaignGoal: progressionGoal,
+        locationServicePlans: progressionRouteId === "old_forest_road"
+          ? [{ locationId: "hidden_forest_village", encounterId: "hidden_forest_village", minimumDistance: 95 }]
+          : [],
+        onLocationEntered: (locationId, context) => campaignLocationProvisionService(
+          locationId,
+          context,
+          {
+            shopStocks,
+            strategyName: config.strategy,
+            targetDistance: actualTargetDistance,
+            safetyMargin: policy.provisionMargin,
+          },
+        ),
       });
 
       replaceCampaignPlayer(player, run.endingPlayerState);
@@ -520,6 +533,15 @@ const CampaignSimulationRunner = Object.freeze({
         endingProvisionStock: player.provisions,
         provisionsPurchased: decision.provisionPurchase.quantity,
         provisionCost: decision.provisionPurchase.goldCost,
+        villageProvisionPurchaseCount: run.villageProvisionPurchaseCount,
+        villageProvisionsPurchased: run.villageProvisionsPurchased,
+        villageProvisionGoldSpent: run.villageProvisionGoldSpent,
+        villageProvisionStockBefore: run.villageProvisionStockBefore,
+        villageProvisionStockAfter: run.villageProvisionStockAfter,
+        provisionsBeforeVillagePurchase: run.provisionsBeforeVillagePurchase,
+        provisionsAfterVillagePurchase: run.provisionsAfterVillagePurchase,
+        villageProvisionPurchaseReason: run.villageProvisionPurchaseReason,
+        villageProvisionActions: run.locationServiceActions,
         provisionsPacked,
         provisionsReturned: run.provisionsReturned,
         itemsPurchasedById: decision.itemsPurchasedById,
@@ -913,6 +935,9 @@ const CampaignSimulationTelemetry = Object.freeze({
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
       "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
       "startingGold", "endingGold", "provisionsPurchased", "provisionsReturned", "provisionsPacked", "lootValueRecovered",
+      "villageProvisionPurchaseCount", "villageProvisionsPurchased", "villageProvisionGoldSpent",
+      "villageProvisionStockBefore", "villageProvisionStockAfter", "provisionsBeforeVillagePurchase",
+      "provisionsAfterVillagePurchase", "villageProvisionPurchaseReason", "villageProvisionActions",
       "netGold", "failureReason"];
     return campaignCsv(fields, rows);
   },
@@ -1190,7 +1215,7 @@ function compactExpedition(entry, campaign) {
   const otherIncome = Math.max(0, goldEarnedTotal - goldEarnedDirect - returnRewardGold);
   const craftingGoldCost = Number(crafting.goldCost) || 0;
   const spendingByCategory = {
-    provisions: Number(entry.provisionCost) || 0,
+    provisions: (Number(entry.provisionCost) || 0) + (Number(entry.villageProvisionGoldSpent) || 0),
     healing: Number(entry.healingCost) || 0,
     equipmentAndItems: Number(entry.itemPurchaseGoldSpent) || 0,
     crafting: craftingGoldCost,
@@ -1219,6 +1244,15 @@ function compactExpedition(entry, campaign) {
     returned: Number(entry.provisionsReturned ?? run.provisionsReturned) || 0,
     remaining: Number(run.provisionsRemaining) || 0,
     endingStock: Number(entry.endingProvisionStock) || 0,
+    villageProvisionPurchaseCount: Number(entry.villageProvisionPurchaseCount) || 0,
+    villageProvisionsPurchased: Number(entry.villageProvisionsPurchased) || 0,
+    villageProvisionGoldSpent: Number(entry.villageProvisionGoldSpent) || 0,
+    villageProvisionStockBefore: entry.villageProvisionStockBefore ?? null,
+    villageProvisionStockAfter: entry.villageProvisionStockAfter ?? null,
+    provisionsBeforeVillagePurchase: entry.provisionsBeforeVillagePurchase ?? null,
+    provisionsAfterVillagePurchase: entry.provisionsAfterVillagePurchase ?? null,
+    villageProvisionPurchaseReason: entry.villageProvisionPurchaseReason ?? null,
+    villageProvisionActions: compactClone(entry.villageProvisionActions ?? []),
     provisionExhaustionFailure: Boolean(entry.provisionExhaustionFailure),
     estimatedReturnRequirement: entry.emergencyReturnEstimatedRequirement
       ?? run.emergencyReturnEstimatedRequirement ?? null,
@@ -3749,7 +3783,11 @@ function finalizeCampaignTelemetry(
   const endingState = campaignStateSnapshot(player, shopStocks, expeditions.length);
   const totals = (selector) => expeditions.reduce((sum, entry) => sum + (Number(selector(entry)) || 0), 0);
   const totalHealingCost = totals((entry) => entry.healingBefore.goldCost);
-  const totalProvisionCost = totals((entry) => entry.provisionCost);
+  const totalProvisionCost = totals((entry) => (
+    (Number(entry.provisionCost) || 0) + (Number(entry.villageProvisionGoldSpent) || 0)
+  ));
+  const totalVillageProvisionsPurchased = totals((entry) => entry.villageProvisionsPurchased);
+  const totalVillageProvisionGoldSpent = totals((entry) => entry.villageProvisionGoldSpent);
   const itemPurchaseGoldSpentById = campaignCombatTotals(expeditions, "itemPurchaseGoldSpentById");
   const itemsPurchasedById = campaignCombatTotals(expeditions, "itemsPurchasedById");
   const itemsPackedById = campaignCombatTotals(expeditions, "itemsPackedById");
@@ -4085,6 +4123,9 @@ function finalizeCampaignTelemetry(
     totalGoldSpent,
     totalHealingCost,
     totalProvisionCost,
+    villageProvisionPurchaseCount: totals((entry) => entry.villageProvisionPurchaseCount),
+    villageProvisionsPurchased: totalVillageProvisionsPurchased,
+    villageProvisionGoldSpent: totalVillageProvisionGoldSpent,
     totalItemPurchaseGoldSpent,
     totalCraftingGoldSpent,
     totalGearSpending: totals((entry) => entry.equipmentPurchaseGoldSpent),
@@ -4595,6 +4636,113 @@ function applyOldForestProgressionServices(player, townActions = [], expeditionN
     const forged = CraftingRules.craft(player, "verdant_heart", "blacksmith", { context: "town" });
     if (forged.applied) action("forge-verdant-heart", { recipeId: forged.recipeId, goldCost: forged.goldCost, result: deepCampaignClone(forged) });
   }
+}
+
+function campaignLocationProvisionService(locationId, context, options = {}) {
+  const expedition = context?.expedition;
+  const player = context?.player;
+  const shopStocks = options.shopStocks;
+  const strategyName = context?.strategy ?? options.strategyName ?? "random";
+  const currentDistance = Number(expedition?.distance) || 0;
+  const targetDistance = Math.max(
+    currentDistance,
+    Number(options.targetDistance ?? context?.targetDistance) || currentDistance,
+  );
+  const serviceShop = CampaignRules.provisionShopForLocation(locationId);
+  const stockBefore = serviceShop
+    ? Math.max(0, Number(shopStocks?.[serviceShop.id]) || 0) : null;
+  const provisionsBefore = Number(expedition?.provisions) || 0;
+  const baseAction = {
+    locationId,
+    shopId: serviceShop?.id ?? null,
+    distance: roundCampaignNumber(currentDistance),
+    targetDistance: roundCampaignNumber(targetDistance),
+    expectedRemainingOutboundDistance: roundCampaignNumber(
+      Math.max(0, targetDistance - currentDistance),
+    ),
+    expectedReturnDistance: roundCampaignNumber(targetDistance),
+    provisionsBefore: roundCampaignNumber(provisionsBefore),
+    provisionsAfter: roundCampaignNumber(provisionsBefore),
+    stockBefore,
+    stockAfter: stockBefore,
+    quantity: 0,
+    goldCost: 0,
+    desiredProvisionTarget: null,
+    reason: null,
+  };
+  if (!serviceShop?.provisionsForSale || !expedition || !player) {
+    return { ...baseAction, reason: "service-disabled" };
+  }
+
+  const capacity = Math.max(0, Number(expedition.provisionCapacity) || 0);
+  const travelSettings = SimulationTravelPolicy.travelSettings(expedition, strategyName);
+  const expectedTravelDistance = Math.max(
+    0, targetDistance - currentDistance,
+  ) + targetDistance;
+  const expectedTravelCost = ExpeditionRules.provisionCostForDistance(
+    expectedTravelDistance,
+    ExpeditionRules.provisionConsumptionMultiplier(expedition),
+  );
+  const safetyMargin = Math.max(0, Number(options.safetyMargin) || 0);
+  const encounterReserve = SimulationProvisionPlanning.encounterReserve(strategyName);
+  const desiredProvisionTarget = Math.min(
+    capacity,
+    Math.ceil(expectedTravelCost + safetyMargin + encounterReserve),
+  );
+  const action = {
+    ...baseAction,
+    capacity,
+    travelSettings,
+    expectedTravelCost: roundCampaignNumber(expectedTravelCost),
+    safetyMargin,
+    encounterReserve,
+    desiredProvisionTarget,
+  };
+  if (provisionsBefore >= desiredProvisionTarget) {
+    return { ...action, reason: "already-sufficient" };
+  }
+  if (provisionsBefore >= capacity) return { ...action, reason: "at-capacity" };
+  if (stockBefore <= 0) return { ...action, reason: "no-stock" };
+
+  const offer = serviceShop.provisionsForSale;
+  const price = Number(offer.price);
+  if (!Number.isFinite(price) || price < 0) return { ...action, reason: "service-disabled" };
+  const affordable = price > 0
+    ? Math.floor(Math.max(0, Number(player.currentGold) || 0) / price)
+    : Number.POSITIVE_INFINITY;
+  const needed = Math.max(0, Math.ceil(desiredProvisionTarget - provisionsBefore));
+  const quantity = Math.min(
+    needed,
+    Math.floor(Math.max(0, capacity - provisionsBefore)),
+    stockBefore,
+    affordable,
+  );
+  if (quantity <= 0) {
+    return {
+      ...action,
+      reason: affordable <= 0 ? "no-gold" : "purchase-not-useful",
+    };
+  }
+
+  const purchase = EconomyRules.buyProvisions(player, serviceShop, shopStocks, quantity);
+  if (!purchase.applied) return { ...action, reason: "purchase-not-useful" };
+
+  // EconomyRules owns the real purchase mutation. Move that purchased stock
+  // from persistent inventory into the active expedition so settlement can
+  // return unused purchased provisions using the normal committed-food path.
+  player.provisions -= purchase.quantity;
+  expedition.committedProvisions += purchase.quantity;
+  expedition.committedProvisionsRemaining += purchase.quantity;
+  expedition.provisions += purchase.quantity;
+  expedition.carriedProvisions = (Number(expedition.carriedProvisions) || 0) + purchase.quantity;
+  return {
+    ...action,
+    provisionsAfter: roundCampaignNumber(expedition.provisions),
+    stockAfter: Math.max(0, Number(shopStocks?.[serviceShop.id]) || 0),
+    quantity: purchase.quantity,
+    goldCost: purchase.goldCost,
+    reason: "purchased-for-next-milestone",
+  };
 }
 
 function estimateCampaignItems(items) {

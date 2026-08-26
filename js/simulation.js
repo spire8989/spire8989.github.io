@@ -321,7 +321,8 @@ const SimulationRunner = Object.freeze({
       const provisionSafety = SimulationProvisionPlanning.emergencyTurnaround(
         expedition, strategy.name,
       );
-      if (provisionSafety.shouldTurn && !expedition.simulationCookingAvailable) {
+      const reachableService = reachableLocationService(expedition, normalized);
+      if (provisionSafety.shouldTurn && !expedition.simulationCookingAvailable && !reachableService) {
         ExpeditionRules.beginReturn(expedition);
         telemetry.turnaroundDistance = rounded(expedition.distance);
         telemetry.emergencyProvisionTurnaround = true;
@@ -566,6 +567,15 @@ const SimulationTelemetry = Object.freeze({
       provisionsConsumed: run.provisionsConsumed,
       provisionsGained: run.provisionsGained,
       provisionsReturned: run.provisionsReturned,
+      locationServiceActions: run.locationServiceActions,
+      villageProvisionPurchaseCount: run.villageProvisionPurchaseCount,
+      villageProvisionsPurchased: run.villageProvisionsPurchased,
+      villageProvisionGoldSpent: run.villageProvisionGoldSpent,
+      villageProvisionStockBefore: run.villageProvisionStockBefore,
+      villageProvisionStockAfter: run.villageProvisionStockAfter,
+      provisionsBeforeVillagePurchase: run.provisionsBeforeVillagePurchase,
+      provisionsAfterVillagePurchase: run.provisionsAfterVillagePurchase,
+      villageProvisionPurchaseReason: run.villageProvisionPurchaseReason,
       goldGained: run.goldGained,
       lootDiscovered: run.lootDiscovered,
       lootRecovered: run.lootRecovered,
@@ -626,6 +636,9 @@ const SimulationTelemetry = Object.freeze({
       "emergencyReturnTriggerReason", "turnaroundDistance",
       "maximumDistance", "finalDistance", "finalArthurHealth",
       "provisionsConsumed", "provisionsRemaining", "provisionsGained", "goldGained",
+      "villageProvisionPurchaseCount", "villageProvisionsPurchased", "villageProvisionGoldSpent",
+      "villageProvisionStockBefore", "villageProvisionStockAfter", "provisionsBeforeVillagePurchase",
+      "provisionsAfterVillagePurchase", "villageProvisionPurchaseReason", "locationServiceActions",
       "briefRestCount", "campRestCount", "campEventCount", "cookingActionCount", "cookingProvisionsGained",
       "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered",
       "banditLeaderEncounters", "banditLeaderVictories", "banditGoldRecovered", "banditLootValueRecovered",
@@ -1046,6 +1059,10 @@ function normalizeScenario(scenario) {
     lockTravelSettings: scenario.lockTravelSettings
       ?? (scenario.paceId !== undefined || scenario.rationId !== undefined),
     campaignGoal: scenario.campaignGoal ?? null,
+    locationServicePlans: Array.isArray(scenario.locationServicePlans)
+      ? scenario.locationServicePlans.map((plan) => ({ ...plan })) : [],
+    onLocationEntered: typeof scenario.onLocationEntered === "function"
+      ? scenario.onLocationEntered : null,
     startingHealth: Number.isFinite(scenario.startingState?.health)
       ? scenario.startingState.health
       : Number.isFinite(scenario.startingState?.arthurHealth)
@@ -1056,6 +1073,24 @@ function normalizeScenario(scenario) {
     travelStepDistance: Math.max(0.1, Number(scenario.travelStepDistance) || 1),
     startingStateIsAuthoritative: Boolean(scenario.startingStateIsAuthoritative),
   };
+}
+
+function reachableLocationService(expedition, scenario) {
+  if (!expedition || expedition.direction !== "outbound") return null;
+  return (scenario.locationServicePlans ?? []).find((plan) => {
+    const encounterId = plan.encounterId;
+    const minimumDistance = Number(
+      plan.minimumDistance ?? ENCOUNTER_DEFINITIONS[encounterId]?.minimumDistance,
+    );
+    if (!plan.locationId || !encounterId || !Number.isFinite(minimumDistance)
+      || expedition.distance >= minimumDistance
+      || expedition.seenEncounterIds?.includes(encounterId)) return false;
+    const distanceToService = minimumDistance - expedition.distance;
+    const foodToService = ExpeditionRules.provisionCostForDistance(
+      distanceToService, ExpeditionRules.provisionConsumptionMultiplier(expedition),
+    );
+    return expedition.provisions >= foodToService;
+  }) ?? null;
 }
 
 function createSimulationPlayer(scenario) {
@@ -1480,6 +1515,22 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     const locationStop = expedition.locationStop;
     EncounterManager.continueJourney(expedition);
     if (locationStop) {
+      const locationServiceAction = scenario.onLocationEntered?.(locationStop.locationId, {
+        expedition,
+        player,
+        telemetry,
+        strategy: strategy.name,
+        targetDistance: scenario.campaignGoal?.targetDistance
+          ?? scenario.turnaroundPolicy.configuration?.distance
+          ?? scenario.turnaroundPolicy.distance
+          ?? expedition.distance,
+        campaignGoal: scenario.campaignGoal ?? null,
+      });
+      if (locationServiceAction) {
+        telemetry.locationServiceActions.push(deepClone(locationServiceAction));
+        telemetry.decisions.push({ type: "location-service", ...deepClone(locationServiceAction) });
+        telemetry.events.push({ type: "location-service", ...deepClone(locationServiceAction) });
+      }
       expedition.locationStop = null;
       expedition.travelState = "traveling";
       telemetry.events.push({
@@ -1797,6 +1848,7 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     emergencyReturnTolerance: null,
     emergencyReturnTotalRequirement: null,
     emergencyReturnTriggerReason: null,
+    locationServiceActions: [],
     loadout: deepClone(expedition.selectedEquipment),
     packedItems: deepClone(expedition.carriedItems),
     itemsPackedById: deepClone(expedition.carriedItems),
@@ -1959,6 +2011,25 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     provisionsGained: rounded(expedition.totalProvisionsGained ?? 0),
     provisionsReturned: expedition.provisionsReturned ?? 0,
     endingProvisionStock: player.provisions,
+    villageProvisionPurchaseCount: telemetry.locationServiceActions.filter((action) => (
+      action.locationId === "hidden_forest_village" && Number(action.quantity) > 0
+    )).length,
+    villageProvisionsPurchased: telemetry.locationServiceActions
+      .filter((action) => action.locationId === "hidden_forest_village")
+      .reduce((sum, action) => sum + (Number(action.quantity) || 0), 0),
+    villageProvisionGoldSpent: telemetry.locationServiceActions
+      .filter((action) => action.locationId === "hidden_forest_village")
+      .reduce((sum, action) => sum + (Number(action.goldCost) || 0), 0),
+    villageProvisionStockBefore: telemetry.locationServiceActions
+      .find((action) => action.locationId === "hidden_forest_village")?.stockBefore ?? null,
+    villageProvisionStockAfter: [...telemetry.locationServiceActions]
+      .reverse().find((action) => action.locationId === "hidden_forest_village")?.stockAfter ?? null,
+    provisionsBeforeVillagePurchase: telemetry.locationServiceActions
+      .find((action) => action.locationId === "hidden_forest_village")?.provisionsBefore ?? null,
+    provisionsAfterVillagePurchase: [...telemetry.locationServiceActions]
+      .reverse().find((action) => action.locationId === "hidden_forest_village")?.provisionsAfter ?? null,
+    villageProvisionPurchaseReason: [...telemetry.locationServiceActions]
+      .reverse().find((action) => action.locationId === "hidden_forest_village")?.reason ?? null,
     endingPlayerState: deepClone(player),
     startingProvisionStock: startingStock,
     goldGained: returned ? expedition.goldCarried + returnRewardContents.gold : 0,

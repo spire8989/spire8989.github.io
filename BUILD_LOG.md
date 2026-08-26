@@ -1,5 +1,52 @@
 # Build Log
 
+## 2026-08-26 - Hidden Forest Village Simulator Resupply
+
+### Goal
+
+Make automated Old Forest campaigns use the hidden forest village's authored
+provision service during an expedition, so Content Editor price and finite-stock
+changes affect progression simulation without changing gameplay balance.
+
+### AI-assisted implementation
+
+- Added location-aware provision-shop resolution and a campaign service hook at
+  the hidden-village location stop.
+- Reused `EconomyRules.buyProvisions` for price, gold, integer quantity, and
+  finite-stock validation, then transferred the purchased provisions through
+  the active expedition's normal committed-provision path so safe settlement
+  returns unused food correctly.
+- Added milestone-aware targets using current distance, expected outbound and
+  return travel, strategy reserve, carrying capacity, and available gold.
+  Cautious runs use the larger authored safety reserve; aggressive runs use a
+  smaller reserve; normal/random runs use the shared moderate policy.
+- Preserved the campaign's shared shop-stock object across expeditions, and
+  added full, CSV, compact, per-expedition, and campaign aggregate telemetry
+  for purchase counts, quantities, gold, stock before/after, provision levels,
+  reasons, and detailed location-service actions.
+- Added `tests/hidden_village_provision_test.py`, including authored `0.01`
+  price / `240` stock coverage, unavailable-service comparison, canonical
+  purchase effects, and persistent finite-stock behavior.
+
+### Verification and resulting prototype state
+
+- `python tests/hidden_village_provision_test.py` - passed 3 hidden-village
+  provision assertions.
+- `python tests/simulation_system_test.py` - passed 62 deterministic
+  simulation assertions.
+- `python tests/progression_system_test.py` - passed 5 current-campaign
+  progression assertions.
+- `python tests/old_forest_progression_test.py` - passed 9 assertions.
+- `python tests/old_forest_campaign_planning_test.py` - passed 15 assertions.
+- The existing campaign/health suite remains stopped at its pre-existing
+  bandage-packing fixture assertion, and the replay suites remain stopped at
+  their existing wilderness-cooking / replay-UI fixture failures. The broader
+  discovery and expedition-content suites likewise stop at their existing
+  discovery-completion and Fountain Knight reward fixtures; the soak wrapper
+  therefore stops when it reaches the same campaign fixture.
+- `git diff --check` passed. No capacity, drops, recipes, distances, enemy
+  values, or Warden balance values were changed; `Tools/` was unchanged.
+
 ## 2026-08-25 - Content Editor Starting State
 
 ### Goal

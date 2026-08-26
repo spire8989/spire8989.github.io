@@ -24,6 +24,18 @@ const CampaignRules = Object.freeze({
     return stocks;
   },
 
+  provisionShopForLocation(locationId = "broceliande_village") {
+    const location = LOCATION_DEFINITIONS[locationId];
+    if (!location) return null;
+    const configuredShopId = location.serviceConfig?.provisionShopId;
+    if (configuredShopId && SHOP_DEFINITIONS[configuredShopId]?.provisionsForSale) {
+      return SHOP_DEFINITIONS[configuredShopId];
+    }
+    return (location.shops ?? [])
+      .map((shopId) => SHOP_DEFINITIONS[shopId])
+      .find((shop) => shop?.provisionsForSale) ?? null;
+  },
+
   restockTownProvisions(shopStocks) {
     const shop = SHOP_DEFINITIONS.village_general_goods;
     const offer = shop.provisionsForSale;
@@ -95,16 +107,43 @@ const CampaignRules = Object.freeze({
   },
 
   buyProvisionsTo(player, shopStocks, desiredStock) {
-    const shop = SHOP_DEFINITIONS.village_general_goods;
+    return this.buyProvisionsToAtLocation(player, shopStocks, "broceliande_village", desiredStock);
+  },
+
+  buyProvisionsToAtLocation(player, shopStocks, locationId, desiredStock) {
+    const shop = this.provisionShopForLocation(locationId);
+    if (!shop?.provisionsForSale) {
+      return {
+        applied: false,
+        quantity: 0,
+        goldCost: 0,
+        shortfall: Math.max(0, Math.ceil(Number(desiredStock) || 0) - (Number(player?.provisions) || 0)),
+        shopId: null,
+        reason: "service-disabled",
+      };
+    }
     const needed = Math.max(0, Math.ceil(desiredStock - player.provisions));
     const affordable = Math.floor(player.currentGold / shop.provisionsForSale.price);
-    const available = shopStocks[shop.id] ?? 0;
+    const available = shopStocks?.[shop.id] ?? 0;
     const quantity = Math.min(needed, affordable, available);
     if (quantity <= 0) {
-      return { applied: false, quantity: 0, goldCost: 0, shortfall: needed };
+      return {
+        applied: false,
+        quantity: 0,
+        goldCost: 0,
+        shortfall: needed,
+        shopId: shop.id,
+        reason: needed <= 0
+          ? "already-sufficient"
+          : available <= 0 ? "no-stock" : affordable <= 0 ? "no-gold" : "purchase-not-useful",
+      };
     }
     const result = EconomyRules.buyProvisions(player, shop, shopStocks, quantity);
-    return { ...result, shortfall: Math.max(0, needed - result.quantity) };
+    return {
+      ...result,
+      shortfall: Math.max(0, needed - result.quantity),
+      shopId: shop.id,
+    };
   },
 
   buyItemsTo(player, shopStocks, itemId, desiredQuantity, minimumGoldReserve = 0) {
