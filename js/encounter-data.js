@@ -2107,7 +2107,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               },
               {
                 type: "randomChance",
-                tableId: "abandoned_cart_loot",
                 chance: 0.25,
                 resultText: "Looks like they left something valuable in here!"
               }
