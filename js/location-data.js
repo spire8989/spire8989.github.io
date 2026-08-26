@@ -280,7 +280,7 @@ const SHOP_DEFINITIONS = Object.freeze({
       }
     },
     provisionsForSale: {
-      price: 2,
+      price: 1,
       stock: 24
     },
     acceptedCategories: ["supply", "consumable", "ingredient", "gear", "valuable"],

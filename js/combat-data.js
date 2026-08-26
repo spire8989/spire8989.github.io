@@ -401,14 +401,20 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 2,
     actionPattern: ["black_boar_charge", "black_boar_gore", "black_boar_trample"],
   }),
-  leper_knight: Object.freeze({
+  leper_knight: {
     id: "leper_knight",
     name: "Leper Knight",
-    maxHp: 34,
+    maxHp: 74,
     speed: 10,
     defense: 2,
     actionPattern: ["leper_blade", "leper_cough", "leper_blade"],
-  }),
+    lootSources: [
+      {
+        rolls: 1,
+        tableId: "leper_knight_loot"
+      }
+    ]
+  },
   morgans_huntsman: Object.freeze({
     id: "morgans_huntsman",
     name: "Morgan's Huntsman",
@@ -454,23 +460,23 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
       }),
     ],
   }),
-  verdant_warden: Object.freeze({
+  verdant_warden: {
     id: "verdant_warden",
     name: "Verdant Warden",
-    maxHp: 156,
+    maxHp: 86,
     speed: 12,
     defense: 5,
     actionPattern: ["warden_strike", "warden_root_bind", "warden_heavy_slam", "warden_thorn_burst", "warden_strike"],
     tags: ["verdant", "enchanted", "warden", "boss"],
     traits: [
-      Object.freeze({
+      {
         type: "regeneration",
         amount: 5,
         trigger: "activation",
-        suppressedByStatuses: ["bleeding", "poisoned"],
-      }),
-    ],
-  }),
+        suppressedByStatuses: ["bleeding", "poisoned"]
+      }
+    ]
+  },
   thorn_crowned_hart: Object.freeze({
     id: "thorn_crowned_hart",
     name: "Thorn-Crowned Hart",

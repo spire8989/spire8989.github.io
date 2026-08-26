@@ -315,6 +315,23 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "gold", minimum: 24, maximum: 42, weight: 5 }),
     ]),
   }),
+  leper_knight_loot: {
+    id: "leper_knight_loot",
+    entries: [
+      {
+        type: "gold",
+        minimum: 10,
+        maximum: 25,
+        weight: 20
+      },
+      {
+        type: "item",
+        itemId: "reliquary_of_saint_lazarus",
+        weight: 5,
+        quantity: 1
+      }
+    ]
+  }
 });
 
 const EXPEDITION_RETURN_REWARD_TIERS = Object.freeze([

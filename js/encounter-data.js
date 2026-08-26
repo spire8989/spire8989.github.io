@@ -4917,12 +4917,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     title: "The Leper Knight",
     description: "A scarred knight rests beside a broken shrine, asking for neither pity nor trust.",
     regionId: "broceliande",
-    pathIds: ["fountain_of_barenton"],
+    pathIds: ["old_forest_road"],
     expeditionIds: ["fountain_of_barenton"],
     directions: ["outbound", "returning"],
     weight: 4,
-    minimumDistance: 18,
-    maximumDistance: 86,
+    minimumDistance: 101,
+    maximumDistance: 175,
     tags: ["campaign", "barenton", "social", "combat", "moral"],
     repeatable: false,
     requirements: [],
@@ -4933,18 +4933,48 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "offer_aid",
             label: "Offer Bandages",
-            requirements: [{ type: "availableExpeditionItem", itemId: "bandages", quantity: 1, lockedLabel: "Requires 1 Bandage" }],
-            costs: [{ type: "consumeExpeditionItem", itemId: "bandages", quantity: 1 }],
+            requirements: [
+              {
+                type: "availableExpeditionItem",
+                itemId: "bandages",
+                quantity: 1,
+                lockedLabel: "Requires 1 Bandage"
+              }
+            ],
+            costs: [
+              {
+                type: "consumeExpeditionItem",
+                itemId: "bandages",
+                quantity: 1
+              }
+            ],
             outcomes: [
-              { type: "modifyResource", resource: "health", amount: 1 },
-              { type: "setRunFlag", flag: "leperKnightAided", value: true },
-              { type: "rollLootTable", tableId: "common_materials", chance: 0.5 },
+              {
+                type: "modifyResource",
+                resource: "health",
+                amount: 1
+              },
+              {
+                type: "setRunFlag",
+                flag: "leperKnightAided",
+                value: true
+              },
+              {
+                type: "rollLootTable",
+                tableId: "common_materials",
+                chance: 0.5
+              },
               {
                 type: "randomChance",
                 chance: 0.3,
-                effects: [{ type: "gainUniqueUnsecuredItem", itemId: "reliquary_of_saint_lazarus" }],
+                effects: [
+                  {
+                    type: "gainUniqueUnsecuredItem",
+                    itemId: "reliquary_of_saint_lazarus"
+                  }
+                ],
                 resultText: "The knight presses a small reliquary into Arthur's palm. Saint Lazarus, he says, knew that mercy can be a kind of courage.",
-                elseEffects: [],
+                elseEffects: []
               }
             ],
             resultText: "The knight accepts the bandage without touching Arthur's hand. In return he gives a brief warning about a spring guarded by something that does not fear steel.",
@@ -4953,7 +4983,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "speak_to_knight",
             label: "Speak with Him",
-            outcomes: [{ type: "startDialogue", dialogueId: "leper_knight_dialogue" }],
+            outcomes: [
+              {
+                type: "startDialogue",
+                dialogueId: "leper_knight_dialogue"
+              }
+            ],
             resultText: "Arthur speaks without stepping closer.",
             endEncounter: true
           },
@@ -4966,19 +5001,35 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "challenge_knight",
             label: "Drive Him from the Road",
-            outcomes: [{
-              type: "startCombat",
-              combatId: "leper_knight",
-              victory: {
-                outcomes: [{ type: "setRunFlag", flag: "leperKnightDefeated", value: true }, { type: "rollLootTable", tableId: "forest_materials" }],
-                resultText: "The knight yields and asks Arthur to remember that sickness is not the same thing as guilt."
-              },
-              fled: { outcomes: [], resultText: "The knight lets Arthur pass without pursuing the challenge." }
-            }]
+            outcomes: [
+              {
+                type: "startCombat",
+                combatId: "leper_knight",
+                victory: {
+                  outcomes: [
+                    {
+                      type: "setRunFlag",
+                      flag: "leperKnightDefeated",
+                      value: true
+                    },
+                    {
+                      type: "rollLootTable",
+                      tableId: "forest_materials"
+                    }
+                  ],
+                  resultText: "The knight yields and asks Arthur to remember that sickness is not the same thing as guilt."
+                },
+                fled: {
+                  outcomes: [],
+                  resultText: "The knight lets Arthur pass without pursuing the challenge."
+                }
+              }
+            ]
           }
         ]
       }
-    }
+    },
+    maxOccurrencesPerRun: 1
   },
   serpent_at_spring: {
     id: "serpent_at_spring",
