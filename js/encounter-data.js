@@ -2566,11 +2566,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 victory: {
                   outcomes: [
                     {
-                      type: "rollLootTable",
-                      tableId: "bandit_leader_loot",
-                      rolls: 2
-                    },
-                    {
                       type: "setRunFlag",
                       flag: "banditLeaderDefeated",
                       value: true,
@@ -2583,7 +2578,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                     {
                       type: "learnAbility",
                       abilityId: "sweeping_cut"
-                    },
+                    }
                   ],
                   resultText: "The bandit captain yields the road. His better-hidden purse confirms the rank he carried."
                 },
@@ -4885,7 +4880,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathIds: ["old_forest_road", "fountain_of_barenton"],
     directions: ["outbound", "returning"],
-    weight: 4,
+    weight: 2,
     minimumDistance: 101,
     maximumDistance: 175,
     tags: ["campaign", "barenton", "social", "combat", "moral"],

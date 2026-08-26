@@ -359,7 +359,13 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
       },
       walk: {}
     },
-    visualScale: 1.1
+    visualScale: 1.1,
+    lootSources: [
+      {
+        tableId: "bandit_leader_loot",
+        rolls: 2
+      }
+    ]
   },
   summoned_guardian: {
     id: "summoned_guardian",
@@ -404,7 +410,7 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   leper_knight: {
     id: "leper_knight",
     name: "Leper Knight",
-    maxHp: 74,
+    maxHp: 56,
     speed: 10,
     defense: 2,
     actionPattern: ["leper_blade", "leper_cough", "leper_blade"],
@@ -423,19 +429,30 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 1,
     actionPattern: ["huntsman_shot", "huntsman_hook", "huntsman_shot"],
   }),
-  briar_knight: Object.freeze({
+  briar_knight: {
     id: "briar_knight",
     name: "Briar Knight",
-    maxHp: 42,
+    maxHp: 56,
     speed: 10,
     defense: 3,
     actionPattern: ["briar_cut", "briar_thrust", "briar_surge"],
     lootSources: [
-      { tableId: "uncommon_materials", rolls: 1, chance: 0.75 },
-      { tableId: "forest_materials", rolls: 1 },
-      { tableId: "briar_knight_loot", rolls: 1, chance: 0.3 },
-    ],
-  }),
+      {
+        tableId: "uncommon_materials",
+        rolls: 1,
+        chance: 0.75
+      },
+      {
+        tableId: "forest_materials",
+        rolls: 1
+      },
+      {
+        tableId: "briar_knight_loot",
+        rolls: 1,
+        chance: 0.3
+      }
+    ]
+  },
   black_hound_of_the_hunt: Object.freeze({
     id: "black_hound_of_the_hunt",
     name: "Black Hound of the Hunt",

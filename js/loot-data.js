@@ -1,16 +1,46 @@
 "use strict";
 
 const LOOT_TABLE_DEFINITIONS = Object.freeze({
-  common_materials: Object.freeze({
+  common_materials: {
     id: "common_materials",
-    entries: Object.freeze([
-      Object.freeze({ type: "material", materialId: "medicinal_herbs", quantity: 1, weight: 30 }),
-      Object.freeze({ type: "material", materialId: "cloth", quantity: 1, weight: 25 }),
-      Object.freeze({ type: "material", materialId: "leather", quantity: 1, weight: 20 }),
-      Object.freeze({ type: "material", materialId: "iron", quantity: 1, weight: 15 }),
-      Object.freeze({ type: "material", materialId: "wood", quantity: 1, weight: 10 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "material",
+        materialId: "medicinal_herbs",
+        weight: 30,
+        minimum: 1,
+        maximum: 2
+      },
+      {
+        type: "material",
+        materialId: "cloth",
+        weight: 25,
+        minimum: 1,
+        maximum: 3
+      },
+      {
+        type: "material",
+        materialId: "leather",
+        weight: 20,
+        minimum: 1,
+        maximum: 2
+      },
+      {
+        type: "material",
+        materialId: "iron",
+        weight: 15,
+        minimum: 1,
+        maximum: 3
+      },
+      {
+        type: "material",
+        materialId: "wood",
+        weight: 10,
+        minimum: 1,
+        maximum: 3
+      }
+    ]
+  },
   uncommon_materials: {
     id: "uncommon_materials",
     entries: [

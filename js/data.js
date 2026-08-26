@@ -29,9 +29,11 @@ const ITEM_DEFINITIONS = Object.freeze({
     equipmentSlot: "armor",
     carriable: false,
     consumable: false,
-    effects: { combatDefense: 4 },
+    effects: {
+      combatDefense: 2
+    },
     questItem: false,
-    unique: true,
+    unique: true
   },
   knightly_longsword: {
     id: "knightly_longsword",
@@ -828,9 +830,11 @@ const ITEM_DEFINITIONS = Object.freeze({
     equipmentSlot: "armor",
     carriable: false,
     consumable: false,
-    effects: { combatDefense: 9 },
+    effects: {
+      combatDefense: 11
+    },
     questItem: false,
-    unique: true,
+    unique: true
   },
   thornward_charm: {
     id: "thornward_charm",

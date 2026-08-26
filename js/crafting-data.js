@@ -195,5 +195,41 @@ const RECIPE_DEFINITIONS = Object.freeze({
     },
     goldCost: 8,
     rarity: "epic"
+  },
+  frostwarden_mail: {
+    id: "frostwarden_mail",
+    name: "Frostwarden Mail",
+    description: "Some of the finest armor that can be forged... by a human at least.",
+    craftingProvider: "blacksmith",
+    ingredients: [
+      {
+        type: "material",
+        id: "iron",
+        quantity: 4
+      },
+      {
+        type: "material",
+        id: "silver",
+        quantity: 2
+      },
+      {
+        type: "material",
+        id: "leather",
+        quantity: 2
+      },
+      {
+        type: "material",
+        id: "sacred_oil",
+        quantity: 1
+      }
+    ],
+    output: {
+      quantity: 1,
+      itemId: "forestwarden_mail"
+    },
+    goldCost: 20,
+    rarity: "rare",
+    starter: false,
+    craftingDurationMs: 5
   }
 });
