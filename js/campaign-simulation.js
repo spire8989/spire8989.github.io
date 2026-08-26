@@ -273,6 +273,7 @@ const CampaignSimulationRunner = Object.freeze({
       decision.oldForestSupplyRunReason = progressionGoal?.supplyRunReason ?? null;
       decision.oldForestProgressionGoal = progressionGoal?.goalId ?? null;
       decision.objectiveDistanceFloorApplied = false;
+      decision.objectiveDistanceFloorViolated = false;
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
 
@@ -418,6 +419,10 @@ const CampaignSimulationRunner = Object.freeze({
       townActions.push(...tagCampaignTownActions(preparationActions, expeditionNumber), ...settlementActions);
       const endingState = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       const damageTaken = run.damageTaken;
+      const objectiveDistanceFloorViolated = Boolean(
+        decision.objectiveDistanceFloorApplied
+          && Number(run.maximumDistance) < Number(progressionRequiredDistance),
+      );
       const expeditionHardFailureReason = !run.returnedSafely && run.finalArthurHealth <= 0
         ? "arthur-died"
         : !run.returnedSafely && isCampaignResourceExhaustion(run.failureReason)
@@ -510,6 +515,7 @@ const CampaignSimulationRunner = Object.freeze({
         oldForestSupplyRunReason: progressionGoal?.supplyRunReason ?? null,
         oldForestProgressionGoal: progressionGoal?.goalId ?? null,
         objectiveDistanceFloorApplied: Boolean(decision.objectiveDistanceFloorApplied),
+        objectiveDistanceFloorViolated,
         targetDistance: actualTargetDistance,
         configuredTargetDistance,
         routeObjectiveDistance,
@@ -971,7 +977,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "provisionsRequiredToReachResupply", "projectedProvisionsAtResupply", "projectedVillageProvisionPurchase",
       "projectedVillageProvisionGoldCost", "projectedVillageStockAfter", "postResupplySupportedDistance",
       "progressionTargetFullyReachable",
-      "preferredBufferShortfall", "supplyRunExpectedBenefit", "supplyRunBenefitReason", "objectiveDistanceFloorApplied",
+      "preferredBufferShortfall", "supplyRunExpectedBenefit", "supplyRunBenefitReason", "objectiveDistanceFloorApplied", "objectiveDistanceFloorViolated",
       "strategyConstraintTypes", "hardFailure", "hardFailureReason",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "provisionUncertaintyBuffer",
       "provisionUncertaintyBufferUsed", "effectiveProvisionTarget", "totalEstimatedProvisionRequirement",
@@ -1382,6 +1388,7 @@ function compactExpedition(entry, campaign) {
     oldForestGoalReason: entry.oldForestGoalReason ?? null,
     oldForestSupplyRunReason: entry.oldForestSupplyRunReason ?? null,
     objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
+    objectiveDistanceFloorViolated: Boolean(entry.objectiveDistanceFloorViolated),
     campaignId: campaign.campaignId,
     campaignSeed: campaign.seed,
     expeditionSeed: entry.expeditionSeed ?? run.seed,
@@ -1428,6 +1435,7 @@ function compactExpedition(entry, campaign) {
       oldForestGoalReason: entry.oldForestGoalReason ?? null,
       oldForestSupplyRunReason: entry.oldForestSupplyRunReason ?? null,
       objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
+      objectiveDistanceFloorViolated: Boolean(entry.objectiveDistanceFloorViolated),
       strategyConstraints: compactClone(entry.strategyConstraints ?? []),
       selectedPace: entry.paceSelectedAtDeparture ?? run.paceSelectedAtDeparture ?? null,
       selectedRations: entry.rationSelectedAtDeparture ?? run.rationSelectedAtDeparture ?? null,
@@ -2595,8 +2603,11 @@ function applyBetweenExpeditionPolicy(
     (sum, purchase) => sum + (Number(purchase.goldCost) || 0), 0,
   );
   const bandagesAfterPurchase = player.ownedItems.bandages ?? 0;
-  const routeQuestPack = player.selectedExpeditionId === "fountain_of_barenton"
-    ? { flask: 1 } : {};
+  const routeQuestPack = {
+    ...(player.selectedExpeditionId === "fountain_of_barenton" ? { flask: 1 } : {}),
+    ...(planningOptions.campaignGoal?.goalId === "defeat-verdant-warden"
+      ? { enchanted_verdant_heart: 1 } : {}),
+  };
   const bandagesPacked = packCampaignItems(player, {
     ...routeQuestPack,
     bandages: Math.min(bandagePlan.target, bandagesAfterPurchase),
@@ -2936,12 +2947,15 @@ function chooseBandagePlan(strategyName, random = GameRandom.random) {
 
 function packCampaignItems(player, desiredQuantities) {
   ExpeditionRules.normalizePackedState(player);
-  const packed = [...new Set(player.packedItems ?? [])];
-  Object.entries(desiredQuantities).forEach(([itemId, desiredQuantity]) => {
-    if (desiredQuantity <= 0 || (player.ownedItems[itemId] ?? 0) <= 0
-      || packed.includes(itemId) || packed.length >= EXPEDITION_TUNING.packSlots) return;
-    packed.push(itemId);
-  });
+  const requested = Object.entries(desiredQuantities)
+    .filter(([itemId, desiredQuantity]) => desiredQuantity > 0 && (player.ownedItems[itemId] ?? 0) > 0)
+    .map(([itemId]) => itemId);
+  const required = requested.filter((itemId) => itemId !== "bandages");
+  const packed = [
+    ...required,
+    ...(player.packedItems ?? []).filter((itemId) => !required.includes(itemId)),
+    ...requested.filter((itemId) => itemId === "bandages"),
+  ].filter((itemId, index, entries) => entries.indexOf(itemId) === index);
   player.packedItems = packed.slice(0, EXPEDITION_TUNING.packSlots);
   return Math.min(
     Math.max(0, Math.floor(Number(desiredQuantities.bandages) || 0)),
@@ -3337,10 +3351,6 @@ function hasCampaignKnowledge(state, knowledgeId) {
   return Array.isArray(state?.learnedKnowledge) && state.learnedKnowledge.includes(knowledgeId);
 }
 
-function campaignMaterialQuantity(state, materialId) {
-  return Number(state?.materials?.[materialId]) || 0;
-}
-
 function oldForestGoal({ goalId, targetDistance, minimumAttemptDistance, reason, requiredPreparation, supplyRunUseful, supplyRunReason, travelSettings = null }) {
   return {
     goalId,
@@ -3367,10 +3377,10 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
   const villageDiscovered = flags.forest_village_discovered === true;
   const druidComplete = flags.druid_favor_complete === true;
   const liquidWealth = campaignLiquidWealth(player);
-  const hasDraughtIngredients = campaignMaterialQuantity(player, "rare_herbs") >= 1
-    && campaignMaterialQuantity(player, "medicinal_herbs") >= 2
-    && campaignMaterialQuantity(player, "honey") >= 1
-    && campaignMaterialQuantity(player, "fresh_herbs") >= 1;
+  const hasDraughtIngredients = Boolean(
+    hasCampaignItem(player, "forest_communion_draught")
+      || CraftingRules.quote(player, "forest_communion_draught", "apothecary", { context: "town" }).available,
+  );
   const healthRatio = Number(player?.arthurHealth) > 0
     ? Number(player.arthurHealth) / Math.max(1, Number(player?.arthurMaxHealth) || PLAYER_CHARACTER_DEFINITION.combat.maxHp)
     : 0;
@@ -4253,9 +4263,7 @@ function finalizeCampaignTelemetry(
   const progressionDeferredCount = Object.values(progressionDeferralsByRoute)
     .reduce((sum, count) => sum + count, 0);
   const objectiveDistanceFloorViolations = expeditions.filter((entry) => (
-    !entry.isSupplyRun && !entry.isPrerequisiteRun
-      && Number(entry.routeObjectiveDistance) > 0
-      && Number(entry.actualTargetDistance) < Number(entry.routeObjectiveDistance)
+    entry.objectiveDistanceFloorViolated === true
   )).length;
   const waterOfBarentonSecured = Boolean(endingState.ownedItems?.water_of_barenton);
   const morgansTokenSecured = Boolean(endingState.ownedItems?.morgans_token);

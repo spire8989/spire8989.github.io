@@ -1,5 +1,42 @@
 # Build Log
 
+## 2026-08-26 - Old Forest Simulator Correctness Pass
+
+### Goal
+
+Make the Old Forest campaign simulator able to represent a legitimate Warden
+attempt and stop misreporting preparation runs as objective-floor failures,
+without changing authored gameplay balance.
+
+### AI-assisted implementation
+
+- Made the Warden progression preparation prioritize and pack the owned
+  `enchanted_verdant_heart` quest item, while retaining the normal six-slot
+  limit and never inventing an item. This is Warden-specific because the
+  Heart is an explicit `availableExpeditionItem` requirement at the altar.
+- Replaced the duplicated Druid ingredient check with the shared
+  `CraftingRules.quote()` result. The real recipe now correctly reads
+  `rare_herbs` and `medicinal_herbs` from the Material Bag and `honey` and
+  `fresh_herbs` from persistent inventory; town service continues to craft
+  and consume the draught through `CraftingRules.craft()`.
+- Split objective-floor telemetry into `objectiveDistanceFloorApplied` and
+  `objectiveDistanceFloorViolated`. Supply and preparation runs can be below
+  a future milestone without counting as violations; a violation is recorded
+  only for an actual progression attempt whose executed distance stayed below
+  its required floor. Compact and CSV exports preserve both fields.
+- Kept 140 leagues as the canonical Thorn-Crowned Hart planner milestone;
+  the authored 132-146 appearance band remains unchanged, so the encounter
+  may technically appear before the planner's reliable milestone target.
+
+### Verification and resulting prototype state
+
+- Added deterministic regressions for Heart packing/altar/Warden startup,
+  unsecured Flask and safe-return commit semantics, mixed Druid recipe
+  ingredients, objective-floor telemetry, and Thorn-Crowned Hart distance
+  interpretation.
+- No encounter, enemy, recipe, provision, economy, healing, or expedition-cap
+  balance values were changed.
+
 ## 2026-08-26 - Resupply-Aware Old Forest Readiness and Flask Default
 
 ### Goal
