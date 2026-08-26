@@ -375,13 +375,20 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "inn_interior",
     visualAssetId: "location_the_inn_woodcut_2",
     scenePosition: "northwest",
-    hotspot: { x: 0.35, y: 0.34 },
+    hotspot: {
+      x: 0.36538461538461536,
+      y: 0.3118589841402494
+    },
     npcIds: ["hidden_village_innkeeper"],
     shopId: null,
     craftingProviderId: "campfire",
-    restConfig: { restoration: 8, goldCost: 8, recoveryDistanceReduction: 8 },
+    restConfig: {
+      restoration: 8,
+      goldCost: 8,
+      recoveryDistanceReduction: 8
+    },
     actions: ["talk", "rumor"],
-    requiresIntro: false,
+    requiresIntro: false
   },
   hidden_merchant: {
     id: "hidden_merchant",
@@ -391,11 +398,14 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "merchant_stall",
     visualAssetId: "location_merchant_woodcut_2",
     scenePosition: "northeast",
-    hotspot: { x: 0.72, y: 0.37 },
+    hotspot: {
+      x: 0.2519230475792518,
+      y: 0.5990384419759115
+    },
     npcIds: ["hidden_village_merchant"],
     shopId: "forest_village_provisions",
     actions: ["talk", "shop"],
-    requiresIntro: false,
+    requiresIntro: false
   },
   hidden_apothecary: {
     id: "hidden_apothecary",
@@ -405,12 +415,15 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualKey: "apothecary_interior",
     visualAssetId: "location_apothecary_woodcut",
     scenePosition: "southeast",
-    hotspot: { x: 0.73, y: 0.60 },
+    hotspot: {
+      x: 0.75,
+      y: 0.6221154041779346
+    },
     npcIds: ["hidden_village_druid"],
     shopId: "forest_village_apothecary",
     craftingProviderId: "apothecary",
     actions: ["talk", "shop"],
-    requiresIntro: false,
+    requiresIntro: false
   },
 });
 
@@ -442,7 +455,7 @@ const LOCATION_DEFINITIONS = Object.freeze({
     chapterId: "chapter_03",
     regionId: "broceliande",
     visualKey: "hidden_forest_village",
-    visualAssetId: "location_village_at_the_edge_of_broc_liande_woodcut_1",
+    visualAssetId: "town_hidden_forest_village",
     markerStyle: "tag",
     destinations: ["hidden_inn", "hidden_merchant", "hidden_apothecary"],
     npcs: ["hidden_village_innkeeper", "hidden_village_merchant", "hidden_village_druid"],
@@ -451,6 +464,9 @@ const LOCATION_DEFINITIONS = Object.freeze({
     availableQuests: [],
     requirements: [],
     requiresIntro: false,
-    serviceConfig: { autoProvisionGrant: false, restockProvisionShopId: null },
+    serviceConfig: {
+      autoProvisionGrant: false,
+      restockProvisionShopId: null
+    }
   },
 });
