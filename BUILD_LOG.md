@@ -5027,7 +5027,7 @@ Make encounter applicability path-based so an encounter's authored `pathIds` are
 ### AI-assisted implementation
 
 - Removed the encounter-level `expeditionIds` eligibility check from `EncounterManager`; current-path membership, direction, distance, requirements, occurrence limits, and existing flags remain active.
-- Removed all 48 redundant encounter `expeditionIds` fields from `js/encounter-data.js`. The `fountain_barenton` compatibility fixture remains on `legacy_fountain`, while Leper Knight now explicitly uses both `old_forest_road` and `fountain_of_barenton`.
+- Removed all 47 redundant encounter `expeditionIds` fields from `js/encounter-data.js`. The `fountain_barenton` compatibility fixture remains on `legacy_fountain`, while Leper Knight now explicitly uses both `old_forest_road` and `fountain_of_barenton`.
 - Added a focused path-eligibility browser regression covering Old Forest Road, shared Leper Knight availability on both routes, Overgrown Trail-only content, and a conflicting legacy `expeditionIds` field.
 
 ### Manual changes
