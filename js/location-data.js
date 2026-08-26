@@ -168,11 +168,15 @@ const SHOP_DEFINITIONS = Object.freeze({
     id: "village_smithy",
     displayName: "Smithy Stock",
     itemsForSale: {
-      arthur_sword: { price: 18 },
-      quilted_hauberk: { price: 24 },
-      knightly_longsword: { price: 48 },
-      reinforced_mail: { price: 60 },
-      fine_hunting_knife: { price: 10 },
+      knightly_longsword: {
+        price: 48
+      },
+      reinforced_mail: {
+        price: 60
+      },
+      fine_hunting_knife: {
+        price: 10
+      }
     },
     acceptedCategories: ["weapon", "armor"],
     acceptedTags: ["steel", "martial", "tool"],
@@ -181,8 +185,8 @@ const SHOP_DEFINITIONS = Object.freeze({
       quilted_hauberk: 12,
       fine_hunting_knife: 5,
       knightly_longsword: 24,
-      reinforced_mail: 30,
-    },
+      reinforced_mail: 30
+    }
   },
   village_apothecary_shop: {
     id: "village_apothecary_shop",

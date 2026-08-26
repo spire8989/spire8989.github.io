@@ -62,16 +62,44 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "table", tableId: "common_materials", weight: 12 }),
     ]),
   }),
-  forest_ingredients: Object.freeze({
+  forest_ingredients: {
     id: "forest_ingredients",
-    entries: Object.freeze([
-      Object.freeze({ type: "item", itemId: "raw_meat", quantity: 1, weight: 24 }),
-      Object.freeze({ type: "item", itemId: "wild_berries", quantity: 1, weight: 28 }),
-      Object.freeze({ type: "item", itemId: "mushrooms", quantity: 1, weight: 22 }),
-      Object.freeze({ type: "item", itemId: "fresh_herbs", quantity: 1, weight: 18 }),
-      Object.freeze({ type: "item", itemId: "honey", quantity: 1, weight: 8 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "item",
+        itemId: "raw_meat",
+        quantity: 1,
+        weight: 24
+      },
+      {
+        type: "item",
+        itemId: "wild_berries",
+        weight: 28,
+        minimum: 1,
+        maximum: 3
+      },
+      {
+        type: "item",
+        itemId: "mushrooms",
+        weight: 22,
+        minimum: 2,
+        maximum: 3
+      },
+      {
+        type: "item",
+        itemId: "fresh_herbs",
+        weight: 18,
+        minimum: 1,
+        maximum: 2
+      },
+      {
+        type: "item",
+        itemId: "honey",
+        quantity: 1,
+        weight: 20
+      }
+    ]
+  },
   bandit_ambush_loot: {
     id: "bandit_ambush_loot",
     entries: [

@@ -519,15 +519,19 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     encounterLayout: {
       arthur: {
         x: 0.43359375,
-        y: 0.6809895833333334
+        y: 0.6809895833333334,
+        facing: "right",
+        scale: 0.75
       },
       companion2: {
         x: 0.271484375,
-        y: 1
+        y: 1,
+        facing: "right"
       },
       companion1: {
         x: 0.65625,
-        y: 0.9587673611111112
+        y: 0.9587673611111112,
+        facing: "right"
       }
     }
   },
@@ -5071,7 +5075,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     title: "A Welcoming Grove",
     description: "A sheltered grove opens beside the road, dry, warm, and almost too perfectly suited for a rest.",
     regionId: "broceliande",
-    pathIds: ["old_forest_road", "overgrown_trail", "fountain_of_barenton", "val_sans_retour"],
+    pathIds: ["old_forest_road", "overgrown_trail"],
     directions: ["outbound", "returning"],
     weight: 2,
     minimumDistance: 20,
