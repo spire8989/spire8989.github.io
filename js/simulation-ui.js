@@ -40,8 +40,8 @@ function initializeSimulationTools() {
         <option value="progression" selected>Current campaign progression</option>
       </select></label>
       <label id="campaign-objective-field">Completion objective <select id="campaign-objective">
-        <option value="">Full Campaign</option>
-        <option value="old_forest_flask">Old Forest: Secure Merlin's Flask</option>
+        <option value="old_forest_flask" selected>Old Forest: Secure Merlin's Flask</option>
+        <option value="full_campaign">Full Campaign</option>
       </select></label>
       <label>Max attempts <input id="campaign-expeditions" type="number" min="1" max="100" value="20"></label>
       <label>Strategy <select id="campaign-strategy">
@@ -183,7 +183,9 @@ function initializeSimulationTools() {
   const syncCampaignObjective = () => {
     const progression = campaignType.value === "progression";
     campaignObjectiveField.hidden = !progression;
-    if (!progression) panel.querySelector("#campaign-objective").value = "";
+    if (progression && !panel.querySelector("#campaign-objective").value) {
+      panel.querySelector("#campaign-objective").value = "old_forest_flask";
+    }
   };
   campaignType.addEventListener("change", syncCampaignObjective);
   syncCampaignObjective();

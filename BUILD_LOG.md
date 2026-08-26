@@ -1,5 +1,59 @@
 # Build Log
 
+## 2026-08-26 - Resupply-Aware Old Forest Readiness and Flask Default
+
+### Goal
+
+Make Old Forest progression readiness agree with the live hidden-village
+resupply service, prevent shallow runs from counting as hard milestone
+attempts, and make the Flask objective the new progression default without
+removing Full Campaign mode.
+
+### AI-assisted implementation
+
+- Replaced the Camelot-only readiness assumption with a pure Old Forest
+  projection for the known village at 95 leagues. The projection evaluates the
+  reach-to-village segment, authored hidden-shop price and finite stock, player
+  gold, capacity, current provisions, strategy reserve, and the post-resupply
+  village-to-target plus return segments. It never mutates gold, provisions, or
+  stock; the existing expedition location-stop purchase remains the only real
+  purchase path.
+- Allowed a progression target to remain a true attempt when the village makes
+  the hard distance viable, and made post-preparation readiness use the same
+  projection so equipment/healing mutations cannot create a false plan.
+- Set `secure-wrath-shard` and `defeat-verdant-warden` minimum attempt floors
+  to their actual mandatory encounter distances of 140 and 180. Lower-distance
+  runs remain explicit preparation/supply runs.
+- Made the supply-run food heuristic aware of a reachable, funded, stocked
+  known village, preventing a simple low-provisions check from forcing shallow
+  loops when mid-route refill can support the milestone.
+- Added full, compact, CSV, decision, and per-expedition readiness telemetry
+  for resupply location, distance, reach cost, projected provisions/purchase,
+  projected gold and stock, post-resupply support, and target reachability.
+- Changed new progression simulator sessions and the visible selector default
+  to `old_forest_flask`; explicit `full_campaign` remains available and is
+  preserved in exports/configuration.
+- Added deterministic Old Forest tests covering 140/180 resupply viability,
+  unavailable service fallback, hard milestone floors, and objective defaults.
+
+### Verification and resulting prototype state
+
+- `python tests/old_forest_campaign_planning_test.py` - passed 21 assertions.
+- `python tests/progression_system_test.py` - passed 5 current-campaign
+  progression assertions.
+- `python tests/simulation_system_test.py` - passed 62 deterministic
+  simulation assertions.
+- `python tests/replay_system_test.py` - passed 15 replay assertions.
+- `python tests/old_forest_progression_test.py` stops at its existing authored
+  service fixture, which still expects the prior price `2` while the user's
+  preserved `js/location-data.js` edit sets the service to `0.01`.
+- `python tests/campaign_system_test.py` and the campaign replay suite remain
+  stopped at their existing unrelated packing/camp-cooking fixtures.
+- `git diff --check` passed. No provision capacity, drops, recipes, enemy
+  stats, authored route milestone distances, village authored values, or
+  combat balance were changed; the existing user edit to `js/location-data.js`
+  remains unstaged.
+
 ## 2026-08-26 - Hidden Forest Village Simulator Resupply
 
 ### Goal

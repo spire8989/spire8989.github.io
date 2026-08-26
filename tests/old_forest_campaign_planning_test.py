@@ -45,7 +45,10 @@ def run() -> None:
         def check(expression: str, label: str) -> None:
             nonlocal checks
             result = devtools.evaluate(expression)
-            if not result:
+            passed = result.get("ok") if isinstance(result, dict) and "ok" in result else result
+            if not passed:
+                if isinstance(result, dict):
+                    print(f"Diagnostic for {label}: {result}")
                 raise AssertionError(f"{label} ({result!r})")
             checks += 1
 
@@ -72,6 +75,26 @@ def run() -> None:
         check(
             "(() => { const c=CampaignSimulationRunner.run({seed:'planning-wrath',campaignMode:'progression',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{currentGold:3000,provisions:100,learnedKnowledge:['woodcraft','song_of_the_forest'],ownedItems:{verdant_shard_grace:1},campaignFlags:{forest_village_discovered:true,druid_favor_complete:true}}}); const e=c.expeditions[0]; return e.oldForestProgressionGoal==='secure-wrath-shard'&&e.desiredTargetDistance===140&&e.isSupplyRun===false&&e.paceSelectedAtDeparture==='normal'&&c.stopReason!=='progression-objective-blocked'; })()",
             "A rich campaign still repeated a shallow supply loop instead of attempting the Wrath milestone",
+        )
+        check(
+            "(() => { const shop=SHOP_DEFINITIONS.forest_village_provisions; const oldPrice=shop.provisionsForSale.price; const oldStock=shop.provisionsForSale.stock; const run=(price,stock,gold=1000)=>{ shop.provisionsForSale.price=price; shop.provisionsForSale.stock=stock; try { return CampaignSimulationRunner.run({seed:'readiness-wrath-village',campaignMode:'progression',completionObjective:'full_campaign',expeditions:1,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:140,startingState:{currentGold:gold,provisions:10,learnedKnowledge:['woodcraft','song_of_the_forest'],ownedItems:{verdant_shard_grace:1},campaignFlags:{forest_village_discovered:true,druid_favor_complete:true},shopStocks:{village_general_goods:0,forest_village_provisions:stock}}}); } finally { shop.provisionsForSale.price=oldPrice; shop.provisionsForSale.stock=oldStock; } }; const c=run(0.01,240); const e=c.expeditions[0]; const reachedHart=e?.expeditionTelemetry?.encounters?.some(encounter=>encounter.encounterId==='thorn_crowned_hart'); return e?.oldForestProgressionGoal==='secure-wrath-shard'&&e?.actualTargetDistance===140&&!e?.isSupplyRun&&e?.progressionUsesMidRouteResupply===true&&e?.progressionTargetFullyReachable===true&&e?.villageProvisionPurchaseCount>0&&reachedHart&&e?.progressionResupplyDistance===95; })()",
+            "A 140-league Wrath attempt did not use the known hidden-village resupply projection and runtime purchase",
+        )
+        check(
+            "(() => { const shop=SHOP_DEFINITIONS.forest_village_provisions; const oldPrice=shop.provisionsForSale.price; const oldStock=shop.provisionsForSale.stock; const run=(price,stock,gold)=>{ shop.provisionsForSale.price=price; shop.provisionsForSale.stock=stock; try { return CampaignSimulationRunner.run({seed:'readiness-wrath-unavailable',campaignMode:'progression',completionObjective:'full_campaign',expeditions:1,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:140,startingState:{currentGold:gold,provisions:10,learnedKnowledge:['woodcraft','song_of_the_forest'],ownedItems:{verdant_shard_grace:1},campaignFlags:{forest_village_discovered:true,druid_favor_complete:true},shopStocks:{village_general_goods:0,forest_village_provisions:stock}}}); } finally { shop.provisionsForSale.price=oldPrice; shop.provisionsForSale.stock=oldStock; } }; const c=run(1000,240,0); const e=c.expeditions[0]; return e?.isSupplyRun===true||e?.actualTargetDistance<140||c.stopReason==='progression-objective-blocked'; })()",
+            "Unavailable hidden-village provisions were incorrectly treated as sufficient for the 140 milestone",
+        )
+        check(
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.campaignFlags.forest_village_discovered=false; const policy=BetweenExpeditionPolicies['conservative-sustainer']; const samples=Array.from({length:30},(_,index)=>{ p.provisions=index+1; return assessProgressionReadiness('old_forest_road',140,180,p,{village_general_goods:0},policy,'cautious',null,'old_forest_road',{requiredDistance:140,goal:{goalId:'secure-wrath-shard',supplyRunUseful:true}}); }); const sample=samples.find(result=>result.supportedDistance>=130&&result.supportedDistance<140); return sample?.requiredDistance===140&&!sample?.progressionTargetFullyReachable; })()",
+            "A 130-league Wrath preparation run was still treated as a valid 140-league milestone attempt",
+        )
+        check(
+            "(() => { const shop=SHOP_DEFINITIONS.forest_village_provisions; const oldPrice=shop.provisionsForSale.price; const oldStock=shop.provisionsForSale.stock; shop.provisionsForSale.price=0.01; shop.provisionsForSale.stock=240; try { const c=CampaignSimulationRunner.run({seed:'readiness-warden-village',campaignMode:'progression',completionObjective:'full_campaign',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{currentGold:1000,provisions:10,learnedKnowledge:['woodcraft','song_of_the_forest'],ownedItems:{verdant_shard_grace:1,verdant_shard_wrath:1,enchanted_verdant_heart:1},campaignFlags:{forest_village_discovered:true,druid_favor_complete:true},shopStocks:{village_general_goods:0,forest_village_provisions:240}}}); const e=c.expeditions[0]; return {ok:e?.oldForestProgressionGoal==='defeat-verdant-warden'&&e?.actualTargetDistance===180&&!e?.isSupplyRun&&e?.progressionRequiredDistance===180&&e?.progressionTargetFullyReachable===true, goal:e?.oldForestProgressionGoal,target:e?.actualTargetDistance,supply:e?.isSupplyRun,required:e?.progressionRequiredDistance,reachable:e?.progressionTargetFullyReachable,readiness:e?.progressionReadiness,projection:e?.postResupplySupportedDistance,purchase:e?.projectedVillageProvisionPurchase,actualPurchase:e?.villageProvisionPurchaseCount,stop:c.stopReason}; } finally { shop.provisionsForSale.price=oldPrice; shop.provisionsForSale.stock=oldStock; } })()",
+            "A 180-league Warden attempt was not made viable by the known hidden-village resupply projection",
+        )
+        check(
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.campaignFlags.forest_village_discovered=false; const policy=BetweenExpeditionPolicies['aggressive-reinvestor']; const samples=Array.from({length:35},(_,index)=>{ p.provisions=index+1; return assessProgressionReadiness('old_forest_road',180,180,p,{village_general_goods:0},policy,'aggressive',null,'old_forest_road',{requiredDistance:180,goal:{goalId:'defeat-verdant-warden',supplyRunUseful:true,travelSettings:{paceId:'normal',rationId:'normal'}}}); }); const sample=samples.find(result=>result.supportedDistance>=150&&result.supportedDistance<180); return sample?.requiredDistance===180&&!sample?.progressionTargetFullyReachable; })()",
+            "A 160-league Warden preparation run was still treated as a valid 180-league milestone attempt",
         )
         check(
             "(() => { const c=CampaignSimulationRunner.run({seed:'planning-heart-services',campaignMode:'progression',expeditions:1,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:180,startingState:{currentGold:3000,provisions:100,learnedKnowledge:['woodcraft','song_of_the_forest'],ownedItems:{verdant_shard_grace:1,verdant_shard_wrath:1},campaignFlags:{forest_village_discovered:true,druid_favor_complete:true}}}); const e=c.expeditions[0]; return e.oldForestProgressionGoal==='enchant-heart'&&c.endingState.ownedItems.enchanted_verdant_heart===1; })()",
@@ -106,8 +129,12 @@ def run() -> None:
             "Successful Flask completion did not stop immediately or propagate through campaign metrics and compact export",
         )
         check(
-            "(() => { const type=document.querySelector('#campaign-type'); const objective=document.querySelector('#campaign-objective'); const field=document.querySelector('#campaign-objective-field'); if(!type||!objective||!field||!objective.querySelector('option[value=\"old_forest_flask\"]')?.textContent.includes('Merlin')) return false; type.value='repeated'; type.dispatchEvent(new Event('change')); const hiddenForRepeated=field.hidden; type.value='progression'; type.dispatchEvent(new Event('change')); return hiddenForRepeated&&!field.hidden&&currentCampaignScenario({querySelector:selector=>document.querySelector(selector)}).completionObjective===null; })()",
+            "(() => { const type=document.querySelector('#campaign-type'); const objective=document.querySelector('#campaign-objective'); const field=document.querySelector('#campaign-objective-field'); if(!type||!objective||!field||objective.value!=='old_forest_flask'||!objective.querySelector('option[value=\"old_forest_flask\"]')?.textContent.includes('Merlin')||!objective.querySelector('option[value=\"full_campaign\"]')) return false; type.value='repeated'; type.dispatchEvent(new Event('change')); const hiddenForRepeated=field.hidden; type.value='progression'; type.dispatchEvent(new Event('change')); return hiddenForRepeated&&!field.hidden&&currentCampaignScenario({querySelector:selector=>document.querySelector(selector)}).completionObjective==='old_forest_flask'; })()",
             "The campaign UI did not expose or scope the Flask completion objective selector",
+        )
+        check(
+            "(() => { const defaultConfig=normalizeCampaignConfiguration({campaignMode:'progression'}); const fullConfig=normalizeCampaignConfiguration({campaignMode:'progression',completionObjective:'full_campaign'}); return defaultConfig.completionObjective==='old_forest_flask'&&fullConfig.completionObjective==='full_campaign'&&!isObjectiveLimitedCampaign(fullConfig); })()",
+            "Progression simulator defaults did not select Flask while retaining explicit Full Campaign mode",
         )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")
