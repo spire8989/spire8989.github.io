@@ -4678,3 +4678,27 @@ The contest guide and Pass 1 follow-up supplied the design direction and accepta
 ### Verification and resulting prototype state
 
 The Pass 2 Old Forest browser suite passes 11 assertions. The existing Old Forest progression suite passes 9, current-campaign progression passes 5, deterministic simulation passes 62, combat passes 37, and replay passes 15. Five targeted Content Editor definition/validation tests pass. Browser tests were run sequentially because the shared local browser harness is not safe for parallel startup. The broader editor fixture suite still contains previously documented fixture mismatches and was not treated as a Pass 2 gate.
+
+## 2026-08-25 - Old Forest Campaign Simulator Planning Correction
+
+### Goal
+
+Replace the Old Forest simulator's repeated generic 180-league readiness check and shallow supply loop with explicit next-milestone planning. The simulator should explain its current goal, pursue the authored chain, and stop only when the actual next milestone has no viable preparation path.
+
+### AI-assisted implementation
+
+- Added `assessOldForestProgressionGoal` with structured goals for Woodcraft, Grace, village discovery, Druid favor, Wrath, Heart forging, Heart enchantment, and the Verdant Warden.
+- Old Forest progression now targets approximately 70, 75, 95, 100, 140, 80/95, and 180 leagues as the campaign state advances, while retaining the final 180-league route objective for completion accounting.
+- Added reasonable-attempt readiness floors so a slightly constrained milestone attempt is preferred over an unnecessary supply loop. Supply runs remain conditional on a goal-specific material benefit and are tracked per goal rather than suppressing later milestones.
+- Made simulator route choices goal-aware: early goals use the Overgrown route, village/Druid goals enter the hidden village, the Grace goal follows the peaceful White Hart sequence, the Wrath goal fights the Thorn-Crowned Hart, and the final goal sings at the altar. Random retains weaker general choices while still understanding mandatory authored progression.
+- Added goal-aware aggressive milestone travel settings for the critical Hart and Warden attempts, avoiding a simulator-created hard-push return failure without changing capacity, food, encounter, combat, or boss tuning values.
+- Exposed `oldForestCurrentGoal`, `oldForestTargetMilestoneDistance`, `oldForestGoalReason`, `oldForestSupplyRunReason`, and per-expedition goal history in campaign telemetry, compact export, and CSV output.
+- Kept Old Forest completion tied to the secured Verdant Warden flag instead of marking the route complete merely because an early milestone distance was reached.
+
+### Manual changes
+
+The attached simulator/planning guide supplied the state-machine goals, strategy expectations, telemetry fields, and no-rebalance constraint. No gameplay balance values were changed. Concurrent workspace changes to town assets/data were left untouched and are not part of this simulator commit.
+
+### Verification and resulting prototype state
+
+The focused campaign-planning suite passes 8 assertions. The current-campaign progression suite passes 5, deterministic simulation passes 62, Old Forest progression passes 9, replay passes 15, Pass 2 Old Forest regressions pass 11, and the targeted Content Editor tests remain green from Pass 2. A diagnostic batch of 100 Aggressive, 100 Cautious, and 100 Random campaigns at an 18-expedition cap showed explicit village/Wrath goal selection and average desired distances of 89.74, 93.02, and 72.28 respectively; the run remains useful for later balance/reliability tuning, with Warden attempts still limited by the current encounter/failure rates rather than a planner stuck on the fixed 180 objective.

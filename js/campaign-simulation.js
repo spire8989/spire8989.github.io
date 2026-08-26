@@ -60,24 +60,42 @@ const CampaignSimulationRunner = Object.freeze({
         stopReason = "current-content-completed";
         break;
       }
-      const configuredTargetDistance = progression
-        ? config.expeditionPlan[Math.min(progression.routeIndex, config.expeditionPlan.length - 1)]
-        : config.expeditionPlan[index % config.expeditionPlan.length];
-      const progressionRoute = progression ? ExpeditionCatalog.get(progressionRouteId) : null;
-      const routeObjectiveDistance = Number(progressionRoute?.minimumObjectiveDistance) || 0;
-      const desiredTargetDistance = progression
-        ? Math.max(configuredTargetDistance, routeObjectiveDistance)
-        : configuredTargetDistance;
+      if (progression) progression.strategy = config.strategy;
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       if (progression && player.selectedExpeditionId !== routeId) {
         player.selectedExpeditionId = routeId;
       }
       const townEntry = CampaignRules.enterLocation(player, shopStocks);
+      const preDepartureServiceActions = [];
+      if (progression && progressionRouteId === "old_forest_road") {
+        applyOldForestProgressionServices(player, preDepartureServiceActions, expeditionNumber);
+      }
+      const progressionGoal = progression && progressionRouteId === "old_forest_road"
+        ? assessOldForestProgressionGoal(player, progression)
+        : null;
+      if (progressionGoal) {
+        progression.currentOldForestGoal = deepCampaignClone(progressionGoal);
+        progression.oldForestProgressionGoalByExpedition.push({
+          expeditionNumber,
+          ...deepCampaignClone(progressionGoal),
+        });
+      }
+      const configuredTargetDistance = progression
+        ? config.expeditionPlan[Math.min(progression.routeIndex, config.expeditionPlan.length - 1)]
+        : config.expeditionPlan[index % config.expeditionPlan.length];
+      const progressionRoute = progression ? ExpeditionCatalog.get(progressionRouteId) : null;
+      const routeObjectiveDistance = Number(progressionRoute?.minimumObjectiveDistance) || 0;
+      const desiredTargetDistance = progressionGoal?.targetDistance ?? (progression
+        ? Math.max(configuredTargetDistance, routeObjectiveDistance)
+        : configuredTargetDistance);
+      const reasonableAttemptDistance = progressionGoal?.minimumAttemptDistance
+        ?? (progression ? routeObjectiveDistance : desiredTargetDistance);
       const progressionReadinessPlan = progression && !isPrerequisiteRun
         ? assessProgressionReadiness(
           progressionRouteId, desiredTargetDistance, routeObjectiveDistance,
           player, shopStocks, policy, config.strategy, progression, progressionRouteId,
+          { requiredDistance: reasonableAttemptDistance, goal: progressionGoal },
         ) : null;
       let supplyRunForRoute = progressionReadinessPlan
         && progressionReadinessPlan.status === "deferred"
@@ -90,7 +108,7 @@ const CampaignSimulationRunner = Object.freeze({
       const plannedTargetDistance = isSupplyRun
         ? progressionSupplyRunDistance(config.strategy)
         : desiredTargetDistance;
-      const preparationActions = [];
+      const preparationActions = [...preDepartureServiceActions];
       if (stateBeforeDecisions.selectedExpeditionId !== routeId) {
         preparationActions.push({
           type: "select-expedition",
@@ -132,6 +150,11 @@ const CampaignSimulationRunner = Object.freeze({
           preferredBufferShortfall: progressionReadinessPlan.preferredBufferShortfall,
           supplyRunExpectedBenefit: false,
           supplyRunBenefitReason: progressionReadinessPlan.supplyRunBenefitReason,
+          oldForestCurrentGoal: progressionGoal,
+          oldForestTargetMilestoneDistance: progressionGoal?.targetDistance ?? null,
+          oldForestGoalReason: progressionGoal?.reason ?? null,
+          oldForestSupplyRunReason: progressionGoal?.supplyRunReason ?? null,
+          oldForestProgressionGoal: progressionGoal?.goalId ?? null,
           strategyConstraints: [{
             type: "progression-objective-blocked",
             reason: progressionReadinessPlan.reason,
@@ -157,6 +180,7 @@ const CampaignSimulationRunner = Object.freeze({
           progressionRequiredDistance: progression && !isSupplyRun && !isPrerequisiteRun
             ? progressionReadinessPlan?.requiredDistance ?? desiredTargetDistance : 0,
           expeditionId: routeId,
+          campaignGoal: progressionGoal,
         },
       );
       decision.expeditionNumber = expeditionNumber;
@@ -180,6 +204,11 @@ const CampaignSimulationRunner = Object.freeze({
       decision.progressionSupportedDistance = progressionReadinessPlan?.supportedDistance ?? null;
       decision.supplyRunExpectedBenefit = progressionReadinessPlan?.supplyRunExpectedBenefit ?? null;
       decision.supplyRunBenefitReason = progressionReadinessPlan?.supplyRunBenefitReason ?? null;
+      decision.oldForestCurrentGoal = deepCampaignClone(progressionGoal);
+      decision.oldForestTargetMilestoneDistance = progressionGoal?.targetDistance ?? null;
+      decision.oldForestGoalReason = progressionGoal?.reason ?? null;
+      decision.oldForestSupplyRunReason = progressionGoal?.supplyRunReason ?? null;
+      decision.oldForestProgressionGoal = progressionGoal?.goalId ?? null;
       decision.objectiveDistanceFloorApplied = false;
       decision.townProvisionGrant = townEntry.provisionsGranted;
       betweenExpeditionDecisions.push(decision);
@@ -200,7 +229,7 @@ const CampaignSimulationRunner = Object.freeze({
       if (progressionRequiredDistance > 0
         && decision.actualTargetDistance < progressionRequiredDistance) {
         const postPreparationReadiness = assessPreparedProgressionReadiness(
-          progressionRouteId, progressionRequiredDistance, decision, player, progression,
+          progressionRouteId, progressionRequiredDistance, decision, player, progression, progressionGoal,
         );
         progressionReadiness = {
           ...postPreparationReadiness,
@@ -291,10 +320,11 @@ const CampaignSimulationRunner = Object.freeze({
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
         paceId: decision.paceId,
         rationId: decision.rationId,
-        lockTravelSettings: false,
+        lockTravelSettings: Boolean(progressionGoal?.travelSettings),
         materialBagContents: decision.materialBagContents,
         startingStateIsAuthoritative: true,
         startingState: deepCampaignClone(player),
+        campaignGoal: progressionGoal,
       });
 
       replaceCampaignPlayer(player, run.endingPlayerState);
@@ -368,6 +398,11 @@ const CampaignSimulationRunner = Object.freeze({
         preferredBufferShortfall: decision.preferredBufferShortfall,
         supplyRunExpectedBenefit: decision.supplyRunExpectedBenefit ?? null,
         supplyRunBenefitReason: decision.supplyRunBenefitReason ?? null,
+        oldForestCurrentGoal: deepCampaignClone(progressionGoal),
+        oldForestTargetMilestoneDistance: progressionGoal?.targetDistance ?? null,
+        oldForestGoalReason: progressionGoal?.reason ?? null,
+        oldForestSupplyRunReason: progressionGoal?.supplyRunReason ?? null,
+        oldForestProgressionGoal: progressionGoal?.goalId ?? null,
         objectiveDistanceFloorApplied: Boolean(decision.objectiveDistanceFloorApplied),
         targetDistance: actualTargetDistance,
         configuredTargetDistance,
@@ -536,12 +571,14 @@ const CampaignSimulationRunner = Object.freeze({
         const beforeReadinessMetric = progressionReadiness?.readinessMetric ?? null;
         const afterReadinessQuote = quoteCampaignProvisionAvailability(
           player, shopStocks, policy, desiredTargetDistance, config.strategy,
+          progressionRouteId, progressionGoal,
         );
         const afterReadinessMetric = progressionReadinessMetric(
           afterReadinessQuote, player,
         );
         progression.supplyRunHistoryByRoute[supplyRunForRoute].push({
           expeditionNumber,
+          goalId: progressionGoal?.goalId ?? null,
           blocker: progressionReadiness?.blocker ?? null,
           materiallyImproved: progressionReadinessMetricsImproved(
             beforeReadinessMetric, afterReadinessMetric,
@@ -729,10 +766,16 @@ const CampaignSimulationTelemetry = Object.freeze({
       "equipmentPurchases", "equipmentPurchaseGoldSpent", "equipmentCraftingActions", "equipmentChanges",
       "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
       "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalCraftingGoldSpent", "totalEquipmentCrafts", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend", "supplyRunCount",
+      "oldForestCurrentGoal", "oldForestTargetMilestoneDistance", "oldForestGoalReason", "oldForestSupplyRunReason", "oldForestProgressionGoalByExpedition",
       "oldForestTripsUntilVillageDiscovery", "oldForestTripsUntilWoodcraft", "oldForestTripsUntilFirstVerdantShard", "oldForestTripsUntilSecondVerdantShard", "oldForestTripsUntilVerdantHeart", "oldForestTripsUntilSong", "oldForestTripsUntilHeartEnchanted", "oldForestTripsUntilFirstWardenAttempt", "oldForestTripsUntilFlaskSecured", "oldForestWardenAttempts", "oldForestWardenVictories", "oldForestWardenLosses", "oldForestDeepestDistanceByExpedition", "oldForestGlimmeringSwordAcquisitionRate", "oldForestReturnFailureByDepth"];
     return campaignCsv(fields, results.map((campaign) => ({
       ...campaign,
       oldForestTripsUntilVillageDiscovery: campaign.oldForestProgression?.tripsUntilVillageDiscovery,
+      oldForestCurrentGoal: campaign.oldForestCurrentGoal,
+      oldForestTargetMilestoneDistance: campaign.oldForestTargetMilestoneDistance,
+      oldForestGoalReason: campaign.oldForestGoalReason,
+      oldForestSupplyRunReason: campaign.oldForestSupplyRunReason,
+      oldForestProgressionGoalByExpedition: campaign.oldForestProgressionGoalByExpedition,
       oldForestTripsUntilWoodcraft: campaign.oldForestProgression?.tripsUntilWoodcraft,
       oldForestTripsUntilFirstVerdantShard: campaign.oldForestProgression?.tripsUntilFirstVerdantShard,
       oldForestTripsUntilSecondVerdantShard: campaign.oldForestProgression?.tripsUntilSecondVerdantShard,
@@ -773,6 +816,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "prerequisiteStatus", "prerequisiteAcquired",
       "configuredTargetDistance", "routeObjectiveDistance", "desiredTargetDistance", "actualTargetDistance", "targetDistanceReduced", "targetDistanceReduction",
       "targetDistanceReductionReason", "progressionReadiness", "progressionDeferredReason", "progressionRequiredDistance",
+      "oldForestProgressionGoal", "oldForestTargetMilestoneDistance", "oldForestGoalReason", "oldForestSupplyRunReason",
       "progressionReadinessBlocker", "progressionSupportedDistance", "preferredSupportedDistance", "minimumViableSupportedDistance",
       "minimumViableProvisionRequirement", "preferredProvisionTarget", "provisionCapacity", "actualPackedProvisions",
       "preferredBufferShortfall", "supplyRunExpectedBenefit", "supplyRunBenefitReason", "objectiveDistanceFloorApplied",
@@ -989,6 +1033,13 @@ function compactCampaignSummary(campaign, expeditions) {
       attemptsByRoute: compactClone(campaign.attemptsByRoute ?? {}),
       supplyRunCount: Number(campaign.supplyRunCount) || 0,
       supplyRunsByRoute: compactClone(campaign.supplyRunsByRoute ?? {}),
+      oldForestCurrentGoal: compactClone(campaign.oldForestCurrentGoal ?? null),
+      oldForestTargetMilestoneDistance: campaign.oldForestTargetMilestoneDistance ?? null,
+      oldForestGoalReason: campaign.oldForestGoalReason ?? null,
+      oldForestSupplyRunReason: campaign.oldForestSupplyRunReason ?? null,
+      oldForestProgressionGoalByExpedition: compactClone(
+        campaign.oldForestProgressionGoalByExpedition ?? [],
+      ),
       progressionDeferredCount: Number(campaign.progressionDeferredCount) || 0,
       progressionDeferralsByRoute: compactClone(campaign.progressionDeferralsByRoute ?? {}),
       objectiveDistanceFloorViolations: Number(campaign.objectiveDistanceFloorViolations) || 0,
@@ -1145,6 +1196,10 @@ function compactExpedition(entry, campaign) {
     preferredBufferShortfall: entry.preferredBufferShortfall ?? null,
     supplyRunExpectedBenefit: entry.supplyRunExpectedBenefit ?? null,
     supplyRunBenefitReason: entry.supplyRunBenefitReason ?? null,
+    oldForestProgressionGoal: entry.oldForestProgressionGoal ?? null,
+    oldForestTargetMilestoneDistance: entry.oldForestTargetMilestoneDistance ?? null,
+    oldForestGoalReason: entry.oldForestGoalReason ?? null,
+    oldForestSupplyRunReason: entry.oldForestSupplyRunReason ?? null,
     objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
     campaignId: campaign.campaignId,
     campaignSeed: campaign.seed,
@@ -1187,6 +1242,10 @@ function compactExpedition(entry, campaign) {
       preferredBufferShortfall: entry.preferredBufferShortfall ?? null,
       supplyRunExpectedBenefit: entry.supplyRunExpectedBenefit ?? null,
       supplyRunBenefitReason: entry.supplyRunBenefitReason ?? null,
+      oldForestProgressionGoal: entry.oldForestProgressionGoal ?? null,
+      oldForestTargetMilestoneDistance: entry.oldForestTargetMilestoneDistance ?? null,
+      oldForestGoalReason: entry.oldForestGoalReason ?? null,
+      oldForestSupplyRunReason: entry.oldForestSupplyRunReason ?? null,
       objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
       strategyConstraints: compactClone(entry.strategyConstraints ?? []),
       selectedPace: entry.paceSelectedAtDeparture ?? run.paceSelectedAtDeparture ?? null,
@@ -2053,6 +2112,13 @@ function defaultStrategyForBetweenPolicy(policy) {
   return "random";
 }
 
+function campaignDepartureSettings(strategyName, context = {}, campaignGoal = null) {
+  const settings = SimulationTravelPolicy.departureSettings(strategyName, context);
+  return campaignGoal?.travelSettings
+    ? { ...settings, ...campaignGoal.travelSettings }
+    : settings;
+}
+
 function applyBetweenExpeditionPolicy(
   player, shopStocks, policy, targetDistance, healingEnabled, strategyName = null,
   preparationRandom = GameRandom.random, townActions = [], planningOptions = {},
@@ -2159,11 +2225,11 @@ function applyBetweenExpeditionPolicy(
   const goldAfterHealing = player.currentGold;
   const activeCompanions = selectedCompanionIds(player);
   const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions, planningOptions.expeditionId);
-  let travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+  let travelSettings = campaignDepartureSettings(planningStrategy, {
     provisions: player.provisions,
     capacity,
     injuries: player.injuries,
-  });
+  }, planningOptions.campaignGoal);
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
   let provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
     planningStrategy, targetDistance,
@@ -2175,11 +2241,11 @@ function applyBetweenExpeditionPolicy(
   const innCooking = strategyName && player.provisions < Math.min(initialProvisionNeed, capacity)
     ? cookAtInn(player, planningStrategy, preparationRandom, townActions)
     : { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
-  travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+  travelSettings = campaignDepartureSettings(planningStrategy, {
     provisions: player.provisions,
     capacity,
     injuries: player.injuries,
-  });
+  }, planningOptions.campaignGoal);
   let desiredProvisionStockForNominalDistance = estimateCampaignProvisionRequirement(
     targetDistance, activeCompanions, policy.provisionMargin, encounterProvisionReserve,
     travelSettings, provisionUncertaintyBuffer,
@@ -2209,11 +2275,11 @@ function applyBetweenExpeditionPolicy(
   // departure consumption. Re-quote after the first purchase so the bot does
   // not fund a sparse-ration estimate and then leave under a normal-ration
   // departure requirement.
-  travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+  travelSettings = campaignDepartureSettings(planningStrategy, {
     provisions: player.provisions,
     capacity,
     injuries: player.injuries,
-  });
+  }, planningOptions.campaignGoal);
   provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
     planningStrategy, targetDistance,
   );
@@ -2983,6 +3049,8 @@ function createCampaignProgressionState() {
     supplyRunHistoryByRoute: Object.fromEntries(
       CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [routeId, []]),
     ),
+    currentOldForestGoal: null,
+    oldForestProgressionGoalByExpedition: [],
     currentContentCompleted: false,
   };
 }
@@ -2995,13 +3063,168 @@ function selectCampaignProgressionExpedition(routeId, player) {
   return { routeId, runKind: "progression" };
 }
 
+function hasCampaignKnowledge(state, knowledgeId) {
+  return Array.isArray(state?.learnedKnowledge) && state.learnedKnowledge.includes(knowledgeId);
+}
+
+function campaignMaterialQuantity(state, materialId) {
+  return Number(state?.materials?.[materialId]) || 0;
+}
+
+function oldForestGoal({ goalId, targetDistance, minimumAttemptDistance, reason, requiredPreparation, supplyRunUseful, supplyRunReason, travelSettings = null }) {
+  return {
+    goalId,
+    targetDistance,
+    minimumAttemptDistance,
+    reason,
+    requiredPreparation,
+    preferredPreparation: requiredPreparation,
+    supplyRunUseful,
+    supplyRunReason,
+    travelSettings,
+  };
+}
+
+function assessOldForestProgressionGoal(player, campaignState = {}) {
+  const flags = player?.campaignFlags ?? {};
+  const owns = (itemId) => hasCampaignItem(player, itemId);
+  const hasWoodcraft = hasCampaignKnowledge(player, "woodcraft");
+  const hasSong = hasCampaignKnowledge(player, "song_of_the_forest");
+  const hasHeart = owns("verdant_heart") || owns("enchanted_verdant_heart");
+  const hasGrace = owns("verdant_shard_grace") || hasHeart;
+  const hasWrath = owns("verdant_shard_wrath") || hasHeart;
+  const hasEnchantedHeart = owns("enchanted_verdant_heart");
+  const villageDiscovered = flags.forest_village_discovered === true;
+  const druidComplete = flags.druid_favor_complete === true;
+  const liquidWealth = campaignLiquidWealth(player);
+  const hasDraughtIngredients = campaignMaterialQuantity(player, "rare_herbs") >= 1
+    && campaignMaterialQuantity(player, "medicinal_herbs") >= 2
+    && campaignMaterialQuantity(player, "honey") >= 1
+    && campaignMaterialQuantity(player, "fresh_herbs") >= 1;
+  const healthRatio = Number(player?.arthurHealth) > 0
+    ? Number(player.arthurHealth) / Math.max(1, Number(player?.arthurMaxHealth) || PLAYER_CHARACTER_DEFINITION.combat.maxHp)
+    : 0;
+  const strategy = campaignState.strategy ?? "cautious";
+  const preparationRunUseful = (reason) => ({
+    useful: true,
+    reason,
+  });
+  const optionalSupplyRun = (reason) => ({
+    useful: liquidWealth < 80 || Number(player?.provisions) < 30,
+    reason,
+  });
+
+  if (!hasGrace) {
+    if (!hasWoodcraft && !villageDiscovered) {
+      const supply = preparationRunUseful("learn-woodcraft-and-open-the-overgrown-route");
+      return oldForestGoal({
+        goalId: "learn-woodcraft",
+        targetDistance: 70,
+        minimumAttemptDistance: 55,
+        reason: "The first useful forest lesson is still missing; use an early run to find Woodcraft without requiring every optional reward.",
+        requiredPreparation: { knowledge: ["woodcraft"], route: "overgrown_trail" },
+        supplyRunUseful: supply.useful,
+        supplyRunReason: supply.reason,
+      });
+    }
+    const supply = preparationRunUseful("secure-the-white-hart-grace-shard");
+    return oldForestGoal({
+      goalId: "secure-grace-shard",
+      targetDistance: 75,
+      minimumAttemptDistance: 60,
+      reason: "The first Verdant shard is still missing; deliberately take the peaceful White Hart path.",
+      requiredPreparation: { item: "verdant_shard_grace", route: "overgrown_trail" },
+      supplyRunUseful: supply.useful,
+      supplyRunReason: supply.reason,
+    });
+  }
+
+  if (!villageDiscovered) {
+    const supply = optionalSupplyRun("prepare-provisions-and-healing-before-the-village-milestone");
+    return oldForestGoal({
+      goalId: "discover-village",
+      targetDistance: 95,
+      minimumAttemptDistance: strategy === "aggressive" ? 70 : 78,
+      reason: "Early route progress is established; stop farming the shallow band and deliberately reach the hidden village milestone.",
+      requiredPreparation: { campaignFlag: "forest_village_discovered", targetDistance: 95 },
+      supplyRunUseful: supply.useful,
+      supplyRunReason: supply.reason,
+    });
+  }
+
+  if (!druidComplete || !hasSong) {
+    const supply = hasDraughtIngredients
+      ? { useful: false, reason: "druid-draught-ingredients-ready-for-town-crafting" }
+      : preparationRunUseful("gather-the-communion-draught-ingredients");
+    return oldForestGoal({
+      goalId: "complete-druid-favor",
+      targetDistance: 100,
+      minimumAttemptDistance: strategy === "aggressive" ? 75 : 82,
+      reason: "The village is known, but the Druid's one-time favor and Song of the Forest are not complete.",
+      requiredPreparation: { campaignFlag: "druid_favor_complete", knowledge: ["song_of_the_forest"], item: "forest_communion_draught" },
+      supplyRunUseful: supply.useful,
+      supplyRunReason: supply.reason,
+    });
+  }
+
+  if (!hasWrath) {
+    const supply = optionalSupplyRun("build enough survivability and supplies for the Thorn-Crowned Hart");
+    return oldForestGoal({
+      goalId: "secure-wrath-shard",
+      targetDistance: 140,
+      minimumAttemptDistance: strategy === "aggressive" ? 110 : 120,
+      reason: "The Druid chain is complete; the next mandatory piece is the guaranteed Thorn-Crowned Hart at the deep milestone.",
+      requiredPreparation: { item: "verdant_shard_wrath", encounter: "thorn_crowned_hart", targetDistance: 140 },
+      supplyRunUseful: supply.useful || healthRatio < 0.8,
+      supplyRunReason: supply.reason,
+      travelSettings: strategy === "aggressive" ? { paceId: "normal", rationId: "normal" } : null,
+    });
+  }
+
+  if (!hasHeart) {
+    return oldForestGoal({
+      goalId: "forge-verdant-heart",
+      targetDistance: 80,
+      minimumAttemptDistance: 55,
+      reason: "Both Verdant shards are secured; let the Camelot blacksmith forge the protected unique Heart before another deep attempt.",
+      requiredPreparation: { item: "verdant_heart", recipe: "verdant_heart", shards: ["verdant_shard_grace", "verdant_shard_wrath"] },
+      supplyRunUseful: false,
+      supplyRunReason: "town-crafting-is-the-next-meaningful-action",
+    });
+  }
+
+  if (!hasEnchantedHeart) {
+    return oldForestGoal({
+      goalId: "enchant-heart",
+      targetDistance: 95,
+      minimumAttemptDistance: 75,
+      reason: "The dormant Heart is forged; return through the Druid favor to awaken it before the altar attempt.",
+      requiredPreparation: { item: "enchanted_verdant_heart", campaignFlag: "druid_favor_complete", knowledge: ["song_of_the_forest"] },
+      supplyRunUseful: false,
+      supplyRunReason: "town-enchantment-is-the-next-meaningful-action",
+    });
+  }
+
+  return oldForestGoal({
+    goalId: "defeat-verdant-warden",
+    targetDistance: 180,
+    minimumAttemptDistance: strategy === "aggressive" ? 145 : 155,
+    reason: "The Heart is enchanted and the Song is known; make the final altar and Verdant Warden attempt.",
+    requiredPreparation: { item: "enchanted_verdant_heart", knowledge: ["song_of_the_forest"], encounter: "verdant_altar", targetDistance: 180 },
+    supplyRunUseful: liquidWealth < 60 || Number(player?.provisions) < 30 || healthRatio < 0.8,
+    supplyRunReason: "prepare-final-healing-and-provisions",
+    travelSettings: strategy === "aggressive" ? { paceId: "normal", rationId: "normal" } : null,
+  });
+}
+
 function assessProgressionReadiness(
   routeId, desiredTargetDistance, routeObjectiveDistance,
-  player, shopStocks, policy, strategyName, progressionState = null, expeditionId = routeId,
+  player, shopStocks, policy, strategyName, progressionState = null, expeditionId = routeId, options = {},
 ) {
   const objectiveDistance = Number(routeObjectiveDistance) || 0;
+  const desiredDistance = Number(desiredTargetDistance) || 0;
   const requiredDistance = Math.max(
-    objectiveDistance, Number(desiredTargetDistance) || 0,
+    0, Number(options.requiredDistance) || Math.max(objectiveDistance, desiredDistance),
   );
   if (!routeId || requiredDistance <= 0) {
     return {
@@ -3019,21 +3242,22 @@ function assessProgressionReadiness(
     };
   }
   const quote = quoteCampaignProvisionAvailability(
-    player, shopStocks, policy, desiredTargetDistance, strategyName, expeditionId,
+    player, shopStocks, policy, desiredTargetDistance, strategyName, expeditionId, options.goal,
   );
-  const preferredReady = quote.preferredSafeDistance >= requiredDistance
+  const preferredReady = quote.preferredSafeDistance >= desiredDistance
     && quote.provisionStock >= quote.preferredProvisionTarget;
-  const minimumViable = quote.minimumViableSupportedDistance >= requiredDistance
-    && quote.provisionStock >= quote.minimumViableProvisionRequirement;
+  const minimumViable = quote.minimumViableSupportedDistance >= requiredDistance;
   const blocker = quote.provisionCapacity < quote.minimumViableProvisionRequirement
     ? "provision-capacity"
     : quote.provisionStock < quote.minimumViableProvisionRequirement
       ? "insufficient-provisions"
       : "minimum-distance-unsupported";
   const supplyHistory = progressionState?.supplyRunHistoryByRoute?.[routeId] ?? [];
-  const lastSupplyRun = supplyHistory.at(-1) ?? null;
+  const lastSupplyRun = [...supplyHistory].reverse()
+    .find((entry) => !options.goal?.goalId || entry.goalId === options.goal.goalId) ?? null;
   const supplyRunExpectedBenefit = !minimumViable
     && blocker !== "provision-capacity"
+    && options.goal?.supplyRunUseful !== false
     && (!lastSupplyRun || lastSupplyRun.materiallyImproved);
   const supplyRunBenefitReason = minimumViable
     ? (preferredReady ? null : "preferred-buffer-is-optional")
@@ -3046,7 +3270,11 @@ function assessProgressionReadiness(
     ? preferredReady ? "ready" : "ready-with-constraints"
     : supplyRunExpectedBenefit ? "deferred" : "blocked";
   const reason = minimumViable
-    ? preferredReady ? null : "preferred-provision-buffer-unavailable"
+    ? preferredReady
+      ? null
+      : options.goal && requiredDistance < desiredDistance
+        ? "reasonable-milestone-attempt"
+        : "preferred-provision-buffer-unavailable"
     : blocker === "provision-capacity"
       ? "progression-objective-unsupported-by-capacity"
       : supplyRunExpectedBenefit ? "objective-distance-floor" : "supply-run-no-material-benefit";
@@ -3055,6 +3283,8 @@ function assessProgressionReadiness(
     status,
     reason,
     requiredDistance,
+    desiredDistance,
+    goal: options.goal ? deepCampaignClone(options.goal) : null,
     supportedDistance: Math.max(
       quote.preferredSafeDistance, quote.minimumViableSupportedDistance,
     ),
@@ -3086,7 +3316,7 @@ function shouldRunProgressionSupplyRun(
 }
 
 function assessPreparedProgressionReadiness(
-  routeId, requiredDistance, decision, player, progressionState,
+  routeId, requiredDistance, decision, player, progressionState, goal = null,
 ) {
   const minimumViable = decision.minimumViableSupportedDistance >= requiredDistance
     && decision.provisionStockAvailableToPack >= decision.minimumViableProvisionRequirement;
@@ -3096,9 +3326,11 @@ function assessPreparedProgressionReadiness(
     ? "provision-capacity"
     : "insufficient-provisions";
   const supplyHistory = progressionState?.supplyRunHistoryByRoute?.[routeId] ?? [];
-  const lastSupplyRun = supplyHistory.at(-1) ?? null;
+  const lastSupplyRun = [...supplyHistory].reverse()
+    .find((entry) => !goal?.goalId || entry.goalId === goal.goalId) ?? null;
   const supplyRunExpectedBenefit = !minimumViable
     && blocker !== "provision-capacity"
+    && goal?.supplyRunUseful !== false
     && (!lastSupplyRun || lastSupplyRun.materiallyImproved);
   const supplyRunBenefitReason = minimumViable
     ? (preferredReady ? null : "preferred-buffer-is-optional")
@@ -3148,7 +3380,7 @@ function progressionSupplyRunDistance(strategyName) {
 }
 
 function quoteCampaignProvisionAvailability(
-  player, shopStocks, policy, targetDistance, strategyName, expeditionId = null,
+  player, shopStocks, policy, targetDistance, strategyName, expeditionId = null, campaignGoal = null,
 ) {
   const planningStrategy = strategyName ?? defaultStrategyForBetweenPolicy(policy);
   const activeCompanions = selectedCompanionIds(player);
@@ -3169,11 +3401,11 @@ function quoteCampaignProvisionAvailability(
   // Quote the departure mode using the stock that preparation can actually
   // reach. This prevents a low-stock Sparse/Normal preflight from claiming a
   // route is viable before cooking or purchasing crosses a policy threshold.
-  const travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
+  const travelSettings = campaignDepartureSettings(planningStrategy, {
     provisions: provisionStock,
     capacity,
     injuries: player.injuries,
-  });
+  }, campaignGoal);
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(planningStrategy);
   const provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
     planningStrategy, targetDistance,
@@ -3259,17 +3491,18 @@ function evaluateCampaignProgressionAttempt(
     run.finalArthurHealth <= 0 || isCampaignResourceExhaustion(run.failureReason),
   );
   if (routeId === "old_forest_road") {
-    if (returnedSafely && intendedTargetReached) {
-      return { completed: true, status: "completed", reason: "returned-at-requested-target" };
+    const wardenDefeated = endingState.campaignFlags?.verdant_warden_defeated === true;
+    if (returnedSafely && wardenDefeated) {
+      return { completed: true, status: "completed", reason: "defeated-verdant-warden" };
     }
     return {
       completed: false,
       status: hardFailure ? "hard-failure" : "returned-not-completed",
       reason: !returnedSafely
         ? (run.failureReason ?? "failed-before-return")
-        : decision.targetDistanceReduced || maximumDistance < Number(desiredTargetDistance)
-          ? "returned-before-requested-target"
-          : "returned-without-meaningful-route-progress",
+        : wardenDefeated ? "warden-flag-awaiting-safe-return" : maximumDistance < Number(desiredTargetDistance)
+          ? "returned-before-old-forest-goal"
+          : intendedTargetReached ? "old-forest-goal-not-secured" : "returned-without-meaningful-route-progress",
     };
   }
   if (routeId === "search_for_merlin") {
@@ -3632,6 +3865,13 @@ function finalizeCampaignTelemetry(
     routeAttemptSequence,
     supplyRunCount: expeditions.filter((entry) => entry.isSupplyRun).length,
     supplyRunsByRoute: deepCampaignClone(supplyRunsByRoute),
+    oldForestCurrentGoal: deepCampaignClone(progression?.currentOldForestGoal ?? null),
+    oldForestTargetMilestoneDistance: progression?.currentOldForestGoal?.targetDistance ?? null,
+    oldForestGoalReason: progression?.currentOldForestGoal?.reason ?? null,
+    oldForestSupplyRunReason: progression?.currentOldForestGoal?.supplyRunReason ?? null,
+    oldForestProgressionGoalByExpedition: deepCampaignClone(
+      progression?.oldForestProgressionGoalByExpedition ?? [],
+    ),
     progressionDeferredCount,
     progressionDeferralsByRoute,
     objectiveDistanceFloorViolations,

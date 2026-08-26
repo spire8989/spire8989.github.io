@@ -267,7 +267,7 @@ const SimulationRunner = Object.freeze({
         continue;
       }
       if (expedition.activeEncounter) {
-        resolveEncounterInstantly(expedition, player, strategy, random, telemetry, fail);
+        resolveEncounterInstantly(expedition, player, strategy, random, telemetry, fail, normalized);
         continue;
       }
       if (expedition.travelState === "camped") {
@@ -687,9 +687,42 @@ function createStrategy(name, chooseEncounter) {
 }
 
 function authoredStrategyChoice(strategyName, choices, context = {}) {
-  if (strategyName === "random" || strategyName === "normal") return null;
   const encounterId = context.encounter?.id;
+  const goalId = context.campaignGoal?.goalId;
   const choiceById = (id) => choices.find((choice) => choice.id === id);
+  const oldForestGoal = [
+    "learn-woodcraft", "secure-grace-shard", "discover-village", "complete-druid-favor",
+    "secure-wrath-shard", "forge-verdant-heart", "enchant-heart", "defeat-verdant-warden",
+  ].includes(goalId);
+  const earlyOvergrownGoal = ["learn-woodcraft", "secure-grace-shard"].includes(goalId);
+  if (oldForestGoal && encounterId === "hidden_forest_village") {
+    return choiceById("enter_village") ?? choiceById("pass_village") ?? null;
+  }
+  if (oldForestGoal && encounterId === "fork_in_the_road") {
+    return earlyOvergrownGoal
+      ? choiceById("overgrown_trail") ?? choiceById("main_road") ?? null
+      : choiceById("main_road") ?? choiceById("overgrown_trail") ?? null;
+  }
+  if (oldForestGoal && encounterId === "overgrown_trail_turnoff") {
+    return earlyOvergrownGoal
+      ? choiceById("take_overgrown_trail") ?? choiceById("stay_main_road") ?? null
+      : choiceById("stay_main_road") ?? choiceById("take_overgrown_trail") ?? null;
+  }
+  if (oldForestGoal && encounterId === "white_hart" && goalId === "secure-grace-shard") {
+    const priorities = context.stageId === "hart_breath"
+      ? ["call_softly", "lower_gaze", "step_forward"]
+      : context.stageId === "hart_close"
+        ? ["open_hand", "touch_hart"]
+        : ["show_medallion", "wait_beside", "follow_hart"];
+    return priorities.map(choiceById).find(Boolean) ?? null;
+  }
+  if (oldForestGoal && encounterId === "thorn_crowned_hart" && goalId === "secure-wrath-shard") {
+    return choiceById("stand_against_stag") ?? choiceById("withdraw_from_stag") ?? null;
+  }
+  if (oldForestGoal && encounterId === "verdant_altar" && goalId === "defeat-verdant-warden") {
+    return choiceById("sing_at_altar") ?? choiceById("inspect_altar") ?? choiceById("leave_altar") ?? null;
+  }
+  if (strategyName === "random" || strategyName === "normal") return null;
   if (encounterId === "hidden_flask") {
     return choiceById("recover_map") ?? choiceById("leave_map") ?? null;
   }
@@ -975,6 +1008,7 @@ function normalizeScenario(scenario) {
       ? scenario.rationId : defaultTravelSettings.rationId,
     lockTravelSettings: scenario.lockTravelSettings
       ?? (scenario.paceId !== undefined || scenario.rationId !== undefined),
+    campaignGoal: scenario.campaignGoal ?? null,
     startingHealth: Number.isFinite(scenario.startingState?.health)
       ? scenario.startingState.health
       : Number.isFinite(scenario.startingState?.arthurHealth)
@@ -1267,7 +1301,7 @@ function simulationRestTelemetry(kind, result, before, after, expedition) {
   };
 }
 
-function resolveEncounterInstantly(expedition, player, strategy, random, telemetry, fail) {
+function resolveEncounterInstantly(expedition, player, strategy, random, telemetry, fail, scenario = {}) {
   const active = expedition.activeEncounter;
   const definition = EncounterManager.definitionFor(expedition, active);
   let history = telemetry.encounters.at(-1);
@@ -1320,6 +1354,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     }
     const choice = strategy.chooseEncounter(choices, {
       expedition, player, encounter: definition, stage, stageId: active.stageId, random,
+      campaignGoal: scenario.campaignGoal ?? null,
     })
       ?? choices[0];
     history.availableChoices.push({ stageId: active.stageId, choiceIds: choices.map((entry) => entry.id) });

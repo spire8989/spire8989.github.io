@@ -42,7 +42,7 @@ def run() -> None:
             nonlocal checks
             result = devtools.evaluate(expression)
             if not result:
-                raise AssertionError(label)
+                raise AssertionError(f"{label}: {result!r}")
             checks += 1
 
         check(
@@ -50,20 +50,20 @@ def run() -> None:
             "Campaign Simulation did not default to the extended Old Forest objective",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'old-focus',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:1000,provisions:100}}); const e=c.expeditions[0]; return c.expeditions.length===1&&e.routeId==='old_forest_road'&&e.desiredTargetDistance>=180&&e.isSupplyRun&&e.progressionReadiness==='deferred'&&c.currentRoute==='old_forest_road'&&c.prerequisiteRunCount===0; })()",
-            "Progression bots left Old Forest while waiting for earned depth progression",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'old-focus',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:1000,provisions:100}}); const e=c.expeditions[0]; return c.expeditions.length===2&&e.routeId==='old_forest_road'&&e.oldForestProgressionGoal==='learn-woodcraft'&&e.desiredTargetDistance>=60&&e.desiredTargetDistance<=80&&e.routeObjectiveDistance===180&&!e.isSupplyRun&&c.currentRoute==='old_forest_road'&&c.prerequisiteRunCount===0; })()",
+            "Progression bots did not begin with an explicit early Old Forest milestone",
         )
         check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.ownedItems.flask=1; return ExpeditionCatalog.missingPrerequisites(p,'fountain_of_barenton').length===0&&ExpeditionCatalog.missingPrerequisites(p,'val_sans_retour').length===0; })()",
             "A securely owned Flask did not release the next visible expeditions",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'old-depth',campaignMode:'progression',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:3000,provisions:100}}); const e=c.expeditions[0]; return e.routeId==='old_forest_road'&&e.routeObjectiveDistance===180&&e.desiredTargetDistance>=180&&e.isSupplyRun&&e.actualMaximumDistance<180&&e.rationSelectedAtDeparture!=='sparse'; })()",
-            "The campaign simulator incorrectly forced an unsupported 180-league Old Forest run",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'old-depth',campaignMode:'progression',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:3000,provisions:100}}); const e=c.expeditions[0]; return e.routeId==='old_forest_road'&&e.routeObjectiveDistance===180&&e.oldForestProgressionGoal==='learn-woodcraft'&&e.desiredTargetDistance<180&&!e.isSupplyRun&&e.actualMaximumDistance>0; })()",
+            "The campaign simulator still treated the early Old Forest goal as the unsupported 180 objective",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'old-repeat',campaignMode:'progression',expeditions:3,turnaroundDistance:180,startingState:{currentGold:3000,provisions:100}}); return c.routeSequence.every(id=>id==='old_forest_road')&&c.currentRoute==='old_forest_road'&&c.prerequisiteRunCount===0&&c.stopReason==='progression-objective-blocked'; })()",
-            "Locked visible routes did not keep the simulator focused on Old Forest",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'old-repeat',campaignMode:'progression',expeditions:3,turnaroundDistance:180,startingState:{currentGold:3000,provisions:100}}); return c.routeSequence.every(id=>id==='old_forest_road')&&c.currentRoute==='old_forest_road'&&c.prerequisiteRunCount===0&&c.stopReason!=='progression-objective-blocked'&&c.oldForestProgressionGoalByExpedition.length===c.expeditions.length; })()",
+            "Old Forest progression did not remain focused on milestone goals",
         )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")
