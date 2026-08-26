@@ -1064,17 +1064,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             ],
             outcomes: [
               {
-                type: "randomChance",
+                type: "rollLootTable",
                 chance: 0.4,
-                effects: [
-                  {
-                    type: "gainUnsecuredItem",
-                    itemId: "fine_hunting_knife",
-                    quantity: 1
-                  }
-                ],
-                resultText: "Beyond the last broken branch, Arthur finds a fine hunting knife half-hidden in the leaves.",
-                elseResultText: "The broken branches grow sparse, and the trail fades completely among the trees."
+                effects: [],
+                resultText: "Beyond the last broken branch, Arthur finds something useful.",
+                elseResultText: "The broken branches grow sparse, and the trail fades completely among the trees.",
+                tableId: "abandoned_cart_loot",
+                rolls: 1
               }
             ],
             pendingAction: {
@@ -2108,6 +2104,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                   }
                 ],
                 resultText: "Arthur checks the purse and recovers {itemName}."
+              },
+              {
+                type: "randomChance",
+                tableId: "abandoned_cart_loot",
+                chance: 0.25,
+                resultText: "Looks like they left something valuable in here!"
               }
             ],
             pendingAction: {
@@ -2453,11 +2455,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 combatId: "bandit_ambush",
                 victory: {
                   outcomes: [
-                    {
-                      type: "rollLootTable",
-                      tableId: "bandit_ambush_loot",
-                      rolls: 2
-                    },
                     {
                       type: "randomChance",
                       chance: 0.35,

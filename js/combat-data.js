@@ -333,7 +333,13 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         fps: 20,
         scale: 2
       }
-    }
+    },
+    lootSources: [
+      {
+        tableId: "bandit_ambush_loot",
+        rolls: 1
+      }
+    ]
   },
   bandit_leader: {
     id: "bandit_leader",

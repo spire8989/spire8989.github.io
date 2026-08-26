@@ -30,7 +30,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     carriable: false,
     consumable: false,
     effects: {
-      combatDefense: 2
+      combatDefense: 3
     },
     questItem: false,
     unique: true
@@ -64,9 +64,11 @@ const ITEM_DEFINITIONS = Object.freeze({
     equipmentSlot: "armor",
     carriable: false,
     consumable: false,
-    effects: { combatDefense: 6 },
+    effects: {
+      combatDefense: 7
+    },
     questItem: false,
-    unique: true,
+    unique: true
   },
   wayfarers_cloak: {
     id: "wayfarers_cloak",
@@ -831,7 +833,7 @@ const ITEM_DEFINITIONS = Object.freeze({
     carriable: false,
     consumable: false,
     effects: {
-      combatDefense: 11
+      combatDefense: 12
     },
     questItem: false,
     unique: true

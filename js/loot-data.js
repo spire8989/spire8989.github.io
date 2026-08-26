@@ -361,6 +361,21 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         quantity: 1
       }
     ]
+  },
+  abandoned_cart_loot: {
+    id: "abandoned_cart_loot",
+    entries: [
+      {
+        type: "item",
+        itemId: "fine_hunting_knife",
+        weight: 1
+      },
+      {
+        type: "recipe",
+        recipeId: "forestwarden_mail",
+        weight: 1
+      }
+    ]
   }
 });
 

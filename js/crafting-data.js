@@ -196,10 +196,10 @@ const RECIPE_DEFINITIONS = Object.freeze({
     goldCost: 8,
     rarity: "epic"
   },
-  frostwarden_mail: {
-    id: "frostwarden_mail",
-    name: "Frostwarden Mail",
-    description: "Some of the finest armor that can be forged... by a human at least.",
+  forestwarden_mail: {
+    id: "forestwarden_mail",
+    name: "Forestwarden Mail",
+    description: "Some of the finest armor that can be forged... at least by any human in these woods.",
     craftingProvider: "blacksmith",
     ingredients: [
       {
