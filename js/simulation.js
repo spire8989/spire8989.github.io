@@ -1068,6 +1068,9 @@ function analyzeChoiceSafety(choice) {
         break;
       case "startCombat":
         danger(1000, "starts combat");
+        [effect.victory, effect.fled, effect.defeat].forEach((resolution) => {
+          (resolution?.outcomes ?? []).forEach((nested) => inspect(nested, "combat resolution"));
+        });
         break;
       case "failExpedition":
         danger(1000, "can fail the expedition");
@@ -1081,6 +1084,7 @@ function analyzeChoiceSafety(choice) {
       case "randomChance":
         (effect.effects ?? []).forEach((nested) => inspect(nested, "random outcome"));
         (effect.elseEffects ?? []).forEach((nested) => inspect(nested, "random fallback"));
+        if (effect.secondaryOutcome) inspect(effect.secondaryOutcome, "secondary random outcome");
         break;
       case "conditional":
         (effect.effects ?? []).forEach((nested) => inspect(nested, "conditional outcome"));
@@ -1124,12 +1128,142 @@ const SimulationChoiceSafety = Object.freeze({
   classify: analyzeChoiceSafety,
 });
 
-function cautiousChoiceScore(choice) {
+function choiceEffectEntries(choice) {
+  const entries = [...(choice?.costs ?? []), ...(choice?.outcomes ?? [])];
+  (choice?.branches ?? []).forEach((branch) => entries.push(...(branch?.outcomes ?? [])));
+  return entries;
+}
+
+function choicePotentialResourceLoss(choice, resource) {
+  let loss = 0;
+  const inspect = (effect) => {
+    if (!effect || typeof effect !== "object") return;
+    if (effect.type === "modifyResource" && effect.resource === resource) {
+      const values = Number.isFinite(effect.amount)
+        ? [effect.amount]
+        : [effect.randomMinimum, effect.randomMaximum].filter(Number.isFinite);
+      if (values.length) loss += Math.max(0, -Math.min(...values));
+    }
+    if (effect.type === "randomChance" || effect.type === "conditional") {
+      (effect.effects ?? []).forEach(inspect);
+      (effect.elseEffects ?? []).forEach(inspect);
+      if (effect.secondaryOutcome) inspect(effect.secondaryOutcome);
+    }
+    if (effect.type === "randomOne") {
+      (effect.options ?? []).forEach((option) => (Array.isArray(option) ? option : option?.effects ?? []).forEach(inspect));
+    }
+    if (effect.type === "startCombat") {
+      [effect.victory, effect.fled, effect.defeat].forEach((resolution) => (resolution?.outcomes ?? []).forEach(inspect));
+    }
+  };
+  choiceEffectEntries(choice).forEach(inspect);
+  return loss;
+}
+
+function choiceCombatDefinitions(choice) {
+  const definitions = [];
+  const inspect = (effect) => {
+    if (!effect || typeof effect !== "object") return;
+    if (effect.type === "startCombat" && effect.combatId) definitions.push(effect.combatId);
+    if (effect.type === "randomChance" || effect.type === "conditional") {
+      (effect.effects ?? []).forEach(inspect);
+      (effect.elseEffects ?? []).forEach(inspect);
+      if (effect.secondaryOutcome) inspect(effect.secondaryOutcome);
+    }
+    if (effect.type === "randomOne") {
+      (effect.options ?? []).forEach((option) => (Array.isArray(option) ? option : option?.effects ?? []).forEach(inspect));
+    }
+  };
+  choiceEffectEntries(choice).forEach(inspect);
+  return definitions;
+}
+
+function cautiousReturnRequirement(expedition, context) {
+  if (!expedition) return 0;
+  const targetDistance = Number(
+    context.turnaroundPolicy?.configuration?.distance
+      ?? context.turnaroundPolicy?.distance,
+  );
+  const plannedDistance = expedition.direction === "returning"
+    ? Number(expedition.distance) || 0
+    : Math.max(Number(expedition.distance) || 0, Number.isFinite(targetDistance) ? targetDistance : 0);
+  return SimulationProvisionPlanning.passiveTravelCost(
+    plannedDistance, ExpeditionRules.provisionConsumptionMultiplier(expedition),
+  );
+}
+
+function cautiousProvisionPenalty(choice, expedition, context) {
+  const loss = choicePotentialResourceLoss(choice, "provisions");
+  if (!loss || !expedition) return 0;
+  const reserve = SimulationProvisionPlanning.encounterReserve("cautious");
+  const slack = (Number(expedition.provisions) || 0)
+    - cautiousReturnRequirement(expedition, context) - reserve;
+  const scarcity = slack <= 0 ? 24 : slack < 5 ? 15 : slack < 12 ? 7 : 2;
+  return loss * (3 + scarcity);
+}
+
+function cautiousHealingAvailable(expedition) {
+  return (Number(expedition?.carriedItems?.bandages) || 0)
+    + (Number(expedition?.carriedItems?.healing_poultice) || 0);
+}
+
+function cautiousEquipmentQuality(expedition, player) {
+  const equipment = expedition?.selectedEquipment ?? player?.equippedItems ?? {};
+  return Object.values(equipment)
+    .map((itemId) => ITEM_DEFINITIONS[itemId])
+    .filter(Boolean)
+    .reduce((sum, item) => {
+      const value = EquipmentRules.scoreItem(item, "cautious");
+      return sum + (Number.isFinite(value) ? value : 0);
+    }, 0);
+}
+
+function cautiousCombatAdjustment(choice, context, safety) {
+  const combatIds = choiceCombatDefinitions(choice);
+  if (!combatIds.length) return 0;
+  const expedition = context.expedition ?? {};
+  const player = context.player ?? {};
+  const maxArthurHealth = InjuryRules.effectiveMaxHealth(expedition, "arthur")
+    || PLAYER_CHARACTER_DEFINITION.combat.maxHp;
+  const healthRatio = Math.max(0, Math.min(1, (Number(expedition.health) || 0) / maxArthurHealth));
+  const healing = cautiousHealingAvailable(expedition);
+  const partyHealth = maxArthurHealth + Object.values(expedition.companionCombatHp ?? {})
+    .reduce((sum, health) => sum + (Number(health) || 0), 0);
+  const enemyHealth = combatIds.reduce((sum, combatId) => {
+    const definition = COMBAT_DEFINITIONS[combatId];
+    return sum + (definition?.enemyIds ?? []).reduce(
+      (enemySum, enemyId) => enemySum + (Number(COMBAT_ENEMY_DEFINITIONS[enemyId]?.maxHp) || 0), 0,
+    );
+  }, 0);
+  const manageable = enemyHealth > 0 && enemyHealth <= partyHealth * 1.15;
+  const returning = expedition.direction === "returning";
+  const unsecuredValue = estimateLootValue(expedition.unsecuredLoot ?? []);
+  const equipmentQuality = cautiousEquipmentQuality(expedition, player);
+  let score = -35;
+  score += manageable ? 24 : -24;
+  score += healthRatio * 42;
+  score += healing > 0 ? 14 : 0;
+  score += Math.min(18, equipmentQuality / 12);
+  score += safety.positiveUtility > 0 ? 16 : 0;
+  score += context.campaignGoal && safety.positiveUtility > 0 ? 18 : 0;
+  if (healthRatio < 0.45 && healing <= 0) score -= 85;
+  else if (healthRatio < 0.65 && healing <= 0) score -= 35;
+  if (returning) score -= 25;
+  if (returning && unsecuredValue > 0) score -= Math.min(60, unsecuredValue * 2 + 25);
+  return score;
+}
+
+function cautiousChoiceScore(choice, context = {}) {
   const safety = analyzeChoiceSafety(choice);
-  if (safety.classification === CHOICE_SAFETY.SAFE) return 100 + safety.positiveUtility;
-  if (safety.classification === CHOICE_SAFETY.BOUNDED) return safety.positiveUtility - safety.riskScore;
-  if (safety.classification === CHOICE_SAFETY.UNKNOWN) return -200 - safety.riskScore;
-  return -1000 - safety.riskScore + safety.positiveUtility;
+  let score = safety.positiveUtility * 2;
+  if (safety.classification === CHOICE_SAFETY.SAFE) {
+    if (safety.positiveUtility > 0) score += 100;
+  } else if (safety.classification === CHOICE_SAFETY.BOUNDED) score -= Math.min(28, safety.riskScore * 0.35);
+  else if (safety.classification === CHOICE_SAFETY.UNKNOWN) score -= 18;
+  else score -= 35;
+  score -= cautiousProvisionPenalty(choice, context.expedition, context);
+  score += cautiousCombatAdjustment(choice, context, safety);
+  return score;
 }
 
 function createChoiceSafetyTelemetry() {
@@ -1663,6 +1797,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     const choice = strategy.chooseEncounter(choices, {
       expedition, player, encounter: definition, stage, stageId: active.stageId, random,
       campaignGoal: scenario.campaignGoal ?? null,
+      turnaroundPolicy: scenario.turnaroundPolicy ?? null,
     })
       ?? choices[0];
     const selectedChoiceAnalysis = choiceAnalyses.find((entry) => entry.choice === choice)?.analysis

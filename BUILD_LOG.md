@@ -5057,3 +5057,24 @@ The attached simulator guide supplied the outcome-based classifier, Cautious pre
 ### Verification and resulting prototype state
 
 The focused deterministic simulation suite passes 64 assertions, including safe loot/recipe preference, combat/health/random/unknown-risk cases, neutral-choice ties, selected-choice telemetry, CSV fields, and batch summaries. The Old Forest balance suite passes 10 assertions. Broader campaign, progression, and replay suites were also attempted but retain unrelated current-branch fixture failures from the separate recipe/content work; none of those files were modified here. `git diff --check` passes.
+
+## 2026-08-26 - Corrective Context-Aware Cautious Simulator Policy
+
+### Goal
+
+Repair the severe starvation regression introduced by the previous safety pass while preserving its safe-positive loot and recipe choices.
+
+### AI-assisted implementation
+
+- Restored Cautious to a contextual strategic score layered with `SimulationChoiceSafety`; the classifier is now a safe-positive override and risk adjustment rather than an absolute policy.
+- Cautious now uses current Arthur/party health, carried healing, provisions versus projected return cost and encounter reserve, outbound/returning direction, turnaround distance, unsecured loot value, equipment quality, campaign-goal context, and enemy metadata.
+- Manageable combat is opportunistic when Arthur is healthy and supported, while critical health without healing, scarce provisions, late return travel, and valuable unsecured cargo reduce combat willingness. Provision-loss penalties scale with return-safety slack.
+- Added deterministic regressions for healthy/critical combat decisions, provision scarcity, returning cargo, outbound combat willingness, non-absolute combat scoring, harmful random branches, safe-positive override, and a small campaign batch. Aggressive behavior and game content were unchanged.
+
+### Manual changes
+
+The corrective guide identified the regression as the static safety score replacing contextual strategy. This pass changes simulator strategy logic and tests only; no encounter outcomes, costs, enemy stats, loot, recipes, item values, weights, or distances changed.
+
+### Verification and resulting prototype state
+
+The focused deterministic simulation suite passes 66 assertions. A 12-campaign × 5-expedition Cautious batch improved from the reported broken baseline of 0% completion, 96% resource exhaustion, 2.08 average expeditions, median 1, and 0.18 combats to 100% completion, 0% resource exhaustion/death, 5 average and median expeditions, and 10.08 average combats, while retaining safe-positive selections.
