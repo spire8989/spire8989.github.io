@@ -182,15 +182,6 @@ const CampaignSimulationRunner = Object.freeze({
       decision.supplyRunBenefitReason = progressionReadinessPlan?.supplyRunBenefitReason ?? null;
       decision.objectiveDistanceFloorApplied = false;
       decision.townProvisionGrant = townEntry.provisionsGranted;
-      const deepOldForestObjective = progression
-        && !isSupplyRun
-        && !isPrerequisiteRun
-        && progressionRouteId === "old_forest_road"
-        && desiredTargetDistance >= 180;
-      if (deepOldForestObjective) {
-        decision.rationId = "sparse";
-        decision.deepObjectiveTravel = true;
-      }
       betweenExpeditionDecisions.push(decision);
 
       if (decision.stopReason) {
@@ -300,7 +291,7 @@ const CampaignSimulationRunner = Object.freeze({
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
         paceId: decision.paceId,
         rationId: decision.rationId,
-        lockTravelSettings: Boolean(decision.deepObjectiveTravel),
+        lockTravelSettings: false,
         materialBagContents: decision.materialBagContents,
         startingStateIsAuthoritative: true,
         startingState: deepCampaignClone(player),
@@ -2206,11 +2197,6 @@ function applyBetweenExpeditionPolicy(
     capacity,
     injuries: player.injuries,
   });
-  if (isProgressionAttempt && targetDistance >= 180 && planningStrategy === "aggressive") {
-    // The contest route's deep objective is intentionally supportable, but a
-    // hard-push party must use sparse rations to preserve the return margin.
-    travelSettings.rationId = "sparse";
-  }
   provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
     planningStrategy, targetDistance,
   );

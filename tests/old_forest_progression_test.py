@@ -50,6 +50,10 @@ def run() -> None:
             "Old Forest did not expose the extended objective and late return reward tiers",
         )
         check(
+            "ExpeditionRules.partyProvisionCapacity([], 'old_forest_road') === ExpeditionRules.partyProvisionCapacity([])",
+            "Old Forest still applies a route-specific provision capacity shortcut",
+        )
+        check(
             "ITEM_DEFINITIONS.old_foresters_map && SHOP_DEFINITIONS.village_general_goods.itemsForSale.old_foresters_map.price === 25"
             " && LOCATION_DEFINITIONS.hidden_forest_village && SHOP_DEFINITIONS.forest_village_provisions.provisionsForSale.price === 2",
             "The map or hidden-village services were not authored in the data model",

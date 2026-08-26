@@ -4634,3 +4634,21 @@ The human developer supplied the contest direction and Pass 1 guide and authoriz
 ### Verification and resulting prototype state
 
 The focused Old Forest browser suite passes 8 assertions, the current-campaign progression suite passes 5 assertions, the deterministic simulation suite passes 62 assertions, the combat suite passes 37 assertions, the replay suite passes 15 assertions, and the live Content Editor catalog validates with zero errors. The broader location/editor suites retain previously documented fixture mismatches in village hotspot coordinates, encounter layout fixtures, derived path counts, and an existing campaign packing fixture; those unrelated fixtures were not folded into this contest pass. `git diff --check` passes in both repositories.
+
+## 2026-08-25 - Old Forest Road Contest Pass 1 Corrective Follow-up
+
+### Goal
+
+Keep Old Forest Road progression-focused without treating the 180-league objective as an immediately sustainable run.
+
+### AI-assisted implementation
+
+- Removed the Old Forest route-specific +30 provision-capacity bonus; the route now uses the same global and companion capacity rules as every other expedition.
+- Retained the generalized optional route-capacity plumbing in `ExpeditionRules` for future tuning, but no current expedition definition uses it.
+- Removed campaign-simulator deep-run forcing, including the automatic sparse-ration override and locked travel settings. Restored the normal supply-run targets so unsupported deep attempts defer naturally.
+- Updated the campaign regressions to expect an early Old Forest supply/defer result rather than guaranteed 180-league reach, while retaining direct Flask gate coverage and repeated-run route focus checks.
+- Kept 180 leagues as the late-game Old Forest objective. Pass 2 can add earned cooking, ingredients, forage, Woodcraft, village resupply, gear, and other progression that improves supported depth without a global capacity rebalance.
+
+### Verification and resulting prototype state
+
+The focused Old Forest browser suite passes 9 assertions, the current-campaign progression suite passes 5 assertions, the deterministic simulation suite passes 62 assertions, the combat suite passes 37 assertions, and the replay suite passes 15 assertions. The route map, bounded trail rejoin, village stop, Flask gating, Verdant Warden reward scaffold, and Content Editor route-branch support remain covered. The live Content Editor catalog validates with zero errors and the targeted editor definition tests pass 2/2. The broader location/editor fixture mismatches and existing campaign packing fixture remain outside this corrective follow-up.

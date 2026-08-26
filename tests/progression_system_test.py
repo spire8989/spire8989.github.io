@@ -50,19 +50,19 @@ def run() -> None:
             "Campaign Simulation did not default to the extended Old Forest objective",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'old-focus',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:1000,provisions:100}}); return c.expeditions.length===2&&c.expeditions.every(entry=>entry.routeId==='old_forest_road')&&c.expeditions[0].desiredTargetDistance>=180&&c.currentRoute==='old_forest_road'&&!c.expeditions[1].isPrerequisiteRun; })()",
-            "Progression bots left Old Forest for a Flask prerequisite route",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'old-focus',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:1000,provisions:100}}); const e=c.expeditions[0]; return c.expeditions.length===1&&e.routeId==='old_forest_road'&&e.desiredTargetDistance>=180&&e.isSupplyRun&&e.progressionReadiness==='deferred'&&c.currentRoute==='old_forest_road'&&c.prerequisiteRunCount===0; })()",
+            "Progression bots left Old Forest while waiting for earned depth progression",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'flask-release',campaignMode:'progression',expeditions:2,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:1,startingState:{arthurHealth:45,currentGold:1000,provisions:100,ownedItems:{flask:1},packedItems:['flask']}}); return c.expeditions[0].routeId==='old_forest_road'&&c.expeditions[1].routeId==='fountain_of_barenton'&&c.expeditions[1].isPrerequisiteRun===false; })()",
-            "A securely owned Flask did not release the next visible expedition",
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.ownedItems.flask=1; return ExpeditionCatalog.missingPrerequisites(p,'fountain_of_barenton').length===0&&ExpeditionCatalog.missingPrerequisites(p,'val_sans_retour').length===0; })()",
+            "A securely owned Flask did not release the next visible expeditions",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'old-depth',campaignMode:'progression',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:3000,provisions:100}}); const e=c.expeditions[0]; return e.routeId==='old_forest_road'&&e.routeObjectiveDistance===180&&e.desiredTargetDistance>=180&&e.actualMaximumDistance>=180; })()",
-            "The campaign simulator could not support the 180-league Old Forest floor",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'old-depth',campaignMode:'progression',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{arthurHealth:45,currentGold:3000,provisions:100}}); const e=c.expeditions[0]; return e.routeId==='old_forest_road'&&e.routeObjectiveDistance===180&&e.desiredTargetDistance>=180&&e.isSupplyRun&&e.actualMaximumDistance<180&&e.rationSelectedAtDeparture!=='sparse'; })()",
+            "The campaign simulator incorrectly forced an unsupported 180-league Old Forest run",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'old-repeat',campaignMode:'progression',expeditions:3,turnaroundDistance:180,startingState:{currentGold:3000,provisions:100}}); return c.routeSequence.every(id=>id==='old_forest_road')&&c.currentRoute==='old_forest_road'&&c.prerequisiteRunCount===0; })()",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'old-repeat',campaignMode:'progression',expeditions:3,turnaroundDistance:180,startingState:{currentGold:3000,provisions:100}}); return c.routeSequence.every(id=>id==='old_forest_road')&&c.currentRoute==='old_forest_road'&&c.prerequisiteRunCount===0&&c.stopReason==='progression-objective-blocked'; })()",
             "Locked visible routes did not keep the simulator focused on Old Forest",
         )
         if devtools.console_errors:

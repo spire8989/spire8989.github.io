@@ -19,10 +19,6 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     campAmbienceAssetId: null,
     kind: "normal",
     minimumObjectiveDistance: 180,
-    // The contest route is the one expedition expected to support a full
-    // 180-league return. Its road-side stores and forage support a larger
-    // expedition pack without changing the party's baseline capacity.
-    provisionCapacityBonus: 30,
     campEventTableIds: ["forest_wildlife", "road_travelers"],
     prerequisites: [],
     routeBranches: {
