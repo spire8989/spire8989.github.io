@@ -326,6 +326,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "rollLootTable",
                 tableId: "forest_encounter_forage",
                 rolls: 1
+              },
+              {
+                type: "randomChance",
+                chance: 0.18,
+                effects: [{ type: "gainUnsecuredItem", itemId: "honey", quantity: 1 }]
               }
             ],
             resultText: "The search turns up a small cache worth carrying home. Everything remains unsecured until a safe return.",
@@ -520,7 +525,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                     {
                       type: "gainUnsecuredItem",
                       itemId: "raw_meat",
-                      quantity: 3
+                      quantity: 2
                     }
                   ],
                   resultText: "The boar falls. Arthur recovers the meat before the company continues."
@@ -853,6 +858,33 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "modifyResource",
                 resource: "provisions",
                 amount: 5
+              },
+              {
+                type: "randomOne",
+                options: [
+                  {
+                    effects: [
+                      { type: "gainUnsecuredItem", itemId: "mushrooms", quantity: 1 },
+                      { type: "gainUnsecuredItem", itemId: "fresh_herbs", quantity: 1 }
+                    ]
+                  },
+                  {
+                    effects: [
+                      { type: "gainUnsecuredItem", itemId: "wild_berries", quantity: 2 },
+                      { type: "gainUnsecuredItem", itemId: "fresh_herbs", quantity: 1 }
+                    ]
+                  }
+                ]
+              },
+              {
+                type: "randomChance",
+                chance: 0.15,
+                effects: [{ type: "gainUnsecuredItem", itemId: "honey", quantity: 1 }]
+              },
+              {
+                type: "randomChance",
+                chance: 0.08,
+                effects: [{ type: "gainUnsecuredItem", itemId: "rare_herbs", quantity: 1 }]
               }
             ],
             resultText: "Arthur recognizes the useful plants and gathers a worthwhile supply.",
@@ -894,6 +926,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                     quantity: 1
                   }
                 ]
+              },
+              {
+                type: "randomChance",
+                chance: 0.35,
+                effects: [{
+                  type: "randomOne",
+                  options: [
+                    { effects: [{ type: "gainUnsecuredItem", itemId: "wild_berries", quantity: 1 }] },
+                    { effects: [{ type: "gainUnsecuredItem", itemId: "mushrooms", quantity: 1 }] },
+                    { effects: [{ type: "gainUnsecuredItem", itemId: "fresh_herbs", quantity: 1 }] }
+                  ]
+                }]
               }
             ],
             pendingAction: {
@@ -1432,6 +1476,16 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 ],
                 quantity: 1,
                 resultText: "Among the cold ashes and disturbed earth, Arthur finds {itemName}."
+              },
+              {
+                type: "rollLootTable",
+                tableId: "forest_ingredients",
+                rolls: 1
+              },
+              {
+                type: "randomChance",
+                chance: 0.16,
+                effects: [{ type: "gainUnsecuredItem", itemId: "honey", quantity: 1 }]
               }
             ],
             pendingAction: {
@@ -1739,6 +1793,21 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         text: "Reaching the object by hand means pushing through a mass of hooked branches.",
         choices: [
           {
+            id: "harvest_thorn_berries",
+            label: "Harvest the Edible Thorns with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            outcomes: [
+              { type: "gainUnsecuredItem", itemId: "wild_berries", quantity: 2 },
+              {
+                type: "randomChance",
+                chance: 0.25,
+                effects: [{ type: "gainUnsecuredItem", itemId: "fresh_herbs", quantity: 1 }]
+              }
+            ],
+            resultText: "Arthur recognizes a safe opening and gathers the thorn berries without disturbing the hidden metal.",
+            endEncounter: true
+          },
+          {
             id: "reach_through",
             label: "Reach Through",
             outcomes: [
@@ -1941,6 +2010,22 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       start: {
         text: "Only one smooth corner is visible between the thick roots.",
         choices: [
+          {
+            id: "read_the_roots",
+            label: "Read the Damp Roots with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            outcomes: [
+              { type: "gainUnsecuredItem", itemId: "mushrooms", quantity: 2 },
+              { type: "gainUnsecuredItem", itemId: "fresh_herbs", quantity: 1 },
+              {
+                type: "randomChance",
+                chance: 0.12,
+                effects: [{ type: "gainUnsecuredItem", itemId: "rare_herbs", quantity: 1 }]
+              }
+            ],
+            resultText: "Woodcraft reveals a damp edible patch beneath the roots, with a rarer medicinal sprig hidden among it.",
+            endEncounter: true
+          },
           {
             id: "dig_out",
             label: "Dig It Out",
@@ -2189,6 +2274,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                         weight: 3
                       },
                       {
+                        itemId: "honey",
+                        weight: 1
+                      },
+                      {
                         itemId: "bandages",
                         weight: 2
                       }
@@ -2219,6 +2308,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                       {
                         itemId: "dried_herbs",
                         weight: 4
+                      },
+                      {
+                        itemId: "mushrooms",
+                        weight: 3
+                      },
+                      {
+                        itemId: "fresh_herbs",
+                        weight: 3
+                      },
+                      {
+                        itemId: "honey",
+                        weight: 1
                       },
                       {
                         itemId: "bandages",
@@ -2280,7 +2381,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                     {
                       type: "gainUnsecuredItem",
                       itemId: "raw_meat",
-                      quantity: 3
+                      quantity: 2
                     }
                   ],
                   resultText: "Arthur holds firm until the last wolf is driven down. The company gathers the meat the Material Bag can carry."
@@ -5428,6 +5529,22 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       start: {
         text: "The water looks impossibly clean. The company can pause for a drink, though the forest offers no promises.",
         choices: [
+          {
+            id: "gather_spring_growth",
+            label: "Gather the Spring Growth with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            outcomes: [
+              { type: "gainUnsecuredItem", itemId: "fresh_herbs", quantity: 1 },
+              { type: "gainUnsecuredItem", itemId: "wild_berries", quantity: 1 },
+              {
+                type: "randomChance",
+                chance: 0.1,
+                effects: [{ type: "gainUnsecuredItem", itemId: "rare_herbs", quantity: 1 }]
+              }
+            ],
+            resultText: "Arthur gathers the clean herbs and berries growing beside the spring, leaving the water undisturbed.",
+            endEncounter: true
+          },
           {
             id: "drink_spring",
             label: "Drink from the Spring",

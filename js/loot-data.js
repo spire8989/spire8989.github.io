@@ -69,26 +69,26 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         type: "item",
         itemId: "raw_meat",
         quantity: 1,
-        weight: 24
+        weight: 18
       },
       {
         type: "item",
         itemId: "wild_berries",
-        weight: 28,
+        weight: 30,
         minimum: 1,
         maximum: 3
       },
       {
         type: "item",
         itemId: "mushrooms",
-        weight: 22,
+        weight: 30,
         minimum: 2,
         maximum: 3
       },
       {
         type: "item",
         itemId: "fresh_herbs",
-        weight: 18,
+        weight: 21,
         minimum: 1,
         maximum: 2
       },
@@ -96,7 +96,7 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         type: "item",
         itemId: "honey",
         quantity: 1,
-        weight: 20
+        weight: 8
       }
     ]
   },

@@ -28,6 +28,15 @@ const CAMPAIGN_PROGRESSION_ROUTES = Object.freeze([
 
 const CAMPAIGN_PROGRESSION_PREREQUISITES = Object.freeze({});
 
+const CAMPAIGN_FOOD_RECIPE_IDS = Object.freeze([
+  "roasted_meat",
+  "foraged_meal",
+  "hunters_stew",
+  "honeyed_berries",
+  "forestwarden_stew",
+  "honeyed_forest_preserves",
+]);
+
 const CampaignSimulationRunner = Object.freeze({
   run(configuration = {}) {
     const config = normalizeCampaignConfiguration(configuration);
@@ -754,7 +763,10 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalBanditLeaderEligibilityTriggered", "totalBanditGoldRecovered", "totalBanditLootValueRecovered",
       "injuriesPerRun", "injuriesByType", "injuriesTreated", "injuriesNaturallyRecovered",
       "naturalRecoveriesByType", "infectionOccurrences", "deepCutsStabilized", "exhaustionOccurrences",
-      "ingredientsConsumedById", "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
+      "ingredientsConsumedById", "recipesUsedById", "cookingProvisionsGainedByRecipe",
+      "cookingIngredientShortagesByRecipe", "cookingOpportunityMissedCount",
+      "foodRecipeLearnedById", "foodRecipeUsedById", "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
+      "materialsDiscardedDueToPriority",
       "materialsReturnedSafely", "unsecuredMaterialsLost",
       "totalAggressiveEmergencyActions", "totalCombatsStartedBelow50Percent", "totalCombatsStartedBelow25Percent",
       "totalArthurCombatDamageReceived", "totalCompanionCombatDamageReceived",
@@ -2239,7 +2251,10 @@ function applyBetweenExpeditionPolicy(
     travelSettings, provisionUncertaintyBuffer,
   );
   const innCooking = strategyName && player.provisions < Math.min(initialProvisionNeed, capacity)
-    ? cookAtInn(player, planningStrategy, preparationRandom, townActions)
+    ? cookAtInn(player, planningStrategy, preparationRandom, townActions, {
+      targetProvisions: Math.min(initialProvisionNeed, capacity),
+      targetDistance,
+    })
     : { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
   travelSettings = campaignDepartureSettings(planningStrategy, {
     provisions: player.provisions,
@@ -2417,6 +2432,10 @@ function applyBetweenExpeditionPolicy(
     ...routeQuestPack,
     bandages: Math.min(bandagePlan.target, bandagesAfterPurchase),
   });
+  player.packedMaterials = MaterialRules.prioritizedSelection(
+    player.materials,
+    CraftingRules.knownRecipesForProvider(player, "campfire"),
+  );
   townActions.push({
     type: "pack-loadout",
     packedItems: deepCampaignClone(player.packedItems),
@@ -2880,51 +2899,76 @@ function findCampaignEquipmentCandidate(
   )) ?? null;
 }
 
-function cookAtInn(player, strategyName, random = GameRandom.random, townActions = []) {
-  const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
-    .map((recipe) => ({
-      recipe,
-      quote: CraftingRules.quote(player, recipe.id, "campfire", { context: "inn" }),
-    }))
-    .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
-  if (!candidates.length) return { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
+function cookAtInn(
+  player, strategyName, random = GameRandom.random, townActions = [], options = {},
+) {
+  const actions = [];
+  const ingredientsConsumedById = {};
+  const targetProvisions = Number.isFinite(Number(options.targetProvisions))
+    ? Math.max(0, Number(options.targetProvisions)) : Number.POSITIVE_INFINITY;
   const roll = () => Math.min(1 - Number.EPSILON, Math.max(0, Number(random()) || 0));
-  const selected = candidates
-    .map((candidate) => {
-      const output = Number(candidate.recipe.output.provisions) || 0;
-      const ingredientCount = CraftingRules.normalizeRecipeIngredients(candidate.recipe)
-        .reduce((sum, ingredient) => sum + (Number(ingredient.quantity) || 0), 0);
-      const score = strategyName === "cautious"
-        ? output * 2 + output / Math.max(1, ingredientCount)
-        : strategyName === "aggressive"
-          ? output + output / Math.max(1, ingredientCount) * 2
-          : output + output / Math.max(1, ingredientCount);
-      return { ...candidate, score };
-    })
-    .sort((left, right) => right.score - left.score || left.recipe.id.localeCompare(right.recipe.id));
-  const candidate = strategyName === "random"
-    ? selected[Math.floor(roll() * selected.length)]
-    : selected[0];
-  const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { context: "inn" });
-  if (!result.applied) return { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
-  const ingredientsConsumedById = {
-    ...(result.materialsConsumed ?? {}),
-    ...(result.itemsConsumed ?? {}),
-  };
-  const action = {
+  let iterations = 0;
+  while (player.provisions < targetProvisions && iterations < 8) {
+    iterations += 1;
+    const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
+      .map((recipe) => ({
+        recipe,
+        quote: CraftingRules.quote(player, recipe.id, "campfire", { context: "inn" }),
+      }))
+      .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
+    if (!candidates.length) break;
+    const deficit = Math.max(1, targetProvisions - player.provisions);
+    const selected = candidates
+      .map((candidate) => ({
+        ...candidate,
+        score: campaignCookingScore(candidate.recipe, strategyName, deficit, options.targetDistance),
+      }))
+      .sort((left, right) => right.score - left.score || left.recipe.id.localeCompare(right.recipe.id));
+    const candidate = strategyName === "random"
+      ? selected[Math.floor(roll() * selected.length)] : selected[0];
+    const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { context: "inn" });
+    if (!result.applied) break;
+    const consumed = {
+      ...(result.materialsConsumed ?? {}),
+      ...(result.itemsConsumed ?? {}),
+    };
+    Object.entries(consumed).forEach(([itemId, quantity]) => {
+      ingredientsConsumedById[itemId] = (ingredientsConsumedById[itemId] ?? 0) + quantity;
+    });
+    const action = {
       recipeId: result.recipeId,
       providerId: "campfire",
       context: "inn",
       provisionsGained: result.provisions ?? 0,
-      ingredientsConsumed: deepCampaignClone(ingredientsConsumedById),
+      ingredientsConsumed: deepCampaignClone(consumed),
       goldCost: result.goldCost ?? 0,
     };
-  townActions.push({ type: "cook-recipe", ...deepCampaignClone(action) });
+    actions.push(action);
+    townActions.push({ type: "cook-recipe", ...deepCampaignClone(action) });
+  }
   return {
-    actions: [action],
-    provisionsGained: result.provisions ?? 0,
+    actions,
+    provisionsGained: actions.reduce((sum, action) => sum + (Number(action.provisionsGained) || 0), 0),
     ingredientsConsumedById,
   };
+}
+
+function campaignCookingScore(recipe, strategyName, deficit, targetDistance = 0) {
+  const output = Number(recipe.output?.provisions) || 0;
+  const ingredients = CraftingRules.normalizeRecipeIngredients(recipe);
+  const ingredientCount = ingredients.reduce((sum, ingredient) => sum + (Number(ingredient.quantity) || 0), 0);
+  const efficiency = output / Math.max(1, ingredientCount);
+  const excess = Math.max(0, output - deficit);
+  const deepPreparation = Number(targetDistance) >= 95;
+  const scarceIngredientCost = ingredients.reduce((sum, ingredient) => (
+    sum + (ingredient.id === "honey" ? (deepPreparation ? 0 : 6)
+      : ingredient.id === "rare_herbs" ? (deepPreparation ? 0 : 3) : 0)
+  ), 0);
+  return output * (strategyName === "cautious" ? 2 : strategyName === "aggressive" ? 1.5 : 1)
+    + efficiency * (strategyName === "aggressive" ? 2 : 1)
+    + Math.min(output, deficit) * 2
+    - excess * 1.5
+    - scarceIngredientCost;
 }
 
 function treatCampaignInjuries(player, strategyName, townActions = []) {
@@ -3395,7 +3439,7 @@ function quoteCampaignProvisionAvailability(
   const provisionStock = Math.min(
     capacity,
     Math.max(0, Number(player.provisions) || 0)
-      + quoteInnCookingProvisionGain(player, strategyName)
+      + quoteInnCookingProvisionGain(player, strategyName, targetDistance, capacity)
       + affordablePurchaseQuantity,
   );
   // Quote the departure mode using the stock that preparation can actually
@@ -3457,26 +3501,28 @@ function progressionReadinessMetricsImproved(before, after) {
     || after.minimumViableSupportedDistance > before.minimumViableSupportedDistance;
 }
 
-function quoteInnCookingProvisionGain(player, strategyName) {
-  const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
-    .map((recipe) => ({
-      recipe,
-      quote: CraftingRules.quote(player, recipe.id, "campfire", { context: "inn" }),
-    }))
-    .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
-  if (!candidates.length) return 0;
-  const scores = candidates.map((candidate) => {
-    const output = Number(candidate.recipe.output.provisions) || 0;
-    const ingredientCount = CraftingRules.normalizeRecipeIngredients(candidate.recipe)
-      .reduce((sum, ingredient) => sum + (Number(ingredient.quantity) || 0), 0);
-    const score = strategyName === "cautious"
-      ? output * 2 + output / Math.max(1, ingredientCount)
-      : strategyName === "aggressive"
-        ? output + output / Math.max(1, ingredientCount) * 2
-        : output + output / Math.max(1, ingredientCount);
-    return { output, score };
+function quoteInnCookingProvisionGain(player, strategyName, targetDistance = 0, capacity = Infinity) {
+  const preview = deepCampaignClone(player);
+  const targetProvisions = Math.max(Number(preview.provisions) || 0, Math.min(
+    Number.isFinite(Number(capacity)) ? Number(capacity) : Number.POSITIVE_INFINITY,
+    estimateCampaignProvisionRequirement(
+      targetDistance,
+      selectedCompanionIds(preview),
+      0,
+      SimulationProvisionPlanning.encounterReserve(strategyName),
+      SimulationTravelPolicy.departureSettings(strategyName, {
+        provisions: preview.provisions,
+        capacity,
+        injuries: preview.injuries,
+      }),
+      0,
+    ),
+  ));
+  const result = cookAtInn(preview, strategyName, () => 0.5, [], {
+    targetProvisions,
+    targetDistance,
   });
-  return scores.sort((left, right) => right.score - left.score || right.output - left.output)[0].output;
+  return result.provisionsGained;
 }
 
 function evaluateCampaignProgressionAttempt(
@@ -3636,6 +3682,29 @@ function finalizeCampaignTelemetry(
   const itemsConsumedById = campaignCombatTotals(expeditions, "itemsConsumedById");
   const itemsReturnedById = campaignCombatTotals(expeditions, "itemsReturnedById");
   const ingredientsConsumedById = campaignCombatTotals(expeditions, "ingredientsConsumedById");
+  const recipesUsedById = campaignCombatTotals(expeditions, "recipesUsedById");
+  const cookingProvisionsGainedByRecipe = campaignCombatTotals(
+    expeditions, "cookingProvisionsGainedByRecipe",
+  );
+  const cookingIngredientShortagesByRecipe = campaignCombatTotals(
+    expeditions, "cookingIngredientShortagesByRecipe",
+  );
+  const materialsDiscardedDueToPriority = campaignCombatTotals(
+    expeditions, "materialsDiscardedDueToPriority",
+  );
+  expeditions.forEach((entry) => (entry.innCookingActions ?? []).forEach((action) => {
+    if (!action.recipeId) return;
+    recipesUsedById[action.recipeId] = (recipesUsedById[action.recipeId] ?? 0) + 1;
+    cookingProvisionsGainedByRecipe[action.recipeId] = (
+      cookingProvisionsGainedByRecipe[action.recipeId] ?? 0
+    ) + (Number(action.provisionsGained) || 0);
+  }));
+  const foodRecipeLearnedById = Object.fromEntries(CAMPAIGN_FOOD_RECIPE_IDS.map((recipeId) => [
+    recipeId, Boolean(endingState.learnedRecipes?.includes(recipeId)),
+  ]));
+  const foodRecipeUsedById = Object.fromEntries(CAMPAIGN_FOOD_RECIPE_IDS.map((recipeId) => [
+    recipeId, (recipesUsedById[recipeId] ?? 0) > 0,
+  ]));
   const injuriesGained = expeditions.flatMap((entry) => entry.injuriesGained ?? []);
   const injuriesTreated = expeditions.flatMap((entry) => entry.injuriesTreated ?? []);
   const injuriesByType = injuriesGained.reduce((counts, entry) => {
@@ -3947,6 +4016,12 @@ function finalizeCampaignTelemetry(
     totalCookingProvisionsGained: totals((entry) => entry.cookingProvisionsGained),
     totalInnCookingActions: totals((entry) => (entry.innCookingActions ?? []).length),
     totalInnCookingProvisionsGained: totals((entry) => entry.innCookingProvisionsGained),
+    recipesUsedById,
+    cookingProvisionsGainedByRecipe,
+    cookingIngredientShortagesByRecipe,
+    cookingOpportunityMissedCount: totals((entry) => entry.cookingOpportunityMissedCount),
+    foodRecipeLearnedById,
+    foodRecipeUsedById,
     innIngredientsConsumedById: decisions.reduce((totalsById, decision) => {
       Object.entries(decision.innIngredientsConsumedById ?? {}).forEach(([itemId, quantity]) => {
         totalsById[itemId] = (totalsById[itemId] ?? 0) + quantity;
@@ -3977,6 +4052,7 @@ function finalizeCampaignTelemetry(
     distanceByRation: campaignDistanceTotals(expeditions, "distanceByRation"),
     materialsFoundDuringExpedition: campaignCombatTotals(expeditions, "materialsFoundDuringExpedition"),
     materialsRejectedDueToCapacity: campaignCombatTotals(expeditions, "materialsRejectedDueToCapacity"),
+    materialsDiscardedDueToPriority,
     materialsReturnedSafely: campaignCombatTotals(expeditions, "materialsReturnedSafely"),
     unsecuredMaterialsLost: campaignCombatTotals(expeditions, "unsecuredMaterialsLost"),
     totalLootValueRecovered: totals((entry) => entry.lootValueRecovered),
@@ -4114,6 +4190,22 @@ function finalizeCampaignTelemetry(
 function summarizeCampaigns(results) {
   const averageField = (field) => campaignAverage(results.map((entry) => entry[field]));
   const expeditions = results.flatMap((entry) => entry.expeditions);
+  const mergeCampaignMaps = (field) => results.reduce((merged, campaign) => {
+    Object.entries(campaign[field] ?? {}).forEach(([id, value]) => {
+      merged[id] = (merged[id] ?? 0) + (Number(value) || 0);
+    });
+    return merged;
+  }, {});
+  const recipeRate = (field) => Object.fromEntries(CAMPAIGN_FOOD_RECIPE_IDS.map((recipeId) => [
+    recipeId,
+    results.length
+      ? results.filter((campaign) => campaign[field]?.[recipeId] === true).length / results.length
+      : 0,
+  ]));
+  const recipesUsedById = mergeCampaignMaps("recipesUsedById");
+  const cookingProvisionsGainedByRecipe = mergeCampaignMaps("cookingProvisionsGainedByRecipe");
+  const cookingIngredientShortagesByRecipe = mergeCampaignMaps("cookingIngredientShortagesByRecipe");
+  const materialsDiscardedDueToPriority = mergeCampaignMaps("materialsDiscardedDueToPriority");
   const routeAttempts = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId, results.flatMap((campaign) => campaign.expeditions
       .filter((entry) => !entry.isSupplyRun && !entry.isPrerequisiteRun
@@ -4211,6 +4303,13 @@ function summarizeCampaigns(results) {
     averageCampEvents: averageField("totalCampEvents"),
     averageCookingActions: averageField("totalCookingActions"),
     averageCookingProvisionsGained: averageField("totalCookingProvisionsGained"),
+    averageCookingOpportunityMissedCount: averageField("cookingOpportunityMissedCount"),
+    recipesUsedById,
+    cookingProvisionsGainedByRecipe,
+    cookingIngredientShortagesByRecipe,
+    materialsDiscardedDueToPriority,
+    foodRecipeLearningRateById: recipeRate("foodRecipeLearnedById"),
+    foodRecipeUsageRateById: recipeRate("foodRecipeUsedById"),
     averageTotalLootRecovered: averageField("totalLootValueRecovered"),
     averageTotalDamage: averageField("totalDamageTaken"),
     averageCombats: averageField("totalCombats"),

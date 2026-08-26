@@ -215,7 +215,7 @@ def run():
             "Combat Bandages did not heal, consume, and record one carried item",
         )
         check(
-            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.materials={}; player.packedMaterials={}; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); EncounterManager.force(expedition,'wolves_in_brush'); const started=EncounterManager.resolveChoice(expedition,player,'stand_ground',{startCombat:()=>true}); const completed=EncounterManager.completeCombat(expedition,player,'victory'); const reward=expedition.activeEncounter.rewards.find(entry=>entry.materialId==='raw_meat'); return started.combatStarted&&completed.awaitingContinue&&reward?.quantity===3; })()",
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.materials={}; player.packedMaterials={}; const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:10,random:()=>0}); EncounterManager.force(expedition,'wolves_in_brush'); const started=EncounterManager.resolveChoice(expedition,player,'stand_ground',{startCombat:()=>true}); const completed=EncounterManager.completeCombat(expedition,player,'victory'); const reward=expedition.activeEncounter.rewards.find(entry=>entry.materialId==='raw_meat'); return started.combatStarted&&completed.awaitingContinue&&reward?.quantity===2; })()",
             "Three-wolf victory did not stage exactly three raw meat",
         )
         check(

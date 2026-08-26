@@ -4702,3 +4702,28 @@ The attached simulator/planning guide supplied the state-machine goals, strategy
 ### Verification and resulting prototype state
 
 The focused campaign-planning suite passes 8 assertions. The current-campaign progression suite passes 5, deterministic simulation passes 62, Old Forest progression passes 9, replay passes 15, Pass 2 Old Forest regressions pass 11, and the targeted Content Editor tests remain green from Pass 2. A diagnostic batch of 100 Aggressive, 100 Cautious, and 100 Random campaigns at an 18-expedition cap showed explicit village/Wrath goal selection and average desired distances of 89.74, 93.02, and 72.28 respectively; the run remains useful for later balance/reliability tuning, with Warden attempts still limited by the current encounter/failure rates rather than a planner stuck on the fixed 180 objective.
+
+## 2026-08-25 - Old Forest Cooking Economy and Simulator Follow-Up
+
+### Goal
+
+Make Old Forest Road more progression-friendly through a moderate ingredient-economy correction and a small simulator upgrade. Keep the 10-slot Material Bag, route capacity, and authored recipe outputs bounded while reducing the chance that a run finds ingredients but cannot turn them into useful provisions.
+
+### AI-assisted implementation
+
+- Increased common cooking access without making honey routine: the forest ingredient table now weights Wild Berries at 30, Mushrooms at 30, Fresh Herbs at 21, Raw Meat at 18, and Honey at 8. Woodcraft foraging now produces deliberate Mushrooms/Fresh Herbs or Berries/Fresh Herbs bundles, and additional Woodcraft branches add Berries, Mushrooms, Fresh Herbs, and small Rare Herb chances. Honey also has uncommon Abandoned Camp, Hidden Hollow, and Hermit's Fire sources.
+- Added limited Hidden Village provisions stock: Wild Berries 10g/3, Mushrooms 12g/2, Fresh Herbs 14g/2, and Honey 28g/1. The shop accepts ingredient-tagged food, but the stock is intentionally too small and expensive to replace expedition gathering.
+- Reduced the repeatable Wild Boar and Wolves in the Brush Raw Meat reward from 3 to 2, preserving light meat pressure without changing route capacity or the 20/30 base party provision capacity.
+- Reworked simulator cooking to score the full known recipe set, account for round-trip and campaign-goal deficits, favor Forestwarden Stew/Honeyed Forest Preserves for deep preparation when appropriate, and cook repeatedly at camp or the Inn up to the current preparation target. Normal return planning now keeps a small extra encounter reserve and does not trigger an emergency turnaround when an available camp cooking opportunity can solve the immediate food deficit.
+- Added simulator-only material priority selection and unsecured-material replacement under bag pressure. Useful recipe ingredients now displace redundant Raw Meat before the run changes permanent bag capacity or secured loot behavior. Campaign preparation uses the same recipe-aware selection for its packed materials.
+- Added cooking and supply telemetry for materials found, priority discards, recipes used, provisions gained by recipe, ingredient shortages by recipe, and missed cooking opportunities. Campaign telemetry additionally reports the percentage of campaigns learning and using each major food recipe in compact, CSV, and aggregate summaries.
+
+### Manual changes
+
+The attached balance guide supplied the ingredient availability, limited-stock, Raw Meat, simulator, and reporting direction. No new art was required, no recipe provision output was increased, and the Content Editor was left unchanged.
+
+### Verification and resulting prototype state
+
+The focused Old Forest balance suite passes 9 assertions, including Woodcraft ingredient bundles, limited village stock, recipe-aware packing, strong-recipe use, cooking-before-failure, Normal reserve tuning, simulation-only bag replacement, and the unchanged route capacity contract. Campaign planning passes 11, deterministic simulation passes 62, current-campaign progression passes 5, Old Forest progression passes 9, Pass 2 Old Forest regressions pass 11, combat passes 37, and replay passes 15. The broader campaign suite still stops at a pre-existing fixture that expects `wayfarers_cloak` and `rope` in the default packed loadout while the current authored default contains only `torch`; the location suite likewise has pre-existing Hall/artwork and content-count expectations that disagree with `HEAD`. Those stale fixtures were not changed as part of this balance pass.
+
+For the next 100 Aggressive / 100 Cautious / 100 Random campaign batch, watch `oldForestCompletionRate`, `oldForestReachedRate`, goal-specific trip counts, food-recipe learning and usage rates, `recipesUsedById`, cooking provisions by recipe, ingredient shortages, `cookingOpportunityMissedCount`, materials found by ingredient, priority discards, emergency turnarounds, provision exhaustion/death rates, and return failures by depth. The desired outcome is more reliable milestone preparation and stronger recipe usage without a capacity increase, a flood of Honey, or a new simulator-created hard-push failure.

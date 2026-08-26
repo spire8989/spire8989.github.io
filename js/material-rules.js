@@ -70,6 +70,45 @@ const MaterialRules = Object.freeze({
     }, {});
   },
 
+  prioritizedSelection(materials, recipes = [], capacity = this.capacity()) {
+    const demandById = {};
+    (recipes ?? []).forEach((recipe) => {
+      normalizeRecipeIngredientsForMaterialSelection(recipe).forEach((ingredient) => {
+        demandById[ingredient.id] = (demandById[ingredient.id] ?? 0) + ingredient.quantity;
+      });
+    });
+    const priorityById = {
+      rare_herbs: 100,
+      honey: 95,
+      medicinal_herbs: 85,
+      mushrooms: 80,
+      fresh_herbs: 75,
+      wild_berries: 70,
+      raw_meat: 50,
+    };
+    const ids = Object.keys(materials ?? {})
+      .filter((materialId) => this.isMaterialId(materialId))
+      .sort((left, right) => (
+        (priorityById[right] ?? (demandById[right] ? 60 : 10))
+          - (priorityById[left] ?? (demandById[left] ? 60 : 10))
+        || (demandById[right] ?? 0) - (demandById[left] ?? 0)
+        || left.localeCompare(right)
+      ));
+    return ids.reduce((selection, materialId) => {
+      const remaining = Math.max(0, capacity - this.collectionTotal(selection));
+      if (remaining <= 0) return selection;
+      const available = Math.max(0, Math.floor(Number(materials[materialId]) || 0));
+      const recipeDemand = Math.max(0, Math.floor(Number(demandById[materialId]) || 0));
+      const target = materialId === "raw_meat"
+        ? Math.min(available, Math.max(1, Math.min(2, recipeDemand)))
+        : recipeDemand > 0
+          ? Math.min(available, Math.max(recipeDemand, recipeDemand * 2))
+        : Math.min(available, 1);
+      if (target > 0) selection[materialId] = Math.min(target, remaining);
+      return selection;
+    }, {});
+  },
+
   createExpeditionBag(player, request) {
     const materials = this.migratePlayerMaterials(player);
     const requested = request !== undefined
@@ -138,9 +177,34 @@ const MaterialRules = Object.freeze({
   addUnsecured(expedition, materialId, quantity) {
     const bag = this.ensureExpeditionBag(expedition);
     const requested = Math.max(0, Math.floor(Number(quantity) || 0));
-    const available = Math.max(0, bag.capacity - this.expeditionTotal(expedition));
-    const accepted = Math.min(requested, available);
-    const rejected = requested - accepted;
+    let available = Math.max(0, bag.capacity - this.expeditionTotal(expedition));
+    let accepted = Math.min(requested, available);
+    let rejected = requested - accepted;
+    if (rejected > 0 && expedition.simulationMaterialPriorityEnabled) {
+      const discardable = Object.entries(bag.unsecured)
+        .filter(([existingId, existingQuantity]) => (
+          existingId !== materialId
+          && materialPriorityForSimulation(existingId) < materialPriorityForSimulation(materialId)
+          && existingQuantity > 0
+        ))
+        .sort(([leftId], [rightId]) => (
+          materialPriorityForSimulation(leftId) - materialPriorityForSimulation(rightId)
+          || leftId.localeCompare(rightId)
+        ));
+      discardable.forEach(([discardedId, discardedQuantity]) => {
+        if (rejected <= 0) return;
+        const discarded = Math.min(rejected, discardedQuantity);
+        bag.unsecured[discardedId] -= discarded;
+        if (bag.unsecured[discardedId] <= 0) delete bag.unsecured[discardedId];
+        rejected -= discarded;
+        expedition.materialBagDiscarded ??= {};
+        expedition.materialBagDiscarded[discardedId] = (
+          expedition.materialBagDiscarded[discardedId] ?? 0
+        ) + discarded;
+        available += discarded;
+      });
+      accepted = requested - rejected;
+    }
     if (accepted > 0) bag.unsecured[materialId] = (bag.unsecured[materialId] ?? 0) + accepted;
     expedition.materialsFound ??= {};
     if (accepted > 0) expedition.materialsFound[materialId] = (expedition.materialsFound[materialId] ?? 0) + accepted;
@@ -210,3 +274,29 @@ const MaterialRules = Object.freeze({
     expedition.materialsSettled = true;
   },
 });
+
+function materialPriorityForSimulation(materialId) {
+  return {
+    raw_meat: 50,
+    wild_berries: 70,
+    fresh_herbs: 75,
+    mushrooms: 80,
+    medicinal_herbs: 85,
+    honey: 95,
+    rare_herbs: 100,
+  }[materialId] ?? 10;
+}
+
+function normalizeRecipeIngredientsForMaterialSelection(recipe) {
+  if (Array.isArray(recipe?.ingredients)) {
+    return recipe.ingredients
+      .filter((entry) => entry && typeof entry === "object")
+      .filter((entry) => entry.type !== "item" || MaterialRules.isMaterialId(entry.id))
+      .map((entry) => ({ id: entry.id, quantity: Math.max(0, Math.floor(Number(entry.quantity) || 0)) }))
+      .filter((entry) => entry.id && entry.quantity > 0);
+  }
+  return Object.entries(recipe?.ingredients ?? {})
+    .filter(([id]) => MaterialRules.isMaterialId(id))
+    .map(([id, quantity]) => ({ id, quantity: Math.max(0, Math.floor(Number(quantity) || 0)) }))
+    .filter((entry) => entry.quantity > 0);
+}

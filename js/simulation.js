@@ -68,9 +68,14 @@ const SimulationTravelPolicy = Object.freeze({
       greedy: { brief: 0.45, camp: 0.25 },
     }[strategyName] ?? { brief: 0.55, camp: 0.35 };
     const healthRatio = expeditionHealthRatio(expedition);
+    const returnRequirement = ExpeditionRules.estimateReturnProvisionCost(expedition);
+    const cookingCanHelp = Boolean(expedition.simulationCookingAvailable)
+      && expedition.provisions <= returnRequirement
+        + SimulationProvisionPlanning.encounterReserve(strategyName) + 3;
     const injured = ["arthur", ...selectedCompanionIds(expedition)]
       .flatMap((characterId) => InjuryRules.forCharacter(expedition, characterId));
-    const enoughForCamp = expedition.provisions >= EXPEDITION_TUNING.campRest.provisionCost;
+    const enoughForCamp = expedition.provisions >= EXPEDITION_TUNING.campRest.provisionCost
+      || cookingCanHelp;
     const enoughForBriefRest = expedition.provisions >= EXPEDITION_TUNING.briefRest.provisionCost;
     const movedSinceRest = history.lastRestDistance === null
       || Math.abs(expedition.distance - history.lastRestDistance)
@@ -85,10 +90,13 @@ const SimulationTravelPolicy = Object.freeze({
       || injuryWarrantsCamp || restBenefit.recoverableConditions.length > 0;
     const campIsMeaningful = healthRatio < 1
       || injuryWarrantsCamp
-      || restBenefit.recoverableConditions.length > 0;
-    const campSafe = optionalRestIsSafe(expedition, strategyName, EXPEDITION_TUNING.campRest.provisionCost);
+      || restBenefit.recoverableConditions.length > 0
+      || cookingCanHelp;
+    const campSafe = cookingCanHelp
+      || optionalRestIsSafe(expedition, strategyName, EXPEDITION_TUNING.campRest.provisionCost);
     const briefSafe = optionalRestIsSafe(expedition, strategyName, EXPEDITION_TUNING.briefRest.provisionCost);
-    if ((healthRatio <= thresholds.camp || (injuryWarrantsCamp && strategyName !== "aggressive"))
+    if ((healthRatio <= thresholds.camp || cookingCanHelp
+      || (injuryWarrantsCamp && strategyName !== "aggressive"))
       && campIsMeaningful && enoughForCamp && campSafe && movedSinceCamp && expedition.distance > 0) {
       return "camp";
     }
@@ -104,19 +112,38 @@ const SimulationTravelPolicy = Object.freeze({
     const returnRequirement = ExpeditionRules.estimateReturnProvisionCost(expedition);
     const healthRatio = expeditionHealthRatio(expedition);
     const threshold = ({ cautious: 0.8, aggressive: 0.35 }[strategyName] ?? 0.55);
-    const needsFood = expedition.provisions <= returnRequirement + ({ cautious: 5, aggressive: 2 }[strategyName] ?? 3);
+    const needsFood = expedition.provisions <= returnRequirement
+      + SimulationProvisionPlanning.encounterReserve(strategyName)
+      + ({ cautious: 5, aggressive: 2 }[strategyName] ?? 3);
     if (!needsFood && healthRatio > threshold) return null;
     return candidates
       .map((candidate) => {
         const output = Number(candidate.recipe.output?.provisions) || 0;
-        const ingredients = CraftingRules.normalizeRecipeIngredients(candidate.recipe)
+        const ingredients = CraftingRules.normalizeRecipeIngredients(candidate.recipe);
+        const ingredientCount = ingredients
           .reduce((sum, ingredient) => sum + (Number(ingredient.quantity) || 0), 0);
-        const efficiency = output / Math.max(1, ingredients);
-        const score = strategyName === "cautious"
-          ? output * 2 + efficiency
-          : strategyName === "aggressive"
-            ? output * 1.5 + efficiency * 2
-            : output + efficiency;
+        const efficiency = output / Math.max(1, ingredientCount);
+        const currentDeficit = returnRequirement
+          + SimulationProvisionPlanning.encounterReserve(strategyName) - expedition.provisions;
+        const goalDistance = Number(expedition.campaignGoal?.targetDistance) || 0;
+        const goalDeficit = goalDistance > 0
+          ? SimulationProvisionPlanning.passiveRoundTripCost(
+            goalDistance, ExpeditionRules.provisionConsumptionMultiplier(expedition),
+          ) + SimulationProvisionPlanning.encounterReserve(strategyName) - expedition.provisions
+          : 0;
+        const deficit = Math.max(1, currentDeficit, goalDeficit);
+        const excess = Math.max(0, output - deficit);
+        const deepPreparation = Number(expedition.campaignGoal?.targetDistance) >= 95
+          || expedition.maxDistanceReached >= 90;
+        const scarceIngredientCost = ingredients.reduce((sum, ingredient) => (
+          sum + (ingredient.id === "honey" ? (deepPreparation ? 0 : 6)
+            : ingredient.id === "rare_herbs" ? (deepPreparation ? 0 : 3) : 0)
+        ), 0);
+        const score = output * (strategyName === "cautious" ? 2 : strategyName === "aggressive" ? 1.5 : 1)
+          + efficiency * (strategyName === "aggressive" ? 2 : 1)
+          + Math.min(output, deficit) * 2
+          - excess * 1.5
+          - scarceIngredientCost;
         return { ...candidate, score };
       })
       .sort((left, right) => right.score - left.score || left.recipe.id.localeCompare(right.recipe.id))[0];
@@ -124,8 +151,8 @@ const SimulationTravelPolicy = Object.freeze({
 });
 
 const SimulationProvisionPlanning = Object.freeze({
-  encounterReserves: Object.freeze({ cautious: 4, random: 3, normal: 3, aggressive: 2, greedy: 3 }),
-  strategyTolerances: Object.freeze({ cautious: 2, random: 0, normal: 0, aggressive: 1, greedy: 0 }),
+  encounterReserves: Object.freeze({ cautious: 4, random: 3, normal: 4, aggressive: 2, greedy: 3 }),
+  strategyTolerances: Object.freeze({ cautious: 2, random: 0, normal: 1, aggressive: 1, greedy: 0 }),
   uncertaintyBufferSettings: Object.freeze({
     aggressive: Object.freeze({ distanceStep: 25, minimum: 1, maximum: 4 }),
   }),
@@ -244,6 +271,8 @@ const SimulationRunner = Object.freeze({
       paceId: normalized.paceId,
       rationId: normalized.rationId,
     });
+    expedition.simulationMaterialPriorityEnabled = true;
+    expedition.campaignGoal = deepClone(normalized.campaignGoal);
     const strategy = resolveStrategy(normalized.strategy);
     const turnaroundPolicy = resolveTurnaroundPolicy(normalized.turnaroundPolicy);
     const telemetry = createTelemetry(
@@ -276,6 +305,7 @@ const SimulationRunner = Object.freeze({
         );
         continue;
       }
+      expedition.simulationCookingAvailable = simulationCookingOpportunity(expedition, player);
       applySimulationTravelSettings(expedition, strategy.name, telemetry, normalized);
       if (turnaroundPolicy.shouldTurn(expedition, telemetry)) {
         ExpeditionRules.beginReturn(expedition);
@@ -291,7 +321,7 @@ const SimulationRunner = Object.freeze({
       const provisionSafety = SimulationProvisionPlanning.emergencyTurnaround(
         expedition, strategy.name,
       );
-      if (provisionSafety.shouldTurn) {
+      if (provisionSafety.shouldTurn && !expedition.simulationCookingAvailable) {
         ExpeditionRules.beginReturn(expedition);
         telemetry.turnaroundDistance = rounded(expedition.distance);
         telemetry.emergencyProvisionTurnaround = true;
@@ -478,11 +508,16 @@ const SimulationTelemetry = Object.freeze({
       campEvents: run.campEvents,
       recipesCooked: run.recipesCooked,
       ingredientsConsumedById: run.ingredientsConsumedById,
+      recipesUsedById: run.recipesUsedById,
+      cookingProvisionsGainedByRecipe: run.cookingProvisionsGainedByRecipe,
+      cookingIngredientShortagesByRecipe: run.cookingIngredientShortagesByRecipe,
+      cookingOpportunityMissedCount: run.cookingOpportunityMissedCount,
       startingMaterialBag: run.startingMaterialBag,
       materialBagCapacity: run.materialBagCapacity,
       materialBagAtEnd: run.materialBagAtEnd,
       materialsFoundDuringExpedition: run.materialsFoundDuringExpedition,
       materialsRejectedDueToCapacity: run.materialsRejectedDueToCapacity,
+      materialsDiscardedDueToPriority: run.materialsDiscardedDueToPriority,
       materialsReturnedSafely: run.materialsReturnedSafely,
       unsecuredMaterialsLost: run.unsecuredMaterialsLost,
       briefRestCount: run.briefRestCount,
@@ -595,8 +630,10 @@ const SimulationTelemetry = Object.freeze({
       "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered",
       "banditLeaderEncounters", "banditLeaderVictories", "banditGoldRecovered", "banditLootValueRecovered",
       "campEvents", "recipesCooked", "ingredientsConsumedById",
+      "recipesUsedById", "cookingProvisionsGainedByRecipe", "cookingIngredientShortagesByRecipe",
+      "cookingOpportunityMissedCount",
       "startingMaterialBag", "materialBagCapacity", "materialBagAtEnd",
-      "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity",
+      "materialsFoundDuringExpedition", "materialsRejectedDueToCapacity", "materialsDiscardedDueToPriority",
       "materialsReturnedSafely", "unsecuredMaterialsLost",
       "estimatedLootValue", "encounterCount", "combatCount", "aggressiveEmergencyActions",
       "combatsStartedBelow50Percent", "combatsStartedBelow25Percent", "stepCount", "durationMs",
@@ -1119,6 +1156,14 @@ function optionalRestIsSafe(expedition, strategyName, cost) {
   return expedition.provisions - cost >= requiredReturn + reserve;
 }
 
+function simulationCookingOpportunity(expedition, player) {
+  return CraftingRules.knownRecipesForProvider(player, "campfire")
+    .some((recipe) => {
+      const quote = CraftingRules.quote(player, recipe.id, "campfire", { expedition, context: "camp" });
+      return quote.available && Number(recipe.output?.provisions) > 0;
+    });
+}
+
 function applySimulationTravelSettings(expedition, strategyName, telemetry, scenario = {}) {
   const settings = SimulationTravelPolicy.travelSettings(expedition, strategyName);
   if (scenario.lockTravelSettings) {
@@ -1241,17 +1286,34 @@ function processCampedExpedition(
 }
 
 function cookAtCamp(expedition, player, strategyName, telemetry) {
-  const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
+  const allCandidates = CraftingRules.knownRecipesForProvider(player, "campfire")
     .map((recipe) => ({
       recipe,
       quote: CraftingRules.quote(player, recipe.id, "campfire", { expedition, context: "camp" }),
     }))
-    .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
+    .filter((candidate) => Number(candidate.recipe.output?.provisions) > 0);
+  allCandidates.forEach((candidate) => {
+    if (!candidate.quote.available && candidate.quote.ingredientStatus?.some((entry) => !entry.sufficient)) {
+      telemetry.cookingIngredientShortagesByRecipe[candidate.recipe.id] = (
+        telemetry.cookingIngredientShortagesByRecipe[candidate.recipe.id] ?? 0
+      ) + 1;
+    }
+  });
+  const candidates = allCandidates.filter((candidate) => candidate.quote.available);
   const candidate = SimulationTravelPolicy.chooseCookingRecipe(candidates, expedition, strategyName);
-  if (!candidate) return null;
+  if (!candidate) {
+    const returnRequirement = ExpeditionRules.estimateReturnProvisionCost(expedition);
+    const needsFood = expedition.provisions <= returnRequirement
+      + SimulationProvisionPlanning.encounterReserve(strategyName) + 3;
+    if (needsFood && candidates.length > 0) telemetry.cookingOpportunityMissedCount += 1;
+    return null;
+  }
   const before = resourceSnapshot(expedition);
   const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { expedition, context: "camp" });
-  if (!result.applied) return null;
+  if (!result.applied) {
+    telemetry.cookingOpportunityMissedCount += 1;
+    return null;
+  }
   const after = resourceSnapshot(expedition);
   const ingredientsConsumed = mergeQuantityCollections(
     result.materialBagConsumed ?? result.materialsConsumed,
@@ -1707,6 +1769,8 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     dialogues: [],
     recipesCooked: [],
     ingredientsConsumedById: {},
+    cookingIngredientShortagesByRecipe: {},
+    cookingOpportunityMissedCount: 0,
     banditAmbushEncounters: 0,
     banditAmbushVictories: 0,
     banditLeaderEligibilityTriggered: 0,
@@ -1909,6 +1973,7 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     }),
     materialsFoundDuringExpedition: deepClone(expedition.materialsFound ?? {}),
     materialsRejectedDueToCapacity: deepClone(expedition.materialBagRejected ?? {}),
+    materialsDiscardedDueToPriority: deepClone(expedition.materialBagDiscarded ?? {}),
     materialsReturnedSafely: deepClone(expedition.materialsReturned ?? {}),
     unsecuredMaterialsLost: deepClone(expedition.materialsLost ?? {}),
     recipesLearned: returned
@@ -1971,6 +2036,17 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     cookingProvisionsGained: rounded(telemetry.recipesCooked.reduce(
       (sum, recipe) => sum + (Number(recipe.provisionsGained) || 0), 0,
     )),
+    recipesUsedById: telemetry.recipesCooked.reduce((counts, recipe) => {
+      counts[recipe.recipeId] = (counts[recipe.recipeId] ?? 0) + 1;
+      return counts;
+    }, {}),
+    cookingProvisionsGainedByRecipe: telemetry.recipesCooked.reduce((totals, recipe) => {
+      totals[recipe.recipeId] = (totals[recipe.recipeId] ?? 0)
+        + (Number(recipe.provisionsGained) || 0);
+      return totals;
+    }, {}),
+    cookingIngredientShortagesByRecipe: deepClone(telemetry.cookingIngredientShortagesByRecipe),
+    cookingOpportunityMissedCount: telemetry.cookingOpportunityMissedCount,
     banditGoldRecovered: rounded(telemetry.encounters
       .filter((encounter) => ["bandit_ambush", "bandit_leader"].includes(encounter.encounterId))
       .reduce((sum, encounter) => sum + Math.max(0, Number(encounter.resourceChanges?.goldCarried) || 0), 0)),

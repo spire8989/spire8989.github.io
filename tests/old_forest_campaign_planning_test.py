@@ -89,6 +89,10 @@ def run() -> None:
             "(() => { const c=CampaignSimulationRunner.run({seed:'planning-telemetry',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:180,startingState:{currentGold:1000,provisions:80}}); const compact=JSON.parse(CampaignSimulationTelemetry.toCompactJson({results:[c]})).campaigns[0].campaignSummary.progression; return compact.oldForestCurrentGoal&&Array.isArray(compact.oldForestProgressionGoalByExpedition)&&compact.oldForestProgressionGoalByExpedition.length===c.expeditions.length&&c.expeditions.every(e=>e.oldForestProgressionGoal&&Number.isFinite(e.oldForestTargetMilestoneDistance)); })()",
             "Compact campaign telemetry did not expose Old Forest planning goals",
         )
+        check(
+            "(() => { const c=CampaignSimulationRunner.run({seed:'planning-cooking-telemetry',campaignMode:'progression',expeditions:2,strategy:'cautious',betweenExpeditionPolicy:'conservative-sustainer',turnaroundDistance:95,startingState:{currentGold:1000,provisions:80,learnedRecipes:['hunters_stew'],materials:{raw_meat:2,mushrooms:2,fresh_herbs:2}}}); const summary=CampaignSimulationTelemetry.aggregate({results:[c]}); const ids=['roasted_meat','foraged_meal','hunters_stew','honeyed_berries','forestwarden_stew','honeyed_forest_preserves']; return ids.every(id=>Object.prototype.hasOwnProperty.call(c.foodRecipeLearnedById,id)&&Object.prototype.hasOwnProperty.call(c.foodRecipeUsedById,id)&&Object.prototype.hasOwnProperty.call(summary.foodRecipeLearningRateById,id)&&Object.prototype.hasOwnProperty.call(summary.foodRecipeUsageRateById,id))&&Number.isFinite(c.cookingOpportunityMissedCount)&&typeof summary.recipesUsedById==='object'&&typeof summary.cookingProvisionsGainedByRecipe==='object'; })()",
+            "Campaign cooking telemetry did not expose recipe learning, usage, yield, and missed-opportunity fields",
+        )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")
         print(f"PASS: {checks} Old Forest campaign planning assertions")
