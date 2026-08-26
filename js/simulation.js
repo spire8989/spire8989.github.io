@@ -702,8 +702,23 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
   if (encounterId === "hidden_forest_village") {
     return choiceById("enter_village") ?? choiceById("pass_village") ?? null;
   }
-  if (encounterId === "verdant_grove_placeholder") {
-    return choiceById("accept_placeholder_rite") ?? choiceById("leave_placeholder_rite") ?? null;
+  if (encounterId === "thornbound_crossing") {
+    return strategyName === "aggressive"
+      ? choiceById("force_through") ?? choiceById("use_rope") ?? choiceById("wait_for_opening") ?? null
+      : choiceById("read_the_thorns") ?? choiceById("use_rope") ?? choiceById("wait_for_opening") ?? null;
+  }
+  if (encounterId === "thorn_crowned_hart") {
+    return strategyName === "cautious"
+      ? choiceById("withdraw_from_stag") ?? choiceById("stand_against_stag") ?? null
+      : choiceById("stand_against_stag") ?? choiceById("withdraw_from_stag") ?? null;
+  }
+  if (encounterId === "white_hart") {
+    const priorities = context.stageId === "hart_breath"
+      ? ["call_softly", "lower_gaze", "step_forward"]
+      : context.stageId === "hart_close"
+        ? ["open_hand", "touch_hart"]
+        : ["show_medallion", "wait_beside", "follow_hart"];
+    return priorities.map(choiceById).find(Boolean) ?? null;
   }
   if (encounterId === "verdant_altar") {
     return choiceById("sing_at_altar") ?? choiceById("leave_altar") ?? null;

@@ -4652,3 +4652,29 @@ Keep Old Forest Road progression-focused without treating the 180-league objecti
 ### Verification and resulting prototype state
 
 The focused Old Forest browser suite passes 9 assertions, the current-campaign progression suite passes 5 assertions, the deterministic simulation suite passes 62 assertions, the combat suite passes 37 assertions, and the replay suite passes 15 assertions. The route map, bounded trail rejoin, village stop, Flask gating, Verdant Warden reward scaffold, and Content Editor route-branch support remain covered. The live Content Editor catalog validates with zero errors and the targeted editor definition tests pass 2/2. The broader location/editor fixture mismatches and existing campaign packing fixture remain outside this corrective follow-up.
+
+## 2026-08-25 - Old Forest Road Contest Pass 2
+
+### Goal
+
+Make Old Forest Road a progression-friendly contest route built around earned Woodcraft, two Verdant shards, the hidden-village Druid favor, and a visible altar finish, while preserving the bounded-supply correction from Pass 1.
+
+### AI-assisted implementation
+
+- Gated the early Overgrown fork near league 20 behind Old Forester's Map while keeping the normal map-independent turnoff near league 40.
+- Replaced the placeholder deep route event with the Thornbound Crossing and added Woodcraft branches to practical forest encounters. The Injured Hunter now teaches Woodcraft reliably, with the Mossbound Guide as an alternate route.
+- Removed the Bandit Leader's unrelated Threefold Seal recipe reward and kept the Glimmering Sword/Sweeping Strike progression focused. Glimmering Sword now has a meaningful bonus against Verdant and enchanted targets.
+- Reworked the White Hart into a peaceful multi-stage meeting around leagues 50-80. Calm or observant choices can secure the persistent Grace shard; pursuit or aggression makes it flee, with a later campaign opportunity and no shard farming.
+- Added the guaranteed Thorn-Crowned Hart around league 140 with dedicated combat, the persistent Wrath shard, a defeat flag, and no post-victory respawn.
+- Added the protected unique Verdant Heart recipe, the Druid's one-time favor chain, the Communion Draught, Song of the Forest, Heart awakening, and several Woodcraft-enabled food/provision recipes.
+- Made the altar remain visible with friendly retry hints until the expedition has Song of the Forest and an enchanted Heart. Its Warden encounter is stronger, telegraphed, status-aware, and regeneration-suppressible; Glimmering Sword helps without being mandatory.
+- Added protected mid-route armor and utility/relic rewards, optional 200+ league discoveries, and deep-avoidance pressure beyond leagues 80, 120, and 150 without making Woodcraft mandatory.
+- Added first-time-only knowledge/ability/recipe reward reveals, generic knowledge support in the game reward model, simulator pursuit of Old Forest progression services, and telemetry for shards, Heart, Warden attempts, depth, Glimmering Sword, and return failures.
+
+### Manual changes
+
+The contest guide and Pass 1 follow-up supplied the design direction and acceptance criteria. No new art was required. The Content Editor was left unchanged because the pass uses its existing generic encounter, dialogue, item, recipe, requirement, and reward validation paths.
+
+### Verification and resulting prototype state
+
+The Pass 2 Old Forest browser suite passes 11 assertions. The existing Old Forest progression suite passes 9, current-campaign progression passes 5, deterministic simulation passes 62, combat passes 37, and replay passes 15. Five targeted Content Editor definition/validation tests pass. Browser tests were run sequentially because the shared local browser harness is not safe for parallel startup. The broader editor fixture suite still contains previously documented fixture mismatches and was not treated as a Pass 2 gate.

@@ -162,8 +162,18 @@ const DialogueSystem = Object.freeze({
           } else {
             player.learnedRecipes.push(effect.recipeId);
             messages.push(`Learned the ${recipe.name} recipe.`);
+            rewards.push({ type: "recipe", recipeId: effect.recipeId, quantity: 1 });
           }
           applied.push(effect);
+          break;
+        }
+        case "learnAbility": {
+          const learned = AbilityRules.learn(player, effect.abilityId);
+          if (learned.applied) {
+            rewards.push({ type: "ability", abilityId: effect.abilityId, quantity: 1 });
+            messages.push(`Learned ${AbilityRules.definition(effect.abilityId)?.name ?? effect.abilityId}.`);
+            applied.push(effect);
+          }
           break;
         }
         case "learnKnowledge":
@@ -172,9 +182,33 @@ const DialogueSystem = Object.freeze({
             if (typeof KNOWLEDGE_DEFINITIONS !== "undefined" && KNOWLEDGE_DEFINITIONS[effect.knowledgeId]) {
               messages.push(`Knowledge learned: ${KNOWLEDGE_DEFINITIONS[effect.knowledgeId].name}`);
             }
+            rewards.push({ type: "knowledge", knowledgeId: effect.knowledgeId, quantity: 1 });
             applied.push(effect);
           }
           break;
+        case "consumeItem": {
+          const quantity = Math.max(1, Number(effect.quantity) || 1);
+          const owned = Number(player.ownedItems[effect.itemId]) || 0;
+          if (owned < quantity) break;
+          player.ownedItems[effect.itemId] = owned - quantity;
+          if (player.ownedItems[effect.itemId] <= 0) delete player.ownedItems[effect.itemId];
+          messages.push(`Used ${quantity} ${ITEM_DEFINITIONS[effect.itemId]?.name ?? effect.itemId}.`);
+          applied.push(effect);
+          break;
+        }
+        case "transformItem": {
+          const fromItem = ITEM_DEFINITIONS[effect.fromItemId];
+          const toItem = ITEM_DEFINITIONS[effect.toItemId];
+          const owned = Number(player.ownedItems[effect.fromItemId]) || 0;
+          if (!fromItem || !toItem || owned < 1 || (toItem.unique && player.ownedItems[effect.toItemId])) break;
+          player.ownedItems[effect.fromItemId] = owned - 1;
+          if (player.ownedItems[effect.fromItemId] <= 0) delete player.ownedItems[effect.fromItemId];
+          player.ownedItems[effect.toItemId] = (player.ownedItems[effect.toItemId] ?? 0) + 1;
+          messages.push(`${fromItem.name} becomes ${toItem.name}.`);
+          rewards.push({ type: "item", itemId: effect.toItemId, quantity: 1 });
+          applied.push(effect);
+          break;
+        }
         case "modifyResource":
           if (context.expedition && typeof EncounterOutcomes !== "undefined") {
             const resolved = EncounterOutcomes.resolveAll([effect], context);

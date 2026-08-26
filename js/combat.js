@@ -313,6 +313,7 @@ function createArthurCombatant(expedition) {
     defense: Math.max(0, Math.floor((Number(armor?.effects?.combatDefense) || 0)
       * InjuryRules.combatDefenseMultiplier(expedition, "arthur"))),
     damage: weapon?.effects?.combatDamage ?? { minimum: 4, maximum: 6 }, gauge: 0,
+    damageBonusesAgainstTags: weapon?.effects?.damageBonusesAgainstTags ?? [],
     defending: false, interceding: false,
     // abilityIds remains as a compatibility alias for older callers. The
     // resolver uses selected learned IDs plus temporary grants below.
@@ -367,6 +368,7 @@ function createEnemyCombatant(enemyId, index, occurrence) {
     name: occurrence ? `${enemy.name} ${occurrence}` : enemy.name,
     maxHp: enemy.maxHp, hp: enemy.maxHp, speed: enemy.speed, defense: enemy.defense, gauge: 0,
     intentId: null, patternIndex: 0, actionPattern: [...enemy.actionPattern], statuses: {}, traits,
+    tags: [...(enemy.tags ?? [])],
     passiveDefinitions: enemyTraitsToPassives(enemyId, traits, index), equippedPassives: [], learnedPassives: [],
   };
 }
@@ -404,7 +406,7 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
     expedition,
   };
   CombatEventSystem.dispatch(state, "beforeAction", baseContext);
-  const aggregate = { damage: 0, baseDamage: 0, healingAmount: 0, gaugeReduction: 0, damagePrevented: 0, injuryId: null };
+  const aggregate = { damage: 0, baseDamage: 0, healingAmount: 0, gaugeReduction: 0, damagePrevented: 0, targetTagBonus: 0, injuryId: null };
   const effectTargets = targets.length > 0 ? targets : [null];
   effectTargets.forEach((target) => {
     const targetContext = { ...baseContext, targetCombatant: target, target };
@@ -412,6 +414,7 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
     aggregate.damage += Number(result.damage) || 0; aggregate.baseDamage += Number(result.baseDamage) || 0;
     aggregate.healingAmount += Number(result.healingAmount) || 0; aggregate.gaugeReduction += Number(result.gaugeReduction) || 0;
     aggregate.damagePrevented += Number(result.damagePrevented) || 0;
+    aggregate.targetTagBonus += Number(result.targetTagBonus) || 0;
     aggregate.injuryId ??= targetContext.injuryId ?? null;
   });
   const authoredEffects = ability.effects ?? normalizeLegacyAbilityEffects(ability);
@@ -433,7 +436,8 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
     actor: actor.id, action: metadata.action ?? ability.id,
     abilityId: metadata.abilityId ?? (metadata.action === "ability" ? ability.id : null), itemId: metadata.itemId ?? null,
     target: targets[0]?.id ?? null, damage: aggregate.damage, baseDamage: aggregate.baseDamage,
-    bonusDamage: Number(baseContext.damageBonus) || 0, healingAmount: aggregate.healingAmount,
+    bonusDamage: (Number(baseContext.damageBonus) || 0) + aggregate.targetTagBonus,
+    targetTagBonus: aggregate.targetTagBonus, healingAmount: aggregate.healingAmount,
     gaugeReduction: aggregate.gaugeReduction, damagePrevented: aggregate.damagePrevented,
     faithSpent: Number(metadata.resourceSpent) || 0,
     selectedTarget: baseContext.resultMetadata.selectedTargetId ?? null,
@@ -481,7 +485,11 @@ function normalizeEnemyAction(action) {
   if (!action) return { id: "enemy_attack", name: "Attack", targetMode: "singleEnemy", effects: [] };
   return {
     ...action, kind: "active", targetMode: "singleEnemy", tags: ["enemy", "martial"],
-    effects: [{ type: "weaponDamage", range: action.damage }, ...(action.injuryId ? [{ type: "applyInjury", injuryId: action.injuryId, chance: action.injuryChance }] : [])],
+    effects: [
+      { type: "weaponDamage", range: action.damage },
+      ...(action.injuryId ? [{ type: "applyInjury", injuryId: action.injuryId, chance: action.injuryChance }] : []),
+      ...(action.statusId ? [{ type: "applyStatus", statusId: action.statusId, chance: action.statusChance }] : []),
+    ],
   };
 }
 

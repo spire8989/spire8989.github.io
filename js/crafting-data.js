@@ -114,6 +114,24 @@ const RECIPE_DEFINITIONS = Object.freeze({
     ]),
     output: Object.freeze({ provisions: 6 }), goldCost: 0, rarity: "common",
   }),
+  forestwarden_stew: Object.freeze({
+    id: "forestwarden_stew", name: "Forestwarden Stew", description: "A deep stew of meat, mushrooms, and rare herbs that keeps its warmth over a long march.",
+    craftingProvider: "campfire", ingredients: Object.freeze([
+      Object.freeze({ type: "item", id: "raw_meat", quantity: 1 }),
+      Object.freeze({ type: "item", id: "mushrooms", quantity: 1 }),
+      Object.freeze({ type: "material", id: "rare_herbs", quantity: 1 }),
+    ]),
+    output: Object.freeze({ provisions: 12 }), goldCost: 0, rarity: "rare",
+  }),
+  honeyed_forest_preserves: Object.freeze({
+    id: "honeyed_forest_preserves", name: "Honeyed Forest Preserves", description: "Berries, honey, and fresh herbs sealed into a dense travel ration with little waste.",
+    craftingProvider: "campfire", ingredients: Object.freeze([
+      Object.freeze({ type: "item", id: "wild_berries", quantity: 2 }),
+      Object.freeze({ type: "item", id: "honey", quantity: 1 }),
+      Object.freeze({ type: "item", id: "fresh_herbs", quantity: 1 }),
+    ]),
+    output: Object.freeze({ provisions: 10 }), goldCost: 0, rarity: "uncommon",
+  }),
   glimmering_sword: {
     id: "glimmering_sword",
     name: "Glimmering Sword",
@@ -130,6 +148,35 @@ const RECIPE_DEFINITIONS = Object.freeze({
     goldCost: 5,
     rarity: "rare"
   },
+  verdant_heart: Object.freeze({
+    id: "verdant_heart",
+    name: "Forge the Verdant Heart",
+    description: "Fit the Shard of Grace and Shard of Wrath into one dormant heart. The Blacksmith warns that the finished piece is not yet awake.",
+    craftingProvider: "blacksmith",
+    ingredients: [
+      { type: "item", id: "verdant_shard_grace", quantity: 1 },
+      { type: "item", id: "verdant_shard_wrath", quantity: 1 },
+    ],
+    output: { itemId: "verdant_heart", quantity: 1 },
+    goldCost: 6,
+    rarity: "epic",
+    alwaysKnown: true,
+  }),
+  forest_communion_draught: Object.freeze({
+    id: "forest_communion_draught",
+    name: "Green Communion Draught",
+    description: "Prepare the Druid's bitter ritual draught from herbs, honey, and a fresh forest cutting.",
+    craftingProvider: "apothecary",
+    ingredients: [
+      { type: "material", id: "rare_herbs", quantity: 1 },
+      { type: "material", id: "medicinal_herbs", quantity: 2 },
+      { type: "item", id: "honey", quantity: 1 },
+      { type: "item", id: "fresh_herbs", quantity: 1 },
+    ],
+    output: { itemId: "forest_communion_draught", quantity: 1 },
+    goldCost: 3,
+    rarity: "rare",
+  }),
   threefold_seal: {
     id: "threefold_seal",
     name: "Threefold Seal",

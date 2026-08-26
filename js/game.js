@@ -3768,6 +3768,12 @@ function applyDialogueResult(result, returnContext = null) {
     return;
   }
   if ((result.effects ?? []).length > 0) savePlayer();
+  if ((result.rewards ?? []).length > 0) {
+    queueRewardRevealPresentation(result.rewards, {
+      source: "dialogue",
+      eventId: `dialogue:${game.rewardPresentationContextId}:${returnContext?.destinationId ?? "npc"}:${(result.rewards ?? []).map((reward) => `${reward.type}:${reward.itemId ?? reward.recipeId ?? reward.abilityId ?? reward.knowledgeId ?? "reward"}`).join(",")}`,
+    });
+  }
   if (game.screen === "destination") renderDestination();
   else if (game.screen === "expedition") renderExpedition();
 }
@@ -6100,7 +6106,8 @@ function rewardDefinition(reward) {
   return reward.type === "item" ? ITEM_DEFINITIONS[reward.itemId]
     : reward.type === "material" ? MaterialRules.definition(reward.materialId)
       : reward.type === "recipe" ? RECIPE_DEFINITIONS[reward.recipeId]
-        : reward.type === "ability" ? AbilityRules.definition(reward.abilityId) : null;
+        : reward.type === "ability" ? AbilityRules.definition(reward.abilityId)
+          : reward.type === "knowledge" ? KNOWLEDGE_DEFINITIONS[reward.knowledgeId] : null;
 }
 
 function rewardIconKind(reward) {
@@ -6111,6 +6118,7 @@ function rewardIconKind(reward) {
   }
   if (reward.type === "recipe") return "recipe";
   if (reward.type === "ability") return "ability";
+  if (reward.type === "knowledge") return "knowledge";
   const definition = rewardDefinition(reward);
   return itemIconKind(definition?.category, definition);
 }
@@ -6137,6 +6145,7 @@ function rewardRevealLabel(reward, tier, definition) {
   if (tier !== "major") return "FOUND";
   if (reward.type === "recipe") return "RECIPE LEARNED";
   if (reward.type === "ability") return "ABILITY LEARNED";
+  if (reward.type === "knowledge") return "KNOWLEDGE LEARNED";
   if (definition?.questItem || definition?.category === "quest") return "QUEST ITEM SECURED";
   if (definition?.category === "relic") return "RELIC FOUND";
   return "DISCOVERY FOUND";
@@ -6146,6 +6155,7 @@ function rewardRevealAnnouncement(reward, name) {
   const quantity = Math.max(0, Math.floor(Number(reward.quantity) || 0));
   if (reward.type === "recipe") return `Learned the ${name} recipe.`;
   if (reward.type === "ability") return `Learned ${name}.`;
+  if (reward.type === "knowledge") return `Learned ${name}.`;
   return `Found ${quantity > 1 ? `${quantity} ` : ""}${name}.`;
 }
 
@@ -6161,6 +6171,7 @@ function rewardRevealModel(reward) {
     materialId: reward.materialId,
     recipeId: reward.recipeId,
     abilityId: reward.abilityId,
+    knowledgeId: reward.knowledgeId,
     visualAssetId: reward.visualAssetId ?? definition?.visualAssetId ?? null,
     name,
     quantity: Math.max(0, Math.floor(Number(reward.quantity) || 0)),
@@ -6218,6 +6229,7 @@ function rewardCategoryLabel(reward) {
     : reward.type === "material" ? "Crafting Material"
       : reward.type === "recipe" ? "Recipe"
         : reward.type === "ability" ? `${capitalize(definition?.kind ?? "")} Ability`
+          : reward.type === "knowledge" ? "Knowledge"
           : capitalize(definition?.category ?? "Item");
 }
 
@@ -6289,6 +6301,7 @@ function renderSummaryRewardCollection(rewards = [], options = {}) {
     ["Materials", routineAndNotable.filter((reward) => reward.type === "material")],
     ["Gold", routineAndNotable.filter((reward) => reward.type === "gold")],
     ["Combat Abilities", routineAndNotable.filter((reward) => reward.type === "ability")],
+    ["Knowledge", routineAndNotable.filter((reward) => reward.type === "knowledge")],
   ].filter(([, group]) => group.length > 0);
   return `<div class="summary-reward-collection">
     ${major.length > 0 ? `<div class="summary-major-rewards"><h3>Highlighted Discoveries</h3>${renderRewardCards(major, { variant: "summary" })}</div>` : ""}

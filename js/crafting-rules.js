@@ -16,6 +16,10 @@ const CraftingRules = Object.freeze({
     return (player.learnedRecipes ?? [])
       .map((recipeId) => definitions[recipeId])
       .filter((recipe) => recipe?.craftingProvider === providerId)
+      .concat(Object.values(definitions).filter((recipe) => (
+        recipe.craftingProvider === providerId
+        && recipe.alwaysKnown === true
+      )))
       .concat(providerId === "campfire"
         ? Object.values(definitions).filter((recipe) => (
           recipe.craftingProvider === providerId
@@ -36,6 +40,7 @@ const CraftingRules = Object.freeze({
     const item = recipe?.output?.itemId ? itemDefinitions[recipe.output.itemId] : null;
     const known = Boolean(recipe && (
       player.learnedRecipes?.includes(recipeId)
+      || recipe.alwaysKnown === true
       || (providerId === "campfire" && recipe.starter === true)
     ));
     const correctProvider = Boolean(recipe && recipe.craftingProvider === providerId);

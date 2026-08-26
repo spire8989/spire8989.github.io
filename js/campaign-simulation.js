@@ -298,6 +298,7 @@ const CampaignSimulationRunner = Object.freeze({
       });
 
       replaceCampaignPlayer(player, run.endingPlayerState);
+      applyOldForestProgressionServices(player, preparationActions, expeditionNumber);
       const sales = run.returnedSafely && config.autoSellRecoveredLoot
         ? CampaignRules.sellMerchantItems(player, run.lootRecovered)
         : { sales: [], goldEarned: 0 };
@@ -308,7 +309,7 @@ const CampaignSimulationRunner = Object.freeze({
         quantity: 1,
         goldEarned: sale.goldEarned,
       }));
-      townActions.push(...taggedPreparationActions, ...settlementActions);
+      townActions.push(...tagCampaignTownActions(preparationActions, expeditionNumber), ...settlementActions);
       const endingState = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       const damageTaken = run.damageTaken;
       const expeditionHardFailureReason = !run.returnedSafely && run.finalArthurHealth <= 0
@@ -727,9 +728,25 @@ const CampaignSimulationTelemetry = Object.freeze({
       "itemsPurchasedById", "itemPurchaseGoldSpentById", "bandagesPurchased", "bandagesPacked",
       "equipmentPurchases", "equipmentPurchaseGoldSpent", "equipmentCraftingActions", "equipmentChanges",
       "itemsConsumedById", "itemsPackedById", "itemsReturnedById", "bandagesUsed", "bandagesReturned", "bandageHealingPerformed",
-      "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalCraftingGoldSpent", "totalEquipmentCrafts", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend", "supplyRunCount"];
+      "totalGoldEarned", "totalGoldSpent", "totalItemPurchaseGoldSpent", "totalCraftingGoldSpent", "totalEquipmentCrafts", "totalHealingCost", "totalProvisionCost", "netCampaignWealth", "economicTrend", "supplyRunCount",
+      "oldForestTripsUntilVillageDiscovery", "oldForestTripsUntilWoodcraft", "oldForestTripsUntilFirstVerdantShard", "oldForestTripsUntilSecondVerdantShard", "oldForestTripsUntilVerdantHeart", "oldForestTripsUntilSong", "oldForestTripsUntilHeartEnchanted", "oldForestTripsUntilFirstWardenAttempt", "oldForestTripsUntilFlaskSecured", "oldForestWardenAttempts", "oldForestWardenVictories", "oldForestWardenLosses", "oldForestDeepestDistanceByExpedition", "oldForestGlimmeringSwordAcquisitionRate", "oldForestReturnFailureByDepth"];
     return campaignCsv(fields, results.map((campaign) => ({
       ...campaign,
+      oldForestTripsUntilVillageDiscovery: campaign.oldForestProgression?.tripsUntilVillageDiscovery,
+      oldForestTripsUntilWoodcraft: campaign.oldForestProgression?.tripsUntilWoodcraft,
+      oldForestTripsUntilFirstVerdantShard: campaign.oldForestProgression?.tripsUntilFirstVerdantShard,
+      oldForestTripsUntilSecondVerdantShard: campaign.oldForestProgression?.tripsUntilSecondVerdantShard,
+      oldForestTripsUntilVerdantHeart: campaign.oldForestProgression?.tripsUntilVerdantHeart,
+      oldForestTripsUntilSong: campaign.oldForestProgression?.tripsUntilSong,
+      oldForestTripsUntilHeartEnchanted: campaign.oldForestProgression?.tripsUntilHeartEnchanted,
+      oldForestTripsUntilFirstWardenAttempt: campaign.oldForestProgression?.tripsUntilFirstWardenAttempt,
+      oldForestTripsUntilFlaskSecured: campaign.oldForestProgression?.tripsUntilFlaskSecured,
+      oldForestWardenAttempts: campaign.oldForestProgression?.wardenAttempts,
+      oldForestWardenVictories: campaign.oldForestProgression?.wardenVictories,
+      oldForestWardenLosses: campaign.oldForestProgression?.wardenLosses,
+      oldForestDeepestDistanceByExpedition: campaign.oldForestProgression?.deepestDistanceByExpedition,
+      oldForestGlimmeringSwordAcquisitionRate: campaign.oldForestProgression?.glimmeringSwordAcquisitionRate,
+      oldForestReturnFailureByDepth: campaign.oldForestProgression?.returnFailureByDepth,
       strategyConstraintTypes: campaign.strategyConstraints.map((constraint) => constraint.type).join("|"),
       progressionRouteSequence: (campaign.routeSequence ?? []).join("|"),
     })));
@@ -3516,6 +3533,48 @@ function finalizeCampaignTelemetry(
   ))?.expeditionNumber ?? null;
   const firstBarentonExpedition = barentonEntries[0]?.expeditionNumber ?? null;
   const firstValExpedition = valEntries[0]?.expeditionNumber ?? null;
+  const oldForestEntries = expeditions.filter((entry) => (
+    !entry.isSupplyRun && !entry.isPrerequisiteRun
+      && (entry.routeId ?? entry.expeditionId) === "old_forest_road"
+  ));
+  const entryRecoveredItem = (entry, itemId) => Boolean(
+    entry.lootRecovered?.some((loot) => loot.itemId === itemId && Number(loot.quantity) > 0)
+      || entry.itemsReturnedById?.[itemId] > 0
+      || entry.stateAfter?.ownedItems?.[itemId] > 0,
+  );
+  const firstOldForestWithItem = (itemId) => oldForestEntries.find((entry) => (
+    entry.success && entryRecoveredItem(entry, itemId)
+  ))?.expeditionNumber ?? null;
+  const firstOldForestWithKnowledge = (knowledgeId) => oldForestEntries.find((entry) => (
+    entry.stateAfter?.learnedKnowledge?.includes(knowledgeId)
+      || entry.expeditionTelemetry?.endingPlayerState?.learnedKnowledge?.includes(knowledgeId)
+      || entry.townActions?.some((townAction) => townAction.learnedKnowledgeId === knowledgeId)
+  ))?.expeditionNumber ?? null;
+  const firstOldForestTownAction = (type) => oldForestEntries.find((entry) => (
+    entry.townActions?.some((townAction) => townAction.type === type)
+  ))?.expeditionNumber ?? null;
+  const wardenCombats = oldForestEntries.flatMap((entry) => (
+    entry.expeditionTelemetry?.combats?.filter((combat) => combat.combatId === "verdant_warden") ?? []
+  ));
+  const oldForestDepthByExpedition = oldForestEntries.map((entry) => ({
+    expeditionNumber: entry.expeditionNumber,
+    maximumDistance: Number(entry.actualMaximumDistance) || 0,
+    returnedSafely: Boolean(entry.success),
+  }));
+  const oldForestFailureByDepth = oldForestEntries.filter((entry) => !entry.success).reduce((summary, entry) => {
+    const depth = Number(entry.actualMaximumDistance) || 0;
+    const band = depth < 80 ? "0-79" : depth < 130 ? "80-129" : depth < 160 ? "130-159" : depth < 200 ? "160-199" : "200+";
+    summary[band] ??= { failures: 0, deaths: 0, reasons: {} };
+    summary[band].failures += 1;
+    if (entry.failureReason === "arthur-died" || entry.hardFailureReason === "arthur-died") summary[band].deaths += 1;
+    const reason = entry.failureReason ?? "unknown";
+    summary[band].reasons[reason] = (summary[band].reasons[reason] ?? 0) + 1;
+    return summary;
+  }, {});
+  const glimmeringSwordAcquired = oldForestEntries.some((entry) => entryRecoveredItem(entry, "glimmering_sword"));
+  const firstWardenAttempt = oldForestEntries.find((entry) => (
+    entry.expeditionTelemetry?.encounters?.some((encounter) => encounter.encounterId === "verdant_altar")
+  ))?.expeditionNumber ?? null;
   const morganOfferReached = encounterCountFor("val_morgans_offer");
   const guardianReached = encounterCountFor("summoned_guardian");
   const guardianVictories = combatVictoryCountFor("summoned_guardian");
@@ -3602,6 +3661,24 @@ function finalizeCampaignTelemetry(
     morganOfferReached,
     guardianReached,
     guardianVictories,
+    oldForestProgression: {
+      tripsUntilVillageDiscovery: firstExpeditionWithFlag("forest_village_discovered"),
+      tripsUntilWoodcraft: firstOldForestWithKnowledge("woodcraft"),
+      tripsUntilFirstVerdantShard: firstOldForestWithItem("verdant_shard_grace"),
+      tripsUntilSecondVerdantShard: firstOldForestWithItem("verdant_shard_wrath"),
+      tripsUntilVerdantHeart: firstOldForestTownAction("forge-verdant-heart"),
+      tripsUntilSong: firstOldForestWithKnowledge("song_of_the_forest"),
+      tripsUntilHeartEnchanted: firstOldForestTownAction("druid-favor-complete") ?? firstOldForestTownAction("druid-heart-awakened"),
+      tripsUntilFirstWardenAttempt: firstWardenAttempt,
+      tripsUntilFlaskSecured: firstExpeditionWithFlag("verdant_warden_defeated"),
+      wardenAttempts: wardenCombats.length,
+      wardenVictories: wardenCombats.filter((combat) => combat.result === "victory").length,
+      wardenLosses: wardenCombats.filter((combat) => combat.result !== "victory").length,
+      deepestDistanceByExpedition: oldForestDepthByExpedition,
+      glimmeringSwordAcquired,
+      glimmeringSwordAcquisitionRate: oldForestEntries.length ? (glimmeringSwordAcquired ? 1 : 0) : 0,
+      returnFailureByDepth: oldForestFailureByDepth,
+    },
     currentContentCompleted,
     finalProgressionStage,
     progressionTransitions: deepCampaignClone(progressionTransitions),
@@ -3956,6 +4033,36 @@ function summarizeCampaigns(results) {
     averageMorganOfferReached: averageField("morganOfferReached"),
     averageGuardianReached: averageField("guardianReached"),
     averageGuardianVictories: averageField("guardianVictories"),
+    oldForestProgression: {
+      averageTripsUntilVillageDiscovery: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilVillageDiscovery).filter(Number.isFinite)),
+      averageTripsUntilWoodcraft: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilWoodcraft).filter(Number.isFinite)),
+      averageTripsUntilFirstVerdantShard: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilFirstVerdantShard).filter(Number.isFinite)),
+      averageTripsUntilSecondVerdantShard: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilSecondVerdantShard).filter(Number.isFinite)),
+      averageTripsUntilVerdantHeart: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilVerdantHeart).filter(Number.isFinite)),
+      averageTripsUntilSong: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilSong).filter(Number.isFinite)),
+      averageTripsUntilHeartEnchanted: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilHeartEnchanted).filter(Number.isFinite)),
+      averageTripsUntilFirstWardenAttempt: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilFirstWardenAttempt).filter(Number.isFinite)),
+      averageTripsUntilFlaskSecured: campaignAverage(results.map((entry) => entry.oldForestProgression?.tripsUntilFlaskSecured).filter(Number.isFinite)),
+      wardenWinRate: results.reduce((wins, entry) => wins + (entry.oldForestProgression?.wardenVictories ?? 0), 0)
+        / Math.max(1, results.reduce((attempts, entry) => attempts + (entry.oldForestProgression?.wardenAttempts ?? 0), 0)),
+      glimmeringSwordAcquisitionRate: results.length
+        ? results.filter((entry) => entry.oldForestProgression?.glimmeringSwordAcquired).length / results.length : 0,
+      deepestDistanceByCampaign: results.map((entry) => ({
+        campaignId: entry.campaignId,
+        depthByExpedition: entry.oldForestProgression?.deepestDistanceByExpedition ?? [],
+      })),
+      returnFailureByDepth: results.reduce((summary, entry) => {
+        Object.entries(entry.oldForestProgression?.returnFailureByDepth ?? {}).forEach(([band, values]) => {
+          summary[band] ??= { failures: 0, deaths: 0, reasons: {} };
+          summary[band].failures += values.failures;
+          summary[band].deaths += values.deaths;
+          Object.entries(values.reasons ?? {}).forEach(([reason, count]) => {
+            summary[band].reasons[reason] = (summary[band].reasons[reason] ?? 0) + count;
+          });
+        });
+        return summary;
+      }, {}),
+    },
     averageEndingHealthSearchForMerlin: routeAverages("search_for_merlin", "endingHealth"),
     averageDamageSearchForMerlin: routeAverages("search_for_merlin", "damageTaken"),
     averageCombatsSearchForMerlin: routeAverages("search_for_merlin", "combats"),
@@ -3978,6 +4085,65 @@ function summarizeCampaigns(results) {
       routeId, routeAverages(routeId, "encounters"),
     ])),
   };
+}
+
+function applyOldForestProgressionServices(player, townActions = [], expeditionNumber = null) {
+  const flags = player.campaignFlags ??= {};
+  const action = (type, details = {}) => townActions.push({
+    type,
+    expeditionNumber,
+    ...details,
+  });
+  const learnRecipe = (recipeId) => {
+    if (!RECIPE_DEFINITIONS[recipeId] || player.learnedRecipes.includes(recipeId)) return false;
+    player.learnedRecipes.push(recipeId);
+    action("old-forest-recipe-learned", { recipeId });
+    return true;
+  };
+
+  if (flags.forest_village_discovered === true && flags.druid_favor_offered !== true) {
+    flags.druid_favor_offered = true;
+    learnRecipe("forest_communion_draught");
+    action("druid-favor-offered", { recipeId: "forest_communion_draught" });
+  }
+
+  if (flags.druid_favor_offered === true && flags.druid_favor_complete !== true) {
+    const draughtQuote = CraftingRules.quote(player, "forest_communion_draught", "apothecary", { context: "town" });
+    if (!player.ownedItems.forest_communion_draught && draughtQuote.available) {
+      const crafted = CraftingRules.craft(player, "forest_communion_draught", "apothecary", { context: "town" });
+      if (crafted.applied) action("craft-druid-draught", { recipeId: crafted.recipeId, goldCost: crafted.goldCost, result: deepCampaignClone(crafted) });
+    }
+    if (player.ownedItems.forest_communion_draught) {
+      delete player.ownedItems.forest_communion_draught;
+      flags.druid_favor_complete = true;
+      if (player.ownedItems.verdant_heart) {
+        delete player.ownedItems.verdant_heart;
+        player.ownedItems.enchanted_verdant_heart = (player.ownedItems.enchanted_verdant_heart ?? 0) + 1;
+        action("druid-favor-complete", { consumedItemId: "forest_communion_draught", transformed: "verdant_heart-to-enchanted_verdant_heart", learnedKnowledgeId: "song_of_the_forest" });
+      } else {
+        action("druid-favor-complete", { consumedItemId: "forest_communion_draught", learnedKnowledgeId: "song_of_the_forest" });
+      }
+      player.learnedKnowledge ??= [];
+      if (!player.learnedKnowledge.includes("song_of_the_forest")) player.learnedKnowledge.push("song_of_the_forest");
+    }
+  }
+
+  if (flags.druid_favor_complete === true && player.ownedItems.verdant_heart
+    && !player.ownedItems.enchanted_verdant_heart) {
+    delete player.ownedItems.verdant_heart;
+    player.ownedItems.enchanted_verdant_heart = 1;
+    action("druid-heart-awakened", { transformed: "verdant_heart-to-enchanted_verdant_heart" });
+  }
+
+  if (player.learnedKnowledge?.includes("woodcraft")) {
+    learnRecipe("forestwarden_stew");
+    learnRecipe("honeyed_forest_preserves");
+  }
+  if (player.ownedItems.verdant_shard_grace && player.ownedItems.verdant_shard_wrath
+    && !player.ownedItems.verdant_heart && !player.ownedItems.enchanted_verdant_heart) {
+    const forged = CraftingRules.craft(player, "verdant_heart", "blacksmith", { context: "town" });
+    if (forged.applied) action("forge-verdant-heart", { recipeId: forged.recipeId, goldCost: forged.goldCost, result: deepCampaignClone(forged) });
+  }
 }
 
 function estimateCampaignItems(items) {

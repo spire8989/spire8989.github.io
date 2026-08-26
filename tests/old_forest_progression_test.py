@@ -80,7 +80,8 @@ def run() -> None:
         )
         check(
             "!JSON.stringify(ENCOUNTER_DEFINITIONS.hidden_flask).includes('itemId\\\":\\\"flask')"
-            " && ENCOUNTER_DEFINITIONS.verdant_altar.requirements.some(requirement => requirement.type==='knowledge'&&requirement.knowledgeId==='song_of_the_forest')"
+            " && ENCOUNTER_DEFINITIONS.verdant_altar.requirements.every(requirement => requirement.type!=='knowledge'&&requirement.type!=='availableExpeditionItem')"
+            " && ENCOUNTER_DEFINITIONS.verdant_altar.stages.start.choices.find(choice=>choice.id==='sing_at_altar').requirements.some(requirement => requirement.type==='knowledge'&&requirement.knowledgeId==='song_of_the_forest')"
             " && ExpeditionCatalog.missingPrerequisites(SaveSystem.createDefaultPlayerState(),'fountain_of_barenton').includes('flask')",
             "Flask still had an ordinary Old Forest source or lost the visible route gate",
         )

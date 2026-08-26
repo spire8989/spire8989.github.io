@@ -11,6 +11,7 @@ const CombatEffectResolver = Object.freeze({
       healingAmount: 0,
       gaugeReduction: 0,
       damagePrevented: 0,
+      targetTagBonus: 0,
       effectsResolved: 0,
       resourceChanges: [],
     };
@@ -23,6 +24,7 @@ const CombatEffectResolver = Object.freeze({
       result.healingAmount += Number(effectResult.healingAmount) || 0;
       result.gaugeReduction += Number(effectResult.gaugeReduction) || 0;
       result.damagePrevented += Number(effectResult.damagePrevented) || 0;
+      result.targetTagBonus += Number(effectResult.targetTagBonus) || 0;
       if (effectResult.resourceChange) result.resourceChanges.push(effectResult.resourceChange);
     });
     return result;
@@ -136,13 +138,17 @@ const CombatEffectResolver = Object.freeze({
         CombatEventSystem.dispatch(state, "actorDefeated", damageEvent);
         CombatEventSystem.dispatch(state, target.side === "enemy" ? "enemyDefeated" : "allyDefeated", damageEvent);
       }
-      return { damage: amount, baseDamage: amount, finalDamage: amount };
+      return { damage: amount, baseDamage: amount, finalDamage: amount, targetTagBonus: 0 };
     }
     const range = effect.range ?? context.damageRange ?? source.damage;
     const multiplier = Number(effect.multiplier ?? 1);
     const rolled = rollCombatDamage(range, state.random);
     const scaled = multiplier === 1 ? rolled : Math.floor(rolled * multiplier);
-    const bonusDamage = Number(context.damageBonus) || 0;
+    const tagBonus = (source.damageBonusesAgainstTags ?? []).reduce((total, rule) => {
+      const matches = (rule.tags ?? []).some((tag) => target.tags?.includes(tag));
+      return matches ? total + (Number(rule.amount) || 0) : total;
+    }, 0);
+    const bonusDamage = (Number(context.damageBonus) || 0) + tagBonus;
     const rawDamage = Math.max(1, scaled + bonusDamage);
     const damageContext = {
       ...context,
@@ -169,6 +175,7 @@ const CombatEffectResolver = Object.freeze({
     damageContext.resultMetadata.damagePrevented = damagePrevented;
     damageContext.resultMetadata.rawDamage = rolled;
     damageContext.resultMetadata.modifiedDamage = modified;
+    damageContext.resultMetadata.targetTagBonus = tagBonus;
     applyCombatDamage(state, target, finalDamage);
     context.resultMetadata ??= {};
     context.resultMetadata.rawDamage = rolled;
@@ -215,6 +222,7 @@ const CombatEffectResolver = Object.freeze({
       damage: finalDamage,
       baseDamage: rolled,
       damagePrevented,
+      targetTagBonus: tagBonus,
     };
   },
 

@@ -13,6 +13,7 @@ const NPC_DEFINITIONS = Object.freeze({
     rumors: [
       "Travelers say the forest paths change after sunset.",
       "Hunters avoid the overgrown trails. They say strange lights move between the trees.",
+      "Old charcoal burners speak of an altar deep in BrocÃ©liande where something green wakes when called.",
     ],
     locationIds: ["broceliande_village"],
   },
@@ -65,7 +66,10 @@ const NPC_DEFINITIONS = Object.freeze({
     role: "Keeper of a hidden hearth",
     description: "A quiet host who charges for every blanket and every hour of warmth.",
     dialogue: ["The village keeps no road signs. Those who find us are welcome to pay for the night."],
-    rumors: ["The oldest paths are safer when the forest knows your name."],
+    rumors: [
+      "The oldest paths are safer when the forest knows your name.",
+      "There is an altar beyond the last patient road. The forest has a Song, and an old green heart waits for it.",
+    ],
     locationIds: ["hidden_forest_village"],
   },
   hidden_village_merchant: {
@@ -82,10 +86,11 @@ const NPC_DEFINITIONS = Object.freeze({
     id: "hidden_village_druid",
     portraitAssetId: null,
     name: "Village Druid",
-    role: "Apothecary and placeholder guide",
-    description: "A watchful druid tends a shelf of remedies and unfinished forest rites.",
-    dialogue: ["The forest has a song. We are not ready to teach it yet."],
+    role: "Druid of the hidden grove",
+    description: "A watchful druid tends a shelf of remedies and the unfinished rites that keep the village hidden.",
+    dialogue: [],
     rumors: [],
+    dialogueSequenceId: "hidden_village_druid_dialogue",
     locationIds: ["hidden_forest_village"],
   },
   leper_knight: {

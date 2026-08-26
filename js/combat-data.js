@@ -452,10 +452,11 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   verdant_warden: Object.freeze({
     id: "verdant_warden",
     name: "Verdant Warden",
-    maxHp: 128,
-    speed: 11,
-    defense: 4,
-    actionPattern: ["warden_strike", "warden_heavy_slam", "warden_strike", "warden_strike"],
+    maxHp: 156,
+    speed: 12,
+    defense: 5,
+    actionPattern: ["warden_strike", "warden_root_bind", "warden_heavy_slam", "warden_thorn_burst", "warden_strike"],
+    tags: ["verdant", "enchanted", "warden", "boss"],
     traits: [
       Object.freeze({
         type: "regeneration",
@@ -464,6 +465,15 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         suppressedByStatuses: ["bleeding", "poisoned"],
       }),
     ],
+  }),
+  thorn_crowned_hart: Object.freeze({
+    id: "thorn_crowned_hart",
+    name: "Thorn-Crowned Hart",
+    maxHp: 104,
+    speed: 14,
+    defense: 4,
+    actionPattern: ["thorn_hart_charge", "thorn_hart_briar_rend", "thorn_hart_roar", "thorn_hart_charge"],
+    tags: ["verdant", "enchanted", "stag", "boss"],
   }),
 });
 
@@ -684,6 +694,48 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryChance: 0.2,
     telegraphed: true,
   }),
+  warden_root_bind: Object.freeze({
+    id: "warden_root_bind",
+    name: "Root Bind",
+    damage: Object.freeze({ minimum: 8, maximum: 13 }),
+    target: "arthur",
+    statusId: "poisoned",
+    statusChance: 0.55,
+  }),
+  warden_thorn_burst: Object.freeze({
+    id: "warden_thorn_burst",
+    name: "Thorn Burst",
+    damage: Object.freeze({ minimum: 10, maximum: 16 }),
+    target: "arthur",
+    injuryId: "deep_cut",
+    injuryChance: 0.18,
+    telegraphed: true,
+  }),
+  thorn_hart_charge: Object.freeze({
+    id: "thorn_hart_charge",
+    name: "Thorn Charge",
+    damage: Object.freeze({ minimum: 12, maximum: 18 }),
+    target: "arthur",
+    injuryId: "bruised_ribs",
+    injuryChance: 0.22,
+    telegraphed: true,
+  }),
+  thorn_hart_briar_rend: Object.freeze({
+    id: "thorn_hart_briar_rend",
+    name: "Briar Rend",
+    damage: Object.freeze({ minimum: 8, maximum: 14 }),
+    target: "arthur",
+    injuryId: "deep_cut",
+    injuryChance: 0.24,
+  }),
+  thorn_hart_roar: Object.freeze({
+    id: "thorn_hart_roar",
+    name: "Verdant Roar",
+    damage: Object.freeze({ minimum: 6, maximum: 10 }),
+    target: "arthur",
+    statusId: "bleeding",
+    statusChance: 0.65,
+  }),
 });
 
 const COMBAT_DEFINITIONS = Object.freeze({
@@ -746,5 +798,9 @@ const COMBAT_DEFINITIONS = Object.freeze({
   verdant_warden: Object.freeze({
     id: "verdant_warden",
     enemyIds: ["verdant_warden"],
+  }),
+  thorn_crowned_hart: Object.freeze({
+    id: "thorn_crowned_hart",
+    enemyIds: ["thorn_crowned_hart"],
   }),
 });

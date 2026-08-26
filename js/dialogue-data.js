@@ -186,4 +186,121 @@ const DIALOGUE_DEFINITIONS = Object.freeze({
       }),
     }),
   }),
+  hidden_village_druid_dialogue: Object.freeze({
+    id: "hidden_village_druid_dialogue",
+    start: "greeting",
+    nodes: Object.freeze({
+      greeting: Object.freeze({
+        speakerId: "hidden_village_druid",
+        portraitKey: "placeholder",
+        text: "The Druid studies Arthur's hands before looking at the road dust on his boots. \"You have walked far enough to ask the forest a question. First, prove you can listen.\"",
+        choices: [
+          {
+            id: "ask_for_favor",
+            label: "Ask What the Druid Needs",
+            requirements: [{ type: "notCampaignFlag", flag: "druid_favor_offered" }, { type: "notCampaignFlag", flag: "druid_favor_complete" }],
+            next: "favor_offered",
+            effects: [
+              { type: "setCampaignFlag", flag: "druid_favor_offered", value: true },
+              { type: "learnRecipe", recipeId: "forest_communion_draught" },
+            ],
+          },
+          {
+            id: "offer_draught_with_heart",
+            label: "Present the Communion Draught",
+            requirements: [
+              { type: "ownsItem", itemId: "forest_communion_draught" },
+              { type: "ownsItem", itemId: "verdant_heart" },
+              { type: "notCampaignFlag", flag: "druid_favor_complete" },
+            ],
+            next: "favor_complete_heart",
+            effects: [
+              { type: "consumeItem", itemId: "forest_communion_draught", quantity: 1 },
+              { type: "transformItem", fromItemId: "verdant_heart", toItemId: "enchanted_verdant_heart" },
+              { type: "setCampaignFlag", flag: "druid_favor_complete", value: true },
+              { type: "learnKnowledge", knowledgeId: "song_of_the_forest" },
+            ],
+          },
+          {
+            id: "offer_draught_without_heart",
+            label: "Present the Draught Without the Heart",
+            requirements: [
+              { type: "ownsItem", itemId: "forest_communion_draught" },
+              { type: "notOwnsItem", itemId: "verdant_heart" },
+              { type: "notOwnsItem", itemId: "enchanted_verdant_heart" },
+              { type: "notCampaignFlag", flag: "druid_favor_complete" },
+            ],
+            next: "favor_complete_no_heart",
+            effects: [
+              { type: "consumeItem", itemId: "forest_communion_draught", quantity: 1 },
+              { type: "setCampaignFlag", flag: "druid_favor_complete", value: true },
+              { type: "learnKnowledge", knowledgeId: "song_of_the_forest" },
+            ],
+          },
+          {
+            id: "awaken_dormant_heart",
+            label: "Bring the Dormant Heart",
+            requirements: [
+              { type: "campaignFlag", flag: "druid_favor_complete" },
+              { type: "ownsItem", itemId: "verdant_heart" },
+            ],
+            next: "heart_awakened",
+            effects: [{ type: "transformItem", fromItemId: "verdant_heart", toItemId: "enchanted_verdant_heart" }],
+          },
+          {
+            id: "learn_woodcraft",
+            label: "Ask About the Forest Paths",
+            requirements: [{ type: "notKnowledge", knowledgeId: "woodcraft" }],
+            next: "woodcraft_lesson",
+            effects: [
+              { type: "learnKnowledge", knowledgeId: "woodcraft" },
+              { type: "learnRecipe", recipeId: "forestwarden_stew" },
+              { type: "learnRecipe", recipeId: "honeyed_forest_preserves" },
+            ],
+          },
+          {
+            id: "ask_about_altar",
+            label: "Ask About the Deep Altar",
+            next: "altar_hint",
+          },
+        ],
+      }),
+      favor_offered: Object.freeze({
+        speakerId: "hidden_village_druid",
+        portraitKey: "placeholder",
+        text: "\"Make this in Camelot, where the apothecary can keep the herbs clean. Bring it back on another road. The forest does not reward a hurried errand.\"",
+        end: true,
+      }),
+      favor_complete_heart: Object.freeze({
+        speakerId: "hidden_village_druid",
+        portraitKey: "placeholder",
+        text: "The draught disappears into the roots. When the Druid touches the two-fitted heart, it begins to hum. \"Now you may sing, but the altar will decide whether it hears you.\"",
+        end: true,
+      }),
+      favor_complete_no_heart: Object.freeze({
+        speakerId: "hidden_village_druid",
+        portraitKey: "placeholder",
+        text: "The Druid accepts the draught and teaches Arthur the Song. \"The heart is still missing. When you forge it, bring it here and I will wake it.\"",
+        end: true,
+      }),
+      heart_awakened: Object.freeze({
+        speakerId: "hidden_village_druid",
+        portraitKey: "placeholder",
+        text: "The Druid lays one palm against the dormant heart. Green light travels through its seam and settles into a steady pulse. The heart is awake.",
+        end: true,
+      }),
+      woodcraft_lesson: Object.freeze({
+        speakerId: "hidden_village_druid",
+        portraitKey: "placeholder",
+        text: "The Druid teaches Arthur to read a broken fern, a wet stone, and the silence before an animal moves. \"Woodcraft is not command. It is knowing what the forest has already said.\"",
+        end: true,
+      }),
+      altar_hint: Object.freeze({
+        speakerId: "hidden_village_druid",
+        portraitKey: "placeholder",
+        text: "\"Far beyond the patient road stands an altar. It wakes for the Song, but only an awakened heart can survive what answers. Do not mistake a hint for permission.\"",
+        end: true,
+      }),
+    }),
+  }),
 });

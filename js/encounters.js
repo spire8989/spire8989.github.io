@@ -331,10 +331,11 @@ const EncounterOutcomes = Object.freeze({
       case "learnKnowledge":
         if (!player.learnedKnowledge.includes(effect.knowledgeId)) {
           player.learnedKnowledge.push(effect.knowledgeId);
+          rewards = [{ type: "knowledge", knowledgeId: effect.knowledgeId, quantity: 1, unsecured: true }];
+          messages = KNOWLEDGE_DEFINITIONS[effect.knowledgeId]
+            ? [`Knowledge learned: ${KNOWLEDGE_DEFINITIONS[effect.knowledgeId].name}`]
+            : [];
         }
-        messages = KNOWLEDGE_DEFINITIONS[effect.knowledgeId]
-          ? [`Knowledge learned: ${KNOWLEDGE_DEFINITIONS[effect.knowledgeId].name}`]
-          : [];
         break;
       case "conditional": {
         const branch = EncounterRequirements.meetsAll(effect.requirements, context);

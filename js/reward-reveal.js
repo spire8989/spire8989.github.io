@@ -75,7 +75,7 @@ const RewardRevealSystem = (() => {
   }
 
   function modelKey(model) {
-    return [model.type, model.itemId, model.materialId, model.recipeId, model.abilityId].filter(Boolean).join(":")
+    return [model.type, model.itemId, model.materialId, model.recipeId, model.abilityId, model.knowledgeId].filter(Boolean).join(":")
       || String(model.name ?? "reward");
   }
 

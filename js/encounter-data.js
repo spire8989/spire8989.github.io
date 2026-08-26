@@ -47,44 +47,68 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       },
     },
   },
-  verdant_grove_placeholder: {
-    id: "verdant_grove_placeholder",
-    title: "The Unfinished Verdant Rite",
-    description: "A ring of green crystal waits in a grove where a future Druid quest will take shape.",
+  thornbound_crossing: {
+    id: "thornbound_crossing",
+    title: "The Thornbound Crossing",
+    description: "A wall of living briars has grown across the road, its thorns arranged like warning fingers.",
     regionId: "broceliande",
     pathIds: ["old_forest_road"],
     expeditionIds: ["old_forest_road"],
     directions: ["outbound"],
     weight: 1,
-    minimumDistance: 150,
+    minimumDistance: 148,
     maximumDistance: 158,
     milestone: true,
     milestoneOrder: 150,
     ignoreEncounterSpacing: true,
-    tags: ["campaign", "verdant", "scaffold"],
+    tags: ["verdant", "danger", "path"],
     repeatable: false,
-    requirements: [{ type: "notOwnsItem", itemId: "enchanted_verdant_heart" }],
+    requirements: [],
     stages: {
       start: {
-        text: "This is a structural placeholder for the future Druid quest. The rite is incomplete, but the grove offers a temporary bridge to the final altar.",
+        text: "The briars flex across the road. Beyond them, the trees grow unnaturally quiet; something deeper in the forest is waiting for a prepared traveler.",
         choices: [
           {
-            id: "accept_placeholder_rite",
-            label: "Accept the Placeholder Rite",
+            id: "read_the_thorns",
+            label: "Read the Thorns with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
             outcomes: [
-              { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_grace" },
-              { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_wrath" },
-              { type: "gainUniqueUnsecuredItem", itemId: "verdant_heart" },
-              { type: "gainUniqueUnsecuredItem", itemId: "enchanted_verdant_heart" },
-              { type: "learnKnowledge", knowledgeId: "song_of_the_forest" },
+              { type: "modifyResource", resource: "provisions", amount: -1 },
+              { type: "setRunFlag", flag: "thornbound_route_read", value: true },
             ],
-            resultText: "The grove supplies a temporary Verdant scaffold: the heart is enchanted and the Song is remembered.",
+            resultText: "Woodcraft reveals a seam in the briars. The company slips through with only a small loss of provisions and learns that the road beyond is not yet the altar.",
             endEncounter: true,
           },
           {
-            id: "leave_placeholder_rite",
-            label: "Leave the Grove for Later",
-            resultText: "Arthur leaves the unfinished rite untouched.",
+            id: "use_rope",
+            label: "Anchor a Rope and Pull Through",
+            requirements: [{ type: "availableExpeditionItem", itemId: "rope", unavailable: "locked", lockedLabel: "Requires Rope" }],
+            costs: [{ type: "consumeExpeditionItem", itemId: "rope", quantity: 1 }],
+            outcomes: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+            resultText: "The rope gives the company a line through the briars, but the effort costs time and provisions.",
+            endEncounter: true,
+          },
+          {
+            id: "force_through",
+            label: "Force a Way Through",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "briar_knight",
+              victory: {
+                resultText: "The briar guardian breaks apart. The safest route onward is earned, not given.",
+                outcomes: [{ type: "gainUnsecuredItem", itemId: "antler_fragment", quantity: 1 }],
+              },
+              defeat: { resultText: "The briars drive the company back." },
+              fled: { resultText: "The company retreats from the living thorns." },
+            }],
+            resultText: "The briars knot themselves into the shape of a knight.",
+            endEncounter: true,
+          },
+          {
+            id: "wait_for_opening",
+            label: "Wait for the Briars to Part",
+            outcomes: [{ type: "modifyResource", resource: "health", amount: -2 }, { type: "modifyResource", resource: "provisions", amount: -2 }],
+            resultText: "The company waits until the briars loosen, but the cold thorns find every gap in their protection.",
             endEncounter: true,
           },
         ],
@@ -107,11 +131,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     ignoreEncounterSpacing: true,
     tags: ["campaign", "verdant", "boss"],
     repeatable: false,
-    requirements: [
-      { type: "availableExpeditionItem", itemId: "enchanted_verdant_heart" },
-      { type: "knowledge", knowledgeId: "song_of_the_forest" },
-      { type: "notCampaignFlag", flag: "verdant_warden_defeated" },
-    ],
+    requirements: [{ type: "notCampaignFlag", flag: "verdant_warden_defeated" }],
     stages: {
       start: {
         text: "The roots open around an altar of green crystal. Something ancient stirs below it, listening for the Song.",
@@ -119,6 +139,20 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "sing_at_altar",
             label: "Sing the Song and Place the Heart",
+            requirements: [
+              {
+                type: "availableExpeditionItem",
+                itemId: "enchanted_verdant_heart",
+                unavailable: "locked",
+                lockedLabel: "Requires the Enchanted Verdant Heart",
+              },
+              {
+                type: "knowledge",
+                knowledgeId: "song_of_the_forest",
+                unavailable: "locked",
+                lockedLabel: "Requires the Song of the Forest",
+              },
+            ],
             outcomes: [
               {
                 type: "startCombat",
@@ -138,9 +172,86 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true,
           },
           {
+            id: "inspect_altar",
+            label: "Listen to the Roots",
+            outcomes: [{ type: "setRunFlag", flag: "altar_requirements_revealed", value: true }],
+            resultText: "The altar does not awaken. Its roots seem to wait for an awakened Verdant Heart and the remembered Song; Arthur can return when both are ready.",
+            endEncounter: true,
+          },
+          {
             id: "leave_altar",
             label: "Leave the Altar",
             resultText: "Arthur leaves the altar sleeping beneath the roots.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
+  green_chapel_beyond: {
+    id: "green_chapel_beyond",
+    title: "The Chapel Beyond the Green",
+    description: "Past the altar's reach, a roofless chapel stands inside a ring of roots that have never known an axe.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 0.35,
+    minimumDistance: 200,
+    maximumDistance: 222,
+    tags: ["rare", "optional", "verdant", "discovery"],
+    repeatable: false,
+    requirements: [{ type: "notOwnsItem", itemId: "thornward_charm" }],
+    stages: {
+      start: {
+        text: "The chapel's stone floor is carpeted in moss. At its center, a thorn-shaped charm rests beneath a beam of green light.",
+        choices: [
+          {
+            id: "take_thornward_charm",
+            label: "Take the Thornward Charm",
+            outcomes: [{ type: "gainUniqueUnsecuredItem", itemId: "thornward_charm" }],
+            resultText: "The charm is cold at first, then warms as if it recognizes a traveler who has survived the deep road.",
+            endEncounter: true,
+          },
+          {
+            id: "leave_chapel",
+            label: "Leave the Chapel Undisturbed",
+            resultText: "Arthur leaves the rare sanctuary intact and turns back toward the altar.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
+  rootbound_archive: {
+    id: "rootbound_archive",
+    title: "The Rootbound Archive",
+    description: "A sealed stone door appears where no map marks a building, its lintel carved with a warning about the Warden.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 0.2,
+    minimumDistance: 214,
+    maximumDistance: 232,
+    tags: ["rare", "optional", "lore"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The roots part just enough to reveal a stone archive. Its final inscription reads: ‘The Song opens the way; the Heart bears the cost.’",
+        choices: [
+          {
+            id: "copy_inscription",
+            label: "Copy the Inscription",
+            outcomes: [{ type: "setRunFlag", flag: "rootbound_inscription_copied", value: true }],
+            resultText: "Arthur records the warning. The Song and the awakened Heart are not separate keys but one promise.",
+            endEncounter: true,
+          },
+          {
+            id: "leave_archive",
+            label: "Leave the Archive",
+            resultText: "The roots close over the door as the company turns back.",
             endEncounter: true,
           },
         ],
@@ -279,7 +390,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     ignoreEncounterSpacing: true,
     tags: ["path", "choice"],
     repeatable: false,
-    requirements: [],
+    requirements: [{ type: "availableExpeditionItem", itemId: "old_foresters_map" }],
     stages: {
       start: {
         text: "The main road continues ahead. A narrow, overgrown trail disappears between the older trees.",
@@ -442,6 +553,14 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true
           },
           {
+            id: "guide_boar_aside",
+            label: "Guide It Aside with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            outcomes: [{ type: "setRunFlag", flag: "boar_route_read", value: true }],
+            resultText: "Arthur reads the boar's footing and gives it an easy escape route. It slips into the brush without a fight or wasted provisions.",
+            endEncounter: true,
+          },
+          {
             id: "avoid",
             label: "Avoid It",
             costs: [
@@ -494,6 +613,14 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             ],
             resultText: "By torchlight, Arthur and Kay continue safely along the road.",
             endEncounter: true
+          },
+          {
+            id: "read_weather",
+            label: "Read the Weather with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            outcomes: [{ type: "setRunFlag", flag: "storm_read", value: true }],
+            resultText: "Woodcraft finds a dry shelf beneath the roots before the worst rain arrives. The company waits out the dangerous gusts without losing ground or health.",
+            endEncounter: true,
           },
           {
             id: "press_on",
@@ -645,6 +772,14 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               delayProfile: "physical"
             },
             endEncounter: true
+          },
+          {
+            id: "read_current",
+            label: "Read the Current with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            outcomes: [{ type: "setRunFlag", flag: "stream_crossing_read", value: true }],
+            resultText: "Woodcraft finds a shallow crossing upstream. The company reaches the far bank without spending supplies or risking the current.",
+            endEncounter: true,
           },
           {
             id: "better_crossing",
@@ -935,87 +1070,151 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       }
     }
   },
+  thorn_crowned_hart: {
+    id: "thorn_crowned_hart",
+    title: "The Thorn-Crowned Hart",
+    description: "A massive stag blocks the Main Road, its antlers overgrown with black thorns and green fire.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 1,
+    minimumDistance: 132,
+    maximumDistance: 146,
+    milestone: true,
+    milestoneOrder: 140,
+    ignoreEncounterSpacing: true,
+    tags: ["campaign", "verdant", "stag", "boss"],
+    repeatable: false,
+    requirements: [{ type: "notCampaignFlag", flag: "hostile_stag_defeated" }],
+    stages: {
+      start: {
+        text: "The stag scrapes one hoof across the road. It is not an omen to be observed from a distance; it is a guardian demanding an answer.",
+        choices: [
+          {
+            id: "stand_against_stag",
+            label: "Stand Against the Thorn-Crowned Hart",
+            outcomes: [{
+              type: "startCombat",
+              combatId: "thorn_crowned_hart",
+              victory: {
+                resultText: "The Thorn-Crowned Hart falls. Beneath the thorns, a second Verdant shard pulses with hard-won strength.",
+                outcomes: [
+                  { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_wrath" },
+                  { type: "setCampaignFlagOnSafeReturn", flag: "hostile_stag_defeated", value: true },
+                ],
+              },
+              defeat: { resultText: "The thorn-crowned guardian drives the company from the Main Road." },
+              fled: { resultText: "The company escapes, but the Thorn-Crowned Hart remains on the road." },
+            }],
+            resultText: "The stag lowers its crown of thorns and charges.",
+            endEncounter: true,
+          },
+          {
+            id: "withdraw_from_stag",
+            label: "Give Ground and Continue Later",
+            resultText: "Arthur yields the road for now. The guardian remains, waiting for a stronger challenge.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
   white_hart: {
     id: "white_hart",
     title: "The White Hart",
-    description: "A white stag stands motionless between the trees ahead. It watches Arthur without fear.",
+    description: "A white stag stands motionless between the trees ahead. It watches Arthur with the patience of an old guardian.",
     regionId: "broceliande",
-    pathIds: ["overgrown_trail", "fountain_of_barenton"],
+    pathIds: ["overgrown_trail"],
     directions: ["outbound", "returning"],
     weight: 2,
-    minimumDistance: 24,
-    maximumDistance: 90,
+    minimumDistance: 50,
+    maximumDistance: 80,
     tags: ["mystery", "stag", "exploration"],
-    repeatable: false,
-    requirements: [],
+    repeatable: true,
+    maxOccurrencesPerRun: 1,
+    requirements: [{ type: "notCampaignFlag", flag: "white_hart_shard_secured" }],
     stages: {
       start: {
-        text: "The hart waits in silence while the forest seems to hold its breath.",
+        text: "The hart waits in silence while the forest seems to hold its breath. Its gaze is wary, but not hostile.",
         choices: [
           {
-            id: "approach_slowly",
-            label: "Approach Slowly",
-            outcomes: [
-              {
-                type: "setRunFlag",
-                flag: "whiteHartSeen",
-                value: true
-              }
-            ],
-            resultText: "The stag retreats deeper into the trees and disappears.",
-            endEncounter: true
-          },
-          {
-            id: "follow_hart",
-            label: "Follow It",
-            costs: [
-              {
-                type: "modifyResource",
-                resource: "provisions",
-                amount: -2
-              }
-            ],
-            nextStage: "hart_disappears"
+            id: "wait_beside",
+            label: "Wait Beside the Trail",
+            nextStage: "hart_breath",
+            resultText: "Arthur lowers his hand and waits. The hart's breathing becomes slow enough to hear.",
           },
           {
             id: "show_medallion",
             label: "Show the Silver Stag Medallion",
-            requirements: [
-              {
-                type: "equippedItem",
-                itemId: "silver_stag_medallion",
-                unavailable: "hidden"
-              }
-            ],
-            outcomes: [
-              {
-                type: "setRunFlag",
-                flag: "whiteHartMedallionReaction",
-                value: true
-              }
-            ],
-            resultText: "The stag's attention fixes upon the medallion. For several silent moments, neither animal nor man moves. The stag turns and disappears between two ancient oaks.",
-            endEncounter: true
+            requirements: [{ type: "equippedItem", itemId: "silver_stag_medallion", unavailable: "locked", lockedLabel: "Requires the Silver Stag Medallion" }],
+            nextStage: "hart_breath",
+            resultText: "The medallion catches the hart's eye. Arthur keeps it lowered and lets the animal decide the distance.",
+          },
+          {
+            id: "follow_hart",
+            label: "Follow Before It Trusts You",
+            nextStage: "hart_flees",
+            resultText: "Arthur follows too quickly. The hart springs away through the undergrowth.",
           },
           {
             id: "hunt_hart",
             label: "Hunt the Hart",
-            outcomes: [{ type: "randomChance", chance: 0.8, effects: [{ type: "modifyResource", resource: "health", amount: -1 }], resultText: "The shot goes wide. The hart is gone, and the forest feels less willing to show its path.", elseEffects: [], elseResultText: "The hart passes through the trees without leaving blood, meat, or any other proof that the hunt was wise." }],
-            resultText: "Arthur reaches for the bow before the omen can move.",
-            endEncounter: true
-          }
+            nextStage: "hart_flees",
+            resultText: "Arthur reaches for the bow before the omen can move. The hart vanishes.",
+            endEncounter: true,
+          },
         ]
       },
-      hart_disappears: {
-        resultStage: true,
-        text: "The hart leads Arthur away from the trail. For a moment it seems close enough to touch—then it is simply gone. Arthur finds a polished antler fragment where it disappeared.",
-        outcomes: [
+      hart_breath: {
+        text: "The hart's ears relax by a fraction. One careless movement will still send it fleeing.",
+        choices: [
           {
-            type: "gainUnsecuredItem",
-            itemId: "antler_fragment",
-            quantity: 1
-          }
-        ]
+            id: "lower_gaze",
+            label: "Lower Your Gaze",
+            nextStage: "hart_close",
+            resultText: "Arthur looks to the ground. The hart takes one careful step closer.",
+          },
+          {
+            id: "call_softly",
+            label: "Call Softly with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            nextStage: "hart_close",
+            resultText: "Arthur matches the forest's quiet rhythm. The hart answers with a soft breath and comes closer.",
+          },
+          {
+            id: "step_forward",
+            label: "Step Toward It",
+            nextStage: "hart_flees",
+            resultText: "Arthur steps forward. The hart wheels away before trust can form.",
+          },
+        ],
+      },
+      hart_close: {
+        text: "The hart stands within reach. A pale green shard rests in the moss beneath its chest.",
+        choices: [
+          {
+            id: "open_hand",
+            label: "Open Your Hand to the Shard",
+            outcomes: [
+              { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_grace" },
+              { type: "setCampaignFlagOnSafeReturn", flag: "white_hart_shard_secured", value: true },
+            ],
+            resultText: "The hart allows Arthur to take the shard. Its light settles into his palm, and the guardian disappears without fear.",
+            endEncounter: true,
+          },
+          {
+            id: "touch_hart",
+            label: "Reach for the Hart",
+            nextStage: "hart_flees",
+            resultText: "Arthur reaches toward the animal. The hart bounds away, leaving the shard behind in the moss.",
+          },
+        ],
+      },
+      hart_flees: {
+        resultStage: true,
+        text: "The White Hart is gone. The forest has not closed the path forever, but this meeting is over.",
+        outcomes: []
       }
     }
   },
@@ -1429,6 +1628,43 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       }
     }
   },
+  mossbound_guide: {
+    id: "mossbound_guide",
+    title: "The Mossbound Guide",
+    description: "An old forester's marker has been dressed in moss and twine, as if someone still maintains it in secret.",
+    regionId: "broceliande",
+    pathIds: ["overgrown_trail"],
+    directions: ["outbound"],
+    weight: 2,
+    minimumDistance: 32,
+    maximumDistance: 78,
+    tags: ["knowledge", "foraging", "path"],
+    repeatable: false,
+    requirements: [{ type: "notKnowledge", knowledgeId: "woodcraft" }],
+    stages: {
+      start: {
+        text: "The marker's knots describe safe bark, edible shoots, and the sound a stream makes before it floods. Whoever made it expected a careful traveler.",
+        choices: [
+          {
+            id: "study_marker",
+            label: "Study the Forester's Marker",
+            outcomes: [
+              { type: "learnKnowledge", knowledgeId: "woodcraft" },
+              { type: "learnRecipe", recipeId: "forestwarden_stew" },
+            ],
+            resultText: "Arthur copies the marker's practical signs. The forest becomes legible enough to feed and shelter the company.",
+            endEncounter: true,
+          },
+          {
+            id: "leave_marker",
+            label: "Leave It for Another Traveler",
+            resultText: "Arthur leaves the marker untouched, but the road ahead offers no second lesson this run.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
   injured_hunter: {
     id: "injured_hunter",
     title: "Injured Hunter",
@@ -1469,7 +1705,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "modifyResource",
                 resource: "provisions",
                 amount: 3
-              }
+              },
+              { type: "learnKnowledge", knowledgeId: "woodcraft" }
             ],
             resultText: "The hunter thanks Arthur and shares some of his remaining provisions.",
             endEncounter: true
@@ -2252,10 +2489,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                       type: "learnAbility",
                       abilityId: "sweeping_cut"
                     },
-                    {
-                      type: "learnRecipe",
-                      recipeId: "threefold_seal"
-                    }
                   ],
                   resultText: "The bandit captain yields the road. His better-hidden purse confirms the rank he carried."
                 },
