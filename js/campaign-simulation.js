@@ -26,13 +26,7 @@ const CAMPAIGN_PROGRESSION_ROUTES = Object.freeze([
   "search_for_merlin",
 ]);
 
-const CAMPAIGN_PROGRESSION_PREREQUISITES = Object.freeze({
-  fountain_of_barenton: Object.freeze({
-    searchRouteId: "old_forest_road",
-    itemId: "flask",
-    reason: "missing_flask",
-  }),
-});
+const CAMPAIGN_PROGRESSION_PREREQUISITES = Object.freeze({});
 
 const CampaignSimulationRunner = Object.freeze({
   run(configuration = {}) {
@@ -83,7 +77,7 @@ const CampaignSimulationRunner = Object.freeze({
       const progressionReadinessPlan = progression && !isPrerequisiteRun
         ? assessProgressionReadiness(
           progressionRouteId, desiredTargetDistance, routeObjectiveDistance,
-          player, shopStocks, policy, config.strategy, progression,
+          player, shopStocks, policy, config.strategy, progression, progressionRouteId,
         ) : null;
       let supplyRunForRoute = progressionReadinessPlan
         && progressionReadinessPlan.status === "deferred"
@@ -162,6 +156,7 @@ const CampaignSimulationRunner = Object.freeze({
         {
           progressionRequiredDistance: progression && !isSupplyRun && !isPrerequisiteRun
             ? progressionReadinessPlan?.requiredDistance ?? desiredTargetDistance : 0,
+          expeditionId: routeId,
         },
       );
       decision.expeditionNumber = expeditionNumber;
@@ -187,6 +182,15 @@ const CampaignSimulationRunner = Object.freeze({
       decision.supplyRunBenefitReason = progressionReadinessPlan?.supplyRunBenefitReason ?? null;
       decision.objectiveDistanceFloorApplied = false;
       decision.townProvisionGrant = townEntry.provisionsGranted;
+      const deepOldForestObjective = progression
+        && !isSupplyRun
+        && !isPrerequisiteRun
+        && progressionRouteId === "old_forest_road"
+        && desiredTargetDistance >= 180;
+      if (deepOldForestObjective) {
+        decision.rationId = "sparse";
+        decision.deepObjectiveTravel = true;
+      }
       betweenExpeditionDecisions.push(decision);
 
       if (decision.stopReason) {
@@ -257,7 +261,7 @@ const CampaignSimulationRunner = Object.freeze({
       );
 
       const actualTargetDistance = decision.actualTargetDistance;
-      const capacity = ExpeditionRules.partyProvisionCapacity(selectedCompanionIds(player));
+      const capacity = ExpeditionRules.partyProvisionCapacity(selectedCompanionIds(player), routeId);
       const provisionsPacked = Math.min(player.provisions, decision.provisionsToPack, capacity);
       if (provisionsPacked < EXPEDITION_TUNING.minimumStartingProvisions) {
         townActions.push(...tagCampaignTownActions(preparationActions, expeditionNumber));
@@ -296,7 +300,7 @@ const CampaignSimulationRunner = Object.freeze({
         turnaroundPolicy: { type: "fixedDistance", distance: actualTargetDistance },
         paceId: decision.paceId,
         rationId: decision.rationId,
-        lockTravelSettings: false,
+        lockTravelSettings: Boolean(decision.deepObjectiveTravel),
         materialBagContents: decision.materialBagContents,
         startingStateIsAuthoritative: true,
         startingState: deepCampaignClone(player),
@@ -561,19 +565,29 @@ const CampaignSimulationRunner = Object.freeze({
       } else if (progression) {
         progression.attemptsByRoute[progressionRouteId] += 1;
         if (progressionAttempt.completed) {
-          progression.routesCompleted.push(progressionRouteId);
-          progression.routeCompletionAttempt[progressionRouteId] = expeditionNumber;
+          if (!progression.routesCompleted.includes(progressionRouteId)) {
+            progression.routesCompleted.push(progressionRouteId);
+          }
+          progression.routeCompletionAttempt[progressionRouteId] ??= expeditionNumber;
           progression.routeCompletionStatus[progressionRouteId] = "completed";
           const nextRoute = CAMPAIGN_PROGRESSION_ROUTES[progression.routeIndex + 1] ?? null;
+          const nextRouteUnlocked = Boolean(nextRoute && ExpeditionCatalog.isUnlocked(player, nextRoute));
+          const nextProgressionRoute = nextRoute && nextRouteUnlocked ? nextRoute : progressionRouteId;
           progressionTransitions.push({
             expeditionNumber,
             fromRouteId: progressionRouteId,
-            toRouteId: nextRoute,
+            toRouteId: nextProgressionRoute,
+            gatedRouteId: nextRoute && !nextRouteUnlocked ? nextRoute : null,
             reason: progressionAttempt.reason,
           });
-          progression.routeIndex += 1;
-          progression.currentRouteId = nextRoute;
-          progression.currentContentCompleted = !nextRoute;
+          if (nextRouteUnlocked) {
+            progression.routeIndex += 1;
+            progression.currentRouteId = nextRoute;
+            progression.currentContentCompleted = !nextRoute;
+          } else {
+            progression.currentRouteId = progressionRouteId;
+            progression.currentContentCompleted = false;
+          }
         } else {
           progression.routeCompletionStatus[progressionRouteId] = progressionAttempt.status;
         }
@@ -2136,7 +2150,7 @@ function applyBetweenExpeditionPolicy(
 
   const goldAfterHealing = player.currentGold;
   const activeCompanions = selectedCompanionIds(player);
-  const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions);
+  const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions, planningOptions.expeditionId);
   let travelSettings = SimulationTravelPolicy.departureSettings(planningStrategy, {
     provisions: player.provisions,
     capacity,
@@ -2192,6 +2206,11 @@ function applyBetweenExpeditionPolicy(
     capacity,
     injuries: player.injuries,
   });
+  if (isProgressionAttempt && targetDistance >= 180 && planningStrategy === "aggressive") {
+    // The contest route's deep objective is intentionally supportable, but a
+    // hard-push party must use sparse rations to preserve the return margin.
+    travelSettings.rationId = "sparse";
+  }
   provisionUncertaintyBuffer = SimulationProvisionPlanning.provisionUncertaintyBuffer(
     planningStrategy, targetDistance,
   );
@@ -2970,27 +2989,12 @@ function hasCampaignItem(state, itemId) {
 }
 
 function selectCampaignProgressionExpedition(routeId, player) {
-  const prerequisite = CAMPAIGN_PROGRESSION_PREREQUISITES[routeId];
-  if (!prerequisite
-    || hasCampaignItem(player, prerequisite.itemId)
-    || hasCampaignItem(player, "water_of_barenton")) {
-    return {
-      routeId,
-      runKind: "progression",
-    };
-  }
-  return {
-    routeId: prerequisite.searchRouteId,
-    runKind: "prerequisite",
-    prerequisiteForRoute: routeId,
-    itemId: prerequisite.itemId,
-    reason: prerequisite.reason,
-  };
+  return { routeId, runKind: "progression" };
 }
 
 function assessProgressionReadiness(
   routeId, desiredTargetDistance, routeObjectiveDistance,
-  player, shopStocks, policy, strategyName, progressionState = null,
+  player, shopStocks, policy, strategyName, progressionState = null, expeditionId = routeId,
 ) {
   const objectiveDistance = Number(routeObjectiveDistance) || 0;
   const requiredDistance = Math.max(
@@ -3012,7 +3016,7 @@ function assessProgressionReadiness(
     };
   }
   const quote = quoteCampaignProvisionAvailability(
-    player, shopStocks, policy, desiredTargetDistance, strategyName,
+    player, shopStocks, policy, desiredTargetDistance, strategyName, expeditionId,
   );
   const preferredReady = quote.preferredSafeDistance >= requiredDistance
     && quote.provisionStock >= quote.preferredProvisionTarget;
@@ -3141,11 +3145,11 @@ function progressionSupplyRunDistance(strategyName) {
 }
 
 function quoteCampaignProvisionAvailability(
-  player, shopStocks, policy, targetDistance, strategyName,
+  player, shopStocks, policy, targetDistance, strategyName, expeditionId = null,
 ) {
   const planningStrategy = strategyName ?? defaultStrategyForBetweenPolicy(policy);
   const activeCompanions = selectedCompanionIds(player);
-  const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions);
+  const capacity = ExpeditionRules.partyProvisionCapacity(activeCompanions, expeditionId);
   const shop = SHOP_DEFINITIONS.village_general_goods;
   const availableShopStock = Math.max(0, Number(shopStocks?.[shop.id]) || 0);
   const affordablePurchaseQuantity = Math.min(

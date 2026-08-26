@@ -449,6 +449,22 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
       }),
     ],
   }),
+  verdant_warden: Object.freeze({
+    id: "verdant_warden",
+    name: "Verdant Warden",
+    maxHp: 128,
+    speed: 11,
+    defense: 4,
+    actionPattern: ["warden_strike", "warden_heavy_slam", "warden_strike", "warden_strike"],
+    traits: [
+      Object.freeze({
+        type: "regeneration",
+        amount: 5,
+        trigger: "activation",
+        suppressedByStatuses: ["bleeding", "poisoned"],
+      }),
+    ],
+  }),
 });
 
 const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
@@ -726,5 +742,9 @@ const COMBAT_DEFINITIONS = Object.freeze({
   bound_warden: Object.freeze({
     id: "bound_warden",
     enemyIds: ["bound_warden"],
+  }),
+  verdant_warden: Object.freeze({
+    id: "verdant_warden",
+    enemyIds: ["verdant_warden"],
   }),
 });

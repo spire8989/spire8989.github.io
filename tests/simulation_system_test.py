@@ -107,7 +107,7 @@ def run():
             "Replay metadata is missing starting state, path, or decision history",
         )
         check(
-            "(() => { const cautious=SimulationRunner.run({seed:'pace-cautious',strategy:'cautious',provisions:24,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); const normal=SimulationRunner.run({seed:'pace-normal',strategy:'normal',provisions:24,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); const aggressive=SimulationRunner.run({seed:'pace-aggressive',strategy:'aggressive',provisions:5,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); return cautious.paceSelectedAtDeparture==='cautious'&&cautious.rationSelectedAtDeparture==='generous'&&normal.paceSelectedAtDeparture==='normal'&&normal.rationSelectedAtDeparture==='normal'&&aggressive.paceSelectedAtDeparture==='hard_push'&&aggressive.rationSelectedAtDeparture==='sparse'; })()",
+            "(() => { const cautious=SimulationRunner.run({seed:'pace-cautious',strategy:'cautious',provisions:40,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); const normal=SimulationRunner.run({seed:'pace-normal',strategy:'normal',provisions:24,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); const aggressive=SimulationRunner.run({seed:'pace-aggressive',strategy:'aggressive',provisions:5,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:5}}); return cautious.paceSelectedAtDeparture==='cautious'&&cautious.rationSelectedAtDeparture==='generous'&&normal.paceSelectedAtDeparture==='normal'&&normal.rationSelectedAtDeparture==='normal'&&aggressive.paceSelectedAtDeparture==='hard_push'&&aggressive.rationSelectedAtDeparture==='sparse'; })()",
             "Simulation strategies did not select their authored departure pace and ration settings",
         )
         check(
@@ -115,7 +115,7 @@ def run():
             "Simulation pace/ration settings did not affect production provision consumption",
         )
         check(
-            "(() => { const runs=Array.from({length:8},(_,index)=>SimulationRunner.run({seed:`ration-adaptation-${index}`,strategy:'cautious',provisions:24,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:100}})); return runs.some(run=>run.rationChanges.some(change=>change.from==='generous'&&change.to==='normal'))&&runs.every(run=>run.replay.paceId===run.paceSelectedAtDeparture&&run.replay.rationId===run.rationSelectedAtDeparture); })()",
+            "(() => { const runs=Array.from({length:8},(_,index)=>SimulationRunner.run({seed:`ration-adaptation-${index}`,strategy:'cautious',provisions:40,companions:[],turnaroundPolicy:{type:'fixedDistance',distance:100}})); return runs.some(run=>run.rationChanges.some(change=>change.from==='generous'&&change.to==='normal'))&&runs.every(run=>run.replay.paceId===run.paceSelectedAtDeparture&&run.replay.rationId===run.rationSelectedAtDeparture); })()",
             "Simulation strategies did not adapt rations under return pressure or record replay settings",
         )
         check(

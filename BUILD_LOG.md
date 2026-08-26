@@ -4611,3 +4611,26 @@ Match the authored Arthur presentation across traveling, paused/encounter, and c
 ### Verification and resulting prototype state
 
 The debug browser suite passes 30 assertions after the mobile scale correction, including an explicit traveling Walk to paused Idle scale check. No sprite assets were reimported and no gameplay, simulation, replay, or combat rules changed.
+
+## 2026-08-25 - Old Forest Road Contest Pass 1
+
+### Goal
+
+Make Old Forest Road the contest-ready focus route: support deeper progression, reliable exploration beats, and a clear Flask gate for the other visible expeditions without attempting the full four-expedition chapter.
+
+### AI-assisted implementation
+
+- Extended Old Forest Road progression through 180 leagues, added distance scenes through 200+, added nonlinear late return reward tiers at 120, 160, and 200 leagues, and gave this route a data-driven +30 provision-capacity bonus so the contest objective is supportable without changing the party baseline elsewhere.
+- Added a bounded Overgrown Trail route with a map-enabled turnoff near 20, a normal turnoff near 40, automatic Main Road rejoin near 80, and correct return behavior toward the entrance.
+- Added Old Forester's Map as a rare forest find and a 25-gold Camelot supply, plus a full-screen hidden forest village stop around 95 with persistent safe-return discovery, limited expensive supplies, an inn, and an apothecary/Druid placeholder.
+- Added the Verdant scaffold IDs and a placeholder grove rite, a final altar near 180, a minimal Verdant Warden combat definition, and safe-return Flask ownership only after that boss victory. Fountain of Barenton and Val sans Retour remain visibly gated by Flask.
+- Generalized location stops, route transitions, safe-return flag staging, inn pricing, replay auto-leave behavior, and simulator auto-leave behavior without adding a second location system or requiring Woodcraft for the new final gate.
+- Added focused browser regressions for route bounds, village persistence/full-screen leave flow, late rewards, Flask source removal/gating, Verdant victory rewards, and current-campaign Old Forest focus. Updated the Content Editor expedition validator and expedition view so bounded route configuration remains visible and raw-editable.
+
+### Manual changes
+
+The human developer supplied the contest direction and Pass 1 guide and authorized adding and committing the finished files in both repositories. No new art assets were introduced. The hostile stag, Druid quest dialogue, White Hart puzzle, and full Verdant Warden mechanics remain intentionally scaffolded for a later pass.
+
+### Verification and resulting prototype state
+
+The focused Old Forest browser suite passes 8 assertions, the current-campaign progression suite passes 5 assertions, the deterministic simulation suite passes 62 assertions, the combat suite passes 37 assertions, the replay suite passes 15 assertions, and the live Content Editor catalog validates with zero errors. The broader location/editor suites retain previously documented fixture mismatches in village hotspot coordinates, encounter layout fixtures, derived path counts, and an existing campaign packing fixture; those unrelated fixtures were not folded into this contest pass. `git diff --check` passes in both repositories.

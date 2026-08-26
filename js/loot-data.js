@@ -211,6 +211,7 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "table", tableId: "forest_materials", weight: 6 }),
       Object.freeze({ type: "table", tableId: "forest_ingredients", weight: 5 }),
       Object.freeze({ type: "table", tableId: "apothecary_common_recipes", weight: 2 }),
+      Object.freeze({ type: "item", itemId: "old_foresters_map", weight: 1, quantity: 1 }),
     ]),
   }),
   expedition_return_minor: Object.freeze({
@@ -257,6 +258,32 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "gold", minimum: 7, maximum: 12, weight: 2 }),
     ]),
   }),
+  expedition_return_late: Object.freeze({
+    id: "expedition_return_late",
+    entries: Object.freeze([
+      Object.freeze({ type: "table", tableId: "uncommon_materials", weight: 5 }),
+      Object.freeze({ type: "table", tableId: "rare_materials", weight: 2 }),
+      Object.freeze({ type: "table", tableId: "apothecary_uncommon_recipes", weight: 2 }),
+      Object.freeze({ type: "gold", minimum: 10, maximum: 18, weight: 3 }),
+    ]),
+  }),
+  expedition_return_endgame: Object.freeze({
+    id: "expedition_return_endgame",
+    entries: Object.freeze([
+      Object.freeze({ type: "table", tableId: "rare_materials", weight: 4 }),
+      Object.freeze({ type: "table", tableId: "uncommon_materials", weight: 3 }),
+      Object.freeze({ type: "table", tableId: "apothecary_uncommon_recipes", weight: 2 }),
+      Object.freeze({ type: "gold", minimum: 16, maximum: 28, weight: 4 }),
+    ]),
+  }),
+  expedition_return_optional: Object.freeze({
+    id: "expedition_return_optional",
+    entries: Object.freeze([
+      Object.freeze({ type: "table", tableId: "rare_materials", weight: 5 }),
+      Object.freeze({ type: "table", tableId: "uncommon_materials", weight: 3 }),
+      Object.freeze({ type: "gold", minimum: 24, maximum: 42, weight: 5 }),
+    ]),
+  }),
 });
 
 const EXPEDITION_RETURN_REWARD_TIERS = Object.freeze([
@@ -265,4 +292,7 @@ const EXPEDITION_RETURN_REWARD_TIERS = Object.freeze([
   Object.freeze({ id: "medium", minimumDistance: 40, sources: Object.freeze([{ tableId: "expedition_return_medium", rolls: 2 }, { tableId: "common_materials", rolls: 1 }]) }),
   Object.freeze({ id: "high", minimumDistance: 60, sources: Object.freeze([{ tableId: "expedition_return_high", rolls: 3 }, { tableId: "uncommon_materials", rolls: 1, chance: 0.35 }]) }),
   Object.freeze({ id: "deep", minimumDistance: 90, sources: Object.freeze([{ tableId: "expedition_return_deep", rolls: 3 }, { tableId: "common_materials", rolls: 2 }, { tableId: "apothecary_uncommon_recipes", rolls: 1, chance: 0.25 }]) }),
+  Object.freeze({ id: "late", minimumDistance: 120, sources: Object.freeze([{ tableId: "expedition_return_late", rolls: 4 }, { tableId: "forest_materials", rolls: 2 }, { tableId: "apothecary_uncommon_recipes", rolls: 1, chance: 0.5 }]) }),
+  Object.freeze({ id: "endgame", minimumDistance: 160, sources: Object.freeze([{ tableId: "expedition_return_endgame", rolls: 5 }, { tableId: "rare_materials", rolls: 1 }, { tableId: "apothecary_uncommon_recipes", rolls: 1, chance: 0.7 }]) }),
+  Object.freeze({ id: "optional", minimumDistance: 200, sources: Object.freeze([{ tableId: "expedition_return_optional", rolls: 5 }, { tableId: "rare_materials", rolls: 2 }]) }),
 ]);

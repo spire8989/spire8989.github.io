@@ -46,7 +46,7 @@ function initializeSimulationTools() {
       <label>Between runs <select id="campaign-policy">
         ${Object.keys(BetweenExpeditionPolicies).map((name) => `<option value="${name}" ${name === "aggressive-reinvestor" ? "selected" : ""}>${name}</option>`).join("")}
       </select></label>
-      <label>Turn at <input id="campaign-distance" type="number" min="1" value="105"></label>
+      <label>Turn at <input id="campaign-distance" type="number" min="1" value="180"></label>
       <label>Starting gold <input id="campaign-gold" type="number" min="0" value="${Math.floor(game.player.currentGold)}"></label>
       <label>Starting food <input id="campaign-provisions" type="number" min="0" value="${game.player.provisions}"></label>
       <label>Starting health <input id="campaign-health" type="number" min="1" max="${HealingRules.arthurMaxHealth(game.player)}" value="${HealingRules.arthurMaxHealth(game.player)}"></label>
@@ -216,7 +216,10 @@ function currentSimulationScenario(strategy, distance) {
     id: "current-loadout",
     seed: "browser-current",
     companion: game.player.selectedCompanion,
-    provisions: Math.min(game.preparationSupplies || 24, partyProvisionCapacity(game.player.selectedCompanion)),
+    provisions: Math.min(
+      game.preparationSupplies || 24,
+      partyProvisionCapacity(game.player.selectedCompanion, game.player.selectedExpeditionId),
+    ),
     loadout: { ...game.player.equippedItems },
     packContents: [...game.player.packedItems],
     strategy,

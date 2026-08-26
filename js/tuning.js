@@ -113,8 +113,8 @@ const EXPEDITION_TUNING = Object.freeze({
 
 const CAMPAIGN_TUNING = Object.freeze({
   provisionPreparation: Object.freeze({
-    deepObjectiveMinimumDistance: 75,
-    supplyRunTargetDistance: Object.freeze({ cautious: 65, random: 60, aggressive: 75 }),
+    deepObjectiveMinimumDistance: 180,
+    supplyRunTargetDistance: Object.freeze({ cautious: 100, random: 90, aggressive: 120 }),
   }),
   consumablePurchasing: Object.freeze({
     bandages: Object.freeze({

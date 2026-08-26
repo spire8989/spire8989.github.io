@@ -104,7 +104,7 @@ const EncounterRequirements = Object.freeze({
 
 const EncounterOutcomes = Object.freeze({
   resolveAll(effects = [], context = {}) {
-    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null };
+    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null, locationStop: null };
     for (let index = 0; index < effects.length; index += 1) {
       const effect = effects[index];
       const resolved = this.resolve(effect, context);
@@ -114,6 +114,9 @@ const EncounterOutcomes = Object.freeze({
       }
       if (resolved.combat) {
         combined.combat = resolved.combat;
+      }
+      if (resolved.locationStop) {
+        combined.locationStop = resolved.locationStop;
       }
       combined.rewards.push(...(resolved.rewards ?? []));
       if (resolved.dialogue) {
@@ -144,6 +147,7 @@ const EncounterOutcomes = Object.freeze({
     let rewards = [];
     let resultText = effect.resultText ?? "";
     let combat = null;
+    let locationStop = null;
 
     switch (effect.type) {
       case "modifyResource": {
@@ -277,8 +281,16 @@ const EncounterOutcomes = Object.freeze({
         break;
       }
       case "changePath":
-        expedition.currentPathId = effect.pathId;
-        messages = [`Path changed to ${pathLabel(effect.pathId)}`];
+        if (ExpeditionRules.changePath(expedition, effect.pathId)) {
+          messages = [`Path changed to ${pathLabel(effect.pathId)}`];
+        }
+        break;
+      case "enterLocation":
+        if (typeof LOCATION_DEFINITIONS !== "undefined" && LOCATION_DEFINITIONS[effect.locationId]) {
+          locationStop = { locationId: effect.locationId };
+          expedition.locationStop = locationStop;
+          expedition.travelState = "paused";
+        }
         break;
       case "setRunFlag":
         expedition.runFlags[effect.flag] = effect.value ?? true;
@@ -330,6 +342,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        locationStop = resolved.locationStop;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "";
         break;
@@ -341,6 +354,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        locationStop = resolved.locationStop;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (succeeded ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText
           || (succeeded ? effect.resultText : effect.elseResultText)
@@ -355,6 +369,7 @@ const EncounterOutcomes = Object.freeze({
           messages.push(...secondaryResolved.messages);
           rewards.push(...secondaryResolved.rewards);
           combat = secondaryResolved.combat ?? combat;
+          locationStop = secondaryResolved.locationStop ?? locationStop;
           if (secondaryResolved.dialogue) return { ...secondaryResolved, messages, rewards, combat };
           resultText = secondaryResolved.resultText
             || (secondarySucceeded ? secondary.resultText : secondary.elseResultText)
@@ -377,6 +392,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        locationStop = resolved.locationStop;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || selected.resultText || "" };
         resultText = resolved.resultText || selected.resultText || "";
         break;
@@ -403,7 +419,7 @@ const EncounterOutcomes = Object.freeze({
         break;
     }
 
-    return { messages, rewards, resultText, combat, dialogue: null };
+    return { messages, rewards, resultText, combat, dialogue: null, locationStop };
   },
 });
 
@@ -519,7 +535,13 @@ function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
       active.phase = "result";
       active.resultText = resultText;
       recordActiveJourney(expedition, active);
-      return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
+      return {
+        resolved: true,
+        ended: false,
+        awaitingContinue: true,
+        message: active.resultText,
+        locationStop: resolvedStage.locationStop ?? null,
+      };
     }
 
     active.phase = "choice";
@@ -534,7 +556,13 @@ function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
     active.phase = "result";
     active.resultText = message;
     recordActiveJourney(expedition, active);
-    return { resolved: true, ended: false, awaitingContinue: true, message };
+    return {
+      resolved: true,
+      ended: false,
+      awaitingContinue: true,
+      message,
+      locationStop: route.locationStop ?? null,
+    };
   }
 
   return { resolved: true, ended: false, message: "" };
@@ -787,6 +815,7 @@ const EncounterManager = Object.freeze({
       endEncounter,
       authoredResultText,
       resultText: resolvedOutcomes.resultText,
+      locationStop: resolvedOutcomes.locationStop ?? null,
       visualOverride,
       fallbackPhase: "choice",
     };
@@ -827,7 +856,13 @@ const EncounterManager = Object.freeze({
     active.phase = "result";
     active.resultText = resolution.resume.resultText || resolved.resultText || "The dialogue concludes.";
     recordActiveJourney(expedition, active);
-    return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
+    return {
+      resolved: true,
+      ended: false,
+      awaitingContinue: true,
+      message: active.resultText,
+      locationStop: resolved.locationStop ?? resolution.resume.locationStop ?? null,
+    };
   },
 
   continueJourney(expedition) {
@@ -885,7 +920,13 @@ const EncounterManager = Object.freeze({
     active.phase = "result";
     active.resultText = resultText;
     recordActiveJourney(expedition, active);
-    return { resolved: true, ended: false, awaitingContinue: true, message: active.resultText };
+    return {
+      resolved: true,
+      ended: false,
+      awaitingContinue: true,
+      message: active.resultText,
+      locationStop: resolved.locationStop ?? null,
+    };
   },
 
   forceNextSoon(expedition) {

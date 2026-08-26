@@ -6,6 +6,7 @@ const DEBUG_TOOLS_ENABLED = new URLSearchParams(window.location.search).has("deb
 const game = {
   player: SaveSystem.load(),
   expedition: null,
+  locationContext: null,
   screen: "campaign",
   preparationSupplies: 18,
   // Retained as a compatibility field for older runtime callers; preparation
@@ -110,6 +111,9 @@ function handleAction(event) {
     case "show-location":
       showLocation();
       break;
+    case "leave-expedition-location":
+      leaveExpeditionLocation();
+      break;
     case "preparation-step":
       setPreparationStep(stepId);
       break;
@@ -165,7 +169,7 @@ function handleAction(event) {
       game.preparationSupplies = Math.min(
         Math.max(game.preparationSupplies, EXPEDITION_TUNING.minimumStartingProvisions),
         game.player.provisions,
-        partyProvisionCapacity(selectedCompanionIds(game.player)),
+        partyProvisionCapacity(selectedCompanionIds(game.player), game.player.selectedExpeditionId),
       );
       showScreen("preparation");
       break;
@@ -425,19 +429,65 @@ function enterLocation(locationId) {
   if (!LOCATION_DEFINITIONS[locationId]) {
     return;
   }
+  if (game.expedition?.status === "active") return;
+  game.locationContext = null;
   game.player.currentLocationId = locationId;
   savePlayer();
   showLocation();
 }
 
+function currentLocationForUi() {
+  const locationId = game.locationContext?.locationId ?? game.player.currentLocationId;
+  return LOCATION_DEFINITIONS[locationId] ?? null;
+}
+
+function locationIsUnlocked(location) {
+  if (!location) return false;
+  if (location.requiresIntro === false) return true;
+  return isVillageUnlocked();
+}
+
 function showLocation() {
-  const locationEntry = CampaignRules.enterLocation(game.player, game.provisionShopStock);
+  const location = currentLocationForUi();
+  if (!location) {
+    showScreen("campaign");
+    return;
+  }
+  const locationEntry = CampaignRules.enterLocationById(
+    game.player,
+    game.provisionShopStock,
+    location.id,
+  );
   if (locationEntry.provisionsGranted > 0 || locationEntry.shopProvisionsRestocked > 0) {
     savePlayer();
   }
   game.activeDestinationId = null;
   game.dialogueSession = null;
   showScreen("location");
+}
+
+function enterExpeditionLocation(expedition, locationId) {
+  if (!expedition || expedition.status !== "active" || !LOCATION_DEFINITIONS[locationId]) return;
+  game.locationContext = { type: "expedition", locationId };
+  game.activeDestinationId = null;
+  game.dialogueSession = null;
+  showLocation();
+}
+
+function leaveExpeditionLocation() {
+  const expedition = game.expedition;
+  if (!game.locationContext?.type || !expedition || expedition.status !== "active") return;
+  cancelRestAction();
+  game.craftingAction = null;
+  if (expedition.activeEncounter?.phase === "result") {
+    EncounterManager.continueJourney(expedition);
+  }
+  expedition.locationStop = null;
+  expedition.travelState = "paused";
+  game.locationContext = null;
+  game.activeDestinationId = null;
+  game.dialogueSession = null;
+  showScreen("expedition");
 }
 
 function handleAudioSettingInput(event) {
@@ -2950,16 +3000,15 @@ function clampTownHotspotsToScene(scene = document.querySelector(".location-scen
 }
 
 function renderLocation() {
-  const location = LOCATION_DEFINITIONS[game.player.currentLocationId];
+  const location = currentLocationForUi();
   if (!location) {
     showScreen("campaign");
     return;
   }
 
-  const villageUnlocked = isVillageUnlocked();
   const destinations = location.destinations.map((destinationId) => {
     const destination = DESTINATION_DEFINITIONS[destinationId];
-    const locked = destination.requiresIntro !== false && !villageUnlocked;
+    const locked = destination.requiresIntro !== false && !locationIsUnlocked(location);
     const hotspot = townHotspotForDestination(destination);
     return `
       <button class="hub-hotspot town-hotspot-style-${townHotspotStyle(location)} ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
@@ -2971,7 +3020,7 @@ function renderLocation() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen location-screen" aria-labelledby="location-title">
-      <div data-asset-frame="location" class="location-scene" aria-label="Village scene with five destinations">
+      <div data-asset-frame="location" class="location-scene" aria-label="${assetAttribute(location.name)} scene">
         ${renderImageAsset(location.visualAssetId, "location-visual-asset", location.name)}
         <div class="village-sky" aria-hidden="true"></div>
         <div class="village-tree-line" aria-hidden="true"></div>
@@ -2989,9 +3038,11 @@ function renderLocation() {
           <span><strong>${game.player.faith}/${game.player.maxFaith}</strong> Faith</span>
           <span><strong>${Math.ceil(HealingRules.arthurHealth(game.player))}/${HealingRules.arthurMaxHealth(game.player)}</strong> Health</span>
         </div>
-        <div class="hub-actions">
-          <button class="text-button" type="button" data-action="show-campaign">Chapter Select</button>
-          <button class="game-button" type="button" data-action="prepare-expedition" ${villageUnlocked ? "" : "disabled"}>Prepare for Expedition</button>
+      <div class="hub-actions">
+          ${game.locationContext?.type === "expedition"
+            ? `<button class="game-button" type="button" data-action="leave-expedition-location">Return to Expedition</button>`
+            : `<button class="text-button" type="button" data-action="show-campaign">Chapter Select</button>
+              <button class="game-button" type="button" data-action="prepare-expedition" ${locationIsUnlocked(location) ? "" : "disabled"}>Prepare for Expedition</button>`}
         </div>
       </div>
     </section>`;
@@ -2999,19 +3050,19 @@ function renderLocation() {
 }
 
 function openDestination(destinationId) {
-  const location = LOCATION_DEFINITIONS[game.player.currentLocationId];
+  const location = currentLocationForUi();
   if (!location?.destinations.includes(destinationId) || !DESTINATION_DEFINITIONS[destinationId]) {
     return;
   }
   const destination = DESTINATION_DEFINITIONS[destinationId];
-  if (destination.requiresIntro !== false && !isVillageUnlocked()) return;
+  if (destination.requiresIntro !== false && !locationIsUnlocked(location)) return;
   game.activeDestinationId = destinationId;
   game.shopTab = "buy";
   game.innTab = "rest";
   game.campTab = "rest";
   game.dialogueSession = null;
   const npc = NPC_DEFINITIONS[destination.npcIds[0]];
-  if (destination.type === "story" && !isVillageUnlocked()) {
+  if (destination.type === "story" && !locationIsUnlocked(location)) {
     game.dialogueSession = DialogueSystem.start(npc?.introDialogueSequenceId, {
       player: game.player,
       returnContext: { type: "destination", destinationId },
@@ -3045,7 +3096,7 @@ function renderDestination() {
       </div>
       <div class="destination-panel">
         <header class="interaction-header">
-          <button class="interaction-back village-back-button" type="button" data-action="show-location">← Village</button>
+          <button class="interaction-back village-back-button" type="button" data-action="show-location">← ${assetAttribute(currentLocationForUi()?.name ?? "Village")}</button>
           <strong id="destination-title">${destination.name}</strong>
           <span>${Math.floor(game.player.currentGold)}g · ${game.player.provisions} food</span>
         </header>
@@ -3094,7 +3145,7 @@ function renderInnInteraction(destination, npc) {
       ${tabs}
       ${renderInnCookingPanel(destination)}`;
   }
-  const rest = HealingRules.quoteInnRest(game.player);
+  const rest = HealingRules.quoteInnRest(game.player, destination.restConfig);
   const restBusy = Boolean(game.restAction);
   const partyHealth = rest.partyMembers.map((member) => `
     <div class="inn-health-row">
@@ -3203,9 +3254,10 @@ function beginRestAction(context, options = {}) {
 }
 
 function beginInnRest() {
-  if (game.activeDestinationId !== "inn") return;
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  if (destination?.type !== "inn") return;
   if (game.restAction || game.craftingAction) return;
-  const quote = HealingRules.quoteInnRest(game.player);
+  const quote = HealingRules.quoteInnRest(game.player, destination.restConfig);
   if (quote.fullHealth || !quote.available) {
     restAtInn();
     return;
@@ -3219,8 +3271,9 @@ function beginInnRest() {
 }
 
 function restAtInn() {
-  if (game.activeDestinationId !== "inn") return;
-  const result = HealingRules.restAtInn(game.player);
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  if (destination?.type !== "inn") return;
+  const result = HealingRules.restAtInn(game.player, destination.restConfig);
   if (result.applied) {
     const recovery = result.partyMembers.map(
       (member) => `${member.name} recovers ${member.healingAmount} health`,
@@ -3765,8 +3818,8 @@ function createItemShopStock() {
   return CampaignRules.createShopStocks();
 }
 
-function partyProvisionCapacity(selectedCompanionId) {
-  return ExpeditionRules.partyProvisionCapacity(selectedCompanionId);
+function partyProvisionCapacity(selectedCompanionId, expeditionId = null) {
+  return ExpeditionRules.partyProvisionCapacity(selectedCompanionId, expeditionId);
 }
 
 function partyProvisionConsumptionMultiplier(selectedCompanionId) {
@@ -3815,7 +3868,7 @@ function preparationStepper() {
 
 function preparationCanStart() {
   const selectedCompanions = selectedCompanionIds(game.player);
-  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions, game.player.selectedExpeditionId);
   return !game.expeditionStartPending
     && game.preparationSupplies > 0
     && HealingRules.arthurHealth(game.player) > 0
@@ -3973,7 +4026,7 @@ function renderPreparationMaterialBag() {
 
 function renderPreparationCompany() {
   const selectedCompanions = selectedCompanionIds(game.player);
-  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions, game.player.selectedExpeditionId);
   const provisionConsumptionMultiplier = partyProvisionConsumptionMultiplier(selectedCompanions);
   const companionSlots = [0, 1]
     .map((slot) => renderCompanionSlot(slot, selectedCompanions[slot] ?? null))
@@ -4055,7 +4108,7 @@ function renderPreparationReview() {
   const travelSpeed = partyTravelSpeedMultiplier(selectedCompanions);
   const travelSpeedLabel = travelSpeed === 1 ? "Standard" : `+${Math.round((travelSpeed - 1) * 100)}% faster`;
   const danger = dangerRatingMarkup(expedition.danger);
-  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions, game.player.selectedExpeditionId);
   const consumption = partyProvisionConsumptionMultiplier(selectedCompanions);
 
   return `
@@ -4257,7 +4310,7 @@ function selectCompanion(companionId, slotIndex = 0) {
   game.player.selectedCompanion = game.player.selectedCompanions[0] ?? null;
   game.preparationSupplies = Math.min(
     game.preparationSupplies,
-    partyProvisionCapacity(game.player.selectedCompanions),
+    partyProvisionCapacity(game.player.selectedCompanions, game.player.selectedExpeditionId),
     game.player.provisions,
   );
   if (previousCompanion !== selectedCompanion) {
@@ -4319,7 +4372,10 @@ function changeSupplies(amount) {
   game.preparationSupplies = clamp(
     game.preparationSupplies + amount,
     0,
-    Math.min(partyProvisionCapacity(selectedCompanionIds(game.player)), game.player.provisions),
+    Math.min(
+      partyProvisionCapacity(selectedCompanionIds(game.player), game.player.selectedExpeditionId),
+      game.player.provisions,
+    ),
   );
   refreshPreparation();
 }
@@ -4339,7 +4395,7 @@ async function startExpedition() {
   if (game.expeditionStartPending) return;
   if (!isVillageUnlocked() || !ExpeditionCatalog.isUnlocked(game.player, game.player.selectedExpeditionId)) return;
   const selectedCompanions = selectedCompanionIds(game.player);
-  const provisionCapacity = partyProvisionCapacity(selectedCompanions);
+  const provisionCapacity = partyProvisionCapacity(selectedCompanions, game.player.selectedExpeditionId);
   if (game.preparationSupplies <= 0
     || HealingRules.arthurHealth(game.player) <= 0
     || game.preparationSupplies > game.player.provisions
@@ -5694,6 +5750,11 @@ function finishEncounterResolution(result, expedition, rewardStartIndex = null) 
     return;
   }
 
+  if (result.locationStop?.locationId) {
+    enterExpeditionLocation(expedition, result.locationStop.locationId);
+    return;
+  }
+
   if (!result.combatStarted && !result.dialogueStarted) {
     queueEncounterRewardReveal(expedition, "encounter", rewardStartIndex);
   }
@@ -5954,6 +6015,7 @@ function completeReturn() {
   const expedition = game.expedition;
   clearPendingEncounterActionTimer();
   cancelRestAction();
+  game.locationContext = null;
   expedition.combat = null;
   expedition.status = "returned";
   ExpeditionRules.settle(game.player, expedition, true);
@@ -5991,6 +6053,7 @@ function failExpedition(reason) {
 
   clearPendingEncounterActionTimer();
   cancelRestAction();
+  game.locationContext = null;
   expedition.combat = null;
   expedition.status = "failed";
   ExpeditionRules.settle(game.player, expedition, false);

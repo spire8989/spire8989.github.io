@@ -2,6 +2,151 @@
 
 // Encounter content is data. The manager and UI do not contain encounter-specific branches.
 const ENCOUNTER_DEFINITIONS = Object.freeze({
+  hidden_forest_village: {
+    id: "hidden_forest_village",
+    title: "A Village Beneath the Boughs",
+    description: "A narrow turnoff opens onto lanterns, low roofs, and a settlement that should not be here.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 1,
+    minimumDistance: 95,
+    maximumDistance: 99,
+    milestone: true,
+    milestoneOrder: 95,
+    ignoreEncounterSpacing: true,
+    tags: ["campaign", "discovery", "location"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The settlement is quiet but inhabited. A few doors open as Arthur approaches, and none of the villagers seem surprised to see him.",
+        choices: [
+          {
+            id: "enter_village",
+            label: "Enter the Village",
+            outcomes: [
+              { type: "setCampaignFlagOnSafeReturn", flag: "forest_village_discovered", value: true },
+              { type: "setRunFlag", flag: "forest_village_visited", value: true },
+              { type: "enterLocation", locationId: "hidden_forest_village" },
+            ],
+            resultText: "The company follows the lantern path into the hidden village.",
+            endEncounter: true,
+          },
+          {
+            id: "pass_village",
+            label: "Mark the Turnoff and Continue",
+            outcomes: [
+              { type: "setCampaignFlagOnSafeReturn", flag: "forest_village_discovered", value: true },
+            ],
+            resultText: "Arthur marks the turnoff. The company keeps to the Main Road for now.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
+  verdant_grove_placeholder: {
+    id: "verdant_grove_placeholder",
+    title: "The Unfinished Verdant Rite",
+    description: "A ring of green crystal waits in a grove where a future Druid quest will take shape.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 1,
+    minimumDistance: 150,
+    maximumDistance: 158,
+    milestone: true,
+    milestoneOrder: 150,
+    ignoreEncounterSpacing: true,
+    tags: ["campaign", "verdant", "scaffold"],
+    repeatable: false,
+    requirements: [{ type: "notOwnsItem", itemId: "enchanted_verdant_heart" }],
+    stages: {
+      start: {
+        text: "This is a structural placeholder for the future Druid quest. The rite is incomplete, but the grove offers a temporary bridge to the final altar.",
+        choices: [
+          {
+            id: "accept_placeholder_rite",
+            label: "Accept the Placeholder Rite",
+            outcomes: [
+              { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_grace" },
+              { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_wrath" },
+              { type: "gainUniqueUnsecuredItem", itemId: "verdant_heart" },
+              { type: "gainUniqueUnsecuredItem", itemId: "enchanted_verdant_heart" },
+              { type: "learnKnowledge", knowledgeId: "song_of_the_forest" },
+            ],
+            resultText: "The grove supplies a temporary Verdant scaffold: the heart is enchanted and the Song is remembered.",
+            endEncounter: true,
+          },
+          {
+            id: "leave_placeholder_rite",
+            label: "Leave the Grove for Later",
+            resultText: "Arthur leaves the unfinished rite untouched.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
+  verdant_altar: {
+    id: "verdant_altar",
+    title: "The Verdant Altar",
+    description: "At the oldest reach of the Main Road, a living altar rises from the roots.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 1,
+    minimumDistance: 180,
+    maximumDistance: 188,
+    milestone: true,
+    milestoneOrder: 180,
+    ignoreEncounterSpacing: true,
+    tags: ["campaign", "verdant", "boss"],
+    repeatable: false,
+    requirements: [
+      { type: "availableExpeditionItem", itemId: "enchanted_verdant_heart" },
+      { type: "knowledge", knowledgeId: "song_of_the_forest" },
+      { type: "notCampaignFlag", flag: "verdant_warden_defeated" },
+    ],
+    stages: {
+      start: {
+        text: "The roots open around an altar of green crystal. Something ancient stirs below it, listening for the Song.",
+        choices: [
+          {
+            id: "sing_at_altar",
+            label: "Sing the Song and Place the Heart",
+            outcomes: [
+              {
+                type: "startCombat",
+                combatId: "verdant_warden",
+                victory: {
+                  resultText: "The Verdant Warden falls, leaving the first reliable vessel for Merlin's water.",
+                  outcomes: [
+                    { type: "gainUniqueUnsecuredItem", itemId: "flask" },
+                    { type: "setCampaignFlagOnSafeReturn", flag: "verdant_warden_defeated", value: true },
+                  ],
+                },
+                defeat: { resultText: "The Verdant Warden drives the company from the altar." },
+                fled: { resultText: "The company flees the altar. The Verdant Warden remains undefeated." },
+              },
+            ],
+            resultText: "The Enchanted Verdant Heart answers the Song. The Verdant Warden rises.",
+            endEncounter: true,
+          },
+          {
+            id: "leave_altar",
+            label: "Leave the Altar",
+            resultText: "Arthur leaves the altar sleeping beneath the roots.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+  },
   abandoned_camp: {
     id: "abandoned_camp",
     title: "Abandoned Camp",
@@ -127,8 +272,11 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     directions: ["outbound"],
     weight: 5,
-    minimumDistance: 7,
-    maximumDistance: 40,
+    minimumDistance: 20,
+    maximumDistance: 24,
+    milestone: true,
+    milestoneOrder: 20,
+    ignoreEncounterSpacing: true,
     tags: ["path", "choice"],
     repeatable: false,
     requirements: [],
@@ -159,6 +307,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "overgrown_trail",
             label: "Take the Overgrown Trail",
+            requirements: [
+              { type: "availableExpeditionItem", itemId: "old_foresters_map" },
+            ],
             outcomes: [
               {
                 type: "changePath",
@@ -982,31 +1133,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "leave_road",
             label: "Leave the Road",
-            outcomes: [
-              {
-                type: "conditional",
-                requirements: [
-                  {
-                    type: "currentPath",
-                    pathId: "old_forest_road"
-                  }
-                ],
-                effects: [
-                  {
-                    type: "changePath",
-                    pathId: "overgrown_trail"
-                  }
-                ],
-                elseEffects: [
-                  {
-                    type: "modifyResource",
-                    resource: "provisions",
-                    amount: -1
-                  }
-                ]
-              }
-            ],
-            resultText: "Arthur leaves the familiar way and chooses a different line through the forest.",
+            outcomes: [{ type: "modifyResource", resource: "provisions", amount: -1 }],
+            resultText: "Arthur steps off the familiar line briefly, then returns to the marked Main Road.",
             endEncounter: true
           },
           {
@@ -2455,7 +2583,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
   },
   hidden_flask: {
     id: "hidden_flask",
-    title: "A Sealed Flask",
+    title: "A Weathered Trail Map",
     description: "Something catches the light beneath a shelf of roots beside the old road.",
     regionId: "broceliande",
     pathIds: ["old_forest_road"],
@@ -2469,33 +2597,33 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     requirements: [
       {
         type: "notOwnsItem",
-        itemId: "flask"
+        itemId: "old_foresters_map"
       }
     ],
     stages: {
       start: {
-        text: "The vessel is old, but its seal is unbroken. It may have been left here for a reason.",
+        text: "The map is old, but its route marks are still legible. It may have been left here for a reason.",
         choices: [
           {
-            id: "recover_flask",
-            label: "Recover the Flask",
+            id: "recover_map",
+            label: "Recover the Map",
             outcomes: [
               {
                 type: "gainUniqueUnsecuredItem",
-                itemId: "flask",
-                resultText: "Arthur takes the sealed flask. Its purpose is not yet clear."
+                itemId: "old_foresters_map",
+                resultText: "Arthur takes the weathered map. Its early turnoff is still usable."
               }
             ],
             pendingAction: {
-              text: "Arthur reaches beneath the roots and carefully frees the sealed vessel...",
+              text: "Arthur reaches beneath the roots and carefully frees the weathered map...",
               delayProfile: "search"
             },
             endEncounter: true
           },
           {
-            id: "leave_flask",
+            id: "leave_map",
             label: "Leave It Undisturbed",
-            resultText: "Arthur leaves the sealed flask beneath the roots.",
+            resultText: "Arthur leaves the weathered map beneath the roots.",
             endEncounter: true
           }
         ]
@@ -4220,6 +4348,44 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     }
+  },
+  overgrown_trail_turnoff: {
+    id: "overgrown_trail_turnoff",
+    title: "The Overgrown Turnoff",
+    description: "The Main Road narrows beside a trail swallowed by fern and thorn.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    expeditionIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 1,
+    minimumDistance: 40,
+    maximumDistance: 44,
+    milestone: true,
+    milestoneOrder: 40,
+    ignoreEncounterSpacing: true,
+    tags: ["path", "route"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The clearer road continues ahead. A trail beside it disappears into thick undergrowth and seems to rejoin the road farther on.",
+        choices: [
+          {
+            id: "take_overgrown_trail",
+            label: "Take the Overgrown Trail",
+            outcomes: [{ type: "changePath", pathId: "overgrown_trail" }],
+            resultText: "The company takes the bounded Overgrown Trail. It will rejoin the Main Road near the deep forest.",
+            endEncounter: true,
+          },
+          {
+            id: "stay_main_road",
+            label: "Stay on the Main Road",
+            resultText: "Arthur keeps the company on the Main Road.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
   },
   hollow_crown: {
     id: "hollow_crown",

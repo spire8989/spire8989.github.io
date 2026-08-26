@@ -38,17 +38,41 @@ const CampaignRules = Object.freeze({
   },
 
   enterLocation(player, shopStocks = null) {
+    return this.enterLocationById(player, shopStocks, player?.currentLocationId);
+  },
+
+  enterLocationById(player, shopStocks = null, locationId = "broceliande_village") {
+    const location = LOCATION_DEFINITIONS[locationId] ?? LOCATION_DEFINITIONS.broceliande_village;
+    const serviceConfig = location.serviceConfig ?? {};
     const before = player.provisions;
-    if (player.provisions < EXPEDITION_TUNING.minimumTownProvisions) {
+    if (serviceConfig.autoProvisionGrant !== false
+      && player.provisions < EXPEDITION_TUNING.minimumTownProvisions) {
       player.provisions = EXPEDITION_TUNING.minimumTownProvisions;
     }
-    const restock = shopStocks ? this.restockTownProvisions(shopStocks) : null;
+    const restockShopId = serviceConfig.restockProvisionShopId
+      ?? (locationId === "broceliande_village" ? "village_general_goods" : null);
+    const restock = shopStocks && restockShopId
+      ? this.restockLocationProvisions(shopStocks, restockShopId)
+      : null;
     return {
       provisionsGranted: player.provisions - before,
       shopProvisionStockBefore: restock?.stockBefore ?? null,
       shopProvisionStockAfter: restock?.stockAfter ?? null,
       shopProvisionsRestocked: restock?.quantity ?? 0,
     };
+  },
+
+  restockLocationProvisions(shopStocks, shopId) {
+    const shop = SHOP_DEFINITIONS[shopId];
+    if (!shop?.provisionsForSale) return null;
+    const offer = shop.provisionsForSale;
+    const before = Math.max(0, Number(shopStocks?.[shop.id] ?? offer.stock) || 0);
+    const restockAmount = shop.id === "village_general_goods"
+      ? EXPEDITION_TUNING.townProvisionRestock
+      : Math.max(1, Math.floor(offer.stock * 0.25));
+    const after = Math.min(offer.stock, before + restockAmount);
+    if (shopStocks) shopStocks[shop.id] = after;
+    return { stockBefore: before, stockAfter: after, quantity: after - before };
   },
 
   sellMerchantItems(player, items) {

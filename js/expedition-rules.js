@@ -21,10 +21,14 @@ const JourneyLog = Object.freeze({
 
 // Production UI and instant simulations both use these expedition lifecycle rules.
 const ExpeditionRules = Object.freeze({
-  partyProvisionCapacity(selectedCompanions) {
+  partyProvisionCapacity(selectedCompanions, expeditionId = null) {
+    const routeBonus = expeditionId
+      ? Number(ExpeditionCatalog.get(expeditionId)?.provisionCapacityBonus) || 0
+      : 0;
     return PLAYER_CHARACTER_DEFINITION.provisionCapacity
       + companionIdsFromSelection(selectedCompanions)
-        .reduce((total, companionId) => total + (COMPANION_DEFINITIONS[companionId]?.provisionCapacityBonus ?? 0), 0);
+        .reduce((total, companionId) => total + (COMPANION_DEFINITIONS[companionId]?.provisionCapacityBonus ?? 0), 0)
+      + routeBonus;
   },
 
   partyProvisionConsumptionMultiplier(selectedCompanions) {
@@ -151,6 +155,49 @@ const ExpeditionRules = Object.freeze({
       expedition.maxDistanceReached = Math.max(Number(expedition.maxDistanceReached) || 0, value);
     }
     return true;
+  },
+
+  routeBranch(expedition, pathId = expedition?.currentPathId) {
+    const definition = ExpeditionCatalog.get(expedition?.expeditionId);
+    return Object.values(definition?.routeBranches ?? {}).find((branch) => branch.id === pathId) ?? null;
+  },
+
+  changePath(expedition, pathId) {
+    if (!expedition || typeof pathId !== "string" || !pathId) return false;
+    if (expedition.currentPathId === pathId) return true;
+    const branch = this.routeBranch(expedition, pathId);
+    if (branch && expedition.currentPathId === branch.entryPathId) {
+      expedition.pathRoute = {
+        branchId: branch.id,
+        entryPathId: branch.entryPathId,
+        entryDistance: Number(expedition.distance) || 0,
+        rejoinPathId: branch.rejoinPathId,
+        rejoinDistance: Number(branch.rejoinDistance),
+      };
+    } else if (expedition.pathRoute?.rejoinPathId === pathId) {
+      expedition.pathRoute = null;
+    }
+    expedition.currentPathId = pathId;
+    return true;
+  },
+
+  normalizeRoutePosition(expedition) {
+    const route = expedition?.pathRoute;
+    if (!route || !Number.isFinite(route.rejoinDistance)) return null;
+    if (expedition.direction === "outbound" && expedition.distance >= route.rejoinDistance) {
+      expedition.currentPathId = route.rejoinPathId;
+      expedition.pathRoute = null;
+      JourneyLog.add(expedition, "The Overgrown Trail rejoins the Main Road.", { category: "route" });
+      return "rejoined";
+    }
+    if (expedition.direction === "returning"
+      && expedition.distance <= Math.max(0, Number(route.entryDistance) || 0)) {
+      expedition.currentPathId = route.entryPathId;
+      expedition.pathRoute = null;
+      JourneyLog.add(expedition, "The company turned back onto the Main Road.", { category: "route" });
+      return "returned-to-entry";
+    }
+    return null;
   },
 
   briefRest(expedition) {
@@ -333,7 +380,7 @@ const ExpeditionRules = Object.freeze({
     const expeditionDefinition = ExpeditionCatalog.get(
       options.expeditionId ?? player.selectedExpeditionId ?? "old_forest_road",
     );
-    const capacity = this.partyProvisionCapacity(selectedCompanions);
+    const capacity = this.partyProvisionCapacity(selectedCompanions, expeditionDefinition.id);
     const provisions = Math.max(0, Math.min(Number(options.provisions) || 0, capacity));
     const selectedEquipment = { ...player.equippedItems, ...(options.equipment ?? {}) };
     const materialBagRequest = options.materialBagContents
@@ -347,6 +394,7 @@ const ExpeditionRules = Object.freeze({
       regionId: options.regionId ?? expeditionDefinition.regionId,
       originLocationId: player.currentLocationId,
       currentPathId: options.pathId ?? expeditionDefinition.pathId,
+      pathRoute: null,
       distance: 0,
       maxDistanceReached: 0,
       direction: "outbound",
@@ -450,6 +498,7 @@ const ExpeditionRules = Object.freeze({
       expedition.distance = Math.max(0, expedition.distance - distanceTraveled);
       expedition.sceneOffset += distanceTraveled * 9;
     }
+    const routeTransition = this.normalizeRoutePosition(expedition);
     adjustExpeditionProvisions(
       expedition,
       -this.provisionCostForDistance(
@@ -466,11 +515,12 @@ const ExpeditionRules = Object.freeze({
         encounter: null,
         reachedSafety: false,
         failureReason: "The company exhausted its provisions before reaching safety.",
+        routeTransition,
       };
     }
     const reachedSafety = expedition.direction === "returning" && expedition.distance <= 0;
     const encounter = reachedSafety ? null : EncounterManager.advance(expedition, player, distanceTraveled);
-    return { distanceTraveled, encounter, reachedSafety, failureReason: null };
+    return { distanceTraveled, encounter, reachedSafety, failureReason: null, routeTransition };
   },
 
   beginReturn(expedition) {

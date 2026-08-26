@@ -37,7 +37,12 @@ const STARTING_PLAYER_STATE = Object.freeze({
   selectedCompanions: ["sir_kay"],
   selectedCompanion: "sir_kay",
   selectedExpeditionId: "old_forest_road",
-  campaignFlags: { broceliande_intro_complete: false },
+  campaignFlags: {
+    broceliande_intro_complete: false,
+    forest_village_discovered: false,
+    hostile_stag_defeated: false,
+    verdant_warden_defeated: false,
+  },
   learnedKnowledge: [],
   completedChapters: ["chapter_01", "chapter_02"],
   bestExpeditionDistance: 0,
@@ -251,7 +256,9 @@ function sanitizeCampaignFlags(value, savedState, defaults) {
   if (Number(savedState.saveVersion) < 8 && meaningfulLegacyProgress(savedState, defaults)) {
     flags.broceliande_intro_complete = true;
   }
-  flags.broceliande_intro_complete ??= Boolean(defaults.campaignFlags?.broceliande_intro_complete);
+  Object.entries(defaults.campaignFlags ?? {}).forEach(([flag, enabled]) => {
+    flags[flag] ??= Boolean(enabled);
+  });
   return flags;
 }
 

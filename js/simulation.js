@@ -691,7 +691,22 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
   const encounterId = context.encounter?.id;
   const choiceById = (id) => choices.find((choice) => choice.id === id);
   if (encounterId === "hidden_flask") {
-    return choiceById("recover_flask") ?? choiceById("leave_flask") ?? null;
+    return choiceById("recover_map") ?? choiceById("leave_map") ?? null;
+  }
+  if (encounterId === "fork_in_the_road") {
+    return choiceById("overgrown_trail") ?? choiceById("main_road") ?? null;
+  }
+  if (encounterId === "overgrown_trail_turnoff") {
+    return choiceById("take_overgrown_trail") ?? choiceById("stay_main_road") ?? null;
+  }
+  if (encounterId === "hidden_forest_village") {
+    return choiceById("enter_village") ?? choiceById("pass_village") ?? null;
+  }
+  if (encounterId === "verdant_grove_placeholder") {
+    return choiceById("accept_placeholder_rite") ?? choiceById("leave_placeholder_rite") ?? null;
+  }
+  if (encounterId === "verdant_altar") {
+    return choiceById("sing_at_altar") ?? choiceById("leave_altar") ?? null;
   }
   if (encounterId === "barenton_fountain_ritual") {
     const priorities = context.stageId === "aftermath"
@@ -903,10 +918,10 @@ function normalizeScenario(scenario) {
   const companions = [...new Set((Array.isArray(requestedCompanions)
     ? requestedCompanions : [requestedCompanions]).filter((companionId) => COMPANION_DEFINITIONS[companionId]))].slice(0, 2);
   const companion = scenario.companion !== undefined ? scenario.companion : companions[0] ?? null;
-  const capacity = ExpeditionRules.partyProvisionCapacity(companions);
   const requestedExpeditionId = scenario.expeditionId ?? startingState.selectedExpeditionId;
   const expeditionId = EXPEDITION_DEFINITIONS[requestedExpeditionId]
     ? requestedExpeditionId : "old_forest_road";
+  const capacity = ExpeditionRules.partyProvisionCapacity(companions, expeditionId);
   const expeditionDefinition = ExpeditionCatalog.get(expeditionId);
   const turnaroundPolicy = scenario.turnaroundPolicy ?? { type: "fixedDistance", distance: 50 };
   const strategy = scenario.strategy ?? "cautious";
@@ -1350,7 +1365,17 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
       outcome: active.resultText,
       resources: resourceSnapshot(expedition),
     });
+    const locationStop = expedition.locationStop;
     EncounterManager.continueJourney(expedition);
+    if (locationStop) {
+      expedition.locationStop = null;
+      expedition.travelState = "traveling";
+      telemetry.events.push({
+        type: "location-stop-left",
+        locationId: locationStop.locationId,
+        distance: rounded(expedition.distance),
+      });
+    }
   }
 }
 

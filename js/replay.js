@@ -507,8 +507,13 @@ const ReplayController = Object.freeze({
       return { meaningful: true };
     }
     if (active.phase === "result") {
+      const locationStop = expedition.locationStop;
       if (!EncounterManager.continueJourney(expedition)) {
         return this.desync("The encounter result could not continue the journey.", this.nextDecision());
+      }
+      if (locationStop) {
+        expedition.locationStop = null;
+        expedition.travelState = "traveling";
       }
       this.holdPresentation(0.55);
       this.renderReplayGame();
@@ -618,6 +623,7 @@ const ReplayController = Object.freeze({
       if (!rest.applied && rest.reason !== "insufficient-provisions") {
         return this.desync("The recorded camp rest could not resolve.", next);
       }
+      if (rest.eventId) replayState.encounterCount += 1;
       if (!rest.applied) {
         const skipped = this.nextDecision();
         if (skipped?.type !== "camp-rest-skipped") {
@@ -1862,7 +1868,10 @@ const CampaignReplayController = Object.freeze({
     game.activeDestinationId = null;
     game.preparationSupplies = Math.min(
       campaignReplayState.player.provisions,
-      partyProvisionCapacity(selectedCompanionIds(campaignReplayState.player)),
+      partyProvisionCapacity(
+        selectedCompanionIds(campaignReplayState.player),
+        campaignReplayState.player.selectedExpeditionId,
+      ),
     );
     game.screen = "preparation";
     renderScreen();

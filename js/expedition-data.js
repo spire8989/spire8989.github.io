@@ -18,8 +18,24 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelAmbienceAssetId: null,
     campAmbienceAssetId: null,
     kind: "normal",
+    minimumObjectiveDistance: 180,
+    // The contest route is the one expedition expected to support a full
+    // 180-league return. Its road-side stores and forage support a larger
+    // expedition pack without changing the party's baseline capacity.
+    provisionCapacityBonus: 30,
     campEventTableIds: ["forest_wildlife", "road_travelers"],
     prerequisites: [],
+    routeBranches: {
+      overgrown_trail: {
+        id: "overgrown_trail",
+        name: "Overgrown Trail",
+        entryPathId: "old_forest_road",
+        entryDistance: 40,
+        mapEntryDistance: 20,
+        rejoinPathId: "old_forest_road",
+        rejoinDistance: 80,
+      },
+    },
     travelScenes: [
       {
         minDistance: 0,
@@ -37,6 +53,30 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
         visualAssetId: "expedition_old_forest_road_woodcut_2",
         motion: "loop",
         showSeamForegroundBetweenLoops: false,
+        travelParallaxAssetId: "expedition_old_forest_road_woodcut_2_parallax"
+      },
+      {
+        minDistance: 80,
+        visualAssetId: "expedition_old_forest_road_woodcut_3",
+        motion: "loop",
+        travelParallaxAssetId: "expedition_old_forest_road_woodcut_3_parallax"
+      },
+      {
+        minDistance: 120,
+        visualAssetId: "expedition_old_forest_road_woodcut_2",
+        motion: "loop",
+        travelParallaxAssetId: "expedition_old_forest_road_woodcut_2_parallax"
+      },
+      {
+        minDistance: 160,
+        visualAssetId: "expedition_old_forest_road_woodcut_3",
+        motion: "loop",
+        travelParallaxAssetId: "expedition_old_forest_road_woodcut_3_parallax"
+      },
+      {
+        minDistance: 200,
+        visualAssetId: "expedition_old_forest_road_woodcut_2",
+        motion: "loop",
         travelParallaxAssetId: "expedition_old_forest_road_woodcut_2_parallax"
       }
     ],

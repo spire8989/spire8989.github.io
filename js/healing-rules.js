@@ -34,9 +34,11 @@ const HealingRules = Object.freeze({
     return members;
   },
 
-  quoteInnRest(player) {
+  quoteInnRest(player, options = {}) {
+    const restoration = Number(options.restoration ?? HEALING_TUNING.innRestoration);
+    const goldCost = Number(options.goldCost ?? HEALING_TUNING.innRestGoldCost);
     const partyMembers = this.activeParty(player).map((member) => {
-      const healingAmount = Math.min(HEALING_TUNING.innRestoration, member.maxHealth - member.health);
+      const healingAmount = Math.min(restoration, member.maxHealth - member.health);
       return {
         id: member.id,
         name: member.name,
@@ -56,9 +58,9 @@ const HealingRules = Object.freeze({
         && INJURY_DEFINITIONS[InjuryRules.idOf(instance)]?.recoveryDistanceRange));
     const needsRest = totalHealingAmount > 0 || exhaustionMembers.length > 0 || recoveryMembers.length > 0;
     return {
-      available: needsRest && player.currentGold >= HEALING_TUNING.innRestGoldCost,
+      available: needsRest && player.currentGold >= goldCost,
       fullHealth: !needsRest,
-      affordable: player.currentGold >= HEALING_TUNING.innRestGoldCost,
+      affordable: player.currentGold >= goldCost,
       healthBefore: arthur.healthBefore,
       healthAfter: arthur.healthAfter,
       healingAmount: arthur.healingAmount,
@@ -72,14 +74,16 @@ const HealingRules = Object.freeze({
       )),
       exhaustionMembers: exhaustionMembers.map((member) => member.id),
       recoveryMembers: recoveryMembers.map((member) => member.id),
-      goldCost: needsRest ? HEALING_TUNING.innRestGoldCost : 0,
-      quotedGoldCost: needsRest ? HEALING_TUNING.innRestGoldCost : 0,
+      goldCost: needsRest ? goldCost : 0,
+      quotedGoldCost: needsRest ? goldCost : 0,
+      restoration,
+      recoveryDistanceReduction: Number(options.recoveryDistanceReduction ?? HEALING_TUNING.innRecoveryDistanceReduction),
       resource: "gold",
     };
   },
 
-  restAtInn(player) {
-    const quote = this.quoteInnRest(player);
+  restAtInn(player, options = {}) {
+    const quote = this.quoteInnRest(player, options);
     if (!quote.available) {
       return {
         ...quote,
@@ -116,7 +120,7 @@ const HealingRules = Object.freeze({
       .filter((result) => result.applied);
     const recoveryAccelerated = quote.recoveryMembers.flatMap((characterId) => (
       InjuryRules.accelerateRecovery(
-        player, characterId, HEALING_TUNING.innRecoveryDistanceReduction, "inn",
+        player, characterId, quote.recoveryDistanceReduction, "inn",
       )
     ));
     return { ...quote, applied: true, injuriesTreated, recoveryAccelerated };
