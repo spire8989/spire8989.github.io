@@ -153,16 +153,6 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       },
       {
         type: "item",
-        itemId: "old_coin",
-        weight: 5
-      },
-      {
-        type: "item",
-        itemId: "coin_purse",
-        weight: 3
-      },
-      {
-        type: "item",
         itemId: "decorated_buckle",
         weight: 3
       },
@@ -190,6 +180,11 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         type: "item",
         itemId: "rusted_sword",
         weight: 2
+      },
+      {
+        type: "recipe",
+        recipeId: "forestwarden_mail",
+        weight: 0.5
       }
     ]
   },

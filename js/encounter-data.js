@@ -2108,7 +2108,14 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "randomChance",
                 chance: 0.25,
-                resultText: "Looks like they left something valuable in here!"
+                resultText: "Looks like they left something valuable in here!",
+                effects: [
+                  {
+                    type: "rollLootTable",
+                    tableId: "abandoned_cart_loot",
+                    rolls: 1
+                  }
+                ]
               }
             ],
             pendingAction: {
