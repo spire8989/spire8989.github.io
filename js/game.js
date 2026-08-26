@@ -3096,7 +3096,7 @@ function renderDestination() {
       </div>
       <div class="destination-panel">
         <header class="interaction-header">
-          <button class="interaction-back village-back-button" type="button" data-action="show-location">← ${assetAttribute(currentLocationForUi()?.name ?? "Village")}</button>
+          <button class="interaction-back village-back-button" type="button" data-action="show-location">← Return</button>
           <strong id="destination-title">${destination.name}</strong>
           <span>${Math.floor(game.player.currentGold)}g · ${game.player.provisions} food</span>
         </header>
