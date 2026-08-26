@@ -28,6 +28,14 @@ const CAMPAIGN_PROGRESSION_ROUTES = Object.freeze([
 
 const CAMPAIGN_PROGRESSION_PREREQUISITES = Object.freeze({});
 
+const CAMPAIGN_COMPLETION_OBJECTIVE_DEFINITIONS = Object.freeze({
+  old_forest_flask: Object.freeze({
+    id: "old_forest_flask",
+    routeId: "old_forest_road",
+    label: "Old Forest: Secure Merlin's Flask",
+  }),
+});
+
 const CAMPAIGN_FOOD_RECIPE_IDS = Object.freeze([
   "roasted_meat",
   "foraged_meal",
@@ -54,9 +62,20 @@ const CampaignSimulationRunner = Object.freeze({
     const progressionTransitions = [];
     let stopReason = null;
 
+    if (progression && campaignCompletionObjectiveAchieved(config.completionObjective, player)) {
+      progression.completionObjectiveAchieved = true;
+      stopReason = "completion-objective-achieved";
+      return finalizeCampaignTelemetry(
+        config, policy, startingState, player, shopStocks, expeditions,
+        betweenExpeditionDecisions, townActions, stopReason, progression, progressionTransitions,
+      );
+    }
+
     for (let index = 0; index < config.maxExpeditions; index += 1) {
       const expeditionNumber = index + 1;
-      const progressionRouteId = progression?.currentRouteId ?? null;
+      const objectiveLimited = isObjectiveLimitedCampaign(config);
+      const progressionRouteId = objectiveLimited
+        ? "old_forest_road" : progression?.currentRouteId ?? null;
       const progressionSelection = progression
         ? selectCampaignProgressionExpedition(progressionRouteId, player)
         : null;
@@ -362,6 +381,12 @@ const CampaignSimulationRunner = Object.freeze({
           progressionRouteId, desiredTargetDistance, decision, run, stateBeforeDecisions, endingState,
         )
         : null;
+      const completionObjectiveAchieved = Boolean(
+        progression
+        && objectiveLimited
+        && progressionAttempt?.completed
+        && campaignCompletionObjectiveAchieved(config.completionObjective, endingState, run),
+      );
       const prerequisiteAcquired = isPrerequisiteRun
         && Boolean(run.returnedSafely)
         && hasCampaignItem(endingState, progressionSelection.itemId);
@@ -600,6 +625,30 @@ const CampaignSimulationRunner = Object.freeze({
         progression.prerequisiteRunsByRoute[progressionSelection.prerequisiteForRoute] += 1;
         progression.lastRoute = routeId;
         progression.lastAttemptReason = prerequisiteStatus;
+      } else if (progression && objectiveLimited) {
+        progression.attemptsByRoute[progressionRouteId] += 1;
+        if (completionObjectiveAchieved) {
+          if (!progression.routesCompleted.includes(progressionRouteId)) {
+            progression.routesCompleted.push(progressionRouteId);
+          }
+          progression.routeCompletionAttempt[progressionRouteId] ??= expeditionNumber;
+          progression.routeCompletionStatus[progressionRouteId] = "completed";
+          progression.completionObjectiveAchieved = true;
+          progression.lastRoute = progressionRouteId;
+          progression.lastAttemptReason = "secured-flask-after-safe-return";
+          progressionTransitions.push({
+            expeditionNumber,
+            fromRouteId: progressionRouteId,
+            toRouteId: null,
+            gatedRouteId: null,
+            reason: "completion-objective-achieved",
+          });
+          stopReason = "completion-objective-achieved";
+          break;
+        }
+        progression.routeCompletionStatus[progressionRouteId] = progressionAttempt?.status ?? "not-attempted";
+        progression.lastRoute = progressionRouteId;
+        progression.lastAttemptReason = progressionAttempt?.reason ?? null;
       } else if (progression) {
         progression.attemptsByRoute[progressionRouteId] += 1;
         if (progressionAttempt.completed) {
@@ -652,7 +701,9 @@ const CampaignSimulationRunner = Object.freeze({
       }
     }
 
-    stopReason ??= progression?.currentContentCompleted
+    stopReason ??= progression?.completionObjectiveAchieved
+      ? "completion-objective-achieved"
+      : progression?.currentContentCompleted
       ? "current-content-completed"
       : expeditions.length >= config.maxExpeditions
         ? progression ? "progression-attempt-cap" : "max-expeditions-reached"
@@ -745,7 +796,7 @@ const CampaignSimulationTelemetry = Object.freeze({
 
   campaignsToCsv(batchOrResults) {
     const results = Array.isArray(batchOrResults) ? batchOrResults : batchOrResults.results;
-    const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "campaignProgressionMode",
+    const fields = ["campaignId", "seed", "strategy", "betweenExpeditionPolicy", "campaignProgressionMode", "completionObjective",
       "currentRoute", "lastRoute", "progressionRouteSequence", "routesCompleted", "attemptsByRoute",
       "routeCompletionAttempt", "routeCompletionStatus", "waterOfBarentonSecured", "morgansTokenSecured",
       "merlinFound", "boundWardenEncountered", "boundWardenVictories",
@@ -882,10 +933,12 @@ function compactExportMetadata(batch, campaigns) {
     betweenExpeditionPolicy: campaign.betweenExpeditionPolicy,
     expeditionPlan: campaign.expeditionPlan,
     maxExpeditions: campaign.expeditionPlan?.length ?? campaign.expeditionsAttempted,
+    completionObjective: campaign.completionObjective ?? null,
   });
   const plans = distinctCompactValues(configurations.map((configuration) => ({
     expeditionPlan: configuration.expeditionPlan ?? [],
     maxExpeditions: configuration.maxExpeditions ?? null,
+    completionObjective: configuration.completionObjective ?? null,
   })));
   return {
     compactExportVersion: 2,
@@ -903,6 +956,9 @@ function compactExportMetadata(batch, campaigns) {
     strategies: distinctStrings(campaigns.map((campaign) => campaign.strategy)),
     campaignModes: distinctStrings(campaigns.map((campaign) => (
       campaign.campaignProgressionMode ? "progression" : "repeated"
+    ))),
+    completionObjectives: distinctStrings(campaigns.map((campaign) => (
+      campaign.completionObjective ?? campaign.simulationConfiguration?.completionObjective ?? "full_campaign"
     ))),
     economicPolicies: distinctStrings(campaigns.map((campaign) => (
       campaign.betweenExpeditionPolicy
@@ -1039,6 +1095,8 @@ function compactCampaignSummary(campaign, expeditions) {
     },
     progression: {
       mode: campaign.campaignProgressionMode ? "current-campaign" : "repeated-route",
+      completionObjective: campaign.completionObjective ?? null,
+      completionObjectiveAchieved: Boolean(campaign.completionObjectiveAchieved),
       routeSequence: compactClone(campaign.routeSequence ?? []),
       routeAttemptSequence: compactClone(campaign.routeAttemptSequence ?? []),
       routesCompleted: compactClone(campaign.routesCompleted ?? []),
@@ -3071,10 +3129,25 @@ function normalizeCampaignConfiguration(configuration) {
       || configuration.progressionMode === true
       || configuration.campaignProgressionMode === true
       ? "progression" : "repeated",
+    completionObjective: typeof configuration.completionObjective === "string"
+      && CAMPAIGN_COMPLETION_OBJECTIVE_DEFINITIONS[configuration.completionObjective]
+      ? configuration.completionObjective : null,
     startingState: configuration.startingState ?? {},
     healingEnabled: configuration.healingEnabled !== false,
     autoSellRecoveredLoot: configuration.autoSellRecoveredLoot !== false,
   };
+}
+
+function isObjectiveLimitedCampaign(config = {}) {
+  return config.campaignMode === "progression"
+    && Boolean(config.completionObjective);
+}
+
+function campaignCompletionObjectiveAchieved(completionObjective, state = {}, run = null) {
+  if (completionObjective !== "old_forest_flask") return false;
+  const flaskSecured = Number(state?.ownedItems?.flask) > 0
+    && state?.campaignFlags?.verdant_warden_defeated === true;
+  return Boolean(flaskSecured && (run === null || run?.returnedSafely === true));
 }
 
 function createCampaignProgressionState() {
@@ -3095,6 +3168,7 @@ function createCampaignProgressionState() {
     ),
     currentOldForestGoal: null,
     oldForestProgressionGoalByExpedition: [],
+    completionObjectiveAchieved: false,
     currentContentCompleted: false,
   };
 }
@@ -3877,13 +3951,26 @@ function finalizeCampaignTelemetry(
   const firstWardenAttempt = oldForestEntries.find((entry) => (
     entry.expeditionTelemetry?.encounters?.some((encounter) => encounter.encounterId === "verdant_altar")
   ))?.expeditionNumber ?? null;
+  const firstOldForestFlaskSecured = oldForestEntries.find((entry) => (
+    entry.success
+    && campaignCompletionObjectiveAchieved(
+      "old_forest_flask", entry.stateAfter ?? entry.expeditionTelemetry?.endingPlayerState ?? {},
+    )
+  ))?.expeditionNumber ?? null;
   const morganOfferReached = encounterCountFor("val_morgans_offer");
   const guardianReached = encounterCountFor("summoned_guardian");
   const guardianVictories = combatVictoryCountFor("summoned_guardian");
   const merlinFound = endingState.campaignFlags?.merlin_found === true;
   const currentContentCompleted = Boolean(progression?.currentContentCompleted);
+  const flaskSecured = campaignCompletionObjectiveAchieved("old_forest_flask", endingState);
+  const campaignCompleted = config.completionObjective === "old_forest_flask"
+    ? Boolean(progression?.completionObjectiveAchieved)
+    : config.campaignMode === "progression" ? currentContentCompleted
+      : campaignCompletedPlan(config, expeditions, stopReason);
   const finalProgressionStage = config.campaignMode === "progression"
-    ? currentContentCompleted ? "current-content-completed" : progression?.currentRouteId ?? null
+    ? campaignCompleted
+      ? config.completionObjective === "old_forest_flask" ? "completion-objective-achieved" : "current-content-completed"
+      : progression?.currentRouteId ?? null
     : null;
   return {
     campaignId: `${config.id}:${config.seed}`,
@@ -3897,6 +3984,7 @@ function finalizeCampaignTelemetry(
       expeditionPlan: config.expeditionPlan,
       maxExpeditions: config.maxExpeditions,
       campaignMode: config.campaignMode,
+      completionObjective: config.completionObjective,
       healingEnabled: config.healingEnabled,
       autoSellRecoveredLoot: config.autoSellRecoveredLoot,
     },
@@ -3920,16 +4008,17 @@ function finalizeCampaignTelemetry(
     hardFailureReason: stopCategory === "hard-failure" ? stopReason : null,
     strategyConstraints,
     strategyConstraintCount: strategyConstraints.length,
-    completedPlan: config.campaignMode === "progression"
-      ? currentContentCompleted
-      : campaignCompletedPlan(config, expeditions, stopReason),
+    completedPlan: campaignCompleted,
+    completed: campaignCompleted,
     campaignProgressionMode: config.campaignMode === "progression",
+    completionObjective: config.completionObjective,
     routesCompleted: deepCampaignClone(routesCompleted),
     currentRoute: progression?.currentRouteId ?? null,
     lastRoute: progression?.lastRoute ?? expeditions.at(-1)?.routeId ?? null,
     attemptsByRoute: deepCampaignClone(attemptsByRoute),
     routeCompletionAttempt: deepCampaignClone(progression?.routeCompletionAttempt ?? {}),
     routeCompletionStatus: deepCampaignClone(routeCompletionStatus),
+    completionObjectiveAchieved: Boolean(progression?.completionObjectiveAchieved),
     routeSequence,
     routeAttemptSequence,
     supplyRunCount: expeditions.filter((entry) => entry.isSupplyRun).length,
@@ -3956,6 +4045,7 @@ function finalizeCampaignTelemetry(
     waterOfBarentonSecured,
     morgansTokenSecured,
     merlinFound,
+    flaskSecured,
     boundWardenEncountered,
     boundWardenVictories,
     barentonFirstExpedition: firstBarentonExpedition,
@@ -3979,7 +4069,7 @@ function finalizeCampaignTelemetry(
       tripsUntilSong: firstOldForestWithKnowledge("song_of_the_forest"),
       tripsUntilHeartEnchanted: firstOldForestTownAction("druid-favor-complete") ?? firstOldForestTownAction("druid-heart-awakened"),
       tripsUntilFirstWardenAttempt: firstWardenAttempt,
-      tripsUntilFlaskSecured: firstExpeditionWithFlag("verdant_warden_defeated"),
+      tripsUntilFlaskSecured: firstOldForestFlaskSecured,
       wardenAttempts: wardenCombats.length,
       wardenVictories: wardenCombats.filter((combat) => combat.result === "victory").length,
       wardenLosses: wardenCombats.filter((combat) => combat.result !== "victory").length,
@@ -4217,6 +4307,13 @@ function summarizeCampaigns(results) {
     const entries = routeAttempts[routeId];
     return entries.length ? campaignAverage(entries.map((entry) => entry[field])) : 0;
   };
+  const oldForestFlaskCompletions = results.filter((campaign) => campaign.flaskSecured).length;
+  const totalWardenAttempts = results.reduce(
+    (sum, campaign) => sum + (campaign.oldForestProgression?.wardenAttempts ?? 0), 0,
+  );
+  const totalWardenVictories = results.reduce(
+    (sum, campaign) => sum + (campaign.oldForestProgression?.wardenVictories ?? 0), 0,
+  );
   const completionAttemptDistribution = (routeId) => {
     const counts = { attempt1: 0, attempt2: 0, attempt3Plus: 0 };
     results.forEach((campaign) => {
@@ -4263,6 +4360,21 @@ function summarizeCampaigns(results) {
     totalCampaigns: results.length,
     campaignCompletionRate: results.length ? results.filter((entry) => entry.completedPlan).length / results.length : 0,
     successfulCompletionRate: results.length ? results.filter((entry) => entry.completedPlan).length / results.length : 0,
+    oldForestFlaskCompletionRate: results.length ? oldForestFlaskCompletions / results.length : 0,
+    oldForestFlaskSuccessfulCompletionRate: results.length ? oldForestFlaskCompletions / results.length : 0,
+    averageTripsUntilFlask: campaignAverage(
+      results.map((entry) => entry.oldForestProgression?.tripsUntilFlaskSecured).filter(Number.isFinite),
+    ),
+    medianTripsUntilFlask: campaignMedian(
+      results.map((entry) => entry.oldForestProgression?.tripsUntilFlaskSecured).filter(Number.isFinite),
+    ),
+    wardenAttemptRate: results.length
+      ? results.filter((entry) => (entry.oldForestProgression?.wardenAttempts ?? 0) > 0).length / results.length : 0,
+    wardenVictoryRate: totalWardenVictories / Math.max(1, totalWardenAttempts),
+    averageWardenAttempts: campaignAverage(
+      results.map((entry) => entry.oldForestProgression?.wardenAttempts ?? 0),
+    ),
+    flaskSecuredRate: results.length ? oldForestFlaskCompletions / results.length : 0,
     averageExpeditionsSurvived: averageField("expeditionsAttempted"),
     medianExpeditionsSurvived: campaignMedian(results.map((entry) => entry.expeditionsAttempted)),
     deathRate: results.length ? results.filter((entry) => entry.stopReason === "arthur-died").length / results.length : 0,

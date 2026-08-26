@@ -39,6 +39,10 @@ function initializeSimulationTools() {
         <option value="repeated">Repeated route</option>
         <option value="progression" selected>Current campaign progression</option>
       </select></label>
+      <label id="campaign-objective-field">Completion objective <select id="campaign-objective">
+        <option value="">Full Campaign</option>
+        <option value="old_forest_flask">Old Forest: Secure Merlin's Flask</option>
+      </select></label>
       <label>Max attempts <input id="campaign-expeditions" type="number" min="1" max="100" value="20"></label>
       <label>Strategy <select id="campaign-strategy">
         ${Object.keys(SimulationStrategies).map((name) => `<option value="${name}" ${name === "aggressive" ? "selected" : ""}>${name}</option>`).join("")}
@@ -174,13 +178,25 @@ function initializeSimulationTools() {
     panel.querySelector("#campaign-run-detail").textContent = campaign
       ? JSON.stringify(campaign, null, 2) : "";
   });
+  const campaignType = panel.querySelector("#campaign-type");
+  const campaignObjectiveField = panel.querySelector("#campaign-objective-field");
+  const syncCampaignObjective = () => {
+    const progression = campaignType.value === "progression";
+    campaignObjectiveField.hidden = !progression;
+    if (!progression) panel.querySelector("#campaign-objective").value = "";
+  };
+  campaignType.addEventListener("change", syncCampaignObjective);
+  syncCampaignObjective();
 }
 
 function currentCampaignScenario(panel) {
+  const campaignMode = panel.querySelector("#campaign-type").value;
   return {
     id: "current-campaign",
     seed: "browser-campaign",
-    campaignMode: panel.querySelector("#campaign-type").value,
+    campaignMode,
+    completionObjective: campaignMode === "progression"
+      ? panel.querySelector("#campaign-objective").value || null : null,
     expeditions: Math.max(1, Number(panel.querySelector("#campaign-expeditions").value) || 10),
     strategy: panel.querySelector("#campaign-strategy").value,
     betweenExpeditionPolicy: panel.querySelector("#campaign-policy").value,

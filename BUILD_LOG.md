@@ -4728,6 +4728,23 @@ The focused Old Forest balance suite passes 9 assertions, including Woodcraft in
 
 For the next 100 Aggressive / 100 Cautious / 100 Random campaign batch, watch `oldForestCompletionRate`, `oldForestReachedRate`, goal-specific trip counts, food-recipe learning and usage rates, `recipesUsedById`, cooking provisions by recipe, ingredient shortages, `cookingOpportunityMissedCount`, materials found by ingredient, priority discards, emergency turnarounds, provision exhaustion/death rates, and return failures by depth. The desired outcome is more reliable milestone preparation and stronger recipe usage without a capacity increase, a flood of Honey, or a new simulator-created hard-push failure.
 
+## 2026-08-26 - Old Forest Flask Objective-Limited Campaign Simulation
+
+### Goal
+
+Allow campaign simulations to stop at the current Old Forest objective instead of continuing into Barenton, Val sans Retour, and Search for Merlin. The existing full `campaignMode: "progression"` behavior remains the default when no completion objective is selected.
+
+### Implementation
+
+- Added `completionObjective: "old_forest_flask"` for progression simulations. It keeps the existing Old Forest milestone planner active, holds the route on Old Forest, and stops with `completion-objective-achieved` only after the Verdant Warden flag and Merlin's Flask are both present after a safe return.
+- Added objective-aware `completed`/`completedPlan` semantics, Flask completion rates, Warden attempt/victory rates, Flask trip statistics, and compact JSON/CSV configuration metadata.
+- Added the simulator UI objective selector with Full Campaign and Old Forest: Secure Merlin's Flask options.
+- Added focused regressions for safe-return semantics, no later-route leakage, no false completion at 180 without the Flask, immediate stop after success, metrics/export metadata, and UI behavior. No gameplay balance values changed.
+
+### Verification
+
+The objective planning suite passes 15 assertions; current-campaign progression passes 5, deterministic simulation passes 62, Old Forest progression passes 9, and replay passes 15. The broader campaign fixture still has its documented stale packed-loadout expectation for `wayfarers_cloak` and `rope`; it is unrelated to objective-limited simulation.
+
 ## 2026-08-25 - Old Forest Material Reward Validation Correction
 
 The three new Woodcraft Rare Herb rewards in Woodland Foraging, Beneath the Roots, and Ancient Spring now roll the existing one-entry `rare_herb_find` loot table. Its `type: "material"` entry uses `materialId: "rare_herbs"`, so the reward is staged in the expedition Material Bag without creating an inventory item. The focused browser balance regression now confirms the in-game reward path; the full Content Editor catalog validation and its material-reward regression are also part of the verification gate.
