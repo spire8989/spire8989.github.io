@@ -3,7 +3,9 @@
 const SimulationStrategies = Object.freeze({
   random: createStrategy("random", (choices, context) => context.random.pick(choices)),
   normal: createStrategy("normal", (choices, context) => context.random.pick(choices)),
-  cautious: createStrategy("cautious", (choices) => highestScored(choices, cautiousChoiceScore)),
+  cautious: createStrategy("cautious", (choices, context) => highestScored(
+    choices, (choice) => cautiousChoiceScore(choice, context),
+  )),
   aggressive: createStrategy("aggressive", (choices) => highestScored(choices, aggressiveChoiceScore)),
   greedy: createStrategy("greedy", (choices) => highestScored(choices, greedyChoiceScore)),
 });
@@ -526,6 +528,7 @@ const SimulationTelemetry = Object.freeze({
       cookingProvisionsGainedByRecipe: run.cookingProvisionsGainedByRecipe,
       cookingIngredientShortagesByRecipe: run.cookingIngredientShortagesByRecipe,
       cookingOpportunityMissedCount: run.cookingOpportunityMissedCount,
+      choiceSafety: run.choiceSafety,
       startingMaterialBag: run.startingMaterialBag,
       materialBagCapacity: run.materialBagCapacity,
       materialBagAtEnd: run.materialBagAtEnd,
@@ -655,6 +658,7 @@ const SimulationTelemetry = Object.freeze({
       "briefRestCount", "campRestCount", "campEventCount", "cookingActionCount", "cookingProvisionsGained",
       "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered",
       "banditLeaderEncounters", "banditLeaderVictories", "banditGoldRecovered", "banditLootValueRecovered",
+      "safePositiveChoicesAvailable", "safePositiveChoicesSelected", "riskyChoicesSelected", "unknownChoicesSelected",
       "campEvents", "recipesCooked", "ingredientsConsumedById",
       "recipesUsedById", "cookingProvisionsGainedByRecipe", "cookingIngredientShortagesByRecipe",
       "cookingOpportunityMissedCount",
@@ -958,17 +962,201 @@ function choiceText(choice) {
   return `${choice.id} ${choice.label} ${JSON.stringify(choice.outcomes ?? [])} ${JSON.stringify(choice.branches ?? [])}`.toLowerCase();
 }
 
-function costAmount(choice, resource) {
-  return (choice.costs ?? []).filter((cost) => cost.type === "modifyResource" && cost.resource === resource)
-    .reduce((sum, cost) => sum + (Number(cost.amount) || 0), 0);
+const CHOICE_SAFETY = Object.freeze({
+  SAFE: "clearly-safe",
+  BOUNDED: "bounded-risk",
+  DANGEROUS: "dangerous",
+  UNKNOWN: "unknown",
+});
+
+function analyzeChoiceSafety(choice) {
+  const analysis = {
+    classification: CHOICE_SAFETY.SAFE,
+    positiveUtility: 0,
+    riskScore: 0,
+    reasons: [],
+    hasUnknown: false,
+    hasBoundedRisk: false,
+    hasDanger: false,
+  };
+  const reason = (text) => {
+    if (text && !analysis.reasons.includes(text) && analysis.reasons.length < 2) analysis.reasons.push(text);
+  };
+  const positive = (amount, text) => {
+    analysis.positiveUtility += Math.max(0, Number(amount) || 0);
+    if (text) reason(text);
+  };
+  const bounded = (amount, text) => {
+    analysis.hasBoundedRisk = true;
+    analysis.riskScore += Math.max(1, Number(amount) || 0);
+    reason(text);
+  };
+  const danger = (amount, text) => {
+    analysis.hasDanger = true;
+    analysis.riskScore += Math.max(1, Number(amount) || 0);
+    reason(text);
+  };
+  const unknown = (text) => {
+    analysis.hasUnknown = true;
+    analysis.riskScore += 25;
+    reason(text);
+  };
+  const inspectResource = (effect) => {
+    const values = Number.isFinite(effect.amount)
+      ? [effect.amount]
+      : [effect.randomMinimum, effect.randomMaximum].filter(Number.isFinite);
+    if (!values.length) {
+      unknown(`unknown ${effect.resource ?? "resource"} amount`);
+      return;
+    }
+    const minimum = Math.min(...values);
+    const maximum = Math.max(...values);
+    if (maximum > 0) positive(Math.min(maximum, 10), `gains ${effect.resource ?? "a resource"}`);
+    if (minimum < 0) {
+      const severity = effect.resource === "health" ? 30 : effect.resource === "provisions" ? 18 : 12;
+      bounded(severity + Math.abs(minimum), `can lose ${effect.resource ?? "a resource"}`);
+    }
+  };
+  const inspect = (effect, source = "outcome") => {
+    if (!effect || typeof effect !== "object") {
+      unknown(`invalid ${source}`);
+      return;
+    }
+    switch (effect.type) {
+      case "modifyResource":
+        inspectResource(effect);
+        break;
+      case "gainRandomUnsecuredItem":
+      case "gainWeightedRandomUnsecuredItem":
+      case "gainUnsecuredItem":
+      case "gainUniqueUnsecuredItem":
+        positive(10 * Math.max(1, Number(effect.quantity) || 1), "gains an item");
+        break;
+      case "rollLootTable":
+        if (effect.tableId) {
+          const chance = Number(effect.chance);
+          positive(12 * Math.max(0, Number.isFinite(chance) ? chance : 1), "rolls a loot table");
+        } else unknown("loot table is not specified");
+        break;
+      case "learnRecipe":
+        positive(12, "learns a recipe");
+        break;
+      case "learnAbility":
+      case "learnKnowledge":
+      case "unlockCompanion":
+      case "unlockVillage":
+        positive(8, "unlocks knowledge or access");
+        break;
+      case "setCampaignFlagOnSafeReturn":
+        positive(4, "advances a safe-return flag");
+        break;
+      case "setRunFlag":
+      case "setCampaignFlag":
+      case "setFlag":
+      case "showToast":
+      case "enterLocation":
+        break;
+      case "transformItem":
+        positive(8, "transforms an item");
+        break;
+      case "applyInjury":
+        danger(120, "can cause an injury");
+        break;
+      case "consumeExpeditionItem":
+      case "consumeItem":
+        bounded(30, "consumes an item");
+        break;
+      case "startCombat":
+        danger(1000, "starts combat");
+        break;
+      case "failExpedition":
+        danger(1000, "can fail the expedition");
+        break;
+      case "changePath":
+        danger(140, "changes the travel path");
+        break;
+      case "startDialogue":
+        unknown("defers consequences to dialogue");
+        break;
+      case "randomChance":
+        (effect.effects ?? []).forEach((nested) => inspect(nested, "random outcome"));
+        (effect.elseEffects ?? []).forEach((nested) => inspect(nested, "random fallback"));
+        break;
+      case "conditional":
+        (effect.effects ?? []).forEach((nested) => inspect(nested, "conditional outcome"));
+        (effect.elseEffects ?? []).forEach((nested) => inspect(nested, "conditional fallback"));
+        break;
+      case "randomOne":
+        if (!Array.isArray(effect.options) || effect.options.length === 0) {
+          unknown("random options are not specified");
+          break;
+        }
+        effect.options.forEach((option) => {
+          const nested = Array.isArray(option) ? option : option?.effects;
+          if (!Array.isArray(nested)) unknown("random option has no outcome");
+          (nested ?? []).forEach((child) => inspect(child, "random option"));
+        });
+        break;
+      default:
+        unknown(`unknown outcome type ${effect.type ?? "(missing)"}`);
+        break;
+    }
+  };
+  (choice?.costs ?? []).forEach((effect) => inspect(effect, "cost"));
+  (choice?.outcomes ?? []).forEach((effect) => inspect(effect));
+  (choice?.branches ?? []).forEach((branch) => {
+    if (branch?.nextStage) bounded(40, "may continue to another stage");
+    (branch?.outcomes ?? []).forEach((effect) => inspect(effect, "branch outcome"));
+  });
+  if (analysis.hasDanger) analysis.classification = CHOICE_SAFETY.DANGEROUS;
+  else if (analysis.hasUnknown) analysis.classification = CHOICE_SAFETY.UNKNOWN;
+  else if (analysis.hasBoundedRisk) analysis.classification = CHOICE_SAFETY.BOUNDED;
+  return {
+    classification: analysis.classification,
+    positiveUtility: rounded(analysis.positiveUtility),
+    riskScore: rounded(analysis.riskScore),
+    reason: analysis.reasons.join("; ") || "no authored cost or consequence",
+  };
 }
 
+const SimulationChoiceSafety = Object.freeze({
+  analyze: analyzeChoiceSafety,
+  classify: analyzeChoiceSafety,
+});
+
 function cautiousChoiceScore(choice) {
-  const text = choiceText(choice);
-  return (choice.requirements?.length ?? 0) * 8
-    + (/safe|careful|rope|cloak|knowledge|avoid|leave|road|wait|shelter|rest/.test(text) ? 12 : 0)
-    - (/fight|combat|attack|risk|climb|search|pursue|follow/.test(text) ? 10 : 0)
-    + costAmount(choice, "health") * 3 + costAmount(choice, "provisions");
+  const safety = analyzeChoiceSafety(choice);
+  if (safety.classification === CHOICE_SAFETY.SAFE) return 100 + safety.positiveUtility;
+  if (safety.classification === CHOICE_SAFETY.BOUNDED) return safety.positiveUtility - safety.riskScore;
+  if (safety.classification === CHOICE_SAFETY.UNKNOWN) return -200 - safety.riskScore;
+  return -1000 - safety.riskScore + safety.positiveUtility;
+}
+
+function createChoiceSafetyTelemetry() {
+  const counts = () => Object.fromEntries(Object.values(CHOICE_SAFETY).map((key) => [key, 0]));
+  return {
+    availableByClassification: counts(),
+    selectedByClassification: counts(),
+    safePositiveChoicesAvailable: 0,
+    safePositiveChoicesSelected: 0,
+    riskyChoicesSelected: 0,
+    unknownChoicesSelected: 0,
+  };
+}
+
+function recordChoiceSafety(telemetry, analysis, selected = false) {
+  const counts = selected
+    ? telemetry.choiceSafety.selectedByClassification
+    : telemetry.choiceSafety.availableByClassification;
+  counts[analysis.classification] = (counts[analysis.classification] ?? 0) + 1;
+  if (analysis.classification === CHOICE_SAFETY.SAFE && analysis.positiveUtility > 0) {
+    if (selected) telemetry.choiceSafety.safePositiveChoicesSelected += 1;
+    else telemetry.choiceSafety.safePositiveChoicesAvailable += 1;
+  }
+  if (selected && analysis.classification !== CHOICE_SAFETY.SAFE) {
+    telemetry.choiceSafety.riskyChoicesSelected += 1;
+    if (analysis.classification === CHOICE_SAFETY.UNKNOWN) telemetry.choiceSafety.unknownChoicesSelected += 1;
+  }
 }
 
 function aggressiveChoiceScore(choice) {
@@ -1470,19 +1658,36 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
       fail(`Encounter ${definition.id} had no available choices.`);
       return;
     }
+    const choiceAnalyses = choices.map((entry) => ({ choice: entry, analysis: analyzeChoiceSafety(entry) }));
+    choiceAnalyses.forEach(({ analysis }) => recordChoiceSafety(telemetry, analysis));
     const choice = strategy.chooseEncounter(choices, {
       expedition, player, encounter: definition, stage, stageId: active.stageId, random,
       campaignGoal: scenario.campaignGoal ?? null,
     })
       ?? choices[0];
+    const selectedChoiceAnalysis = choiceAnalyses.find((entry) => entry.choice === choice)?.analysis
+      ?? analyzeChoiceSafety(choice);
+    recordChoiceSafety(telemetry, selectedChoiceAnalysis, true);
     history.availableChoices.push({ stageId: active.stageId, choiceIds: choices.map((entry) => entry.id) });
-    history.decisions.push({ stageId: active.stageId, choiceId: choice.id, label: choice.label });
+    history.decisions.push({
+      stageId: active.stageId,
+      choiceId: choice.id,
+      label: choice.label,
+      safetyClassification: selectedChoiceAnalysis.classification,
+      positiveUtility: selectedChoiceAnalysis.positiveUtility,
+      riskScore: selectedChoiceAnalysis.riskScore,
+      reason: selectedChoiceAnalysis.reason,
+    });
     const choiceDecision = {
       type: active.eventKind === "camp" ? "camp-event-choice" : "encounter-choice",
       encounterId: definition.id,
       ...(active.eventKind === "camp" ? { eventId: definition.id } : {}),
       stageId: active.stageId,
       choiceId: choice.id,
+      safetyClassification: selectedChoiceAnalysis.classification,
+      positiveUtility: selectedChoiceAnalysis.positiveUtility,
+      riskScore: selectedChoiceAnalysis.riskScore,
+      reason: selectedChoiceAnalysis.reason,
     };
     telemetry.decisions.push(choiceDecision);
     if (active.eventKind === "camp") {
@@ -1844,6 +2049,7 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     ingredientsConsumedById: {},
     cookingIngredientShortagesByRecipe: {},
     cookingOpportunityMissedCount: 0,
+    choiceSafety: createChoiceSafetyTelemetry(),
     banditAmbushEncounters: 0,
     banditAmbushVictories: 0,
     banditLeaderEligibilityTriggered: 0,
@@ -2149,6 +2355,10 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     restHealingModified: [...telemetry.briefRests, ...telemetry.campRests]
       .filter((rest) => rest.restHealingMultiplier !== 1)
       .map((rest) => ({ kind: rest.kind, multiplier: rest.restHealingMultiplier, distance: rest.distance })),
+    safePositiveChoicesAvailable: telemetry.choiceSafety.safePositiveChoicesAvailable,
+    safePositiveChoicesSelected: telemetry.choiceSafety.safePositiveChoicesSelected,
+    riskyChoicesSelected: telemetry.choiceSafety.riskyChoicesSelected,
+    unknownChoicesSelected: telemetry.choiceSafety.unknownChoicesSelected,
     encounterCount: telemetry.encounters.length,
     combatCount: telemetry.combats.length,
     stepCount: steps,
@@ -2522,7 +2732,28 @@ function summarizeRuns(results) {
     ),
     averageEncounterProvisionReserve: average(values("encounterProvisionReserve")),
     averageDepartureTotalEstimatedRequirement: average(values("departureTotalEstimatedRequirement")),
+    choiceSafety: summarizeChoiceSafety(results),
   };
+}
+
+function summarizeChoiceSafety(results) {
+  const summary = createChoiceSafetyTelemetry();
+  results.forEach((run) => {
+    const safety = run.choiceSafety ?? {};
+    Object.values(CHOICE_SAFETY).forEach((classification) => {
+      summary.availableByClassification[classification] += Number(
+        safety.availableByClassification?.[classification],
+      ) || 0;
+      summary.selectedByClassification[classification] += Number(
+        safety.selectedByClassification?.[classification],
+      ) || 0;
+    });
+    summary.safePositiveChoicesAvailable += Number(safety.safePositiveChoicesAvailable) || 0;
+    summary.safePositiveChoicesSelected += Number(safety.safePositiveChoicesSelected) || 0;
+    summary.riskyChoicesSelected += Number(safety.riskyChoicesSelected) || 0;
+    summary.unknownChoicesSelected += Number(safety.unknownChoicesSelected) || 0;
+  });
+  return summary;
 }
 
 function aggregateEncounters(results) {
@@ -2530,7 +2761,7 @@ function aggregateEncounters(results) {
   results.forEach((run) => run.encounters.forEach((encounter) => {
     const entry = stats[encounter.encounterId] ??= {
       encounterId: encounter.encounterId, name: encounter.name, timesSeen: 0,
-      outboundCount: 0, returnCount: 0, totalDistance: 0, choices: {}, runIds: new Set(),
+      outboundCount: 0, returnCount: 0, totalDistance: 0, choices: {}, safety: {}, runIds: new Set(),
     };
     entry.timesSeen += 1;
     entry.runIds.add(run.runId);
@@ -2539,6 +2770,9 @@ function aggregateEncounters(results) {
     else entry.returnCount += 1;
     encounter.decisions.forEach((decision) => {
       entry.choices[decision.choiceId] = (entry.choices[decision.choiceId] ?? 0) + 1;
+      if (decision.safetyClassification) {
+        entry.safety[decision.safetyClassification] = (entry.safety[decision.safetyClassification] ?? 0) + 1;
+      }
     });
   }));
   return Object.values(stats).map((entry) => ({
@@ -2550,6 +2784,7 @@ function aggregateEncounters(results) {
     returnCount: entry.returnCount,
     averageDistance: rounded(entry.totalDistance / entry.timesSeen),
     choiceDistribution: entry.choices,
+    choiceSafetyDistribution: entry.safety,
   })).sort((left, right) => right.timesSeen - left.timesSeen);
 }
 

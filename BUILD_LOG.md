@@ -5037,3 +5037,23 @@ The attached cleanup guide supplied the path-source-of-truth migration, Leper Kn
 ### Verification and resulting prototype state
 
 The Content Editor now preserves legacy encounter `expeditionIds` in raw content but ignores them for references and emits `Legacy encounter expeditionIds field is ignored; use pathIds instead.` as a warning. Its README documents path-based applicability. Focused Game and Content Editor tests pass, alternate paths continue matching the player's current path, and legacy `expeditionIds` no longer affect encounter eligibility.
+## 2026-08-26 - Outcome-Based Cautious Simulator Choice Safety
+
+### Goal
+
+Make the Cautious simulator choose authored safe positive outcomes, including loot and recipe rewards, without inferring danger from choice labels or encounter-specific item names. Preserve conservative behavior around combat, injury, resource loss, harmful random branches, dangerous transitions, and unknown deferred consequences.
+
+### AI-assisted implementation
+
+- Replaced Cautious's generic label/ID keyword scoring with the reusable `SimulationChoiceSafety` classifier. It recursively inspects choice costs, outcomes, branches, `randomChance`, `conditional`, and `randomOne` effects and reports `clearly-safe`, `bounded-risk`, `dangerous`, or `unknown` with positive utility, risk score, and a short reason.
+- Safe item/loot/material, recipe, knowledge, access, and positive-resource outcomes now provide generic positive utility. Combat, injuries, resource/item costs, expedition failure, path changes, harmful nested branches, and deferred dialogue are scored conservatively. Aggressive and authored encounter-planning behavior were not changed.
+- Added selected-choice telemetry containing encounter ID, choice ID, safety classification, positive utility, risk score, and reason, plus per-run and batch safety counts and encounter-level safety distributions.
+- Audited Old Forest choices: safe positives previously rejected by the keyword penalty now include abandoned camp search, abandoned cart search, discarded bundle opening, and lost purse pickup. Deferred Leper Knight dialogue remains unknown; no unrecognized Old Forest outcome type is treated as safe.
+
+### Manual changes
+
+The attached simulator guide supplied the outcome-based classifier, Cautious preference, telemetry, audit, and no-balance-change requirements. No encounter content, loot tables, combat values, economy, or Aggressive behavior changed.
+
+### Verification and resulting prototype state
+
+The focused deterministic simulation suite passes 64 assertions, including safe loot/recipe preference, combat/health/random/unknown-risk cases, neutral-choice ties, selected-choice telemetry, CSV fields, and batch summaries. The Old Forest balance suite passes 10 assertions. Broader campaign, progression, and replay suites were also attempted but retain unrelated current-branch fixture failures from the separate recipe/content work; none of those files were modified here. `git diff --check` passes.
