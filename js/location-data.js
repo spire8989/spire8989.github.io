@@ -246,16 +246,43 @@ const SHOP_DEFINITIONS = Object.freeze({
     id: "forest_village_provisions",
     displayName: "Hidden Trail Supplies",
     itemsForSale: {
-      rope: { price: 10, stock: 3 },
-      torch: { price: 5, stock: 3 },
-      bandages: { price: 8, stock: 3 },
-      dried_herbs: { price: 7, stock: 3 },
-      wild_berries: { price: 10, stock: 3 },
-      mushrooms: { price: 12, stock: 2 },
-      fresh_herbs: { price: 14, stock: 2 },
-      honey: { price: 28, stock: 1 },
+      rope: {
+        price: 10,
+        stock: 3
+      },
+      torch: {
+        price: 5,
+        stock: 3
+      },
+      bandages: {
+        price: 8,
+        stock: 3
+      },
+      dried_herbs: {
+        price: 7,
+        stock: 3
+      },
+      wild_berries: {
+        price: 10,
+        stock: 3
+      },
+      mushrooms: {
+        price: 12,
+        stock: 2
+      },
+      fresh_herbs: {
+        price: 14,
+        stock: 2
+      },
+      honey: {
+        price: 28,
+        stock: 1
+      }
     },
-    provisionsForSale: { price: 2, stock: 24 },
+    provisionsForSale: {
+      price: 2,
+      stock: 24
+    },
     acceptedCategories: ["supply", "consumable", "ingredient", "gear", "valuable"],
     acceptedTags: ["mundane", "tool", "supplies", "food", "ingredient", "foraged", "sweet", "valuable"],
     sellValues: {
@@ -265,8 +292,8 @@ const SHOP_DEFINITIONS = Object.freeze({
       dried_herbs: 3,
       old_coin: 4,
       silver_brooch: 5,
-      coin_purse: 5,
-    },
+      coin_purse: 5
+    }
   },
   forest_village_apothecary: {
     id: "forest_village_apothecary",

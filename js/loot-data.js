@@ -95,8 +95,9 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       {
         type: "item",
         itemId: "honey",
-        quantity: 1,
-        weight: 8
+        weight: 20,
+        minimum: 1,
+        maximum: 4
       }
     ]
   },
@@ -232,14 +233,27 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "gold", minimum: 1, maximum: 2, weight: 2 }),
     ]),
   }),
-  expedition_return_low: Object.freeze({
+  expedition_return_low: {
     id: "expedition_return_low",
-    entries: Object.freeze([
-      Object.freeze({ type: "table", tableId: "common_materials", weight: 6 }),
-      Object.freeze({ type: "table", tableId: "forest_materials", weight: 3 }),
-      Object.freeze({ type: "gold", minimum: 2, maximum: 4, weight: 2 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "table",
+        tableId: "common_materials",
+        weight: 6
+      },
+      {
+        type: "table",
+        tableId: "forest_materials",
+        weight: 3
+      },
+      {
+        type: "gold",
+        minimum: 2,
+        maximum: 4,
+        weight: 2
+      }
+    ]
+  },
   expedition_return_medium: Object.freeze({
     id: "expedition_return_medium",
     entries: Object.freeze([

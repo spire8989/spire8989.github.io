@@ -29,8 +29,8 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
         entryDistance: 40,
         mapEntryDistance: 20,
         rejoinPathId: "old_forest_road",
-        rejoinDistance: 80,
-      },
+        rejoinDistance: 80
+      }
     },
     travelScenes: [
       {
@@ -39,32 +39,13 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
         travelParallaxAssetId: "expedition_old_forest_road_woodcut_parallax"
       },
       {
-        visualAssetId: "expedition_old_forest_road_woodcut_3",
-        motion: "loop",
-        minDistance: 17.5,
-        travelParallaxAssetId: "expedition_old_forest_road_woodcut_3_parallax"
-      },
-      {
-        minDistance: 40,
+        minDistance: 80,
         visualAssetId: "expedition_old_forest_road_woodcut_2",
         motion: "loop",
-        showSeamForegroundBetweenLoops: false,
         travelParallaxAssetId: "expedition_old_forest_road_woodcut_2_parallax"
-      },
-      {
-        minDistance: 80,
-        visualAssetId: "expedition_old_forest_road_woodcut_3",
-        motion: "loop",
-        travelParallaxAssetId: "expedition_old_forest_road_woodcut_3_parallax"
       },
       {
         minDistance: 120,
-        visualAssetId: "expedition_old_forest_road_woodcut_2",
-        motion: "loop",
-        travelParallaxAssetId: "expedition_old_forest_road_woodcut_2_parallax"
-      },
-      {
-        minDistance: 160,
         visualAssetId: "expedition_old_forest_road_woodcut_3",
         motion: "loop",
         travelParallaxAssetId: "expedition_old_forest_road_woodcut_3_parallax"
