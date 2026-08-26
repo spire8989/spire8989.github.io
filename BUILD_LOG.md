@@ -1,5 +1,42 @@
 # Build Log
 
+## 2026-08-26 - Druid-Favor Ingredient-Aware Simulator Pass
+
+### Goal
+
+Prevent Old Forest progression simulations from stalling while gathering the
+Druid's mixed material/inventory recipe, without changing gameplay balance.
+
+### AI-assisted implementation
+
+- Replaced the generic Druid preparation decision with a shared
+  `CraftingRules.quote()` analysis that reports exact missing items, materials,
+  and gold shortfall. Preparation now names an authored acquisition source:
+  hidden-village shop stock for honey/fresh herbs, or forest forage/loot for
+  rare and medicinal herbs.
+- Added hidden-village item purchasing through the existing economy rules and
+  directed forage preparation toward the overgrown trail when that is the
+  selected source. Invalid source plans now block with a specific reason
+  instead of scheduling an unproductive loop.
+- Protected the exact Druid recipe quantities from optional inn/camp cooking;
+  surplus ingredients remain available for normal cooking. Once requirements
+  are present, the existing town progression service crafts immediately and
+  completes the favor/Heart awakening through the normal crafting path.
+- Preserved and expanded full/compact/decision/per-expedition telemetry for
+  Druid craftability, missing requirements, source plan, protection, and prep
+  reason. Hidden-village ingredient purchases are included in item/economy
+  telemetry.
+
+### Verification and resulting prototype state
+
+- Added regressions for honey-only acquisition, exact ingredient protection,
+  immediate Druid completion and planner advance, no-source blocking, and
+  compact telemetry preservation.
+- Focused Old Forest campaign planning suite passes 33 assertions.
+- No recipe ingredients/yields, encounter rewards/weights/distances, shop
+  values, capacity, milestone, enemy, or expedition-cap balance values were
+  changed.
+
 ## 2026-08-26 - Old Forest Simulator Correctness Pass
 
 ### Goal

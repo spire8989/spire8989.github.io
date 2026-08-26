@@ -147,7 +147,20 @@ const CampaignRules = Object.freeze({
   },
 
   buyItemsTo(player, shopStocks, itemId, desiredQuantity, minimumGoldReserve = 0) {
-    const shop = SHOP_DEFINITIONS.village_general_goods;
+    return this.buyItemsToAtShop(
+      player, shopStocks, "village_general_goods", itemId, desiredQuantity, minimumGoldReserve,
+    );
+  },
+
+  buyItemsToAtShop(player, shopStocks, shopId, itemId, desiredQuantity, minimumGoldReserve = 0) {
+    const shop = SHOP_DEFINITIONS[shopId];
+    if (!shop) {
+      return {
+        applied: false, quantity: 0, goldCost: 0, itemId,
+        shortfall: Math.max(0, Math.floor(Number(desiredQuantity) || 0)),
+        stock: 0, reason: "shop-unavailable",
+      };
+    }
     const current = player.ownedItems[itemId] ?? 0;
     const needed = Math.max(0, Math.floor(Number(desiredQuantity) || 0) - current);
     const stock = shopStocks[`${shop.id}:${itemId}`] ?? shop.itemsForSale?.[itemId]?.stock ?? Infinity;

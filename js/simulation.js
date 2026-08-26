@@ -301,7 +301,7 @@ const SimulationRunner = Object.freeze({
       }
       if (expedition.travelState === "camped") {
         processCampedExpedition(
-          expedition, player, strategy, telemetry, decisionHistory, random, fail,
+          expedition, player, strategy, telemetry, decisionHistory, random, fail, normalized.campaignGoal,
         );
         continue;
       }
@@ -745,16 +745,18 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
     "secure-wrath-shard", "forge-verdant-heart", "enchant-heart", "defeat-verdant-warden",
   ].includes(goalId);
   const earlyOvergrownGoal = ["learn-woodcraft", "secure-grace-shard"].includes(goalId);
+  const druidIngredientForageGoal = goalId === "complete-druid-favor"
+    && context.campaignGoal?.druidIngredientAcquisitionPlan === "forage-on-overgrown-trail";
   if (oldForestGoal && encounterId === "hidden_forest_village") {
     return choiceById("enter_village") ?? choiceById("pass_village") ?? null;
   }
   if (oldForestGoal && encounterId === "fork_in_the_road") {
-    return earlyOvergrownGoal
+    return (earlyOvergrownGoal || druidIngredientForageGoal)
       ? choiceById("overgrown_trail") ?? choiceById("main_road") ?? null
       : choiceById("main_road") ?? choiceById("overgrown_trail") ?? null;
   }
   if (oldForestGoal && encounterId === "overgrown_trail_turnoff") {
-    return earlyOvergrownGoal
+    return (earlyOvergrownGoal || druidIngredientForageGoal)
       ? choiceById("take_overgrown_trail") ?? choiceById("stay_main_road") ?? null
       : choiceById("stay_main_road") ?? choiceById("take_overgrown_trail") ?? null;
   }
@@ -1275,11 +1277,11 @@ function applySimulationExpeditionAction(
 }
 
 function processCampedExpedition(
-  expedition, player, strategy, telemetry, decisionHistory, _random, fail,
+  expedition, player, strategy, telemetry, decisionHistory, _random, fail, campaignGoal = null,
 ) {
   if (!decisionHistory.preparedCampCycles.has(expedition.campCycle)) {
     decisionHistory.preparedCampCycles.add(expedition.campCycle);
-    cookAtCamp(expedition, player, strategy.name, telemetry);
+    cookAtCamp(expedition, player, strategy.name, telemetry, campaignGoal);
     const before = resourceSnapshot(expedition);
     const result = ExpeditionRules.restAtCamp(expedition, player);
     const after = resourceSnapshot(expedition);
@@ -1320,13 +1322,18 @@ function processCampedExpedition(
   }
 }
 
-function cookAtCamp(expedition, player, strategyName, telemetry) {
+function cookAtCamp(expedition, player, strategyName, telemetry, campaignGoal = null) {
+  const protectedIngredients = typeof campaignDruidIngredientProtection === "function"
+    ? campaignDruidIngredientProtection(player, campaignGoal) : {};
   const allCandidates = CraftingRules.knownRecipesForProvider(player, "campfire")
     .map((recipe) => ({
       recipe,
       quote: CraftingRules.quote(player, recipe.id, "campfire", { expedition, context: "camp" }),
     }))
-    .filter((candidate) => Number(candidate.recipe.output?.provisions) > 0);
+    .filter((candidate) => Number(candidate.recipe.output?.provisions) > 0)
+    .filter((candidate) => !campaignRecipeConsumesProtectedIngredients(
+      candidate.recipe, protectedIngredients, player,
+    ));
   allCandidates.forEach((candidate) => {
     if (!candidate.quote.available && candidate.quote.ingredientStatus?.some((entry) => !entry.sufficient)) {
       telemetry.cookingIngredientShortagesByRecipe[candidate.recipe.id] = (

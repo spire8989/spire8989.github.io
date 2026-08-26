@@ -94,7 +94,10 @@ const CampaignSimulationRunner = Object.freeze({
         stopReason = "current-content-completed";
         break;
       }
-      if (progression) progression.strategy = config.strategy;
+      if (progression) {
+        progression.strategy = config.strategy;
+        progression.shopStocks = shopStocks;
+      }
       const expeditionSeed = `${config.seed}:expedition-${index}`;
       const stateBeforeDecisions = campaignStateSnapshot(player, shopStocks, expeditionNumber);
       if (progression && player.selectedExpeditionId !== routeId) {
@@ -203,6 +206,7 @@ const CampaignSimulationRunner = Object.freeze({
           oldForestGoalReason: progressionGoal?.reason ?? null,
           oldForestSupplyRunReason: progressionGoal?.supplyRunReason ?? null,
           oldForestProgressionGoal: progressionGoal?.goalId ?? null,
+          ...druidTelemetryFromGoal(progressionGoal),
           strategyConstraints: [{
             type: "progression-objective-blocked",
             reason: progressionReadinessPlan.reason,
@@ -272,6 +276,7 @@ const CampaignSimulationRunner = Object.freeze({
       decision.oldForestGoalReason = progressionGoal?.reason ?? null;
       decision.oldForestSupplyRunReason = progressionGoal?.supplyRunReason ?? null;
       decision.oldForestProgressionGoal = progressionGoal?.goalId ?? null;
+      Object.assign(decision, druidTelemetryFromGoal(progressionGoal));
       decision.objectiveDistanceFloorApplied = false;
       decision.objectiveDistanceFloorViolated = false;
       decision.townProvisionGrant = townEntry.provisionsGranted;
@@ -448,6 +453,25 @@ const CampaignSimulationRunner = Object.freeze({
           ? "failed"
           : prerequisiteAcquired ? "acquired" : "not-acquired"
         : null;
+      const druidIngredientPurchaseActions = (run.locationServiceActions ?? [])
+        .flatMap((serviceAction) => serviceAction.druidIngredientPurchaseActions ?? []);
+      const druidIngredientsPurchasedById = druidIngredientPurchaseActions.reduce((items, purchase) => {
+        items[purchase.itemId] = (items[purchase.itemId] ?? 0) + (Number(purchase.quantity) || 0);
+        return items;
+      }, {});
+      const druidIngredientGoldSpent = druidIngredientPurchaseActions.reduce(
+        (sum, purchase) => sum + (Number(purchase.goldCost) || 0), 0,
+      );
+      const itemsPurchasedById = { ...decision.itemsPurchasedById };
+      Object.entries(druidIngredientsPurchasedById).forEach(([itemId, quantity]) => {
+        itemsPurchasedById[itemId] = (itemsPurchasedById[itemId] ?? 0) + quantity;
+      });
+      const itemPurchaseGoldSpentById = { ...decision.itemPurchaseGoldSpentById };
+      druidIngredientPurchaseActions.forEach((purchase) => {
+        itemPurchaseGoldSpentById[purchase.itemId] = (
+          itemPurchaseGoldSpentById[purchase.itemId] ?? 0
+        ) + (Number(purchase.goldCost) || 0);
+      });
       const expeditionEntry = {
         expeditionNumber,
         expeditionSeed,
@@ -514,6 +538,7 @@ const CampaignSimulationRunner = Object.freeze({
         oldForestGoalReason: progressionGoal?.reason ?? null,
         oldForestSupplyRunReason: progressionGoal?.supplyRunReason ?? null,
         oldForestProgressionGoal: progressionGoal?.goalId ?? null,
+        ...druidTelemetryFromGoal(progressionGoal),
         objectiveDistanceFloorApplied: Boolean(decision.objectiveDistanceFloorApplied),
         objectiveDistanceFloorViolated,
         targetDistance: actualTargetDistance,
@@ -609,9 +634,9 @@ const CampaignSimulationRunner = Object.freeze({
         villageProvisionActions: run.locationServiceActions,
         provisionsPacked,
         provisionsReturned: run.provisionsReturned,
-        itemsPurchasedById: decision.itemsPurchasedById,
-        itemPurchaseGoldSpentById: decision.itemPurchaseGoldSpentById,
-        itemPurchaseGoldSpent: decision.itemPurchaseGoldSpent,
+        itemsPurchasedById,
+        itemPurchaseGoldSpentById,
+        itemPurchaseGoldSpent: decision.itemPurchaseGoldSpent + druidIngredientGoldSpent,
         equipmentChanges: decision.equipmentChanges,
         equipmentPurchases: decision.equipmentPurchases,
         equipmentPurchaseGoldSpent: decision.equipmentPurchaseGoldSpent,
@@ -684,6 +709,9 @@ const CampaignSimulationRunner = Object.freeze({
         routeAttemptCompleted: Boolean(progressionAttempt?.completed),
         routeCompletionReason: progressionAttempt?.reason ?? null,
         routeCompletionItem: progressionAttempt?.securedItemId ?? null,
+        druidIngredientPurchaseActions,
+        druidIngredientsPurchasedById,
+        druidIngredientGoldSpent,
       };
       expeditions.push(expeditionEntry);
 
@@ -1205,6 +1233,16 @@ function compactCampaignSummary(campaign, expeditions) {
       oldForestTargetMilestoneDistance: campaign.oldForestTargetMilestoneDistance ?? null,
       oldForestGoalReason: campaign.oldForestGoalReason ?? null,
       oldForestSupplyRunReason: campaign.oldForestSupplyRunReason ?? null,
+      druidDraughtCraftable: campaign.druidDraughtCraftable ?? null,
+      druidDraughtMissingRequirements: compactClone(campaign.druidDraughtMissingRequirements ?? []),
+      druidDraughtMissingItems: compactClone(campaign.druidDraughtMissingItems ?? {}),
+      druidDraughtMissingMaterials: compactClone(campaign.druidDraughtMissingMaterials ?? {}),
+      druidDraughtGoldShortfall: campaign.druidDraughtGoldShortfall ?? null,
+      druidIngredientAcquisitionPlan: campaign.druidIngredientAcquisitionPlan ?? null,
+      druidIngredientAcquisitionSource: campaign.druidIngredientAcquisitionSource ?? null,
+      druidIngredientProtectionActive: Boolean(campaign.druidIngredientProtectionActive),
+      druidIngredientsProtectedById: compactClone(campaign.druidIngredientsProtectedById ?? {}),
+      druidPrepRunReason: campaign.druidPrepRunReason ?? null,
       oldForestProgressionGoalByExpedition: compactClone(
         campaign.oldForestProgressionGoalByExpedition ?? [],
       ),
@@ -1387,6 +1425,16 @@ function compactExpedition(entry, campaign) {
     oldForestTargetMilestoneDistance: entry.oldForestTargetMilestoneDistance ?? null,
     oldForestGoalReason: entry.oldForestGoalReason ?? null,
     oldForestSupplyRunReason: entry.oldForestSupplyRunReason ?? null,
+    druidDraughtCraftable: entry.druidDraughtCraftable ?? null,
+    druidDraughtMissingRequirements: compactClone(entry.druidDraughtMissingRequirements ?? []),
+    druidDraughtMissingItems: compactClone(entry.druidDraughtMissingItems ?? {}),
+    druidDraughtMissingMaterials: compactClone(entry.druidDraughtMissingMaterials ?? {}),
+    druidDraughtGoldShortfall: entry.druidDraughtGoldShortfall ?? null,
+    druidIngredientAcquisitionPlan: entry.druidIngredientAcquisitionPlan ?? null,
+    druidIngredientAcquisitionSource: entry.druidIngredientAcquisitionSource ?? null,
+    druidIngredientProtectionActive: Boolean(entry.druidIngredientProtectionActive),
+    druidIngredientsProtectedById: compactClone(entry.druidIngredientsProtectedById ?? {}),
+    druidPrepRunReason: entry.druidPrepRunReason ?? null,
     objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
     objectiveDistanceFloorViolated: Boolean(entry.objectiveDistanceFloorViolated),
     campaignId: campaign.campaignId,
@@ -1434,6 +1482,16 @@ function compactExpedition(entry, campaign) {
       oldForestTargetMilestoneDistance: entry.oldForestTargetMilestoneDistance ?? null,
       oldForestGoalReason: entry.oldForestGoalReason ?? null,
       oldForestSupplyRunReason: entry.oldForestSupplyRunReason ?? null,
+      druidDraughtCraftable: entry.druidDraughtCraftable ?? null,
+      druidDraughtMissingRequirements: compactClone(entry.druidDraughtMissingRequirements ?? []),
+      druidDraughtMissingItems: compactClone(entry.druidDraughtMissingItems ?? {}),
+      druidDraughtMissingMaterials: compactClone(entry.druidDraughtMissingMaterials ?? {}),
+      druidDraughtGoldShortfall: entry.druidDraughtGoldShortfall ?? null,
+      druidIngredientAcquisitionPlan: entry.druidIngredientAcquisitionPlan ?? null,
+      druidIngredientAcquisitionSource: entry.druidIngredientAcquisitionSource ?? null,
+      druidIngredientProtectionActive: Boolean(entry.druidIngredientProtectionActive),
+      druidIngredientsProtectedById: compactClone(entry.druidIngredientsProtectedById ?? {}),
+      druidPrepRunReason: entry.druidPrepRunReason ?? null,
       objectiveDistanceFloorApplied: Boolean(entry.objectiveDistanceFloorApplied),
       objectiveDistanceFloorViolated: Boolean(entry.objectiveDistanceFloorViolated),
       strategyConstraints: compactClone(entry.strategyConstraints ?? []),
@@ -2431,6 +2489,7 @@ function applyBetweenExpeditionPolicy(
     ? cookAtInn(player, planningStrategy, preparationRandom, townActions, {
       targetProvisions: Math.min(initialProvisionNeed, capacity),
       targetDistance,
+      campaignGoal: planningOptions.campaignGoal,
     })
     : { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
   travelSettings = campaignDepartureSettings(planningStrategy, {
@@ -3123,6 +3182,7 @@ function cookAtInn(
   const targetProvisions = Number.isFinite(Number(options.targetProvisions))
     ? Math.max(0, Number(options.targetProvisions)) : Number.POSITIVE_INFINITY;
   const roll = () => Math.min(1 - Number.EPSILON, Math.max(0, Number(random()) || 0));
+  const protectedIngredients = campaignDruidIngredientProtection(player, options.campaignGoal);
   let iterations = 0;
   while (player.provisions < targetProvisions && iterations < 8) {
     iterations += 1;
@@ -3131,7 +3191,10 @@ function cookAtInn(
         recipe,
         quote: CraftingRules.quote(player, recipe.id, "campfire", { context: "inn" }),
       }))
-      .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0);
+      .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0)
+      .filter((candidate) => !campaignRecipeConsumesProtectedIngredients(
+        candidate.recipe, protectedIngredients, player,
+      ));
     if (!candidates.length) break;
     const deficit = Math.max(1, targetProvisions - player.provisions);
     const selected = candidates
@@ -3351,7 +3414,7 @@ function hasCampaignKnowledge(state, knowledgeId) {
   return Array.isArray(state?.learnedKnowledge) && state.learnedKnowledge.includes(knowledgeId);
 }
 
-function oldForestGoal({ goalId, targetDistance, minimumAttemptDistance, reason, requiredPreparation, supplyRunUseful, supplyRunReason, travelSettings = null }) {
+function oldForestGoal({ goalId, targetDistance, minimumAttemptDistance, reason, requiredPreparation, supplyRunUseful, supplyRunReason, travelSettings = null, druidTelemetry = null }) {
   return {
     goalId,
     targetDistance,
@@ -3362,6 +3425,163 @@ function oldForestGoal({ goalId, targetDistance, minimumAttemptDistance, reason,
     supplyRunUseful,
     supplyRunReason,
     travelSettings,
+    ...(druidTelemetry ?? {}),
+  };
+}
+
+const DRUID_DRAUGHT_SOURCE_DEFINITIONS = Object.freeze({
+  honey: Object.freeze({
+    shopId: "forest_village_provisions",
+    locationId: "hidden_forest_village",
+    encounterSource: "forest_ingredients",
+  }),
+  fresh_herbs: Object.freeze({
+    shopId: "forest_village_provisions",
+    locationId: "hidden_forest_village",
+    encounterSource: "woodland_foraging",
+  }),
+  rare_herbs: Object.freeze({
+    encounterSource: "rare_herb_find",
+    route: "overgrown_trail",
+  }),
+  medicinal_herbs: Object.freeze({
+    encounterSource: "forest_materials",
+    route: "old_forest_road",
+  }),
+});
+
+function druidDraughtRequirementQuote(player) {
+  return CraftingRules.quote(
+    player, "forest_communion_draught", "apothecary", { context: "town" },
+  );
+}
+
+function druidDraughtRequirementAnalysis(player, campaignState = {}) {
+  const quote = druidDraughtRequirementQuote(player);
+  const missingRequirements = (quote.ingredientStatus ?? [])
+    .filter((entry) => !entry.sufficient)
+    .map((entry) => ({
+      ingredientId: entry.ingredientId,
+      type: entry.type,
+      required: entry.required,
+      owned: entry.owned,
+      missing: Math.max(0, entry.required - entry.owned),
+    }));
+  const missingItems = Object.fromEntries(missingRequirements
+    .filter((entry) => entry.type === "item")
+    .map((entry) => [entry.ingredientId, entry.missing]));
+  const missingMaterials = Object.fromEntries(missingRequirements
+    .filter((entry) => entry.type === "material")
+    .map((entry) => [entry.ingredientId, entry.missing]));
+  const goldShortfall = Math.max(
+    0, Math.ceil(Number(quote.recipe?.goldCost) || 0) - Math.max(0, Number(player?.currentGold) || 0),
+  );
+  const shopStocks = campaignState.shopStocks ?? {};
+  const sourceDefinitions = campaignState.druidIngredientSources
+    ?? DRUID_DRAUGHT_SOURCE_DEFINITIONS;
+  const sourceDetails = missingRequirements.map((entry) => {
+    const source = sourceDefinitions[entry.ingredientId] ?? null;
+    if (!source) return { ...entry, source: null, sourceType: null, available: false };
+    const shopOffer = source.shopId
+      ? SHOP_DEFINITIONS[source.shopId]?.itemsForSale?.[entry.ingredientId] : null;
+    const shopStock = source.shopId
+      ? Number(shopStocks[`${source.shopId}:${entry.ingredientId}`] ?? shopOffer?.stock ?? 0) : 0;
+    const shopAffordable = Boolean(
+      shopOffer && Number.isFinite(Number(shopOffer.price))
+        && Number(player?.currentGold) >= Number(shopOffer.price) + goldShortfall,
+    );
+    const shopAvailable = Boolean(
+      source.locationId === "hidden_forest_village"
+        && player?.campaignFlags?.forest_village_discovered === true
+        && shopStock >= entry.missing
+        && shopAffordable,
+    );
+    const encounterAvailable = Boolean(source.encounterSource);
+    return {
+      ...entry,
+      source: shopAvailable ? source.locationId : source.encounterSource,
+      sourceType: shopAvailable ? "shop" : "encounter",
+      available: shopAvailable || encounterAvailable,
+      shopAvailable,
+      shopStock,
+      shopPrice: shopOffer?.price ?? null,
+      route: source.route ?? null,
+    };
+  });
+  const unavailable = sourceDetails.filter((entry) => !entry.available);
+  const shopIngredients = sourceDetails.filter((entry) => entry.shopAvailable);
+  const encounterIngredients = sourceDetails.filter((entry) => !entry.shopAvailable && entry.available);
+  const sourceNames = [...new Set(sourceDetails.filter((entry) => entry.available).map((entry) => entry.source))];
+  const sourceRoutes = [...new Set(sourceDetails
+    .filter((entry) => entry.route && entry.available)
+    .map((entry) => entry.route))];
+  const hasDraught = hasCampaignItem(player, "forest_communion_draught");
+  const craftable = hasDraught || Boolean(quote.available);
+  let acquisitionPlan = null;
+  let acquisitionSource = null;
+  let prepRunReason = "druid-draught-requirements-ready-for-town-crafting";
+  if (!craftable && unavailable.length > 0) {
+    acquisitionPlan = "blocked-no-valid-source";
+    prepRunReason = `druid-no-valid-acquisition-source-for-${unavailable.map((entry) => entry.ingredientId).join(",")}`;
+  } else if (!craftable && goldShortfall > 0 && missingRequirements.length === 0) {
+    acquisitionPlan = "earn-gold-before-crafting";
+    acquisitionSource = "old_forest_loot";
+    prepRunReason = `druid-gold-shortfall-${goldShortfall}`;
+  } else if (!craftable && shopIngredients.length > 0) {
+    acquisitionPlan = "buy-at-hidden-village";
+    acquisitionSource = "hidden_forest_village";
+    prepRunReason = `druid-buy-missing-${shopIngredients.map((entry) => entry.ingredientId).join(",")}-at-hidden-village`;
+  } else if (!craftable && encounterIngredients.length > 0) {
+    acquisitionPlan = "forage-on-overgrown-trail";
+    acquisitionSource = sourceNames.join("+") || "old_forest_encounters";
+    prepRunReason = `druid-gather-missing-${encounterIngredients.map((entry) => entry.ingredientId).join(",")}-from-authored-forest-sources`;
+  }
+  return {
+    quote,
+    craftable,
+    missingRequirements,
+    missingItems,
+    missingMaterials,
+    goldShortfall,
+    acquisitionPlan,
+    acquisitionSource,
+    prepRunReason,
+    sourceDetails,
+    sourceRoutes,
+    ingredientProtection: Object.fromEntries((quote.ingredientStatus ?? [])
+      .filter((entry) => Number(entry.owned) > 0)
+      .map((entry) => [entry.ingredientId, Math.min(entry.owned, entry.required)])),
+  };
+}
+
+function campaignDruidIngredientProtection(player, campaignGoal = null) {
+  if (campaignGoal?.goalId !== "complete-druid-favor") return {};
+  return deepCampaignClone(campaignGoal.druidIngredientsProtectedById ?? {});
+}
+
+function campaignRecipeConsumesProtectedIngredients(recipe, protectedById = {}, player = null) {
+  return CraftingRules.normalizeRecipeIngredients(recipe).some((ingredient) => {
+    const protectedQuantity = Math.max(0, Number(protectedById[ingredient.id]) || 0);
+    if (protectedQuantity <= 0) return false;
+    const available = ingredient.type === "material"
+      ? Number(player?.materials?.[ingredient.id]) || 0
+      : Number(player?.ownedItems?.[ingredient.id]) || 0;
+    return Math.max(0, available - protectedQuantity) < (Number(ingredient.quantity) || 0);
+  });
+}
+
+function druidTelemetryFromGoal(goal = null) {
+  return {
+    druidDraughtCraftable: goal?.druidDraughtCraftable ?? null,
+    druidDraughtMissingRequirements: deepCampaignClone(goal?.druidDraughtMissingRequirements ?? []),
+    druidDraughtMissingItems: deepCampaignClone(goal?.druidDraughtMissingItems ?? {}),
+    druidDraughtMissingMaterials: deepCampaignClone(goal?.druidDraughtMissingMaterials ?? {}),
+    druidDraughtGoldShortfall: goal?.druidDraughtGoldShortfall ?? null,
+    druidIngredientAcquisitionPlan: goal?.druidIngredientAcquisitionPlan ?? null,
+    druidIngredientAcquisitionSource: goal?.druidIngredientAcquisitionSource ?? null,
+    druidIngredientProtectionActive: Boolean(goal?.druidIngredientProtectionActive),
+    druidIngredientsProtectedById: deepCampaignClone(goal?.druidIngredientsProtectedById ?? {}),
+    druidPrepRunReason: goal?.druidPrepRunReason ?? null,
   };
 }
 
@@ -3377,10 +3597,19 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
   const villageDiscovered = flags.forest_village_discovered === true;
   const druidComplete = flags.druid_favor_complete === true;
   const liquidWealth = campaignLiquidWealth(player);
-  const hasDraughtIngredients = Boolean(
-    hasCampaignItem(player, "forest_communion_draught")
-      || CraftingRules.quote(player, "forest_communion_draught", "apothecary", { context: "town" }).available,
-  );
+  const druidAnalysis = druidDraughtRequirementAnalysis(player, campaignState);
+  const druidTelemetry = {
+    druidDraughtCraftable: druidAnalysis.craftable,
+    druidDraughtMissingRequirements: druidAnalysis.missingRequirements,
+    druidDraughtMissingItems: druidAnalysis.missingItems,
+    druidDraughtMissingMaterials: druidAnalysis.missingMaterials,
+    druidDraughtGoldShortfall: druidAnalysis.goldShortfall,
+    druidIngredientAcquisitionPlan: druidAnalysis.acquisitionPlan,
+    druidIngredientAcquisitionSource: druidAnalysis.acquisitionSource,
+    druidIngredientProtectionActive: Object.keys(druidAnalysis.ingredientProtection).length > 0,
+    druidIngredientsProtectedById: druidAnalysis.ingredientProtection,
+    druidPrepRunReason: druidAnalysis.prepRunReason,
+  };
   const healthRatio = Number(player?.arthurHealth) > 0
     ? Number(player.arthurHealth) / Math.max(1, Number(player?.arthurMaxHealth) || PLAYER_CHARACTER_DEFINITION.combat.maxHp)
     : 0;
@@ -3450,9 +3679,12 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
   }
 
   if (!druidComplete || !hasSong) {
-    const supply = hasDraughtIngredients
+    const supply = druidAnalysis.craftable
       ? { useful: false, reason: "druid-draught-ingredients-ready-for-town-crafting" }
-      : preparationRunUseful("gather-the-communion-draught-ingredients");
+      : {
+        useful: druidAnalysis.acquisitionPlan !== "blocked-no-valid-source",
+        reason: druidAnalysis.prepRunReason,
+      };
     return oldForestGoal({
       goalId: "complete-druid-favor",
       targetDistance: 100,
@@ -3461,6 +3693,7 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
       requiredPreparation: { campaignFlag: "druid_favor_complete", knowledge: ["song_of_the_forest"], item: "forest_communion_draught" },
       supplyRunUseful: supply.useful,
       supplyRunReason: supply.reason,
+      druidTelemetry,
     });
   }
 
@@ -3556,7 +3789,10 @@ function assessProgressionReadiness(
   const preferredReady = quote.preferredSafeDistance >= desiredDistance
     && quote.provisionStock >= quote.preferredProvisionTarget;
   const minimumViable = quote.minimumViableSupportedDistance >= requiredDistance;
-  const blocker = quote.provisionCapacity < quote.minimumViableProvisionRequirement
+  const druidSourceBlocked = options.goal?.druidIngredientAcquisitionPlan === "blocked-no-valid-source";
+  const blocker = druidSourceBlocked
+    ? "druid-ingredient-source"
+    : quote.provisionCapacity < quote.minimumViableProvisionRequirement
     ? "provision-capacity"
     : quote.provisionStock < quote.minimumViableProvisionRequirement
       ? "insufficient-provisions"
@@ -3564,21 +3800,27 @@ function assessProgressionReadiness(
   const supplyHistory = progressionState?.supplyRunHistoryByRoute?.[routeId] ?? [];
   const lastSupplyRun = [...supplyHistory].reverse()
     .find((entry) => !options.goal?.goalId || entry.goalId === options.goal.goalId) ?? null;
-  const supplyRunExpectedBenefit = !minimumViable
+  const supplyRunExpectedBenefit = !druidSourceBlocked && !minimumViable
     && blocker !== "provision-capacity"
     && options.goal?.supplyRunUseful !== false
     && (!lastSupplyRun || lastSupplyRun.materiallyImproved);
-  const supplyRunBenefitReason = minimumViable
+  const supplyRunBenefitReason = druidSourceBlocked
+    ? "no-valid-druid-ingredient-source"
+    : minimumViable
     ? (preferredReady ? null : "preferred-buffer-is-optional")
     : blocker === "provision-capacity"
       ? "capacity-not-improvable-by-supply-run"
       : !supplyRunExpectedBenefit
         ? "supply-run-no-material-benefit"
         : "supply-run-can-improve-provisions-or-gold";
-  const status = minimumViable
+  const status = druidSourceBlocked
+    ? "blocked"
+    : minimumViable
     ? preferredReady ? "ready" : "ready-with-constraints"
     : supplyRunExpectedBenefit ? "deferred" : "blocked";
-  const reason = minimumViable
+  const reason = druidSourceBlocked
+    ? options.goal?.druidPrepRunReason ?? "no-valid-druid-ingredient-source"
+    : minimumViable
     ? preferredReady
       ? null
       : options.goal && requiredDistance < desiredDistance
@@ -3870,7 +4112,7 @@ function quoteCampaignProvisionAvailability(
   const provisionStock = Math.min(
     capacity,
     Math.max(0, Number(player.provisions) || 0)
-      + quoteInnCookingProvisionGain(player, strategyName, targetDistance, capacity)
+      + quoteInnCookingProvisionGain(player, strategyName, targetDistance, capacity, campaignGoal)
       + affordablePurchaseQuantity,
   );
   // Quote the departure mode using the stock that preparation can actually
@@ -3970,7 +4212,9 @@ function progressionReadinessMetricsImproved(before, after) {
     || (after.postResupplySupportedDistance ?? 0) > (before.postResupplySupportedDistance ?? 0);
 }
 
-function quoteInnCookingProvisionGain(player, strategyName, targetDistance = 0, capacity = Infinity) {
+function quoteInnCookingProvisionGain(
+  player, strategyName, targetDistance = 0, capacity = Infinity, campaignGoal = null,
+) {
   const preview = deepCampaignClone(player);
   const targetProvisions = Math.max(Number(preview.provisions) || 0, Math.min(
     Number.isFinite(Number(capacity)) ? Number(capacity) : Number.POSITIVE_INFINITY,
@@ -3990,6 +4234,7 @@ function quoteInnCookingProvisionGain(player, strategyName, targetDistance = 0, 
   const result = cookAtInn(preview, strategyName, () => 0.5, [], {
     targetProvisions,
     targetDistance,
+    campaignGoal,
   });
   return result.provisionsGained;
 }
@@ -4446,6 +4691,7 @@ function finalizeCampaignTelemetry(
     oldForestTargetMilestoneDistance: progression?.currentOldForestGoal?.targetDistance ?? null,
     oldForestGoalReason: progression?.currentOldForestGoal?.reason ?? null,
     oldForestSupplyRunReason: progression?.currentOldForestGoal?.supplyRunReason ?? null,
+    ...druidTelemetryFromGoal(progression?.currentOldForestGoal),
     oldForestProgressionGoalByExpedition: deepCampaignClone(
       progression?.oldForestProgressionGoalByExpedition ?? [],
     ),
@@ -5019,6 +5265,49 @@ function applyOldForestProgressionServices(player, townActions = [], expeditionN
   }
 }
 
+function campaignDruidIngredientService(locationId, context, options = {}) {
+  if (locationId !== "hidden_forest_village"
+    || context?.campaignGoal?.goalId !== "complete-druid-favor"
+    || !context?.player) return null;
+  const player = context.player;
+  const analysis = druidDraughtRequirementAnalysis(player, { shopStocks: options.shopStocks });
+  const purchases = [];
+  Object.entries(analysis.missingItems).forEach(([itemId, quantity]) => {
+    const source = analysis.sourceDetails.find((entry) => entry.ingredientId === itemId);
+    if (!source?.shopAvailable) return;
+    const purchase = CampaignRules.buyItemsToAtShop(
+      player,
+      options.shopStocks,
+      "forest_village_provisions",
+      itemId,
+      (Number(player.ownedItems?.[itemId]) || 0) + quantity,
+      Number(analysis.quote.recipe?.goldCost) || 0,
+    );
+    if (purchase.quantity > 0) {
+      purchases.push({
+        shopId: "forest_village_provisions",
+        itemId,
+        quantity: purchase.quantity,
+        goldCost: purchase.goldCost,
+        shortfall: purchase.shortfall,
+      });
+    }
+  });
+  return {
+    purchases,
+    purchasedItemsById: purchases.reduce((items, purchase) => {
+      items[purchase.itemId] = (items[purchase.itemId] ?? 0) + purchase.quantity;
+      return items;
+    }, {}),
+    goldSpent: purchases.reduce((sum, purchase) => sum + (Number(purchase.goldCost) || 0), 0),
+    reason: purchases.length > 0
+      ? "purchased-druid-ingredients-at-hidden-village"
+      : analysis.acquisitionPlan === "buy-at-hidden-village"
+        ? "hidden-village-ingredient-purchase-unavailable"
+        : "no-hidden-village-ingredient-purchase-needed",
+  };
+}
+
 function campaignLocationProvisionService(locationId, context, options = {}) {
   const expedition = context?.expedition;
   const player = context?.player;
@@ -5050,9 +5339,22 @@ function campaignLocationProvisionService(locationId, context, options = {}) {
     goldCost: 0,
     desiredProvisionTarget: null,
     reason: null,
+    druidIngredientPurchaseActions: [],
+    druidIngredientsPurchasedById: {},
+    druidIngredientGoldSpent: 0,
   };
+  const ingredientService = campaignDruidIngredientService(locationId, context, options);
+  const withIngredientService = (action) => ingredientService
+    ? {
+      ...action,
+      druidIngredientPurchaseActions: deepCampaignClone(ingredientService.purchases),
+      druidIngredientsPurchasedById: deepCampaignClone(ingredientService.purchasedItemsById),
+      druidIngredientGoldSpent: ingredientService.goldSpent,
+      druidIngredientServiceReason: ingredientService.reason,
+    }
+    : action;
   if (!serviceShop?.provisionsForSale || !expedition || !player) {
-    return { ...baseAction, reason: "service-disabled" };
+    return withIngredientService({ ...baseAction, reason: "service-disabled" });
   }
 
   const capacity = Math.max(0, Number(expedition.provisionCapacity) || 0);
@@ -5080,14 +5382,14 @@ function campaignLocationProvisionService(locationId, context, options = {}) {
     desiredProvisionTarget,
   };
   if (provisionsBefore >= desiredProvisionTarget) {
-    return { ...action, reason: "already-sufficient" };
+    return withIngredientService({ ...action, reason: "already-sufficient" });
   }
-  if (provisionsBefore >= capacity) return { ...action, reason: "at-capacity" };
-  if (stockBefore <= 0) return { ...action, reason: "no-stock" };
+  if (provisionsBefore >= capacity) return withIngredientService({ ...action, reason: "at-capacity" });
+  if (stockBefore <= 0) return withIngredientService({ ...action, reason: "no-stock" });
 
   const offer = serviceShop.provisionsForSale;
   const price = Number(offer.price);
-  if (!Number.isFinite(price) || price < 0) return { ...action, reason: "service-disabled" };
+  if (!Number.isFinite(price) || price < 0) return withIngredientService({ ...action, reason: "service-disabled" });
   const affordable = price > 0
     ? Math.floor(Math.max(0, Number(player.currentGold) || 0) / price)
     : Number.POSITIVE_INFINITY;
@@ -5099,14 +5401,14 @@ function campaignLocationProvisionService(locationId, context, options = {}) {
     affordable,
   );
   if (quantity <= 0) {
-    return {
+    return withIngredientService({
       ...action,
       reason: affordable <= 0 ? "no-gold" : "purchase-not-useful",
-    };
+    });
   }
 
   const purchase = EconomyRules.buyProvisions(player, serviceShop, shopStocks, quantity);
-  if (!purchase.applied) return { ...action, reason: "purchase-not-useful" };
+  if (!purchase.applied) return withIngredientService({ ...action, reason: "purchase-not-useful" });
 
   // EconomyRules owns the real purchase mutation. Move that purchased stock
   // from persistent inventory into the active expedition so settlement can
@@ -5116,14 +5418,14 @@ function campaignLocationProvisionService(locationId, context, options = {}) {
   expedition.committedProvisionsRemaining += purchase.quantity;
   expedition.provisions += purchase.quantity;
   expedition.carriedProvisions = (Number(expedition.carriedProvisions) || 0) + purchase.quantity;
-  return {
+  return withIngredientService({
     ...action,
     provisionsAfter: roundCampaignNumber(expedition.provisions),
     stockAfter: Math.max(0, Number(shopStocks?.[serviceShop.id]) || 0),
     quantity: purchase.quantity,
     goldCost: purchase.goldCost,
     reason: "purchased-for-next-milestone",
-  };
+  });
 }
 
 function estimateCampaignItems(items) {
