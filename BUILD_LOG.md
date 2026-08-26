@@ -5017,3 +5017,23 @@ The objective planning suite passes 15 assertions; current-campaign progression 
 ## 2026-08-25 - Old Forest Material Reward Validation Correction
 
 The three new Woodcraft Rare Herb rewards in Woodland Foraging, Beneath the Roots, and Ancient Spring now roll the existing one-entry `rare_herb_find` loot table. Its `type: "material"` entry uses `materialId: "rare_herbs"`, so the reward is staged in the expedition Material Bag without creating an inventory item. The focused browser balance regression now confirms the in-game reward path; the full Content Editor catalog validation and its material-reward regression are also part of the verification gate.
+
+## 2026-08-26 - Path-Based Encounter Eligibility Cleanup
+
+### Goal
+
+Make encounter applicability path-based so an encounter's authored `pathIds` are the single source of truth, while preserving alternate routes and legacy content compatibility.
+
+### AI-assisted implementation
+
+- Removed the encounter-level `expeditionIds` eligibility check from `EncounterManager`; current-path membership, direction, distance, requirements, occurrence limits, and existing flags remain active.
+- Removed all 48 redundant encounter `expeditionIds` fields from `js/encounter-data.js`. The `fountain_barenton` compatibility fixture remains on `legacy_fountain`, while Leper Knight now explicitly uses both `old_forest_road` and `fountain_of_barenton`.
+- Added a focused path-eligibility browser regression covering Old Forest Road, shared Leper Knight availability on both routes, Overgrown Trail-only content, and a conflicting legacy `expeditionIds` field.
+
+### Manual changes
+
+The attached cleanup guide supplied the path-source-of-truth migration, Leper Knight regression, backward-compatibility, and no-rebalance requirements. No expedition definitions, encounter weights, combat stats, loot chances, economy, distances, or simulator strategy behavior were changed.
+
+### Verification and resulting prototype state
+
+The Content Editor now preserves legacy encounter `expeditionIds` in raw content but ignores them for references and emits `Legacy encounter expeditionIds field is ignored; use pathIds instead.` as a warning. Its README documents path-based applicability. Focused Game and Content Editor tests pass, alternate paths continue matching the player's current path, and legacy `expeditionIds` no longer affect encounter eligibility.

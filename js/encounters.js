@@ -659,39 +659,40 @@ const EncounterManager = Object.freeze({
       ))[0] ?? null;
   },
 
-  eligibleDefinitions(expedition, player) {
+  isEligibleDefinition(encounter, expedition, player) {
     const context = { expedition, player };
-    return Object.values(ENCOUNTER_DEFINITIONS).filter((encounter) => {
-      const withinDistance = expedition.distance >= encounter.minimumDistance
-        && (!Number.isFinite(encounter.maximumDistance)
-          || expedition.distance <= encounter.maximumDistance);
-      const correctLocation = encounter.regionId === expedition.regionId
-        && encounter.pathIds.includes(expedition.currentPathId);
-      const correctExpedition = !encounter.expeditionIds
-        || encounter.expeditionIds.includes(expedition.expeditionId);
-      const correctDirection = encounter.directions.includes(expedition.direction);
-      const occurrences = Math.max(
-        expedition.encounterOccurrences?.[encounter.id] ?? 0,
-        expedition.seenEncounterIds.includes(encounter.id) ? 1 : 0,
-      );
-      const occurrenceLimit = encounter.repeatable
-        ? encounter.maxOccurrencesPerRun ?? Number.POSITIVE_INFINITY
-        : 1;
-      const canRepeat = occurrences < occurrenceLimit;
-      const avoidsImmediateRepeat = encounter.id !== expedition.lastEncounterId
-        || Object.values(ENCOUNTER_DEFINITIONS).filter((candidate) => (
-          candidate.regionId === expedition.regionId
-          && candidate.pathIds.includes(expedition.currentPathId)
-        )).length === 1;
+    const withinDistance = expedition.distance >= encounter.minimumDistance
+      && (!Number.isFinite(encounter.maximumDistance)
+        || expedition.distance <= encounter.maximumDistance);
+    const correctLocation = encounter.regionId === expedition.regionId
+      && encounter.pathIds.includes(expedition.currentPathId);
+    const correctDirection = encounter.directions.includes(expedition.direction);
+    const occurrences = Math.max(
+      expedition.encounterOccurrences?.[encounter.id] ?? 0,
+      expedition.seenEncounterIds.includes(encounter.id) ? 1 : 0,
+    );
+    const occurrenceLimit = encounter.repeatable
+      ? encounter.maxOccurrencesPerRun ?? Number.POSITIVE_INFINITY
+      : 1;
+    const canRepeat = occurrences < occurrenceLimit;
+    const avoidsImmediateRepeat = encounter.id !== expedition.lastEncounterId
+      || Object.values(ENCOUNTER_DEFINITIONS).filter((candidate) => (
+        candidate.regionId === expedition.regionId
+        && candidate.pathIds.includes(expedition.currentPathId)
+      )).length === 1;
 
-      return withinDistance
-        && correctLocation
-        && correctExpedition
-        && correctDirection
-        && canRepeat
-        && avoidsImmediateRepeat
-        && EncounterRequirements.meetsAll(encounter.requirements, context);
-    }).map((encounter) => ({
+    return withinDistance
+      && correctLocation
+      && correctDirection
+      && canRepeat
+      && avoidsImmediateRepeat
+      && EncounterRequirements.meetsAll(encounter.requirements, context);
+  },
+
+  eligibleDefinitions(expedition, player) {
+    return Object.values(ENCOUNTER_DEFINITIONS).filter((encounter) => (
+      this.isEligibleDefinition(encounter, expedition, player)
+    )).map((encounter) => ({
       ...encounter,
       weight: (Number(encounter.weight) || 1) * ExpeditionRules.discoveryWeightMultiplier(expedition, encounter),
     }));
