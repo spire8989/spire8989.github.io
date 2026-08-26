@@ -516,13 +516,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "startCombat",
                 combatId: "wild_boar",
                 victory: {
-                  outcomes: [
-                    {
-                      type: "gainUnsecuredItem",
-                      itemId: "raw_meat",
-                      quantity: 2
-                    }
-                  ],
+                  outcomes: [],
                   resultText: "The boar falls. Arthur recovers the meat before the company continues."
                 },
                 fled: {
@@ -555,10 +549,23 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "guide_boar_aside",
             label: "Guide It Aside with Woodcraft",
-            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
-            outcomes: [{ type: "setRunFlag", flag: "boar_route_read", value: true }],
+            requirements: [
+              {
+                type: "knowledge",
+                knowledgeId: "woodcraft",
+                unavailable: "locked",
+                lockedLabel: "Requires Woodcraft"
+              }
+            ],
+            outcomes: [
+              {
+                type: "setRunFlag",
+                flag: "boar_route_read",
+                value: true
+              }
+            ],
             resultText: "Arthur reads the boar's footing and gives it an easy escape route. It slips into the brush without a fight or wasted provisions.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "avoid",
@@ -2838,7 +2845,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "modifyResource",
                 resource: "health",
-                amount: 1
+                amount: 10
               }
             ],
             resultText: "The brief rest restores some strength before the company returns to the road.",
@@ -5621,7 +5628,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                   {
                     type: "modifyResource",
                     resource: "health",
-                    amount: 5
+                    amount: 15
                   }
                 ],
                 elseResultText: "The grove gives the company a calm hour of recovery before the road calls again."

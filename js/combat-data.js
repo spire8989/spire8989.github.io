@@ -286,7 +286,13 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         fps: 20
       }
     },
-    visualScale: 0.5
+    visualScale: 0.5,
+    lootSources: [
+      {
+        tableId: "basic_animal_loot",
+        rolls: 2
+      }
+    ]
   },
   wolf: {
     id: "wolf",
@@ -416,7 +422,7 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   leper_knight: {
     id: "leper_knight",
     name: "Leper Knight",
-    maxHp: 56,
+    maxHp: 69,
     speed: 10,
     defense: 2,
     actionPattern: ["leper_blade", "leper_cough", "leper_blade"],

@@ -16,14 +16,15 @@ const STARTING_PLAYER_STATE = Object.freeze({
     arthur_sword: 1,
     quilted_hauberk: 1,
     silver_stag_medallion: 1,
-    torch: 1
+    torch: 1,
+    healing_poultice: 1
   },
   equippedItems: {
     weapon: "arthur_sword",
     armor: "quilted_hauberk",
     relic: "silver_stag_medallion",
   },
-  packedItems: ["torch"],
+  packedItems: ["torch", "healing_poultice"],
   materials: {
     cloth: 2,
     fresh_herbs: 1

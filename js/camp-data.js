@@ -99,24 +99,76 @@ const CAMP_EVENT_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     tags: ["traveler", "neutral", "social"],
     requirements: [],
-    stages: { start: {
-      text: "The stranger waits for Arthur to decide whether the fire is welcoming.",
-      choices: [
-        {
-          id: "invite_over",
-          label: "Invite Them to the Fire",
-          outcomes: [{ type: "randomOne", options: [
-            { weight: 55, resultText: "The traveler shares a little trail food and a useful warning about the road ahead.", effects: [{ type: "modifyResource", resource: "provisions", amount: 2 }] },
-            { weight: 30, resultText: "The traveler speaks at length about roads and weather, then moves on before dawn.", effects: [] },
-            { weight: 15, resultText: "The stranger accepts the warmth but leaves before Arthur can learn much about them.", effects: [{ type: "modifyResource", resource: "provisions", amount: -1 }] },
-          ] }],
-          resultText: "Arthur makes room near the fire.",
-          endEncounter: true,
-        },
-        { id: "question_them", label: "Question Them from a Distance", resultText: "The traveler answers cautiously, offers no clear explanation, and eventually continues on.", endEncounter: true },
-        { id: "send_away", label: "Send Them Away", resultText: "The stranger fades back into the trees without argument.", endEncounter: true },
-      ],
-    } },
+    stages: {
+      start: {
+        text: "The stranger waits for Arthur to decide whether the fire is welcoming.",
+        choices: [
+          {
+            id: "invite_over",
+            label: "Invite Them to the Fire",
+            outcomes: [
+              {
+                type: "randomOne",
+                options: [
+                  {
+                    weight: 55,
+                    resultText: "The traveler shares a little trail food and a useful warning about the road ahead.",
+                    effects: [
+                      {
+                        type: "modifyResource",
+                        resource: "provisions",
+                        amount: 2
+                      }
+                    ]
+                  },
+                  {
+                    weight: 30,
+                    resultText: "The traveler speaks at length about roads and weather, then moves on before dawn.",
+                    effects: []
+                  },
+                  {
+                    weight: 15,
+                    resultText: "The stranger accepts the warmth but leaves before Arthur can learn much about them.",
+                    effects: [
+                      {
+                        type: "modifyResource",
+                        resource: "provisions",
+                        amount: -1
+                      }
+                    ]
+                  },
+                  {
+                    weight: 15,
+                    resultText: "The stranger reveals himself to be a renowned Alchemist and gives you a couple potions for your hospitality.",
+                    effects: [
+                      {
+                        type: "gainUnsecuredItem",
+                        itemId: "healing_poultice",
+                        quantity: 2
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            resultText: "Arthur makes room near the fire.",
+            endEncounter: true
+          },
+          {
+            id: "question_them",
+            label: "Question Them from a Distance",
+            resultText: "The traveler answers cautiously, offers no clear explanation, and eventually continues on.",
+            endEncounter: true
+          },
+          {
+            id: "send_away",
+            label: "Send Them Away",
+            resultText: "The stranger fades back into the trees without argument.",
+            endEncounter: true
+          }
+        ]
+      }
+    }
   },
   strange_lights: {
     id: "strange_lights",

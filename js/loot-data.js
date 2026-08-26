@@ -147,14 +147,9 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
     entries: [
       {
         type: "gold",
-        minimum: 2,
-        maximum: 5,
+        minimum: 4,
+        maximum: 10,
         weight: 7
-      },
-      {
-        type: "item",
-        itemId: "decorated_buckle",
-        weight: 3
       },
       {
         type: "item",
@@ -165,11 +160,6 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         type: "item",
         itemId: "bandages",
         weight: 1
-      },
-      {
-        type: "item",
-        itemId: "dried_herbs",
-        weight: 2
       },
       {
         type: "item",
@@ -304,25 +294,73 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "gold", minimum: 5, maximum: 9, weight: 2 }),
     ]),
   }),
-  expedition_return_deep: Object.freeze({
+  expedition_return_deep: {
     id: "expedition_return_deep",
-    entries: Object.freeze([
-      Object.freeze({ type: "table", tableId: "uncommon_materials", weight: 5 }),
-      Object.freeze({ type: "table", tableId: "forest_materials", weight: 4 }),
-      Object.freeze({ type: "table", tableId: "apothecary_uncommon_recipes", weight: 2 }),
-      Object.freeze({ type: "table", tableId: "rare_materials", weight: 1 }),
-      Object.freeze({ type: "gold", minimum: 7, maximum: 12, weight: 2 }),
-    ]),
-  }),
-  expedition_return_late: Object.freeze({
+    entries: [
+      {
+        type: "table",
+        tableId: "uncommon_materials",
+        weight: 5
+      },
+      {
+        type: "table",
+        tableId: "forest_materials",
+        weight: 4
+      },
+      {
+        type: "table",
+        tableId: "apothecary_uncommon_recipes",
+        weight: 2
+      },
+      {
+        type: "table",
+        tableId: "rare_materials",
+        weight: 1
+      },
+      {
+        type: "gold",
+        minimum: 7,
+        maximum: 12,
+        weight: 2
+      },
+      {
+        type: "recipe",
+        recipeId: "forestwarden_mail",
+        weight: 2
+      }
+    ]
+  },
+  expedition_return_late: {
     id: "expedition_return_late",
-    entries: Object.freeze([
-      Object.freeze({ type: "table", tableId: "uncommon_materials", weight: 5 }),
-      Object.freeze({ type: "table", tableId: "rare_materials", weight: 2 }),
-      Object.freeze({ type: "table", tableId: "apothecary_uncommon_recipes", weight: 2 }),
-      Object.freeze({ type: "gold", minimum: 10, maximum: 18, weight: 3 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "table",
+        tableId: "uncommon_materials",
+        weight: 5
+      },
+      {
+        type: "table",
+        tableId: "rare_materials",
+        weight: 2
+      },
+      {
+        type: "table",
+        tableId: "apothecary_uncommon_recipes",
+        weight: 2
+      },
+      {
+        type: "gold",
+        minimum: 10,
+        maximum: 18,
+        weight: 3
+      },
+      {
+        type: "recipe",
+        recipeId: "forestwarden_mail",
+        weight: 5
+      }
+    ]
+  },
   expedition_return_endgame: Object.freeze({
     id: "expedition_return_endgame",
     entries: Object.freeze([
@@ -371,6 +409,40 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         weight: 1
       }
     ]
+  },
+  basic_animal_loot: {
+    id: "basic_animal_loot",
+    entries: [
+      {
+        type: "item",
+        itemId: "raw_meat",
+        weight: 10,
+        minimum: 1,
+        maximum: 2
+      },
+      {
+        type: "item",
+        itemId: "dried_herbs",
+        weight: 5,
+        minimum: 1,
+        maximum: 3
+      },
+      {
+        type: "item",
+        itemId: "fresh_herbs",
+        weight: 2,
+        minimum: 1,
+        maximum: 3
+      },
+      {
+        type: "item",
+        itemId: "mushrooms",
+        weight: 2,
+        minimum: 1,
+        maximum: 3
+      }
+    ],
+    rolls: 1
   }
 });
 

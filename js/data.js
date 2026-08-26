@@ -429,16 +429,16 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: true,
     maxStack: 4,
     effects: {
-      combat: Object.freeze({
+      combat: {
         usable: true,
         effectType: "heal",
-        amount: 8,
+        amount: 12,
         target: "ally",
         selectionPrompt: "Choose an ally to heal",
-        description: "Restore 8 HP to one injured ally.",
-      }),
+        description: "Restore 12 HP to one injured ally."
+      }
     },
-    questItem: false,
+    questItem: false
   },
   dried_herbs: {
     id: "dried_herbs",
@@ -644,17 +644,19 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: true,
     maxStack: 4,
     effects: {
-      treatment: Object.freeze({ injuryIds: ["deep_cut", "infection"] }),
-      combat: Object.freeze({
+      treatment: {
+        injuryIds: ["deep_cut", "infection"]
+      },
+      combat: {
         usable: true,
         effectType: "heal",
-        amount: 12,
+        amount: 15,
         target: "ally",
         selectionPrompt: "Choose an ally to heal",
-        description: "Restore 12 HP to one injured ally.",
-      }),
+        description: "Restore 15 HP to one injured ally."
+      }
     },
-    questItem: false,
+    questItem: false
   },
   strong_tonic: {
     id: "strong_tonic",
