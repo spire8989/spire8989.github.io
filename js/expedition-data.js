@@ -42,7 +42,7 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     ],
     travelSeamForegroundAssetId: "expedition_old_forest_road_tree_6"
   },
-  fountain_of_barenton: Object.freeze({
+  fountain_of_barenton: {
     id: "fountain_of_barenton",
     name: "Fountain of Barenton",
     regionTitle: "Brocéliande",
@@ -57,9 +57,9 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     campAmbienceAssetId: null,
     kind: "normal",
     campEventTableIds: ["deep_forest"],
-    prerequisites: [],
-  }),
-  val_sans_retour: Object.freeze({
+    prerequisites: ["flask"]
+  },
+  val_sans_retour: {
     id: "val_sans_retour",
     name: "Val sans Retour",
     regionTitle: "Brocéliande",
@@ -74,8 +74,8 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     campAmbienceAssetId: null,
     kind: "normal",
     campEventTableIds: ["deep_forest", "val_supernatural"],
-    prerequisites: [],
-  }),
+    prerequisites: ["flask"]
+  },
   search_for_merlin: Object.freeze({
     id: "search_for_merlin",
     name: "Search for Merlin",
