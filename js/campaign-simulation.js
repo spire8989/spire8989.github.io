@@ -193,6 +193,21 @@ const CampaignSimulationRunner = Object.freeze({
           progressionTargetFullyReachable: Boolean(
             progressionReadinessPlan.progressionTargetFullyReachable,
           ),
+          progressionTargetHardFeasible: Boolean(
+            progressionReadinessPlan.progressionTargetHardFeasible,
+          ),
+          progressionPreferredSafetySatisfied: Boolean(
+            progressionReadinessPlan.progressionPreferredSafetySatisfied,
+          ),
+          progressionHardSupportedDistance: progressionReadinessPlan.progressionHardSupportedDistance,
+          progressionPreferredSupportedDistance: progressionReadinessPlan.progressionPreferredSupportedDistance,
+          progressionHardProvisionRequirement: progressionReadinessPlan.progressionHardProvisionRequirement,
+          progressionPreferredProvisionRequirement: progressionReadinessPlan.progressionPreferredProvisionRequirement,
+          progressionSupplyRunCanImproveReadiness: progressionReadinessPlan.progressionSupplyRunCanImproveReadiness,
+          progressionSupplyRunImprovementReason: progressionReadinessPlan.progressionSupplyRunImprovementReason,
+          progressionAttemptAllowedDespiteSafetyShortfall: Boolean(
+            progressionReadinessPlan.progressionAttemptAllowedDespiteSafetyShortfall,
+          ),
           minimumViableProvisionRequirement:
             progressionReadinessPlan.minimumViableProvisionRequirement,
           preferredProvisionTarget: progressionReadinessPlan.preferredProvisionTarget,
@@ -269,6 +284,21 @@ const CampaignSimulationRunner = Object.freeze({
       decision.progressionTargetFullyReachable = Boolean(
         progressionReadinessPlan?.progressionTargetFullyReachable,
       );
+      decision.progressionTargetHardFeasible = Boolean(
+        progressionReadinessPlan?.progressionTargetHardFeasible,
+      );
+      decision.progressionPreferredSafetySatisfied = Boolean(
+        progressionReadinessPlan?.progressionPreferredSafetySatisfied,
+      );
+      decision.progressionHardSupportedDistance = progressionReadinessPlan?.progressionHardSupportedDistance ?? null;
+      decision.progressionPreferredSupportedDistance = progressionReadinessPlan?.progressionPreferredSupportedDistance ?? null;
+      decision.progressionHardProvisionRequirement = progressionReadinessPlan?.progressionHardProvisionRequirement ?? null;
+      decision.progressionPreferredProvisionRequirement = progressionReadinessPlan?.progressionPreferredProvisionRequirement ?? null;
+      decision.progressionSupplyRunCanImproveReadiness = progressionReadinessPlan?.progressionSupplyRunCanImproveReadiness ?? null;
+      decision.progressionSupplyRunImprovementReason = progressionReadinessPlan?.progressionSupplyRunImprovementReason ?? null;
+      decision.progressionAttemptAllowedDespiteSafetyShortfall = Boolean(
+        progressionReadinessPlan?.progressionAttemptAllowedDespiteSafetyShortfall,
+      );
       decision.supplyRunExpectedBenefit = progressionReadinessPlan?.supplyRunExpectedBenefit ?? null;
       decision.supplyRunBenefitReason = progressionReadinessPlan?.supplyRunBenefitReason ?? null;
       decision.oldForestCurrentGoal = deepCampaignClone(progressionGoal);
@@ -302,48 +332,64 @@ const CampaignSimulationRunner = Object.freeze({
         );
         progressionReadiness = {
           ...postPreparationReadiness,
-          status: postPreparationReadiness.status === "blocked" ? "blocked" : "deferred",
-          reason: postPreparationReadiness.status === "blocked"
-            ? postPreparationReadiness.reason : "objective-distance-floor-after-preparation",
           requiredDistance: progressionRequiredDistance,
-          supportedDistance: decision.safeAffordableDistance,
+          supportedDistance: postPreparationReadiness.supportedDistance,
         };
-        if (progressionReadiness.status === "blocked"
-          || !progressionReadiness.supplyRunExpectedBenefit) {
+        if (postPreparationReadiness.status === "ready"
+          || postPreparationReadiness.status === "ready-with-constraints") {
+          decision.actualTargetDistance = progressionRequiredDistance;
+          decision.targetDistance = progressionRequiredDistance;
+          decision.targetDistanceReduced = false;
+          decision.targetDistanceReduction = 0;
+          decision.targetDistanceReductionReason = null;
+          decision.progressionReadiness = postPreparationReadiness.status;
+          decision.progressionDeferredReason = postPreparationReadiness.reason;
+          decision.progressionReadinessBlocker = postPreparationReadiness.blocker;
+          decision.progressionSupportedDistance = postPreparationReadiness.supportedDistance;
+          decision.progressionTargetHardFeasible = postPreparationReadiness.progressionTargetHardFeasible;
+          decision.progressionPreferredSafetySatisfied = postPreparationReadiness.progressionPreferredSafetySatisfied;
+          decision.progressionAttemptAllowedDespiteSafetyShortfall = Boolean(
+            postPreparationReadiness.progressionAttemptAllowedDespiteSafetyShortfall,
+          );
+          decision.progressionSupplyRunCanImproveReadiness = postPreparationReadiness.progressionSupplyRunCanImproveReadiness;
+          decision.progressionSupplyRunImprovementReason = postPreparationReadiness.progressionSupplyRunImprovementReason;
+        } else if (postPreparationReadiness.status === "blocked"
+          || !postPreparationReadiness.supplyRunExpectedBenefit) {
           townActions.push(...tagCampaignTownActions(preparationActions, expeditionNumber));
           stopReason = "progression-objective-blocked";
           break;
+        } else {
+          isSupplyRun = true;
+          supplyRunForRoute = progressionRouteId;
+          runKind = "supply";
+          decision.actualTargetDistance = Math.min(
+            decision.actualTargetDistance, progressionSupplyRunDistance(config.strategy),
+          );
+          decision.targetDistance = decision.actualTargetDistance;
+          const previousExpeditionId = player.selectedExpeditionId;
+          routeId = "old_forest_road";
+          player.selectedExpeditionId = routeId;
+          if (previousExpeditionId !== routeId) {
+            preparationActions.push({
+              type: "select-expedition",
+              expeditionNumber,
+              expeditionId: routeId,
+              previousExpeditionId,
+            });
+          }
+          decision.expeditionId = routeId;
+          decision.runKind = runKind;
+          decision.isSupplyRun = true;
+          decision.supplyRunForRoute = supplyRunForRoute;
+          decision.supplyRunTargetDistance = decision.actualTargetDistance;
+          decision.progressionReadiness = progressionReadiness.status;
+          decision.progressionDeferredReason = progressionReadiness.reason;
+          decision.progressionReadinessBlocker = progressionReadiness.blocker;
+          decision.progressionRequiredDistance = progressionReadiness.requiredDistance;
+          decision.progressionSupportedDistance = progressionReadiness.supportedDistance;
+          decision.supplyRunExpectedBenefit = progressionReadiness.supplyRunExpectedBenefit;
+          decision.supplyRunBenefitReason = progressionReadiness.supplyRunBenefitReason;
         }
-        isSupplyRun = true;
-        supplyRunForRoute = progressionRouteId;
-        runKind = "supply";
-        decision.actualTargetDistance = Math.min(
-          decision.actualTargetDistance, progressionSupplyRunDistance(config.strategy),
-        );
-        decision.targetDistance = decision.actualTargetDistance;
-        const previousExpeditionId = player.selectedExpeditionId;
-        routeId = "old_forest_road";
-        player.selectedExpeditionId = routeId;
-        if (previousExpeditionId !== routeId) {
-          preparationActions.push({
-            type: "select-expedition",
-            expeditionNumber,
-            expeditionId: routeId,
-            previousExpeditionId,
-          });
-        }
-        decision.expeditionId = routeId;
-        decision.runKind = runKind;
-        decision.isSupplyRun = true;
-        decision.supplyRunForRoute = supplyRunForRoute;
-        decision.supplyRunTargetDistance = decision.actualTargetDistance;
-        decision.progressionReadiness = progressionReadiness.status;
-        decision.progressionDeferredReason = progressionReadiness.reason;
-        decision.progressionReadinessBlocker = progressionReadiness.blocker;
-        decision.progressionRequiredDistance = progressionReadiness.requiredDistance;
-        decision.progressionSupportedDistance = progressionReadiness.supportedDistance;
-        decision.supplyRunExpectedBenefit = progressionReadiness.supplyRunExpectedBenefit;
-        decision.supplyRunBenefitReason = progressionReadiness.supplyRunBenefitReason;
       }
       decision.objectiveDistanceFloorApplied = Boolean(
         progression && !isSupplyRun && !isPrerequisiteRun && progressionRequiredDistance > 0,
@@ -394,6 +440,9 @@ const CampaignSimulationRunner = Object.freeze({
         startingStateIsAuthoritative: true,
         startingState: deepCampaignClone(player),
         campaignGoal: progressionGoal,
+        allowProgressionSafetyShortfallAttempt: Boolean(
+          decision.progressionAttemptAllowedDespiteSafetyShortfall,
+        ),
         locationServicePlans: progressionRouteId === "old_forest_road"
           ? [{ locationId: "hidden_forest_village", encounterId: "hidden_forest_village", minimumDistance: 95 }]
           : [],
@@ -522,10 +571,26 @@ const CampaignSimulationRunner = Object.freeze({
           decision.progressionTargetFullyReachable
             ?? progressionReadiness?.progressionTargetFullyReachable,
         ),
+        progressionTargetHardFeasible: Boolean(
+          decision.progressionTargetHardFeasible
+            ?? progressionReadiness?.progressionTargetHardFeasible,
+        ),
+        progressionPreferredSafetySatisfied: Boolean(
+          decision.progressionPreferredSafetySatisfied
+            ?? progressionReadiness?.progressionPreferredSafetySatisfied,
+        ),
+        progressionHardSupportedDistance: decision.progressionHardSupportedDistance
+          ?? progressionReadiness?.progressionHardSupportedDistance ?? null,
+        progressionPreferredSupportedDistance: decision.progressionPreferredSupportedDistance
+          ?? progressionReadiness?.progressionPreferredSupportedDistance ?? null,
         preferredSupportedDistance: progressionReadiness?.preferredSupportedDistance
           ?? decision.preferredSafeDistance ?? null,
         minimumViableSupportedDistance: progressionReadiness?.minimumViableSupportedDistance
           ?? decision.minimumViableSupportedDistance ?? null,
+        progressionHardProvisionRequirement: decision.progressionHardProvisionRequirement
+          ?? progressionReadiness?.progressionHardProvisionRequirement ?? null,
+        progressionPreferredProvisionRequirement: decision.progressionPreferredProvisionRequirement
+          ?? progressionReadiness?.progressionPreferredProvisionRequirement ?? null,
         minimumViableProvisionRequirement: decision.minimumViableProvisionRequirement,
         preferredProvisionTarget: decision.preferredProvisionTarget,
         provisionCapacity: decision.provisionCapacity,
@@ -533,6 +598,14 @@ const CampaignSimulationRunner = Object.freeze({
         preferredBufferShortfall: decision.preferredBufferShortfall,
         supplyRunExpectedBenefit: decision.supplyRunExpectedBenefit ?? null,
         supplyRunBenefitReason: decision.supplyRunBenefitReason ?? null,
+        progressionSupplyRunCanImproveReadiness: decision.progressionSupplyRunCanImproveReadiness
+          ?? progressionReadiness?.progressionSupplyRunCanImproveReadiness ?? null,
+        progressionSupplyRunImprovementReason: decision.progressionSupplyRunImprovementReason
+          ?? progressionReadiness?.progressionSupplyRunImprovementReason ?? null,
+        progressionAttemptAllowedDespiteSafetyShortfall: Boolean(
+          decision.progressionAttemptAllowedDespiteSafetyShortfall
+            ?? progressionReadiness?.progressionAttemptAllowedDespiteSafetyShortfall,
+        ),
         oldForestCurrentGoal: deepCampaignClone(progressionGoal),
         oldForestTargetMilestoneDistance: progressionGoal?.targetDistance ?? null,
         oldForestGoalReason: progressionGoal?.reason ?? null,
@@ -947,7 +1020,11 @@ const CampaignSimulationTelemetry = Object.freeze({
       "progressionUsesMidRouteResupply", "progressionResupplyLocationId", "progressionResupplyDistance",
       "provisionsRequiredToReachResupply", "projectedProvisionsAtResupply", "projectedVillageProvisionPurchase",
       "projectedVillageProvisionGoldCost", "projectedVillageStockAfter", "postResupplySupportedDistance",
-      "progressionTargetFullyReachable",
+      "progressionTargetFullyReachable", "progressionTargetHardFeasible", "progressionPreferredSafetySatisfied",
+      "progressionHardSupportedDistance", "progressionPreferredSupportedDistance",
+      "progressionHardProvisionRequirement", "progressionPreferredProvisionRequirement",
+      "progressionReadinessBlocker", "progressionSupplyRunCanImproveReadiness",
+      "progressionSupplyRunImprovementReason", "progressionAttemptAllowedDespiteSafetyShortfall",
       "oldForestCurrentGoal", "oldForestTargetMilestoneDistance", "oldForestGoalReason", "oldForestSupplyRunReason", "oldForestProgressionGoalByExpedition",
       "oldForestTripsUntilVillageDiscovery", "oldForestTripsUntilWoodcraft", "oldForestTripsUntilFirstVerdantShard", "oldForestTripsUntilSecondVerdantShard", "oldForestTripsUntilVerdantHeart", "oldForestTripsUntilSong", "oldForestTripsUntilHeartEnchanted", "oldForestTripsUntilFirstWardenAttempt", "oldForestTripsUntilFlaskSecured", "oldForestWardenAttempts", "oldForestWardenVictories", "oldForestWardenLosses", "oldForestDeepestDistanceByExpedition", "oldForestGlimmeringSwordAcquisitionRate", "oldForestReturnFailureByDepth"];
     return campaignCsv(fields, results.map((campaign) => ({
@@ -1004,7 +1081,11 @@ const CampaignSimulationTelemetry = Object.freeze({
       "progressionUsesMidRouteResupply", "progressionResupplyLocationId", "progressionResupplyDistance",
       "provisionsRequiredToReachResupply", "projectedProvisionsAtResupply", "projectedVillageProvisionPurchase",
       "projectedVillageProvisionGoldCost", "projectedVillageStockAfter", "postResupplySupportedDistance",
-      "progressionTargetFullyReachable",
+      "progressionTargetFullyReachable", "progressionTargetHardFeasible", "progressionPreferredSafetySatisfied",
+      "progressionHardSupportedDistance", "progressionPreferredSupportedDistance",
+      "progressionHardProvisionRequirement", "progressionPreferredProvisionRequirement",
+      "progressionSupplyRunCanImproveReadiness", "progressionSupplyRunImprovementReason",
+      "progressionAttemptAllowedDespiteSafetyShortfall",
       "preferredBufferShortfall", "supplyRunExpectedBenefit", "supplyRunBenefitReason", "objectiveDistanceFloorApplied", "objectiveDistanceFloorViolated",
       "strategyConstraintTypes", "hardFailure", "hardFailureReason",
       "departurePassiveFoodEstimate", "encounterProvisionReserve", "provisionUncertaintyBuffer",
@@ -1229,6 +1310,18 @@ function compactCampaignSummary(campaign, expeditions) {
       attemptsByRoute: compactClone(campaign.attemptsByRoute ?? {}),
       supplyRunCount: Number(campaign.supplyRunCount) || 0,
       supplyRunsByRoute: compactClone(campaign.supplyRunsByRoute ?? {}),
+      progressionTargetHardFeasible: Boolean(campaign.progressionTargetHardFeasible),
+      progressionPreferredSafetySatisfied: Boolean(campaign.progressionPreferredSafetySatisfied),
+      progressionHardSupportedDistance: campaign.progressionHardSupportedDistance ?? null,
+      progressionPreferredSupportedDistance: campaign.progressionPreferredSupportedDistance ?? null,
+      progressionHardProvisionRequirement: campaign.progressionHardProvisionRequirement ?? null,
+      progressionPreferredProvisionRequirement: campaign.progressionPreferredProvisionRequirement ?? null,
+      progressionReadinessBlocker: campaign.progressionReadinessBlocker ?? null,
+      progressionSupplyRunCanImproveReadiness: campaign.progressionSupplyRunCanImproveReadiness ?? null,
+      progressionSupplyRunImprovementReason: campaign.progressionSupplyRunImprovementReason ?? null,
+      progressionAttemptAllowedDespiteSafetyShortfall: Boolean(
+        campaign.progressionAttemptAllowedDespiteSafetyShortfall,
+      ),
       oldForestCurrentGoal: compactClone(campaign.oldForestCurrentGoal ?? null),
       oldForestTargetMilestoneDistance: campaign.oldForestTargetMilestoneDistance ?? null,
       oldForestGoalReason: campaign.oldForestGoalReason ?? null,
@@ -1404,6 +1497,17 @@ function compactExpedition(entry, campaign) {
     progressionSupportedDistance: entry.progressionSupportedDistance ?? null,
     preferredSupportedDistance: entry.preferredSupportedDistance ?? null,
     minimumViableSupportedDistance: entry.minimumViableSupportedDistance ?? null,
+    progressionTargetHardFeasible: Boolean(entry.progressionTargetHardFeasible),
+    progressionPreferredSafetySatisfied: Boolean(entry.progressionPreferredSafetySatisfied),
+    progressionHardSupportedDistance: entry.progressionHardSupportedDistance ?? null,
+    progressionPreferredSupportedDistance: entry.progressionPreferredSupportedDistance ?? null,
+    progressionHardProvisionRequirement: entry.progressionHardProvisionRequirement ?? null,
+    progressionPreferredProvisionRequirement: entry.progressionPreferredProvisionRequirement ?? null,
+    progressionSupplyRunCanImproveReadiness: entry.progressionSupplyRunCanImproveReadiness ?? null,
+    progressionSupplyRunImprovementReason: entry.progressionSupplyRunImprovementReason ?? null,
+    progressionAttemptAllowedDespiteSafetyShortfall: Boolean(
+      entry.progressionAttemptAllowedDespiteSafetyShortfall,
+    ),
     progressionUsesMidRouteResupply: Boolean(entry.progressionUsesMidRouteResupply),
     progressionResupplyLocationId: entry.progressionResupplyLocationId ?? null,
     progressionResupplyDistance: entry.progressionResupplyDistance ?? null,
@@ -1471,6 +1575,17 @@ function compactExpedition(entry, campaign) {
       progressionSupportedDistance: entry.progressionSupportedDistance ?? null,
       preferredSupportedDistance: entry.preferredSupportedDistance ?? null,
       minimumViableSupportedDistance: entry.minimumViableSupportedDistance ?? null,
+      progressionTargetHardFeasible: Boolean(entry.progressionTargetHardFeasible),
+      progressionPreferredSafetySatisfied: Boolean(entry.progressionPreferredSafetySatisfied),
+      progressionHardSupportedDistance: entry.progressionHardSupportedDistance ?? null,
+      progressionPreferredSupportedDistance: entry.progressionPreferredSupportedDistance ?? null,
+      progressionHardProvisionRequirement: entry.progressionHardProvisionRequirement ?? null,
+      progressionPreferredProvisionRequirement: entry.progressionPreferredProvisionRequirement ?? null,
+      progressionSupplyRunCanImproveReadiness: entry.progressionSupplyRunCanImproveReadiness ?? null,
+      progressionSupplyRunImprovementReason: entry.progressionSupplyRunImprovementReason ?? null,
+      progressionAttemptAllowedDespiteSafetyShortfall: Boolean(
+        entry.progressionAttemptAllowedDespiteSafetyShortfall,
+      ),
       minimumViableProvisionRequirement: entry.minimumViableProvisionRequirement ?? null,
       preferredProvisionTarget: entry.preferredProvisionTarget ?? null,
       provisionCapacity: entry.provisionCapacity ?? null,
@@ -2692,11 +2807,13 @@ function applyBetweenExpeditionPolicy(
   };
   const actualProvisionStockAfterPurchase = player.provisions;
   const provisionStockAvailableToPack = Math.min(actualProvisionStockAfterPurchase, capacity);
-  const minimumViableProvisionRequirement = targetDistance >= 1
+  const progressionHardProvisionRequirement = targetDistance >= 1
     ? estimateCampaignProvisionRequirement(
-      targetDistance, activeCompanions, 0, encounterProvisionReserve, travelSettings, 0,
+      targetDistance, activeCompanions, 0, 0, travelSettings, 0,
     ) : 0;
-  const preferredProvisionTarget = desiredProvisionStockForNominalDistance;
+  const progressionPreferredProvisionRequirement = desiredProvisionStockForNominalDistance;
+  const minimumViableProvisionRequirement = progressionHardProvisionRequirement;
+  const preferredProvisionTarget = progressionPreferredProvisionRequirement;
   const preferredBufferShortfall = Math.max(
     0, preferredProvisionTarget - provisionStockAvailableToPack,
   );
@@ -2705,9 +2822,11 @@ function applyBetweenExpeditionPolicy(
     policy.provisionMargin, encounterProvisionReserve, travelSettings, planningStrategy,
   );
   const minimumViableSupportedDistance = maximumCampaignDistanceForProvisions(
+    provisionStockAvailableToPack, activeCompanions, 0, 0, travelSettings,
+  );
+  const encounterReserveSupportedDistance = maximumCampaignDistanceForProvisions(
     provisionStockAvailableToPack, activeCompanions, 0, encounterProvisionReserve, travelSettings,
   );
-  const encounterReserveSupportedDistance = minimumViableSupportedDistance;
   const minimumSupportedDistance = maximumCampaignDistanceForProvisions(
     provisionStockAvailableToPack, activeCompanions, 0, 0, travelSettings,
   );
@@ -2715,12 +2834,6 @@ function applyBetweenExpeditionPolicy(
     ? preferredSafeDistance
       : encounterReserveSupportedDistance >= 1
         ? encounterReserveSupportedDistance : minimumSupportedDistance;
-  let progressionSupportedDistance = Math.max(
-    preferredSafeDistance, minimumViableSupportedDistance,
-  );
-  const planningSupportedDistance = isProgressionAttempt
-    ? progressionSupportedDistance : safeAffordableDistance;
-  let actualTargetDistance = Math.min(targetDistance, planningSupportedDistance);
   const postPreparationResupply = isProgressionAttempt
     && planningOptions.expeditionId === "old_forest_road"
     ? projectOldForestVillageResupply({
@@ -2732,7 +2845,21 @@ function applyBetweenExpeditionPolicy(
       expeditionId: planningOptions.expeditionId,
       campaignGoal: planningOptions.campaignGoal,
     }) : null;
-  if (postPreparationResupply?.progressionTargetFullyReachable) {
+  const progressionHardSupportedDistance = Math.max(
+    minimumViableSupportedDistance,
+    postPreparationResupply?.postResupplyHardSupportedDistance ?? 0,
+  );
+  const progressionPreferredSupportedDistance = Math.max(
+    preferredSafeDistance,
+    postPreparationResupply?.postResupplyPreferredSupportedDistance ?? 0,
+  );
+  let progressionSupportedDistance = Math.max(
+    progressionPreferredSupportedDistance, progressionHardSupportedDistance,
+  );
+  const planningSupportedDistance = isProgressionAttempt
+    ? progressionSupportedDistance : safeAffordableDistance;
+  let actualTargetDistance = Math.min(targetDistance, planningSupportedDistance);
+  if (postPreparationResupply?.progressionTargetHardFeasible) {
     actualTargetDistance = targetDistance;
     progressionSupportedDistance = Math.max(
       progressionSupportedDistance,
@@ -2743,8 +2870,8 @@ function applyBetweenExpeditionPolicy(
     && (!isProgressionAttempt || preferredSafeDistance >= actualTargetDistance)
     ? SimulationProvisionPlanning.provisionUncertaintyBuffer(planningStrategy, actualTargetDistance)
     : 0;
-  const preferredPreparationSupportsChosenTarget = preferredSafeDistance >= actualTargetDistance;
-  const minimumPreparationSupportsChosenTarget = minimumViableSupportedDistance >= actualTargetDistance;
+  const preferredPreparationSupportsChosenTarget = progressionPreferredSupportedDistance >= actualTargetDistance;
+  const minimumPreparationSupportsChosenTarget = encounterReserveSupportedDistance >= actualTargetDistance;
   const safetyMarginUsed = preferredPreparationSupportsChosenTarget
     ? policy.provisionMargin : 0;
   const encounterProvisionReserveUsed = preferredPreparationSupportsChosenTarget
@@ -2765,7 +2892,7 @@ function applyBetweenExpeditionPolicy(
   const targetDistanceReductionReason = !targetDistanceReduced
     ? null
     : isProgressionAttempt && actualTargetDistance < progressionRequiredDistance
-      ? "minimum-viable-provisions-unavailable"
+      ? "hard-provision-shortfall"
       : preferredProvisionTarget > capacity
       && actualProvisionStockAfterPurchase >= capacity
       ? "party-provision-capacity"
@@ -2879,6 +3006,22 @@ function applyBetweenExpeditionPolicy(
     safetyMargin: safetyMarginUsed,
     progressionRequiredDistance,
     progressionSupportedDistance,
+    progressionHardSupportedDistance,
+    progressionPreferredSupportedDistance,
+    progressionTargetHardFeasible: isProgressionAttempt
+      ? progressionHardSupportedDistance >= progressionRequiredDistance : false,
+    progressionPreferredSafetySatisfied: isProgressionAttempt
+      ? progressionPreferredSupportedDistance >= progressionRequiredDistance : false,
+    progressionHardProvisionRequirement,
+    progressionPreferredProvisionRequirement,
+    progressionReadinessBlocker: null,
+    progressionSupplyRunCanImproveReadiness: null,
+    progressionSupplyRunImprovementReason: null,
+    progressionAttemptAllowedDespiteSafetyShortfall: Boolean(
+      isProgressionAttempt
+        && progressionHardSupportedDistance >= progressionRequiredDistance
+        && progressionPreferredSupportedDistance < progressionRequiredDistance,
+    ),
     progressionReadiness: isProgressionAttempt
       ? actualTargetDistance >= progressionRequiredDistance
         ? preferredPreparationSupportsChosenTarget ? "ready" : "ready-with-constraints"
@@ -2901,10 +3044,7 @@ function applyBetweenExpeditionPolicy(
     provisionStockAvailableToPack,
     preferredSafeDistance,
     encounterReserveSupportedDistance,
-    minimumViableSupportedDistance: Math.max(
-      minimumViableSupportedDistance,
-      postPreparationResupply?.postResupplySupportedDistance ?? 0,
-    ),
+    minimumViableSupportedDistance: progressionHardSupportedDistance,
     progressionUsesMidRouteResupply: Boolean(postPreparationResupply?.usesMidRouteResupply),
     progressionResupplyLocationId: postPreparationResupply?.resupplyLocationId ?? null,
     progressionResupplyDistance: postPreparationResupply?.resupplyDistance ?? null,
@@ -2915,7 +3055,7 @@ function applyBetweenExpeditionPolicy(
     projectedVillageStockAfter: postPreparationResupply?.projectedVillageStockAfter ?? null,
     postResupplySupportedDistance: postPreparationResupply?.postResupplySupportedDistance ?? null,
     progressionTargetFullyReachable: Boolean(
-      postPreparationResupply?.progressionTargetFullyReachable,
+      postPreparationResupply?.progressionTargetHardFeasible,
     ),
     minimumSupportedDistance,
     estimatedProvisionRequirementForChosenDistance,
@@ -3779,6 +3919,16 @@ function assessProgressionReadiness(
       projectedVillageStockAfter: null,
       postResupplySupportedDistance: null,
       progressionTargetFullyReachable: false,
+      progressionTargetHardFeasible: false,
+      progressionPreferredSafetySatisfied: false,
+      progressionHardSupportedDistance: null,
+      progressionPreferredSupportedDistance: null,
+      progressionHardProvisionRequirement: 0,
+      progressionPreferredProvisionRequirement: 0,
+      progressionReadinessBlocker: null,
+      progressionSupplyRunCanImproveReadiness: false,
+      progressionSupplyRunImprovementReason: null,
+      progressionAttemptAllowedDespiteSafetyShortfall: false,
       supplyRunExpectedBenefit: false,
       supplyRunBenefitReason: null,
     };
@@ -3788,47 +3938,60 @@ function assessProgressionReadiness(
   );
   const preferredReady = quote.preferredSafeDistance >= desiredDistance
     && quote.provisionStock >= quote.preferredProvisionTarget;
-  const minimumViable = quote.minimumViableSupportedDistance >= requiredDistance;
+  const hardSupportedDistance = Number(quote.hardSupportedDistance
+    ?? quote.minimumViableSupportedDistance) || 0;
+  const preferredSupportedDistance = Number(quote.preferredSupportedDistance
+    ?? quote.preferredSafeDistance) || 0;
+  const minimumViable = hardSupportedDistance >= requiredDistance;
   const druidSourceBlocked = options.goal?.druidIngredientAcquisitionPlan === "blocked-no-valid-source";
+  const hardFeasible = !druidSourceBlocked && minimumViable;
+  const preferredSafetySatisfied = preferredReady && preferredSupportedDistance >= desiredDistance;
   const blocker = druidSourceBlocked
     ? "druid-ingredient-source"
-    : quote.provisionCapacity < quote.minimumViableProvisionRequirement
-    ? "provision-capacity"
-    : quote.provisionStock < quote.minimumViableProvisionRequirement
-      ? "insufficient-provisions"
-      : "minimum-distance-unsupported";
+    : hardFeasible && !preferredSafetySatisfied
+      ? "preferred-safety-margin-shortfall"
+      : quote.capacity < quote.hardProvisionRequirement
+        ? "capacity-limited"
+        : quote.villageResupply?.serviceEnabled && !quote.villageResupply?.canReachResupply
+          ? "cannot-reach-resupply"
+          : quote.villageResupply?.serviceEnabled
+            && Number(quote.villageResupply?.hardSupportedDistance
+              ?? quote.villageResupply?.postResupplyHardSupportedDistance) < requiredDistance
+            && Number(quote.villageResupply?.hardProvisionsNeededAtResupply) > 0
+            && Number(quote.villageResupply?.availableGold) < Number(quote.villageResupply?.hardVillageProvisionGoldCost)
+              ? "insufficient-gold-for-resupply"
+              : quote.villageResupply?.serviceEnabled
+                && Number(quote.villageResupply?.hardSupportedDistance
+                  ?? quote.villageResupply?.postResupplyHardSupportedDistance) < requiredDistance
+                && Number(quote.villageResupply?.hardProvisionsNeededAtResupply) > 0
+                && Number(quote.villageResupply?.stockBefore) < Number(quote.villageResupply?.hardProvisionsNeededAtResupply)
+                  ? "insufficient-village-stock"
+                  : "hard-provision-shortfall";
+  const preparationImprovement = canPreparationRunImproveReadiness(quote, blocker, requiredDistance);
   const supplyHistory = progressionState?.supplyRunHistoryByRoute?.[routeId] ?? [];
   const lastSupplyRun = [...supplyHistory].reverse()
     .find((entry) => !options.goal?.goalId || entry.goalId === options.goal.goalId) ?? null;
-  const supplyRunExpectedBenefit = !druidSourceBlocked && !minimumViable
-    && blocker !== "provision-capacity"
+  const supplyRunExpectedBenefit = !druidSourceBlocked && !hardFeasible
+    && preparationImprovement.useful
     && options.goal?.supplyRunUseful !== false
     && (!lastSupplyRun || lastSupplyRun.materiallyImproved);
   const supplyRunBenefitReason = druidSourceBlocked
     ? "no-valid-druid-ingredient-source"
-    : minimumViable
-    ? (preferredReady ? null : "preferred-buffer-is-optional")
-    : blocker === "provision-capacity"
-      ? "capacity-not-improvable-by-supply-run"
+    : hardFeasible && !preferredSafetySatisfied
+      ? "preferred-safety-margin-shortfall"
       : !supplyRunExpectedBenefit
-        ? "supply-run-no-material-benefit"
-        : "supply-run-can-improve-provisions-or-gold";
+        ? preparationImprovement.reason
+        : "supply-run-can-improve-hard-feasibility";
   const status = druidSourceBlocked
     ? "blocked"
-    : minimumViable
-    ? preferredReady ? "ready" : "ready-with-constraints"
+    : hardFeasible
+    ? preferredSafetySatisfied ? "ready" : "ready-with-constraints"
     : supplyRunExpectedBenefit ? "deferred" : "blocked";
   const reason = druidSourceBlocked
     ? options.goal?.druidPrepRunReason ?? "no-valid-druid-ingredient-source"
-    : minimumViable
-    ? preferredReady
-      ? null
-      : options.goal && requiredDistance < desiredDistance
-        ? "reasonable-milestone-attempt"
-        : "preferred-provision-buffer-unavailable"
-    : blocker === "provision-capacity"
-      ? "progression-objective-unsupported-by-capacity"
-      : supplyRunExpectedBenefit ? "objective-distance-floor" : "supply-run-no-material-benefit";
+    : hardFeasible
+      ? preferredSafetySatisfied ? null : "preferred-safety-margin-shortfall"
+      : supplyRunExpectedBenefit ? "objective-distance-floor" : preparationImprovement.reason;
   const readinessMetric = progressionReadinessMetric(quote, player);
   return {
     status,
@@ -3836,10 +3999,14 @@ function assessProgressionReadiness(
     requiredDistance,
     desiredDistance,
     goal: options.goal ? deepCampaignClone(options.goal) : null,
-    supportedDistance: Math.max(
-      quote.preferredSafeDistance, quote.minimumViableSupportedDistance,
-    ),
-    preferredSupportedDistance: quote.preferredSafeDistance,
+    supportedDistance: Math.max(preferredSupportedDistance, hardSupportedDistance),
+    preferredSupportedDistance,
+    progressionHardSupportedDistance: hardSupportedDistance,
+    progressionPreferredSupportedDistance: preferredSupportedDistance,
+    progressionTargetHardFeasible: hardFeasible,
+    progressionPreferredSafetySatisfied: preferredSafetySatisfied,
+    progressionHardProvisionRequirement: Number(quote.hardProvisionRequirement) || 0,
+    progressionPreferredProvisionRequirement: Number(quote.preferredProvisionRequirement) || 0,
     minimumViableSupportedDistance: quote.minimumViableSupportedDistance,
     minimumViableProvisionRequirement: quote.minimumViableProvisionRequirement,
     preferredProvisionTarget: quote.preferredProvisionTarget,
@@ -3860,6 +4027,11 @@ function assessProgressionReadiness(
     progressionTargetFullyReachable: Boolean(quote.villageResupply?.progressionTargetFullyReachable),
     progressionReadinessBlocker: blocker,
     blocker,
+    progressionSupplyRunCanImproveReadiness: preparationImprovement.useful,
+    progressionSupplyRunImprovementReason: preparationImprovement.reason,
+    progressionAttemptAllowedDespiteSafetyShortfall: Boolean(
+      hardFeasible && !preferredSafetySatisfied,
+    ),
     readinessMetric,
     supplyRunExpectedBenefit,
     supplyRunBenefitReason,
@@ -3879,61 +4051,88 @@ function shouldRunProgressionSupplyRun(
 function assessPreparedProgressionReadiness(
   routeId, requiredDistance, decision, player, progressionState, goal = null,
 ) {
-  const resupplyViable = Boolean(
-    decision.progressionTargetFullyReachable
-      && decision.progressionResupplyLocationId
-      && Number(decision.postResupplySupportedDistance) >= requiredDistance,
-  );
-  const minimumViable = resupplyViable || (
-    decision.minimumViableSupportedDistance >= requiredDistance
-      && decision.provisionStockAvailableToPack >= decision.minimumViableProvisionRequirement
-  );
-  const preferredReady = decision.preferredSafeDistance >= requiredDistance
-    && decision.preferredProvisionTargetMet;
-  const blocker = resupplyViable ? null : decision.provisionCapacity < decision.minimumViableProvisionRequirement
-    ? "provision-capacity"
-    : "insufficient-provisions";
+  const hardSupportedDistance = Number(
+    decision.progressionHardSupportedDistance
+      ?? decision.minimumViableSupportedDistance,
+  ) || 0;
+  const preferredSupportedDistance = Number(
+    decision.progressionPreferredSupportedDistance
+      ?? decision.preferredSupportedDistance
+      ?? decision.preferredSafeDistance,
+  ) || 0;
+  const hardProvisionRequirement = Number(
+    decision.progressionHardProvisionRequirement
+      ?? decision.minimumViableProvisionRequirement,
+  ) || 0;
+  const hardFeasible = decision.progressionTargetHardFeasible === true
+    || (hardSupportedDistance >= requiredDistance
+      && Number(decision.provisionStockAvailableToPack) >= hardProvisionRequirement);
+  const preferredSafetySatisfied = decision.progressionPreferredSafetySatisfied === true
+    || (preferredSupportedDistance >= requiredDistance
+      && decision.preferredProvisionTargetMet);
+  const blocker = hardFeasible
+    ? preferredSafetySatisfied ? null : "preferred-safety-margin-shortfall"
+    : decision.progressionReadinessBlocker
+      ?? (decision.provisionCapacity < hardProvisionRequirement
+        ? "capacity-limited" : "hard-provision-shortfall");
+  const preparationImprovement = canPreparationRunImproveReadiness({
+    progressionTargetHardFeasible: hardFeasible,
+    hardSupportedDistance,
+    hardProvisionRequirement,
+    provisionStock: decision.provisionStockAvailableToPack,
+  }, blocker, requiredDistance);
   const supplyHistory = progressionState?.supplyRunHistoryByRoute?.[routeId] ?? [];
   const lastSupplyRun = [...supplyHistory].reverse()
     .find((entry) => !goal?.goalId || entry.goalId === goal.goalId) ?? null;
-  const supplyRunExpectedBenefit = !minimumViable
-    && blocker !== "provision-capacity"
+  const supplyRunExpectedBenefit = !hardFeasible
+    && preparationImprovement.useful
     && goal?.supplyRunUseful !== false
     && (!lastSupplyRun || lastSupplyRun.materiallyImproved);
-  const supplyRunBenefitReason = minimumViable
-    ? (preferredReady ? null : "preferred-buffer-is-optional")
-    : blocker === "provision-capacity"
-      ? "capacity-not-improvable-by-supply-run"
-      : !supplyRunExpectedBenefit
-        ? "supply-run-no-material-benefit"
-        : "supply-run-can-improve-provisions-or-gold";
+  const supplyRunBenefitReason = hardFeasible && !preferredSafetySatisfied
+    ? "preferred-safety-margin-shortfall"
+    : !supplyRunExpectedBenefit
+      ? preparationImprovement.reason
+      : "supply-run-can-improve-hard-feasibility";
   return {
-    status: minimumViable
-      ? preferredReady ? "ready" : "ready-with-constraints"
+    status: hardFeasible
+      ? preferredSafetySatisfied ? "ready" : "ready-with-constraints"
       : supplyRunExpectedBenefit ? "deferred" : "blocked",
-    reason: minimumViable
-      ? preferredReady ? null : "preferred-provision-buffer-unavailable"
-      : blocker === "provision-capacity"
-        ? "progression-objective-unsupported-by-capacity"
-        : supplyRunExpectedBenefit ? "objective-distance-floor-after-preparation"
-          : "supply-run-no-material-benefit",
+    reason: hardFeasible
+      ? preferredSafetySatisfied ? null : "preferred-safety-margin-shortfall"
+      : supplyRunExpectedBenefit ? "objective-distance-floor-after-preparation"
+        : preparationImprovement.reason,
     requiredDistance,
-    supportedDistance: Math.max(
-      decision.preferredSafeDistance, decision.minimumViableSupportedDistance,
-    ),
-    preferredSupportedDistance: decision.preferredSafeDistance,
-    minimumViableSupportedDistance: decision.minimumViableSupportedDistance,
-    minimumViableProvisionRequirement: decision.minimumViableProvisionRequirement,
+    supportedDistance: Math.max(preferredSupportedDistance, hardSupportedDistance),
+    preferredSupportedDistance,
+    progressionHardSupportedDistance: hardSupportedDistance,
+    progressionPreferredSupportedDistance: preferredSupportedDistance,
+    progressionTargetHardFeasible: hardFeasible,
+    progressionPreferredSafetySatisfied: preferredSafetySatisfied,
+    minimumViableSupportedDistance: hardSupportedDistance,
+    minimumViableProvisionRequirement: hardProvisionRequirement,
+    progressionHardProvisionRequirement: hardProvisionRequirement,
+    progressionPreferredProvisionRequirement: Number(
+      decision.progressionPreferredProvisionRequirement ?? decision.preferredProvisionTarget,
+    ) || 0,
     preferredProvisionTarget: decision.preferredProvisionTarget,
     provisionCapacity: decision.provisionCapacity,
     provisionStock: decision.provisionStockAvailableToPack,
     preferredBufferShortfall: decision.preferredBufferShortfall,
+    progressionReadinessBlocker: blocker,
     blocker,
     readinessMetric: {
       provisionStock: decision.provisionStockAvailableToPack,
       capacity: decision.provisionCapacity,
-      minimumViableProvisionRequirement: decision.minimumViableProvisionRequirement,
-      minimumViableSupportedDistance: decision.minimumViableSupportedDistance,
+      progressionHardSupportedDistance: hardSupportedDistance,
+      progressionPreferredSupportedDistance: preferredSupportedDistance,
+      progressionTargetHardFeasible: hardFeasible,
+      progressionPreferredSafetySatisfied: preferredSafetySatisfied,
+      minimumViableProvisionRequirement: hardProvisionRequirement,
+      minimumViableSupportedDistance: hardSupportedDistance,
+      progressionHardProvisionRequirement: hardProvisionRequirement,
+      progressionPreferredProvisionRequirement: Number(
+        decision.progressionPreferredProvisionRequirement ?? decision.preferredProvisionTarget,
+      ) || 0,
       currentGold: Number(player.currentGold) || 0,
       provisionShopStock: 0,
       progressionUsesMidRouteResupply: Boolean(decision.progressionUsesMidRouteResupply),
@@ -3949,6 +4148,8 @@ function assessPreparedProgressionReadiness(
     },
     supplyRunExpectedBenefit,
     supplyRunBenefitReason,
+    progressionSupplyRunCanImproveReadiness: preparationImprovement.useful,
+    progressionSupplyRunImprovementReason: preparationImprovement.reason,
   };
 }
 
@@ -4031,9 +4232,16 @@ function projectOldForestVillageResupply({
       + encounterProvisionReserve
       + SimulationProvisionPlanning.provisionUncertaintyBuffer(strategyName, target)),
   );
+  const hardProjectedProvisionTarget = Math.min(
+    capacity,
+    Math.ceil(expectedAfterVillageTravel),
+  );
   const affordable = price > 0 ? Math.floor(availableGold / price) : Number.POSITIVE_INFINITY;
   const needed = projectedProvisionsAtResupply === null
     ? 0 : Math.max(0, Math.ceil(projectedProvisionTarget - projectedProvisionsAtResupply));
+  const hardNeeded = projectedProvisionsAtResupply === null
+    ? 0 : Math.max(0, Math.ceil(hardProjectedProvisionTarget - projectedProvisionsAtResupply));
+  const hardVillageProvisionGoldCost = Math.max(0, hardNeeded) * Math.max(0, price);
   const quantity = canReachResupply
     ? Math.min(
       needed,
@@ -4053,7 +4261,7 @@ function projectOldForestVillageResupply({
       companionIds,
       travelSettings,
       0,
-      encounterProvisionReserve,
+      0,
     );
   const postResupplyPreferredSupportedDistance = projectedProvisionsAfterResupply === null
     ? null
@@ -4078,7 +4286,15 @@ function projectOldForestVillageResupply({
     projectedVillageProvisionGoldCost,
     projectedVillageStockAfter: serviceEnabled ? projectedVillageStockAfter : null,
     postResupplySupportedDistance,
+    postResupplyHardSupportedDistance: postResupplySupportedDistance,
     postResupplyPreferredSupportedDistance,
+    progressionTargetHardFeasible: Boolean(
+      postResupplySupportedDistance !== null && postResupplySupportedDistance >= target,
+    ),
+    progressionPreferredSafetySatisfied: Boolean(
+      postResupplyPreferredSupportedDistance !== null
+        && postResupplyPreferredSupportedDistance >= target,
+    ),
     progressionTargetFullyReachable: Boolean(
       postResupplySupportedDistance !== null && postResupplySupportedDistance >= target,
     ),
@@ -4087,6 +4303,9 @@ function projectOldForestVillageResupply({
     canReachResupply,
     capacity,
     projectedProvisionTarget,
+    hardProjectedProvisionTarget,
+    hardVillageProvisionGoldCost,
+    hardProvisionsNeededAtResupply: Math.max(0, hardNeeded),
     projectedProvisionsAfterResupply,
     availableGold,
     stockBefore: serviceEnabled ? stockBefore : null,
@@ -4139,32 +4358,43 @@ function quoteCampaignProvisionAvailability(
       currentGold: Math.max(0, (Number(player.currentGold) || 0) - mainProvisionGoldCost),
       campaignGoal,
     }) : null;
+  const hardProvisionRequirement = estimateCampaignProvisionRequirement(
+    targetDistance, activeCompanions, 0, 0, travelSettings, 0,
+  );
+  const preferredProvisionRequirement = estimateCampaignProvisionRequirement(
+    targetDistance, activeCompanions, policy.provisionMargin,
+    encounterProvisionReserve, travelSettings, provisionUncertaintyBuffer,
+  );
+  const hardSupportedDistance = Math.max(
+    maximumCampaignDistanceForProvisions(
+      provisionStock, activeCompanions, 0, 0, travelSettings,
+    ),
+    villageResupply?.postResupplyHardSupportedDistance ?? 0,
+  );
+  const preferredSupportedDistance = Math.max(
+    maximumCampaignDistanceForProvisions(
+      provisionStock, activeCompanions, policy.provisionMargin,
+      encounterProvisionReserve, travelSettings, planningStrategy,
+    ),
+    villageResupply?.postResupplyPreferredSupportedDistance ?? 0,
+  );
   return {
     capacity,
     provisionStock,
     availableShopStock,
     affordablePurchaseQuantity,
-    minimumViableProvisionRequirement: estimateCampaignProvisionRequirement(
-      targetDistance, activeCompanions, 0, encounterProvisionReserve, travelSettings, 0,
-    ),
-    preferredProvisionTarget: estimateCampaignProvisionRequirement(
-      targetDistance, activeCompanions, policy.provisionMargin,
-      encounterProvisionReserve, travelSettings, provisionUncertaintyBuffer,
-    ),
-    desiredProvisionStock: Math.min(capacity, estimateCampaignProvisionRequirement(
-      targetDistance, activeCompanions, policy.provisionMargin,
-      encounterProvisionReserve, travelSettings, provisionUncertaintyBuffer,
-    )),
+    hardProvisionRequirement,
+    preferredProvisionRequirement,
+    minimumViableProvisionRequirement: hardProvisionRequirement,
+    preferredProvisionTarget: preferredProvisionRequirement,
+    desiredProvisionStock: Math.min(capacity, preferredProvisionRequirement),
     preferredSafeDistance: maximumCampaignDistanceForProvisions(
       provisionStock, activeCompanions, policy.provisionMargin,
       encounterProvisionReserve, travelSettings, planningStrategy,
     ),
-    minimumViableSupportedDistance: Math.max(
-      maximumCampaignDistanceForProvisions(
-      provisionStock, activeCompanions, 0, encounterProvisionReserve, travelSettings,
-      ),
-      villageResupply?.postResupplySupportedDistance ?? 0,
-    ),
+    hardSupportedDistance,
+    preferredSupportedDistance,
+    minimumViableSupportedDistance: hardSupportedDistance,
     postResupplyPreferredSupportedDistance: villageResupply?.postResupplyPreferredSupportedDistance ?? null,
     progressionUsesMidRouteResupply: Boolean(villageResupply?.usesMidRouteResupply),
     progressionResupplyLocationId: villageResupply?.resupplyLocationId ?? null,
@@ -4175,7 +4405,12 @@ function quoteCampaignProvisionAvailability(
     projectedVillageProvisionGoldCost: villageResupply?.projectedVillageProvisionGoldCost ?? 0,
     projectedVillageStockAfter: villageResupply?.projectedVillageStockAfter ?? null,
     postResupplySupportedDistance: villageResupply?.postResupplySupportedDistance ?? null,
-    progressionTargetFullyReachable: Boolean(villageResupply?.progressionTargetFullyReachable),
+    postResupplyHardSupportedDistance: villageResupply?.postResupplyHardSupportedDistance ?? null,
+    progressionTargetHardFeasible: hardSupportedDistance >= targetDistance,
+    progressionPreferredSafetySatisfied: preferredSupportedDistance >= targetDistance,
+    progressionTargetFullyReachable: Boolean(
+      villageResupply?.progressionTargetHardFeasible ?? hardSupportedDistance >= targetDistance,
+    ),
     provisionUncertaintyBuffer,
     villageResupply,
   };
@@ -4185,6 +4420,12 @@ function progressionReadinessMetric(quote, player) {
   return {
     provisionStock: Number(quote?.provisionStock) || 0,
     capacity: Number(quote?.capacity) || 0,
+    progressionHardSupportedDistance: Number(quote?.hardSupportedDistance) || 0,
+    progressionPreferredSupportedDistance: Number(quote?.preferredSupportedDistance) || 0,
+    progressionTargetHardFeasible: Boolean(quote?.progressionTargetHardFeasible),
+    progressionPreferredSafetySatisfied: Boolean(quote?.progressionPreferredSafetySatisfied),
+    progressionHardProvisionRequirement: Number(quote?.hardProvisionRequirement) || 0,
+    progressionPreferredProvisionRequirement: Number(quote?.preferredProvisionRequirement) || 0,
     minimumViableProvisionRequirement: Number(quote?.minimumViableProvisionRequirement) || 0,
     minimumViableSupportedDistance: Number(quote?.minimumViableSupportedDistance) || 0,
     currentGold: Number(player?.currentGold) || 0,
@@ -4202,6 +4443,36 @@ function progressionReadinessMetric(quote, player) {
   };
 }
 
+function canPreparationRunImproveReadiness(quote, blocker, targetDistance) {
+  if (quote?.progressionTargetHardFeasible === true) {
+    return { useful: false, reason: "hard-feasibility-already-met" };
+  }
+  if (blocker === "capacity-limited") {
+    return { useful: false, reason: "capacity-limits-hard-feasibility" };
+  }
+  if (blocker === "preferred-safety-margin-shortfall") {
+    return { useful: false, reason: "preferred-safety-shortfall-is-not-a-hard-blocker" };
+  }
+  if (blocker === "insufficient-village-stock") {
+    return { useful: false, reason: "village-stock-cannot-be-improved-by-ordinary-supply-run" };
+  }
+  if (blocker === "insufficient-gold-for-resupply") {
+    return { useful: true, reason: "gold-earning-run-can-fund-village-resupply" };
+  }
+  if (blocker === "cannot-reach-resupply") {
+    return {
+      useful: Number(quote?.hardSupportedDistance) > 0
+        && Number(quote?.hardSupportedDistance) < Number(targetDistance),
+      reason: "provisions-or-cooking-can-improve-reach-to-resupply",
+    };
+  }
+  return {
+    useful: Number(quote?.hardSupportedDistance) < Number(targetDistance)
+      && Number(quote?.provisionStock) < Number(quote?.hardProvisionRequirement),
+    reason: "additional-provisions-can-improve-hard-feasibility",
+  };
+}
+
 function progressionReadinessMetricsImproved(before, after) {
   if (!before || !after) return false;
   return after.capacity > before.capacity
@@ -4209,6 +4480,8 @@ function progressionReadinessMetricsImproved(before, after) {
     || after.currentGold > before.currentGold
     || after.provisionShopStock > before.provisionShopStock
     || after.minimumViableSupportedDistance > before.minimumViableSupportedDistance
+    || after.progressionHardSupportedDistance > before.progressionHardSupportedDistance
+    || after.progressionPreferredSupportedDistance > before.progressionPreferredSupportedDistance
     || (after.postResupplySupportedDistance ?? 0) > (before.postResupplySupportedDistance ?? 0);
 }
 
@@ -4499,6 +4772,16 @@ function finalizeCampaignTelemetry(
     ?? Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
       routeId, expeditions.filter((entry) => entry.isSupplyRun && entry.supplyRunForRoute === routeId).length,
     ]));
+  const progressionReadinessEntries = expeditions.filter((entry) => (
+    Number(entry.progressionRequiredDistance) > 0
+  ));
+  const progressionHardSupportedDistance = Math.max(0, ...progressionReadinessEntries.map(
+    (entry) => Number(entry.progressionHardSupportedDistance) || 0,
+  ));
+  const progressionPreferredSupportedDistance = Math.max(0, ...progressionReadinessEntries.map(
+    (entry) => Number(entry.progressionPreferredSupportedDistance) || 0,
+  ));
+  const lastProgressionReadinessEntry = [...progressionReadinessEntries].reverse()[0] ?? null;
   const progressionDeferralsByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId,
     expeditions.filter((entry) => entry.progressionReadiness === "deferred"
@@ -4687,6 +4970,22 @@ function finalizeCampaignTelemetry(
       (entry) => Number(entry.postResupplySupportedDistance) || 0,
     )),
     progressionTargetFullyReachable: expeditions.some((entry) => entry.progressionTargetFullyReachable),
+    progressionTargetHardFeasible: progressionReadinessEntries.some(
+      (entry) => entry.progressionTargetHardFeasible === true,
+    ),
+    progressionPreferredSafetySatisfied: progressionReadinessEntries.some(
+      (entry) => entry.progressionPreferredSafetySatisfied === true,
+    ),
+    progressionHardSupportedDistance,
+    progressionPreferredSupportedDistance,
+    progressionHardProvisionRequirement: lastProgressionReadinessEntry?.progressionHardProvisionRequirement ?? null,
+    progressionPreferredProvisionRequirement: lastProgressionReadinessEntry?.progressionPreferredProvisionRequirement ?? null,
+    progressionReadinessBlocker: lastProgressionReadinessEntry?.progressionReadinessBlocker ?? null,
+    progressionSupplyRunCanImproveReadiness: lastProgressionReadinessEntry?.progressionSupplyRunCanImproveReadiness ?? null,
+    progressionSupplyRunImprovementReason: lastProgressionReadinessEntry?.progressionSupplyRunImprovementReason ?? null,
+    progressionAttemptAllowedDespiteSafetyShortfall: expeditions.some(
+      (entry) => entry.progressionAttemptAllowedDespiteSafetyShortfall === true,
+    ),
     oldForestCurrentGoal: deepCampaignClone(progression?.currentOldForestGoal ?? null),
     oldForestTargetMilestoneDistance: progression?.currentOldForestGoal?.targetDistance ?? null,
     oldForestGoalReason: progression?.currentOldForestGoal?.reason ?? null,

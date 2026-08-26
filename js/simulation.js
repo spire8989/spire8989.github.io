@@ -198,11 +198,19 @@ const SimulationProvisionPlanning = Object.freeze({
     };
   },
 
-  emergencyTurnaround(expedition, strategyName) {
+  emergencyTurnaround(expedition, strategyName, options = {}) {
     const safety = this.returnSafety(expedition, strategyName);
+    const allowProgressionSafetyShortfallAttempt = Boolean(
+      options.allowProgressionSafetyShortfallAttempt,
+    );
+    const effectiveEncounterReserve = allowProgressionSafetyShortfallAttempt
+      ? 0 : safety.encounterReserve;
+    const effectiveStrategyTolerance = allowProgressionSafetyShortfallAttempt
+      ? 0 : safety.strategyTolerance;
     const shouldTurn = expedition.direction === "outbound"
       && expedition.distance > 0
-      && expedition.provisions < safety.totalReturnRequirement;
+      && expedition.provisions < safety.estimatedReturnRequirement
+        + effectiveEncounterReserve + effectiveStrategyTolerance;
     return {
       shouldTurn,
       strategy: strategyName,
@@ -211,10 +219,13 @@ const SimulationProvisionPlanning = Object.freeze({
       currentProvisions: rounded(expedition.provisions),
       estimatedReturnRequirement: rounded(safety.estimatedReturnRequirement),
       passiveReturnEstimate: rounded(safety.estimatedReturnRequirement),
-      encounterReserve: safety.encounterReserve,
-      strategyTolerance: safety.strategyTolerance,
-      tolerance: safety.tolerance,
-      totalReturnRequirement: rounded(safety.totalReturnRequirement),
+      encounterReserve: effectiveEncounterReserve,
+      strategyTolerance: effectiveStrategyTolerance,
+      tolerance: effectiveStrategyTolerance,
+      totalReturnRequirement: rounded(
+        safety.estimatedReturnRequirement + effectiveEncounterReserve + effectiveStrategyTolerance,
+      ),
+      progressionSafetyShortfallAttempt: allowProgressionSafetyShortfallAttempt,
       triggerReason: shouldTurn ? "return-requirement-exceeds-available-provisions" : null,
     };
   },
@@ -319,7 +330,9 @@ const SimulationRunner = Object.freeze({
         continue;
       }
       const provisionSafety = SimulationProvisionPlanning.emergencyTurnaround(
-        expedition, strategy.name,
+        expedition, strategy.name, {
+          allowProgressionSafetyShortfallAttempt: normalized.allowProgressionSafetyShortfallAttempt,
+        },
       );
       const reachableService = reachableLocationService(expedition, normalized);
       if (provisionSafety.shouldTurn && !expedition.simulationCookingAvailable && !reachableService) {
@@ -1074,6 +1087,7 @@ function normalizeScenario(scenario) {
     maxCombatSteps: Math.max(50, Math.floor(Number(scenario.maxCombatSteps) || 2000)),
     travelStepDistance: Math.max(0.1, Number(scenario.travelStepDistance) || 1),
     startingStateIsAuthoritative: Boolean(scenario.startingStateIsAuthoritative),
+    allowProgressionSafetyShortfallAttempt: Boolean(scenario.allowProgressionSafetyShortfallAttempt),
   };
 }
 

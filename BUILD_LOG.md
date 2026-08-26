@@ -1,5 +1,42 @@
 # Build Log
 
+## 2026-08-26 - Cautious Old Forest Warden Readiness Fix
+
+### Goal
+
+Stop Cautious Old Forest progression from looping on shallow preparation runs
+when the hidden village makes the 180-league Warden attempt physically viable.
+
+### AI-assisted implementation
+
+- Split progression readiness into reserve-free hard feasibility and preferred
+  strategy safety. Hard projections use actual travel consumption, capacity,
+  current provisions, hidden-village stock/price, gold, and reach-to-village
+  cost; Cautious margin, encounter reserve, and uncertainty remain preferred
+  safety signals.
+- Allow a hard-feasible Warden objective to launch at its real 180-league
+  target when only preferred safety is short. The single-expedition simulator
+  temporarily suppresses only the optional emergency-return reserve for that
+  explicitly authorized progression attempt; ordinary consumption and safe
+  return/commit rules remain authoritative.
+- Added blocker-specific readiness semantics and
+  `canPreparationRunImproveReadiness`, so capacity limits, fixed village stock,
+  and already-satisfied hard feasibility do not schedule futile supply loops.
+- Preserved the readiness details in campaign decisions, expedition records,
+  compact JSON, and campaign-level telemetry, including hard/preferred support,
+  requirements, blocker, supply-run usefulness, and safety-shortfall attempt
+  authorization.
+
+### Verification and resulting prototype state
+
+- Added three focused regressions for hard-feasible Cautious Warden launch,
+  genuine hard shortfall classification, and futile preparation detection;
+  the Old Forest planning suite now passes 36 assertions.
+- Deterministic simulation, current-campaign progression, and replay suites
+  pass (62, 5, and 15 assertions respectively).
+- No combat, enemy, gear, recipe, encounter, milestone, provision capacity,
+  shop, or expedition-cap balance values changed.
+
 ## 2026-08-26 - Druid-Favor Ingredient-Aware Simulator Pass
 
 ### Goal
