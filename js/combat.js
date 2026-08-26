@@ -42,6 +42,7 @@ const CombatSystem = Object.freeze({
       events: [],
       result: null,
       resultHandled: false,
+      victoryLootSources: definition.victoryLootSources ?? [],
       random: typeof options.random === "function"
         ? options.random
         : typeof expedition.random === "function" ? expedition.random : GameRandom.random,
@@ -67,6 +68,42 @@ const CombatSystem = Object.freeze({
       }, { skipRecord: true });
     });
     return state;
+  },
+
+  resolveVictoryLoot(state, expedition, player, provenance = {}) {
+    if (!state || state.result !== "victory" || state.victoryLootResolved) {
+      return state?.victoryLootResults ?? [];
+    }
+    const debugLog = expedition.lootDebugLog ??= [];
+    const results = [];
+    state.enemies.forEach((enemy, index) => {
+      const definition = COMBAT_ENEMY_DEFINITIONS[enemy.definitionId];
+      const sources = definition?.lootSources ?? [];
+      results.push(...LootRules.resolveSources(sources, {
+        player,
+        expedition,
+        random: state.random,
+        debugLog,
+        sourceType: "enemy",
+        sourceEnemyId: enemy.definitionId,
+        sourceEnemyInstanceIndex: enemy.instanceIndex ?? index,
+        ...provenance,
+      }));
+    });
+    const combatDefinition = COMBAT_DEFINITIONS[state.id];
+    results.push(...LootRules.resolveSources(state.victoryLootSources
+      ?? combatDefinition?.victoryLootSources ?? [], {
+      player,
+      expedition,
+      random: state.random,
+      debugLog,
+      sourceType: "combat",
+      sourceCombatId: state.id,
+      ...provenance,
+    }));
+    state.victoryLootResults = results;
+    state.victoryLootResolved = true;
+    return results;
   },
 
   update(state, expedition, deltaSeconds) {
@@ -364,6 +401,7 @@ function createEnemyCombatant(enemyId, index, occurrence) {
   const traits = (enemy.traits ?? []).map((trait) => ({ ...trait, suppressedByStatuses: [...(trait.suppressedByStatuses ?? [])] }));
   return {
     id: `${enemyId}_${index + 1}`, definitionId: enemyId, side: "enemy",
+    instanceIndex: index,
     visualAssetId: resolveCharacterVisualAssetId(enemy),
     name: occurrence ? `${enemy.name} ${occurrence}` : enemy.name,
     maxHp: enemy.maxHp, hp: enemy.maxHp, speed: enemy.speed, defense: enemy.defense, gauge: 0,

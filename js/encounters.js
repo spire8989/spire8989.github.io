@@ -118,7 +118,7 @@ const EncounterOutcomes = Object.freeze({
       if (resolved.locationStop) {
         combined.locationStop = resolved.locationStop;
       }
-      combined.rewards.push(...(resolved.rewards ?? []));
+      combined.rewards.push(...(resolved.rewards ?? []).map((reward) => annotateEncounterReward(reward, context)));
       if (resolved.dialogue) {
         combined.dialogue = {
           ...resolved.dialogue,
@@ -228,6 +228,9 @@ const EncounterOutcomes = Object.freeze({
           expedition,
           random: expedition.random,
           debugLog: expedition.lootDebugLog,
+          sourceType: "encounter",
+          sourceEncounterId: context.sourceEncounterId ?? expedition.activeEncounter?.encounterId,
+          sourceChoiceId: context.sourceChoiceId ?? expedition.activeEncounter?.lastChoiceId,
         });
         messages = lootRewards.map(lootRewardMessage).filter(Boolean);
         rewards = lootRewards
@@ -462,6 +465,25 @@ function appendEncounterOutcome(active, resolved) {
   active.outcomeMessages.push(...(resolved.messages ?? []));
   active.rewards ??= [];
   active.rewards.push(...(resolved.rewards ?? []));
+}
+
+function annotateEncounterReward(reward, context = {}) {
+  if (!reward || reward.sourceType || !["item", "material", "recipe", "gold"].includes(reward.type)) {
+    return reward;
+  }
+  const expedition = context.expedition;
+  const sourceEncounterId = context.sourceEncounterId ?? expedition?.activeEncounter?.encounterId;
+  if (!sourceEncounterId) return reward;
+  const annotated = {
+    ...reward,
+    sourceType: "encounter",
+    sourceEncounterId,
+    ...(context.sourceChoiceId || expedition?.activeEncounter?.lastChoiceId
+      ? { sourceChoiceId: context.sourceChoiceId ?? expedition.activeEncounter.lastChoiceId }
+      : {}),
+  };
+  expedition?.lootDebugLog?.push({ type: "loot-granted", ...annotated });
+  return annotated;
 }
 
 function queueEncounterDialogue(expedition, player, dialogue, resume, callbacks = {}) {
@@ -790,7 +812,14 @@ const EncounterManager = Object.freeze({
       return { resolved: false, ended: false, message: "" };
     }
 
-    const context = { expedition, player, ...callbacks };
+    active.lastChoiceId = choice.id;
+    const context = {
+      expedition,
+      player,
+      sourceEncounterId: active.encounterId,
+      sourceChoiceId: active.lastChoiceId,
+      ...callbacks,
+    };
     const branch = Array.isArray(choice.branches) && choice.branches.length > 0
       ? weightedChoice(choice.branches, expedition.random)
       : null;
@@ -838,8 +867,18 @@ const EncounterManager = Object.freeze({
     delete active.dialogueResolution;
     active.outcomeMessages.push(...(dialogueResult.messages ?? []));
     active.rewards ??= [];
-    active.rewards.push(...(dialogueResult.rewards ?? []));
-    const context = { expedition, player, ...callbacks };
+    active.rewards.push(...(dialogueResult.rewards ?? []).map((reward) => annotateEncounterReward(reward, {
+      expedition,
+      sourceEncounterId: active.encounterId,
+      sourceChoiceId: active.lastChoiceId,
+    })));
+    const context = {
+      expedition,
+      player,
+      sourceEncounterId: active.encounterId,
+      sourceChoiceId: active.lastChoiceId,
+      ...callbacks,
+    };
     const resolved = EncounterOutcomes.resolveAll(resolution.remainingEffects, context);
     appendEncounterOutcome(active, resolved);
     if (resolution.resume?.visualOverride !== undefined) {
@@ -903,7 +942,30 @@ const EncounterManager = Object.freeze({
     if (!resolution) {
       return { resolved: false, ended: false, message: "" };
     }
-    const context = { expedition, player, ...callbacks };
+    const context = {
+      expedition,
+      player,
+      sourceEncounterId: active.encounterId,
+      sourceChoiceId: active.lastChoiceId,
+      ...callbacks,
+    };
+    const combat = callbacks.combat ?? expedition.combat;
+    if (result === "victory" && combat
+      && typeof CombatSystem !== "undefined"
+      && typeof CombatSystem.resolveVictoryLoot === "function") {
+      const combatRewards = CombatSystem.resolveVictoryLoot(
+        combat,
+        expedition,
+        player,
+        { sourceEncounterId: active.encounterId, sourceChoiceId: active.lastChoiceId },
+      );
+      appendEncounterOutcome(active, {
+        messages: combatRewards.map(lootRewardMessage).filter(Boolean),
+        rewards: combatRewards
+          .filter((reward) => reward.type === "recipe" || Number(reward.quantity) > 0)
+          .map((reward) => ({ ...reward, unsecured: true })),
+      });
+    }
     const resolved = EncounterOutcomes.resolveAll(resolution.outcomes, context);
     appendEncounterOutcome(active, resolved);
     active.visualOverride = resolution.visualOverride ?? null;

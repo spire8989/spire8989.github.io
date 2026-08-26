@@ -110,6 +110,29 @@ Warden traits are normalized into this vocabulary at runtime. Legacy aliases
 remain in authored data where the editor or older replay fixtures still read
 them.
 
+## Loot ownership and victory resolution
+
+Combat rewards have three explicit authored layers:
+
+1. Enemy `lootSources` resolve once for each enemy instance after the whole
+   combat reaches victory.
+2. Combat `victoryLootSources` resolve once for the winning combat definition.
+3. The originating encounter's existing victory outcomes resolve afterward.
+
+The resolution order is enemy, combat, then encounter. All physical results
+are staged in `expedition.unsecuredLoot`, `unsecuredMaterials`,
+`unsecuredRecipes`, or `goldCarried`, and use the normal safe-return settlement
+boundary. Defeat and flee do not resolve victory loot. Missing optional fields
+are treated as empty arrays, so older combat and enemy definitions remain
+valid. Loot results and debug events retain source type plus the relevant
+enemy instance, combat, encounter, and choice IDs.
+
+For example, the Briar Knight owns its uncommon-material, forest-material,
+and dedicated `briar_knight_loot` sources. The dedicated table contains the
+intrinsic Thorn chance. The `thornbound_crossing` encounter still owns its
+`antler_fragment` victory reward, so a fight can produce both an enemy drop
+and an encounter reward without duplicating the Thorn.
+
 ## Statuses and conditions
 
 Statuses are generalized definitions with duration, refresh behavior, target

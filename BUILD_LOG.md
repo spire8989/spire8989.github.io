@@ -1,5 +1,62 @@
 # Build Log
 
+## 2026-08-26 - Structural Combat Loot Ownership Pass
+
+### Goal
+
+Link reusable Combat and Enemy definitions to the existing expedition loot
+pipeline while preserving encounter rewards, safe-return settlement, and
+deterministic simulation/replay behavior.
+
+### Human direction
+
+- Add optional per-enemy `lootSources` and per-combat
+  `victoryLootSources` layers.
+- Resolve enemy instance loot, combat loot, and encounter victory rewards in
+  that order only after a complete victory.
+- Move the Briar Knight's intrinsic material/Thorn drops into enemy data while
+  keeping Thornbound Crossing's `antler_fragment` encounter-specific reward.
+- Surface both new schemas and their loot-table references in the Content
+  Editor, then validate and commit the two repositories.
+
+### AI-assisted implementation
+
+- Added an idempotent `CombatSystem.resolveVictoryLoot()` boundary shared by
+  normal play, simulation, and replay. It resolves each defeated enemy
+  instance once, then combat-level sources once, and stages all physical loot
+  through the existing unsecured expedition fields.
+- Added source provenance to loot results/debug events (`enemy`, `combat`, or
+  `encounter`, with relevant IDs), while preserving unique-item eligibility,
+  material capacity, and safe-return/failure behavior.
+- Added `briar_knight_loot`, moved the Briar Knight's 75% uncommon-material,
+  forest-material, and 30% Thorn rolls to its enemy definition, and removed
+  only the duplicate Thorn/material outcomes from the dedicated encounter.
+  The generic materials were judged intrinsic to the defeated knight; the
+  crossing's antler remains an encounter reward.
+- Added editor rows for enemy/combat loot sources, ordering and table-entry
+  summaries, reverse references, validation for malformed/missing/invalid
+  sources, and backward-compatible empty defaults.
+- Added deterministic Briar, multi-enemy, defeat/flee, safe-return, and editor
+  round-trip regressions. Updated the combat-equipment regression to recognize
+  the new Briar enemy-loot ownership.
+
+### Reported manual changes
+
+- None beyond the requested structural loot migration. Existing unrelated
+  working-tree edits were preserved and not included in the Grail commit.
+
+### Verification and resulting prototype state
+
+- Combat browser suite passes 43 assertions.
+- Simulation suite passes 62 assertions; replay suite passes 15 assertions.
+- The focused Content Editor loot-source round-trip/validation test passes.
+- The full Content Editor suite runs 81 tests; its four remaining failures are
+  unrelated stale expectations for current encounter layout/path counts from
+  pre-existing workspace data. The loot-table count expectation was updated
+  from 19 to 20 for the new Briar table, and the focused loot test passes.
+- No combat balance, encounter weight/distance, item stats, or safe-return
+  rules were rebalanced by this pass.
+
 ## 2026-08-26 - Cautious Old Forest Warden Readiness Fix
 
 ### Goal

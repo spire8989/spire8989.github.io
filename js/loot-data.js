@@ -204,6 +204,12 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       }
     ]
   },
+  briar_knight_loot: Object.freeze({
+    id: "briar_knight_loot",
+    entries: Object.freeze([
+      Object.freeze({ type: "item", itemId: "thorn_of_the_dolorous_vale", weight: 1, quantity: 1 }),
+    ]),
+  }),
   apothecary_common_recipes: Object.freeze({
     id: "apothecary_common_recipes",
     entries: Object.freeze([

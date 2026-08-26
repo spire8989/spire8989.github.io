@@ -5949,6 +5949,7 @@ function finishCombatResolution(expedition) {
   if (result === "victory") AudioManager.playSemantic("victory");
   expedition.combat = null;
   const completed = EncounterManager.completeCombat(expedition, game.player, result, {
+    combat,
     failExpedition,
     startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
   });

@@ -5317,17 +5317,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               type: "startCombat",
               combatId: "briar_knight",
               victory: {
-                outcomes: [
-                  { type: "rollLootTable", tableId: "uncommon_materials", chance: 0.75 },
-                  { type: "rollLootTable", tableId: "forest_materials" },
-                  {
-                    type: "randomChance",
-                    chance: 0.3,
-                    effects: [{ type: "gainUniqueUnsecuredItem", itemId: "thorn_of_the_dolorous_vale" }],
-                    resultText: "The briars part around a thin black blade. It is light in Arthur's hand, but eager to draw blood.",
-                    elseEffects: [],
-                  },
-                ],
+                outcomes: [],
                 resultText: "The briars collapse into a dark heap. Beneath the thorns are rare herbs and a few pieces of old metal."
               },
               fled: { outcomes: [], resultText: "Arthur breaks away from the thorned blade before the road closes around him." }

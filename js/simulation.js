@@ -1796,6 +1796,7 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
     telemetry.banditLeaderVictories += 1;
   }
   EncounterManager.completeCombat(expedition, player, combat.result, {
+    combat,
     failExpedition: fail,
     startDialogue: () => true,
   });

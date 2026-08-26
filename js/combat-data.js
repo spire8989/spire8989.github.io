@@ -424,6 +424,11 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     speed: 10,
     defense: 3,
     actionPattern: ["briar_cut", "briar_thrust", "briar_surge"],
+    lootSources: [
+      { tableId: "uncommon_materials", rolls: 1, chance: 0.75 },
+      { tableId: "forest_materials", rolls: 1 },
+      { tableId: "briar_knight_loot", rolls: 1, chance: 0.3 },
+    ],
   }),
   black_hound_of_the_hunt: Object.freeze({
     id: "black_hound_of_the_hunt",

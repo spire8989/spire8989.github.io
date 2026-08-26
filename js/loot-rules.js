@@ -17,13 +17,22 @@ const LootRules = Object.freeze({
     (sources ?? []).forEach((source) => {
       const rolls = Math.max(0, Math.floor(Number(source.rolls) || 0));
       const chance = Number.isFinite(source.chance) ? Math.max(0, Math.min(1, source.chance)) : 1;
-      recordLootEvent(context, { type: "loot-source", tableId: source.tableId, rolls, chance });
+      const sourceContext = {
+        ...context,
+        sourceType: source.sourceType ?? context.sourceType,
+        sourceEnemyId: source.sourceEnemyId ?? context.sourceEnemyId,
+        sourceEnemyInstanceIndex: source.sourceEnemyInstanceIndex ?? context.sourceEnemyInstanceIndex,
+        sourceCombatId: source.sourceCombatId ?? context.sourceCombatId,
+        sourceEncounterId: source.sourceEncounterId ?? context.sourceEncounterId,
+        sourceChoiceId: source.sourceChoiceId ?? context.sourceChoiceId,
+      };
+      recordLootEvent(sourceContext, { type: "loot-source", tableId: source.tableId, rolls, chance });
       for (let roll = 0; roll < rolls; roll += 1) {
-        if (lootRandom(context.random) >= chance) {
-          recordLootEvent(context, { type: "loot-chance-missed", tableId: source.tableId, roll: roll + 1 });
+        if (lootRandom(sourceContext.random) >= chance) {
+          recordLootEvent(sourceContext, { type: "loot-chance-missed", tableId: source.tableId, roll: roll + 1 });
           continue;
         }
-        const result = this.resolveTable(source.tableId, context);
+        const result = this.resolveTable(source.tableId, sourceContext);
         if (result) results.push(result);
       }
     });
@@ -138,7 +147,7 @@ function grantLootEntry(entry, context, sourceTableId) {
   const materialId = entry.type === "material" ? entry.materialId : entry.itemId;
   const isMaterial = entry.type === "material"
     || (entry.type === "item" && MaterialRules.isMaterialId(entry.itemId));
-  const reward = { type: isMaterial ? "material" : entry.type, quantity, sourceTableId };
+  const reward = { type: isMaterial ? "material" : entry.type, quantity, sourceTableId, ...lootProvenance(context) };
   if (entry.type === "gold") {
     if (context.rewardBucket) context.rewardBucket.gold += quantity;
     else if (context.expedition) context.expedition.goldCarried += quantity;
@@ -217,6 +226,17 @@ function lootEntryLabel(entry) {
         : entry.type === "recipe" ? `${entry.type}:${entry.recipeId}` : entry.type;
 }
 
+function lootProvenance(context) {
+  return Object.fromEntries([
+    ["sourceType", context.sourceType],
+    ["sourceEnemyId", context.sourceEnemyId],
+    ["sourceEnemyInstanceIndex", context.sourceEnemyInstanceIndex],
+    ["sourceCombatId", context.sourceCombatId],
+    ["sourceEncounterId", context.sourceEncounterId],
+    ["sourceChoiceId", context.sourceChoiceId],
+  ].filter(([, value]) => value !== undefined && value !== null));
+}
+
 function recordLootEvent(context, event) {
-  context.debugLog?.push(event);
+  context.debugLog?.push({ ...lootProvenance(context), ...event });
 }
