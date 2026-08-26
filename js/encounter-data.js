@@ -884,7 +884,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "randomChance",
                 chance: 0.08,
-                effects: [{ type: "gainUnsecuredItem", itemId: "rare_herbs", quantity: 1 }]
+                effects: [{ type: "rollLootTable", tableId: "rare_herb_find" }]
               }
             ],
             resultText: "Arthur recognizes the useful plants and gathers a worthwhile supply.",
@@ -2020,7 +2020,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "randomChance",
                 chance: 0.12,
-                effects: [{ type: "gainUnsecuredItem", itemId: "rare_herbs", quantity: 1 }]
+                effects: [{ type: "rollLootTable", tableId: "rare_herb_find" }]
               }
             ],
             resultText: "Woodcraft reveals a damp edible patch beneath the roots, with a rarer medicinal sprig hidden among it.",
@@ -5539,7 +5539,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "randomChance",
                 chance: 0.1,
-                effects: [{ type: "gainUnsecuredItem", itemId: "rare_herbs", quantity: 1 }]
+                effects: [{ type: "rollLootTable", tableId: "rare_herb_find" }]
               }
             ],
             resultText: "Arthur gathers the clean herbs and berries growing beside the spring, leaving the water undisturbed.",

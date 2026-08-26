@@ -82,6 +82,10 @@ def run() -> None:
             "Simulator material priority did not replace excess raw meat under bag pressure",
         )
         check(
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.learnedKnowledge=['woodcraft']; p.selectedCompanions=[]; p.selectedCompanion=null; const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:8,packedMaterials:{},random:()=>0}); EncounterManager.force(e,'ancient_spring'); const completed=EncounterManager.resolveChoice(e,p,'gather_spring_growth'); const reward=e.activeEncounter?.rewards?.find(entry=>entry.materialId==='rare_herbs'); return completed.resolved&&reward?.quantity===1&&MaterialRules.expeditionQuantity(e,'rare_herbs')===1&&!e.unsecuredLoot.some(entry=>entry.itemId==='rare_herbs'); })()",
+            "Rare Herb encounter rewards did not use the Material Bag material-gain path",
+        )
+        check(
             "(() => { const route=ExpeditionCatalog.get('old_forest_road'); return !route.provisionCapacityBonus&&ExpeditionRules.partyProvisionCapacity([],route.id)===20&&ExpeditionRules.partyProvisionCapacity(['sir_kay'],route.id)===30; })()",
             "Old Forest received a route-specific provision-capacity bonus",
         )

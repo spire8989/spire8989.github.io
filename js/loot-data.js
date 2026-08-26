@@ -100,6 +100,17 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       }
     ]
   },
+  rare_herb_find: {
+    id: "rare_herb_find",
+    entries: [
+      {
+        type: "material",
+        materialId: "rare_herbs",
+        quantity: 1,
+        weight: 1
+      }
+    ]
+  },
   bandit_ambush_loot: {
     id: "bandit_ambush_loot",
     entries: [
