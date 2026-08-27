@@ -18,7 +18,6 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelAmbienceAssetId: null,
     campAmbienceAssetId: null,
     kind: "normal",
-    minimumObjectiveDistance: 180,
     encounterSpacing: {
       outbound: {
         minimumDistance: 7,

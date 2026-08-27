@@ -45,9 +45,10 @@ def run() -> None:
             checks += 1
 
         check(
-            "EXPEDITION_DEFINITIONS.old_forest_road.minimumObjectiveDistance >= 180"
+            "!Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS.old_forest_road,'minimumObjectiveDistance')"
+            " && EXPEDITION_DEFINITIONS.search_for_merlin.minimumObjectiveDistance === 120"
             " && [120,160,200].every(distance => EXPEDITION_RETURN_REWARD_TIERS.some(tier => tier.minimumDistance === distance))",
-            "Old Forest did not expose the extended objective and late return reward tiers",
+            "Old Forest still carried a duplicate route objective or other routes lost their route objective support",
         )
         check(
             "ExpeditionRules.partyProvisionCapacity([], 'old_forest_road') === ExpeditionRules.partyProvisionCapacity([])",

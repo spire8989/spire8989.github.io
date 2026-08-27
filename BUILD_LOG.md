@@ -1,5 +1,41 @@
 # Build Log
 
+## 2026-08-27 - Remove Duplicate Old Forest Route Objective Distance
+
+### Goal
+
+Remove the Old Forest route-level objective distance so progression readiness and
+telemetry cannot drift from authored encounter milestone data.
+
+### Human direction
+
+- Remove `minimumObjectiveDistance` from `old_forest_road` only.
+- Preserve generic route-level objective fallback support for other routes.
+- Keep Old Forest progression driven by the current goal's authored target and
+  minimum attempt distance.
+- Do not rebalance or move authored encounters.
+
+### AI-assisted implementation
+
+- Removed the duplicate Old Forest route objective field.
+- Kept the simulator's generic route fallback and verified Old Forest progression
+  uses the resolved goal distance even when `expeditionPlan` remains at 180.
+- Updated progression tests for zero Old Forest route objective telemetry,
+  authored altar milestone mutation, readiness requirements, and other-route
+  fallback support.
+
+### Reported manual changes
+
+- None. Existing uncommitted encounter-content edits were preserved and were not
+  included in this architecture cleanup.
+
+### Verification and resulting prototype state
+
+- Current-campaign progression suite passes 11 assertions, including moving the
+  Verdant Altar authored milestone order without editing expedition data.
+- Old Forest route objective resolves to zero while generic route objectives remain
+  supported; final progression target and readiness remain authored-goal values.
+
 ## 2026-08-26 - Correct Authored Progression Pursuit Distances
 
 ### Goal

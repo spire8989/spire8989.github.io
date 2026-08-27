@@ -83,7 +83,7 @@ def run() -> None:
             "Complete Heart/Song preparation did not select the 180-stadion Warden goal",
         )
         check(
-            "(() => { const c=CampaignSimulationRunner.run({seed:'planning-village',campaignMode:'progression',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{currentGold:3000,provisions:100,learnedKnowledge:['woodcraft'],ownedItems:{verdant_shard_grace:1}}}); const e=c.expeditions[0]; return e.oldForestProgressionGoal==='discover-village'&&e.desiredTargetDistance===ENCOUNTER_DEFINITIONS.hidden_forest_village.milestoneOrder&&e.routeObjectiveDistance===180&&e.isSupplyRun===false&&c.stopReason!=='progression-objective-blocked'; })()",
+            "(() => { const c=CampaignSimulationRunner.run({seed:'planning-village',campaignMode:'progression',expeditions:1,strategy:'aggressive',betweenExpeditionPolicy:'aggressive-reinvestor',turnaroundDistance:180,startingState:{currentGold:3000,provisions:100,learnedKnowledge:['woodcraft'],ownedItems:{verdant_shard_grace:1}}}); const e=c.expeditions[0]; return e.oldForestProgressionGoal==='discover-village'&&e.desiredTargetDistance===ENCOUNTER_DEFINITIONS.hidden_forest_village.milestoneOrder&&e.routeObjectiveDistance===0&&e.isSupplyRun===false&&c.stopReason!=='progression-objective-blocked'; })()",
             "A rich campaign still treated the authored village milestone as a blocked 180 objective",
         )
         check(
