@@ -1,5 +1,44 @@
 # Build Log
 
+## 2026-08-26 - Correct Authored Progression Pursuit Distances
+
+### Goal
+
+Fix the authored-distance progression regression where ranged encounters used
+their minimum eligibility distance as the campaign simulator's turnaround target.
+
+### Human direction
+
+- Preserve the data-driven progression resolver.
+- Use milestone order for authored milestones, the maximum of authored ranges
+  for non-milestone ranged encounters, and fixed/minimum authored values for
+  the remaining supported shapes.
+- Do not change authored encounter distances or rebalance content.
+- Add regression coverage, update the build log, and commit/push the fix.
+
+### AI-assisted implementation
+
+- Upgraded `resolveProgressionEncounterDistance()` to resolve pursuit distance
+  separately from minimum eligibility distance.
+- Added validation and explicit errors for missing encounters, invalid distance
+  fields, malformed ranges, and milestones without an authored order.
+- Added White Hart, Thorn-Crowned Hart, Verdant Altar, authored-fixture mutation,
+  and Grace-shard campaign regression assertions.
+
+### Reported manual changes
+
+- None. No authored encounter values were changed.
+
+### Verification and resulting prototype state
+
+- The new campaign checks confirm White Hart pursues its authored range end,
+  Thorn-Crowned Hart uses its authored milestone order, and Verdant Altar uses
+  its authored milestone order.
+- Replay regression remains passing with 15 assertions.
+- The broader campaign-planning, Old Forest progression, and campaign-replay
+  suites still encounter pre-existing unrelated combat/content fixture failures;
+  the focused new resolver checks pass before those failures.
+
 ## 2026-08-26 - Distance Unit Rename to Stadion/Stadia
 
 ### Goal

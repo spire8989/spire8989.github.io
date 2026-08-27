@@ -56,22 +56,54 @@ function resolveProgressionEncounterDistance(encounterId) {
       `Progression encounter "${encounterId}" was not found in ENCOUNTER_DEFINITIONS.`,
     );
   }
-  const authoredDistance = encounter.minimumDistance ?? encounter.distance;
-  const distance = Number(authoredDistance);
-  if (!Number.isFinite(distance) || distance < 0) {
-    throw new Error(
-      `Progression encounter "${encounterId}" has invalid authored distance "${authoredDistance}".`,
-    );
-  }
-  if (encounter.maximumDistance !== undefined) {
-    const maximumDistance = Number(encounter.maximumDistance);
-    if (!Number.isFinite(maximumDistance) || maximumDistance < distance) {
+  const readDistance = (field) => {
+    if (encounter[field] === undefined) {
+      return { present: false, value: null };
+    }
+    const raw = encounter[field];
+    const value = typeof raw === "string" && raw.trim() !== "" ? Number(raw) : raw;
+    if ((typeof value !== "number" && typeof raw !== "number") || !Number.isFinite(value) || value < 0) {
       throw new Error(
-        `Progression encounter "${encounterId}" has invalid authored distance range "${authoredDistance}-${encounter.maximumDistance}".`,
+        `Progression encounter "${encounterId}" has invalid authored ${field} "${raw}".`,
       );
     }
+    return { present: true, value };
+  };
+
+  const minimum = readDistance("minimumDistance");
+  const maximum = readDistance("maximumDistance");
+  const fixed = readDistance("distance");
+  const milestoneOrder = readDistance("milestoneOrder");
+  if (encounter.milestone === true && !milestoneOrder.present) {
+    throw new Error(
+      `Progression encounter "${encounterId}" is a milestone but has no authored milestoneOrder.`,
+    );
   }
-  return distance;
+  if (maximum.present && !minimum.present) {
+    throw new Error(
+      `Progression encounter "${encounterId}" has maximumDistance without minimumDistance.`,
+    );
+  }
+  if (minimum.present && maximum.present && maximum.value < minimum.value) {
+    throw new Error(
+      `Progression encounter "${encounterId}" has invalid authored distance range "${minimum.value}-${maximum.value}".`,
+    );
+  }
+  if (encounter.milestone === true) {
+    return milestoneOrder.value;
+  }
+  if (minimum.present && maximum.present) {
+    return maximum.value;
+  }
+  if (fixed.present) {
+    return fixed.value;
+  }
+  if (minimum.present) {
+    return minimum.value;
+  }
+  throw new Error(
+    `Progression encounter "${encounterId}" has no authored pursuit distance (expected milestoneOrder, distance range, distance, or minimumDistance).`,
+  );
 }
 
 const CampaignSimulationRunner = Object.freeze({
