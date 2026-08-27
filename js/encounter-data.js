@@ -2634,33 +2634,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 chance: 0.4,
                 effects: [
                   {
-                    type: "gainWeightedRandomUnsecuredItem",
-                    items: [
-                      {
-                        itemId: "old_coin",
-                        weight: 5
-                      },
-                      {
-                        itemId: "silver_brooch",
-                        weight: 3
-                      },
-                      {
-                        itemId: "bronze_figurine",
-                        weight: 2
-                      },
-                      {
-                        itemId: "silver_reliquary",
-                        weight: 0.8
-                      },
-                      {
-                        itemId: "jeweled_saints_locket",
-                        weight: 0.2
-                      }
-                    ],
-                    resultText: "The symbols remain unclear, but among the fallen stones Arthur finds {itemName}."
+                    type: "rollLootTable",
+                    tableId: "shrine_loot",
+                    rolls: 2
                   }
                 ],
-                elseResultText: "Arthur studies the worn symbols, but cannot interpret them and finds nothing hidden among the stones."
+                elseResultText: "Arthur studies the worn symbols, but cannot interpret them and finds nothing hidden among the stones.",
+                elseEffects: []
               }
             ],
             pendingAction: {

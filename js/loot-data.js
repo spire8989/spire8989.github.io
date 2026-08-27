@@ -47,20 +47,23 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       {
         type: "material",
         materialId: "silver",
-        quantity: 1,
-        weight: 20
+        weight: 20,
+        minimum: 1,
+        maximum: 3
       },
       {
         type: "material",
         materialId: "rare_herbs",
-        quantity: 1,
-        weight: 30
+        weight: 30,
+        minimum: 1,
+        maximum: 2
       },
       {
         type: "material",
         materialId: "alchemical_reagents",
-        quantity: 1,
-        weight: 30
+        weight: 30,
+        minimum: 1,
+        maximum: 2
       },
       {
         type: "material",
@@ -82,16 +85,43 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "material", materialId: "relic_fragment", quantity: 1, weight: 1 }),
     ]),
   }),
-  forest_materials: Object.freeze({
+  forest_materials: {
     id: "forest_materials",
-    entries: Object.freeze([
-      Object.freeze({ type: "material", materialId: "medicinal_herbs", quantity: 1, weight: 35 }),
-      Object.freeze({ type: "material", materialId: "wood", quantity: 1, weight: 25 }),
-      Object.freeze({ type: "material", materialId: "leather", quantity: 1, weight: 20 }),
-      Object.freeze({ type: "material", materialId: "rare_herbs", quantity: 1, weight: 8 }),
-      Object.freeze({ type: "table", tableId: "common_materials", weight: 12 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "material",
+        materialId: "medicinal_herbs",
+        weight: 35,
+        minimum: 1,
+        maximum: 2
+      },
+      {
+        type: "material",
+        materialId: "wood",
+        weight: 25,
+        minimum: 1,
+        maximum: 4
+      },
+      {
+        type: "material",
+        materialId: "leather",
+        weight: 20,
+        minimum: 1,
+        maximum: 3
+      },
+      {
+        type: "material",
+        materialId: "rare_herbs",
+        quantity: 1,
+        weight: 8
+      },
+      {
+        type: "table",
+        tableId: "common_materials",
+        weight: 12
+      }
+    ]
+  },
   forest_ingredients: {
     id: "forest_ingredients",
     entries: [
@@ -440,6 +470,43 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         weight: 2,
         minimum: 1,
         maximum: 3
+      }
+    ],
+    rolls: 1
+  },
+  shrine_loot: {
+    id: "shrine_loot",
+    entries: [
+      {
+        type: "item",
+        itemId: "old_coin",
+        weight: 50,
+        minimum: 2,
+        maximum: 3
+      },
+      {
+        type: "item",
+        itemId: "silver_brooch",
+        weight: 29,
+        quantity: 1
+      },
+      {
+        type: "item",
+        itemId: "silver_reliquary",
+        weight: 8,
+        quantity: 1
+      },
+      {
+        type: "item",
+        itemId: "jeweled_saints_locket",
+        weight: 2,
+        quantity: 1
+      },
+      {
+        type: "material",
+        materialId: "sacred_oil",
+        weight: 2,
+        quantity: 1
       }
     ],
     rolls: 1
