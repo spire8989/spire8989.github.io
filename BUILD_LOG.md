@@ -1,5 +1,54 @@
 # Build Log
 
+## 2026-08-27 - Complete Synth-Only Audio Migration
+
+### Goal
+
+Switch the playable game and local authoring workflow entirely to lightweight
+native Web Audio synthesis. The project has no binary audio assets, so unused
+file-backed audio paths should not remain in the runtime or editor.
+
+### Human direction
+
+- Keep the canonical synth definitions in the Grail repository and have the
+  Content Editor edit them directly.
+- Remove the unused conventional audio catalog, upload workflow, runtime
+  folders, and ambience-specific APIs while keeping image asset handling.
+- Hook synth music and SFX into gameplay, including expedition travel/camp
+  inheritance and event overrides, with no same-track restart.
+- Include the user's current synth-content editor change in this changelist;
+  preserve unrelated authored encounter-data work.
+
+### AI-assisted implementation
+
+- Simplified `asset-data.js`, `AudioManager`, expedition content, and gameplay
+  rendering to an image-only catalog plus synth-only audio contract.
+- Added one central music resolver covering location/destination music,
+  expedition travel and camp tracks, and active encounter/camp-event overrides.
+  Missing camp fields inherit travel; explicit null disables camp music.
+- Replaced editor audio-asset selectors with Music Track/SFX dropdowns, removed
+  binary audio preview/upload handling, and kept image upload optimization and
+  surgical source writes intact.
+- Removed the empty runtime audio directories and refreshed focused browser,
+  editor, README, and test coverage.
+
+### Reported manual changes
+
+- Included the user's current canonical synth-content edits, including the
+  `pickup_confirm` SFX, route music content, and its Old Forest assignment.
+- Preserved the unrelated `js/encounter-data.js` working-tree edit without
+  staging it.
+
+### Verification and resulting prototype state
+
+- Gameplay audio uses only `js/audio-synth-data.js`, `js/audio-synth.js`, and
+  the synth-only `AudioManager`; no runtime binary audio assets are required.
+- The editor exposes Images plus the Audio Lab's Music Tracks and SFX, with
+  image-only upload/browse behavior and synth reference validation.
+- Focused browser and editor regressions cover image fallbacks, synth lifecycle,
+  persisted volume/mute settings, stable location music, and the new content
+  contract.
+
 ## 2026-08-27 - Canonical Synth Audio Runtime Integration
 
 ### Goal

@@ -1,4 +1,4 @@
-"""Focused browser coverage for the first runtime asset/audio pipeline pass."""
+"""Focused browser coverage for the image catalog and synth-only runtime."""
 
 from __future__ import annotations
 
@@ -45,10 +45,10 @@ def run() -> None:
 
         check(
             "Object.keys(IMAGE_ASSET_DEFINITIONS).length>0"
-            "&&Object.keys(AUDIO_ASSET_DEFINITIONS).length===0"
             "&&AssetCatalog.imagePath('missing')===null"
-            "&&AssetCatalog.audioPath('missing')===null",
-            "Empty asset catalogs did not preserve the placeholder baseline",
+            "&&typeof AssetCatalog.audio==='undefined'"
+            "&&Object.keys(AssetCatalog).sort().join(',')==='hasImage,image,imagePath'",
+            "Image-only asset catalog contract is missing",
         )
         check(
             "renderImageAsset(null)===''"
@@ -60,8 +60,7 @@ def run() -> None:
             "['old_forest_road','fountain_of_barenton','val_sans_retour','search_for_merlin']"
             ".every(id=>Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS[id],'travelVisualAssetId')"
             "&&Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS[id],'campVisualAssetId')"
-            "&&Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS[id],'travelAmbienceAssetId')"
-            "&&Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS[id],'campAmbienceAssetId'))"
+            "&&Object.keys(EXPEDITION_DEFINITIONS[id]).every(key=>!key.toLowerCase().includes('ambience')))"
             "&&resolveExpeditionVisualAssetId({expeditionId:'old_forest_road'},'camp')==='expedition_old_forest_road_camp_bg'",
             "Route-scoped visual fields or camp fallback resolution are missing",
         )
@@ -73,8 +72,8 @@ def run() -> None:
             "Audio settings did not unlock and persist the SFX volume control",
         )
         check(
-            "(() => { AudioManager.setAmbience(null); AudioManager.setMuted(true); const muted=AudioManager.settings().muted; AudioManager.setMuted(false); return muted===true&&AudioManager.currentAmbienceId()===null; })()",
-            "Audio manager mute and ambience stop behavior is not stable without authored files",
+            "(() => { AudioManager.setMusic(null); AudioManager.setMuted(true); const muted=AudioManager.settings().muted; AudioManager.setMuted(false); return muted===true&&AudioManager.currentMusicId()===null&&AudioManager.settings().musicVolume>=0; })()",
+            "Synth-only audio manager mute and stop behavior is not stable",
         )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")

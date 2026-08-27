@@ -15,8 +15,6 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelVisualAssetId: "expedition_old_forest_road_bg",
     campVisualAssetId: "expedition_old_forest_road_camp_bg",
     combatVisualAssetId: "combat_scene_old_forest_road_combat",
-    travelAmbienceAssetId: null,
-    campAmbienceAssetId: null,
     kind: "normal",
     encounterSpacing: {
       outbound: {
@@ -67,7 +65,8 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
         travelParallaxAssetId: "expedition_old_forest_road_woodcut_2_parallax"
       }
     ],
-    travelSeamForegroundAssetId: "expedition_old_forest_road_tree_6"
+    travelSeamForegroundAssetId: "expedition_old_forest_road_tree_6",
+    travelMusicTrackId: "wisps_of_the_forest"
   },
   fountain_of_barenton: {
     id: "fountain_of_barenton",
@@ -80,8 +79,6 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelVisualAssetId: null,
     campVisualAssetId: null,
     combatVisualAssetId: null,
-    travelAmbienceAssetId: null,
-    campAmbienceAssetId: null,
     kind: "normal",
     campEventTableIds: ["deep_forest"],
     prerequisites: ["flask"]
@@ -97,8 +94,6 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelVisualAssetId: null,
     campVisualAssetId: null,
     combatVisualAssetId: null,
-    travelAmbienceAssetId: null,
-    campAmbienceAssetId: null,
     kind: "normal",
     campEventTableIds: ["deep_forest", "val_supernatural"],
     prerequisites: ["flask"]
@@ -114,8 +109,6 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     travelVisualAssetId: null,
     campVisualAssetId: null,
     combatVisualAssetId: null,
-    travelAmbienceAssetId: null,
-    campAmbienceAssetId: null,
     kind: "campaign",
     minimumObjectiveDistance: 120,
     campEventTableIds: ["deep_forest"],

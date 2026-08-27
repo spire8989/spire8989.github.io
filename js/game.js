@@ -345,7 +345,7 @@ function finishDeparturePresentation(presentation) {
   document.querySelector(".departure-banner")?.remove();
   expedition.travelState = "traveling";
   game.departurePresentation = null;
-  renderExpedition();
+  renderScreen();
 }
 
 function beginDeparturePresentation(expedition) {
@@ -494,7 +494,6 @@ function handleAudioSettingInput(event) {
   const setting = event.target?.dataset?.audioSetting;
   if (setting === "sfxVolume") AudioManager.setSfxVolume(event.target.value);
   if (setting === "musicVolume") AudioManager.setMusicVolume(event.target.value);
-  if (setting === "ambienceVolume") AudioManager.setAmbienceVolume(event.target.value);
 }
 
 function assetAttribute(value) {
@@ -2928,25 +2927,40 @@ function markTravelTransitionFailed(image) {
   }
 }
 
-function syncExpeditionAmbience(expedition, mode = "travel", encounter = null) {
-  AudioManager.setMusic(null);
+function resolveExpeditionMusicTrackId(expedition = game.expedition) {
+  if (!expedition || expedition.status !== "active") return null;
   const definition = expeditionDefinition(expedition);
-  const assetId = encounter?.ambienceAssetId
-    ?? (mode === "camp" ? definition.campAmbienceAssetId : definition.travelAmbienceAssetId)
-    ?? null;
-  AudioManager.setAmbience(assetId);
+  const activeEvent = expedition.activeEncounter
+    ? EncounterManager.definitionFor(expedition)
+    : null;
+  if (typeof activeEvent?.musicTrackId === "string" && activeEvent.musicTrackId) {
+    return activeEvent.musicTrackId;
+  }
+  if (expedition.travelState === "camped"
+    && Object.prototype.hasOwnProperty.call(definition, "campMusicTrackId")) {
+    return typeof definition.campMusicTrackId === "string" && definition.campMusicTrackId
+      ? definition.campMusicTrackId
+      : null;
+  }
+  return typeof definition.travelMusicTrackId === "string" && definition.travelMusicTrackId
+    ? definition.travelMusicTrackId
+    : null;
+}
+
+function resolveCurrentMusicTrackId() {
+  if (game.screen === "location" || game.screen === "destination") {
+    return currentLocationForUi()?.musicTrackId ?? null;
+  }
+  if (game.screen === "expedition") return resolveExpeditionMusicTrackId();
+  return null;
 }
 
 function syncAudioForCurrentContext() {
-  const locationContext = game.screen === "location" || game.screen === "destination"
-    ? currentLocationForUi()
-    : null;
-  AudioManager.setMusic(locationContext?.musicTrackId ?? null);
-  if (game.screen !== "expedition") AudioManager.stopAmbience();
+  AudioManager.setMusic(resolveCurrentMusicTrackId());
 }
 
 function playEncounterAudio(encounter) {
-  if (encounter?.stingAssetId && AudioManager.playSfx(encounter.stingAssetId)) return;
+  if (encounter?.stingSfxId && AudioManager.playSfx(encounter.stingSfxId)) return;
   AudioManager.playSemantic("encounter");
 }
 
@@ -3057,7 +3071,6 @@ function renderLocation() {
       </div>
   </section>`;
   clampTownHotspotsToScene();
-  syncAudioForCurrentContext();
 }
 
 function openDestination(destinationId) {
@@ -3117,7 +3130,6 @@ function renderDestination() {
       </div>
       ${game.dialogueSession ? renderDialogueOverlay(game.dialogueSession) : ""}
     </section>`;
-  syncAudioForCurrentContext();
 }
 
 function renderHallInteraction(destination, npc) {
@@ -3775,7 +3787,7 @@ function applyDialogueResult(result, returnContext = null) {
       if (!completed.combatStarted && !completed.dialogueStarted) {
         queueEncounterRewardReveal(game.expedition, "dialogue");
       }
-      renderExpedition();
+      renderScreen();
     }
     return;
   }
@@ -3786,8 +3798,8 @@ function applyDialogueResult(result, returnContext = null) {
       eventId: `dialogue:${game.rewardPresentationContextId}:${returnContext?.destinationId ?? "npc"}:${(result.rewards ?? []).map((reward) => `${reward.type}:${reward.itemId ?? reward.recipeId ?? reward.abilityId ?? reward.knowledgeId ?? "reward"}`).join(",")}`,
     });
   }
-  if (game.screen === "destination") renderDestination();
-  else if (game.screen === "expedition") renderExpedition();
+  if (game.screen === "destination") renderScreen();
+  else if (game.screen === "expedition") renderScreen();
 }
 
 function renderDialogueOverlay(session) {
@@ -4686,7 +4698,6 @@ function renderExpedition() {
     renderCamp(expedition);
     return;
   }
-  syncExpeditionAmbience(expedition, "travel", activeEncounter);
   const travelPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
   const travelBaseReady = !travelPresentation.assetId || travelSceneAssetReady(travelPresentation.assetId);
   const travelVisualSnapshot = !preserveLiveTravelScene
@@ -4757,7 +4768,7 @@ function refreshExpedition() {
   const currentPanel = document.querySelector(".camp-panel, .travel-panel");
   const currentMode = currentPanel?.classList.contains("camp-panel") ? "camp" : "travel";
   const scrollTop = currentPanel?.scrollTop ?? 0;
-  renderExpedition();
+  renderScreen();
   const refreshedPanel = currentMode === "camp"
     ? document.querySelector(".camp-panel")
     : document.querySelector(".travel-panel");
@@ -4792,7 +4803,6 @@ function renderCamp(expedition) {
   const activeEvent = expedition.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
-  syncExpeditionAmbience(expedition, "camp", activeEvent);
   const campVisualAssetId = resolveExpeditionVisualAssetId(expedition, "camp", activeEvent);
   if (activeEvent) {
     ui.screenRoot.innerHTML = `
@@ -5205,7 +5215,6 @@ function combatEnemyFormationClass(combat) {
 }
 
 function renderCombat(expedition, combat) {
-  syncExpeditionAmbience(expedition, "travel");
   const encounter = expedition?.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
@@ -5523,7 +5532,7 @@ function updateExpedition(deltaSeconds) {
 
   if (travel.encounter) {
     playEncounterAudio(EncounterManager.definitionFor(expedition));
-    renderExpedition();
+    renderScreen();
   }
 }
 
@@ -5669,7 +5678,7 @@ function interruptCampRest(action) {
     refreshExpedition();
     return;
   }
-  renderExpedition();
+  renderScreen();
 }
 
 function cookRecipe(recipeId) {
@@ -5751,7 +5760,7 @@ function resolveEncounterChoice(choiceId) {
       );
       finishEncounterResolution(completed, pendingExpedition, rewardStartIndex);
     }, result.delayMs);
-    renderExpedition();
+    renderScreen();
     return;
   }
 
@@ -5781,7 +5790,7 @@ function finishEncounterResolution(result, expedition, rewardStartIndex = null) 
     queueEncounterRewardReveal(expedition, "encounter", rewardStartIndex);
   }
 
-  renderExpedition();
+  renderScreen();
 }
 
 function startCombat(expedition, combatId, options = {}) {
@@ -5973,7 +5982,7 @@ function finishCombatResolution(expedition) {
     if (!completed.combatStarted && !completed.dialogueStarted) {
       queueEncounterRewardReveal(expedition, "combat");
     }
-    renderExpedition();
+    renderScreen();
   }
 }
 
@@ -6010,7 +6019,7 @@ function triggerDebugEncounter() {
   cancelRestAction();
   const encounterId = document.querySelector("#debug-encounter-select")?.value;
   if (EncounterManager.force(game.expedition, encounterId)) {
-    renderExpedition();
+    renderScreen();
   }
 }
 
@@ -6019,7 +6028,7 @@ function forceNextEncounter() {
     return;
   }
   EncounterManager.forceNextSoon(game.expedition);
-  renderExpedition();
+  renderScreen();
 }
 
 function startDebugCombat() {
@@ -6030,7 +6039,7 @@ function startDebugCombat() {
   cancelRestAction();
   const combatId = document.querySelector("#debug-combat-select")?.value ?? "wild_boar";
   if (COMBAT_DEFINITIONS[combatId] && startCombat(expedition, combatId)) {
-    renderExpedition();
+    renderScreen();
   }
 }
 

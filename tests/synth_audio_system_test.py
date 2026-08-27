@@ -54,24 +54,24 @@ def run() -> None:
         check(
             "Object.keys(SYNTH_AUDIO_DEFINITIONS.musicTracks).includes('camelot_twilight')"
             "&&Object.keys(SYNTH_AUDIO_DEFINITIONS.sfx).includes('pickup_confirm')"
-            "&&AssetCatalog.audioPath('pickup_confirm')===null",
-            "Canonical synth content or file-backed asset separation is missing",
+            "&&typeof AssetCatalog.audio==='undefined'",
+            "Canonical synth content or image-only asset separation is missing",
         )
 
         devtools.evaluate(
             "localStorage.setItem('questForTheHolyGrail.audio.v1',"
-            "JSON.stringify({muted:false,sfxVolume:0.4,ambienceVolume:0.37})); location.reload()"
+            "JSON.stringify({muted:false,sfxVolume:0.4,musicVolume:0.37})); location.reload()"
         )
         time.sleep(0.35)
         check(
             "AudioManager.settings().musicVolume===0.37"
-            "&&AudioManager.settings().ambienceVolume===undefined",
-            "Legacy ambienceVolume did not migrate to musicVolume",
+            "&&AudioManager.settings().sfxVolume===0.4",
+            "Synth audio settings did not reload from storage",
         )
         check(
             "(() => { AudioManager.setMusicVolume(0.37);"
             "const saved=JSON.parse(localStorage.getItem('questForTheHolyGrail.audio.v1'));"
-            "return saved.musicVolume===0.37&&saved.ambienceVolume===undefined; })()",
+            "return saved.musicVolume===0.37&&saved.sfxVolume===0.4; })()",
             "Audio settings did not persist the new musicVolume key",
         )
 
@@ -126,7 +126,7 @@ def run() -> None:
               await new Promise(resolve => setTimeout(resolve, 0));
               const sameTrack = AudioManager.setMusic('camelot_twilight') === false;
               const musicStarted = AudioManager.currentMusicId() === 'camelot_twilight';
-              const sfxStarted = AudioManager.playSynthSfx('pickup_confirm') === true;
+              const sfxStarted = AudioManager.playSfx('pickup_confirm') === true;
               return { features, stopped, sameTrack, musicStarted, sfxStarted };
             })()
         """)
@@ -144,6 +144,16 @@ def run() -> None:
             "game.screen='campaign'; renderScreen();"
             "return first==='camelot_twilight'&&second==='camelot_twilight'&&repeated&&AudioManager.currentMusicId()===null; })()",
             "Town and destination context did not inherit stable location music",
+        )
+        check(
+            "(() => { const expedition={expeditionId:'old_forest_road',status:'active',travelState:'traveling'};"
+            "const travel=resolveExpeditionMusicTrackId(expedition); expedition.travelState='camped';"
+            "const inherited=resolveExpeditionMusicTrackId(expedition);"
+            "EXPEDITION_DEFINITIONS.old_forest_road.campMusicTrackId=null;"
+            "const disabled=resolveExpeditionMusicTrackId(expedition);"
+            "delete EXPEDITION_DEFINITIONS.old_forest_road.campMusicTrackId;"
+            "return travel==='wisps_of_the_forest'&&inherited===travel&&disabled===null; })()",
+            "Expedition travel/camp synth inheritance and explicit camp silence are not stable",
         )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")

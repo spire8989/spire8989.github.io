@@ -25,21 +25,21 @@ Progress is stored in the browser with `localStorage`. The reset button in the t
 
 ## Asset and audio pipeline
 
-The first asset pass is data-driven and intentionally ships without final art
-or sound files. `js/asset-data.js` is the canonical catalog: image IDs point
-into `assets/images/{locations,expeditions,encounters,combat,portraits,ui}`
-and audio IDs point into `assets/audio/{ambience,sfx,music}`. Missing or
-unassigned IDs keep the existing CSS scenes, icons, initials, and combat
-tokens visible as fallbacks.
+The asset pass is data-driven and intentionally ships without final art or
+binary sound files. `js/asset-data.js` is the canonical image catalog, with
+IDs pointing into `assets/images/{locations,expeditions,encounters,combat,portraits,ui}`.
+Music tracks and SFX are lightweight native Web Audio definitions in
+`js/audio-synth-data.js`; missing or unassigned IDs keep the existing CSS
+scenes, icons, initials, and combat tokens visible as fallbacks.
 
 `js/game.js` resolves location, destination, route, camp, encounter, dialogue,
-and combat visuals through that catalog. Expedition travel and camp visuals
-and ambience are resolved from the active expedition definition, so a camp
-does not inherit a global route asset. `js/audio.js` owns gesture unlocking,
-local mute/volume preferences, ambience transitions, and semantic SFX hooks.
-The small header music-note button exposes those settings. Add real files and
-catalog entries through `Tools/ContentEditor`; the browser game itself still
-runs directly from a local HTTP server.
+and combat visuals through that catalog. A single music resolver applies
+location, expedition, camp, and encounter synth tracks without restarting the
+same track. `js/audio.js` owns gesture unlocking, local mute/volume
+preferences, synth playback, and semantic SFX hooks. The small header
+music-note button exposes those settings. Edit image files and synth
+definitions through `Tools/ContentEditor`; the browser game itself still runs
+directly from a local HTTP server.
 
 ## Project layout
 
@@ -47,7 +47,7 @@ runs directly from a local HTTP server.
 - `css/style.css` controls presentation, the fixed 9:16 game viewport, responsive scaling, input feedback, and the reusable `--interaction-visual-aspect` value for 16:9 active visual frames.
 - `js/data.js` contains data-driven item, knowledge, companion, and placeholder chapter definitions with stable string IDs, including equipment-granted abilities and combat item effects.
 - `js/character-visuals.js` defines the shared optional Idle/Walk/Attack visual-slot renderer for Arthur, companions, and enemies, including multi-row sprite-sheet playback, static fallbacks, reduced-motion handling, and one shared animation scheduler.
-- `js/asset-data.js` is the centralized image/audio asset catalog; `js/audio.js` is the runtime audio manager with persisted settings and semantic hooks.
+- `js/asset-data.js` is the centralized image catalog; `js/audio-synth-data.js` stores the canonical music/SFX definitions, `js/audio-synth.js` provides the native Web Audio backend, and `js/audio.js` is the runtime manager with persisted settings and semantic hooks.
 - `js/crafting-data.js` defines rarity metadata, the separate material catalog, crafting providers, and recipes; `js/crafting-rules.js` owns generic quote and atomic craft mutations.
 - `js/loot-data.js` defines reusable/nested weighted loot tables and expedition-return tiers; `js/loot-rules.js` owns eligibility, cycle/depth protection, deterministic resolution, reward staging, and debug traces.
 - `js/tuning.js` centralizes expedition and combat pacing, resource, gauge, defense, and flee values for playtesting.
@@ -63,7 +63,7 @@ runs directly from a local HTTP server.
 - `js/game.js` owns screen flow, input, temporary expedition state, travel/combat presentation, loot resolution, and the shared `requestAnimationFrame` loop.
 - `js/debug-tools.js` contains the developer-only `?debug=1` Game Debug panel. It uses the production rule and definition catalogs for item/material grants, equipment, health, injuries, progression, encounters, combat launch/status inspection, expedition state, and safe save utilities.
 - `tests/debug_tools_test.py`, `tests/location_system_test.py`, `tests/simulation_system_test.py`, and `tests/campaign_system_test.py` serve the game and drive headless Chrome through its DevTools protocol to cover the debug panel, village, shops, loadout, encounters, combat, simulation, campaign, and return flow.
-- `assets/images/` and `assets/audio/` contain category folders for authored files; missing or unassigned assets remain visually/audio-wise backward compatible through the existing fallbacks.
+- `assets/images/` contains category folders for authored files; missing or unassigned assets remain visually backward compatible through the existing fallbacks. Gameplay audio requires no binary assets.
 - `vendor/` is reserved for any third-party browser libraries added later. It is empty for now.
 
 ## Run locally
