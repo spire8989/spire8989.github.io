@@ -36,11 +36,11 @@ const GLOBAL_SETTINGS = Object.freeze({
     bannerDurationMs: 3200,
   },
   townDefaults: {
-    markerStyle: "tag",
-    showMarkerIcons: true,
+    markerStyle: "label",
+    showMarkerIcons: false,
     markerFontScale: 1,
-    markerHorizontalPadding: 0.38,
-    markerVerticalPadding: 0.1,
+    markerHorizontalPadding: 0.4,
+    markerVerticalPadding: 1
   },
   dialogueDefaults: {
     oneNodeBarkMode: "tap",

@@ -3079,9 +3079,13 @@ function renderLocation() {
     const hotspot = townHotspotForDestination(destination);
     const style = townHotspotStyle(location);
     const defaults = townPresentationDefaults();
-    const fontScale = clamp(Number(defaults.markerFontScale) || 1, 0.8, 1.5);
-    const horizontalPadding = clamp(Number(defaults.markerHorizontalPadding) || 0.38, 0.1, 0.9);
-    const verticalPadding = clamp(Number(defaults.markerVerticalPadding) || 0.1, 0.04, 0.35);
+    const townSetting = (value, fallback, minimum, maximum) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? clamp(numeric, minimum, maximum) : fallback;
+    };
+    const fontScale = townSetting(defaults.markerFontScale, 1, 0.5, 2);
+    const horizontalPadding = townSetting(defaults.markerHorizontalPadding, 0.38, 0, 2);
+    const verticalPadding = townSetting(defaults.markerVerticalPadding, 0.1, 0, 1);
     const icon = townHotspotShowsIcon(location, style)
       ? `<span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>`
       : "";

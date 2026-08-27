@@ -175,6 +175,11 @@ def run() -> None:
         )
 
         check(
+            "(() => { const location=LOCATION_DEFINITIONS.broceliande_village; const previousStyle=location.markerStyle; const previousVertical=GLOBAL_SETTINGS.townDefaults.markerVerticalPadding; location.markerStyle='label'; GLOBAL_SETTINGS.townDefaults.markerVerticalPadding=0.6; game.player.currentLocationId='broceliande_village'; renderLocation(); const marker=document.querySelector('.hub-hotspot.town-hotspot-style-label'); const inline=marker?.style.getPropertyValue('--town-marker-pad-y'); const padding=Number.parseFloat(getComputedStyle(marker).paddingTop); location.markerStyle=previousStyle; GLOBAL_SETTINGS.townDefaults.markerVerticalPadding=previousVertical; renderScreen(); return inline==='0.6rem'&&padding>8; })()",
+            "Town marker vertical padding did not reach the visible marker box",
+        )
+
+        check(
             "(() => {"
             "const expedition=game.expedition; expedition.direction='outbound'; expedition.provisionWarningShown={warning:false,danger:false}; expedition.provisionWarningState='safe'; renderExpedition();"
             "updateProvisionWarningTransition(expedition,{state:'warning'}); const first=expedition.provisionWarningShown.warning&&document.querySelector('.provision-warning-warning');"

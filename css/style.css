@@ -4463,15 +4463,14 @@ button.combatant {
 }
 
 .hub-hotspot.town-hotspot-style-tag {
-  padding-right: var(--town-marker-pad-x, 0.38rem);
-  padding-left: var(--town-marker-pad-x, 0.38rem);
+  padding: var(--town-marker-pad-y, 0.1rem) var(--town-marker-pad-x, 0.38rem);
   border-color: rgb(244 221 160 / 34%);
   background: rgb(17 25 18 / 82%);
   box-shadow: 0 0.08rem 0.2rem rgb(0 0 0 / 28%);
 }
 
 .hub-hotspot.town-hotspot-style-ribbon {
-  padding: 0.11rem 0.42rem;
+  padding: var(--town-marker-pad-y, 0.11rem) var(--town-marker-pad-x, 0.42rem);
   border-color: rgb(244 221 160 / 42%);
   border-radius: 0.12rem;
   background: rgb(28 32 22 / 86%);
@@ -4482,7 +4481,7 @@ button.combatant {
 .hub-hotspot.town-hotspot-style-ink {
   position: relative;
   isolation: isolate;
-  padding: 0.1rem 0.26rem;
+  padding: var(--town-marker-pad-y, 0.1rem) var(--town-marker-pad-x, 0.26rem);
   color: #f7e9bb;
   text-shadow: 0 0.08rem 0.18rem #081008, 0 0 0.2rem rgb(8 16 8 / 85%);
 }
