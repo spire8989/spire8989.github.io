@@ -54,8 +54,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     directions: ["outbound"],
     weight: 1,
-    minimumDistance: 118,
-    maximumDistance: 158,
+    minimumDistance: 75,
+    maximumDistance: 168,
     milestone: true,
     milestoneOrder: 150,
     ignoreEncounterSpacing: true,
@@ -178,14 +178,19 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     directions: ["outbound"],
     weight: 1,
-    minimumDistance: 180,
-    maximumDistance: 188,
+    minimumDistance: 200,
+    maximumDistance: 250,
     milestone: true,
-    milestoneOrder: 180,
+    milestoneOrder: 200,
     ignoreEncounterSpacing: true,
     tags: ["campaign", "verdant", "boss"],
     repeatable: false,
-    requirements: [{ type: "notCampaignFlag", flag: "verdant_warden_defeated" }],
+    requirements: [
+      {
+        type: "notCampaignFlag",
+        flag: "verdant_warden_defeated"
+      }
+    ],
     stages: {
       start: {
         text: "The roots open around an altar of green crystal. Something ancient stirs below it, listening for the Song.",
@@ -198,14 +203,14 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 type: "availableExpeditionItem",
                 itemId: "enchanted_verdant_heart",
                 unavailable: "locked",
-                lockedLabel: "Requires the Enchanted Verdant Heart",
+                lockedLabel: "Requires the Enchanted Verdant Heart"
               },
               {
                 type: "knowledge",
                 knowledgeId: "song_of_the_forest",
                 unavailable: "locked",
-                lockedLabel: "Requires the Song of the Forest",
-              },
+                lockedLabel: "Requires the Song of the Forest"
+              }
             ],
             outcomes: [
               {
@@ -214,33 +219,50 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                 victory: {
                   resultText: "The Verdant Warden falls, leaving the first reliable vessel for Merlin's water.",
                   outcomes: [
-                    { type: "gainUniqueUnsecuredItem", itemId: "flask" },
-                    { type: "setCampaignFlagOnSafeReturn", flag: "verdant_warden_defeated", value: true },
-                  ],
+                    {
+                      type: "gainUniqueUnsecuredItem",
+                      itemId: "flask"
+                    },
+                    {
+                      type: "setCampaignFlagOnSafeReturn",
+                      flag: "verdant_warden_defeated",
+                      value: true
+                    }
+                  ]
                 },
-                defeat: { resultText: "The Verdant Warden drives the company from the altar." },
-                fled: { resultText: "The company flees the altar. The Verdant Warden remains undefeated." },
-              },
+                defeat: {
+                  resultText: "The Verdant Warden drives the company from the altar."
+                },
+                fled: {
+                  resultText: "The company flees the altar. The Verdant Warden remains undefeated."
+                }
+              }
             ],
             resultText: "The Enchanted Verdant Heart answers the Song. The Verdant Warden rises.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "inspect_altar",
             label: "Listen to the Roots",
-            outcomes: [{ type: "setRunFlag", flag: "altar_requirements_revealed", value: true }],
+            outcomes: [
+              {
+                type: "setRunFlag",
+                flag: "altar_requirements_revealed",
+                value: true
+              }
+            ],
             resultText: "The altar does not awaken. Its roots seem to wait for an awakened Verdant Heart and the remembered Song; Arthur can return when both are ready.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "leave_altar",
             label: "Leave the Altar",
             resultText: "Arthur leaves the altar sleeping beneath the roots.",
-            endEncounter: true,
-          },
-        ],
-      },
-    },
+            endEncounter: true
+          }
+        ]
+      }
+    }
   },
   green_chapel_beyond: {
     id: "green_chapel_beyond",
@@ -1225,13 +1247,18 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     regionId: "broceliande",
     pathIds: ["overgrown_trail"],
     directions: ["outbound", "returning"],
-    weight: 2,
-    minimumDistance: 50,
+    weight: 3,
+    minimumDistance: 25,
     maximumDistance: 80,
     tags: ["mystery", "stag", "exploration"],
     repeatable: true,
     maxOccurrencesPerRun: 1,
-    requirements: [{ type: "notCampaignFlag", flag: "white_hart_shard_secured" }],
+    requirements: [
+      {
+        type: "notCampaignFlag",
+        flag: "white_hart_shard_secured"
+      }
+    ],
     stages: {
       start: {
         text: "The hart waits in silence while the forest seems to hold its breath. Its gaze is wary, but not hostile.",
@@ -1240,28 +1267,35 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "wait_beside",
             label: "Wait Beside the Trail",
             nextStage: "hart_breath",
-            resultText: "Arthur lowers his hand and waits. The hart's breathing becomes slow enough to hear.",
+            resultText: "Arthur lowers his hand and waits. The hart's breathing becomes slow enough to hear."
           },
           {
             id: "show_medallion",
             label: "Show the Silver Stag Medallion",
-            requirements: [{ type: "equippedItem", itemId: "silver_stag_medallion", unavailable: "locked", lockedLabel: "Requires the Silver Stag Medallion" }],
+            requirements: [
+              {
+                type: "equippedItem",
+                itemId: "silver_stag_medallion",
+                unavailable: "locked",
+                lockedLabel: "Requires the Silver Stag Medallion"
+              }
+            ],
             nextStage: "hart_breath",
-            resultText: "The medallion catches the hart's eye. Arthur keeps it lowered and lets the animal decide the distance.",
+            resultText: "The medallion catches the hart's eye. Arthur keeps it lowered and lets the animal decide the distance."
           },
           {
             id: "follow_hart",
             label: "Follow Before It Trusts You",
             nextStage: "hart_flees",
-            resultText: "Arthur follows too quickly. The hart springs away through the undergrowth.",
+            resultText: "Arthur follows too quickly. The hart springs away through the undergrowth."
           },
           {
             id: "hunt_hart",
             label: "Hunt the Hart",
             nextStage: "hart_flees",
             resultText: "Arthur reaches for the bow before the omen can move. The hart vanishes.",
-            endEncounter: true,
-          },
+            endEncounter: true
+          }
         ]
       },
       hart_breath: {
@@ -1271,22 +1305,29 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "lower_gaze",
             label: "Lower Your Gaze",
             nextStage: "hart_close",
-            resultText: "Arthur looks to the ground. The hart takes one careful step closer.",
+            resultText: "Arthur looks to the ground. The hart takes one careful step closer."
           },
           {
             id: "call_softly",
             label: "Call Softly with Woodcraft",
-            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            requirements: [
+              {
+                type: "knowledge",
+                knowledgeId: "woodcraft",
+                unavailable: "locked",
+                lockedLabel: "Requires Woodcraft"
+              }
+            ],
             nextStage: "hart_close",
-            resultText: "Arthur matches the forest's quiet rhythm. The hart answers with a soft breath and comes closer.",
+            resultText: "Arthur matches the forest's quiet rhythm. The hart answers with a soft breath and comes closer."
           },
           {
             id: "step_forward",
             label: "Step Toward It",
             nextStage: "hart_flees",
-            resultText: "Arthur steps forward. The hart wheels away before trust can form.",
-          },
-        ],
+            resultText: "Arthur steps forward. The hart wheels away before trust can form."
+          }
+        ]
       },
       hart_close: {
         text: "The hart stands within reach. A pale green shard rests in the moss beneath its chest.",
@@ -1295,19 +1336,26 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "open_hand",
             label: "Open Your Hand to the Shard",
             outcomes: [
-              { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_grace" },
-              { type: "setCampaignFlagOnSafeReturn", flag: "white_hart_shard_secured", value: true },
+              {
+                type: "gainUniqueUnsecuredItem",
+                itemId: "verdant_shard_grace"
+              },
+              {
+                type: "setCampaignFlagOnSafeReturn",
+                flag: "white_hart_shard_secured",
+                value: true
+              }
             ],
             resultText: "The hart allows Arthur to take the shard. Its light settles into his palm, and the guardian disappears without fear.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "touch_hart",
             label: "Reach for the Hart",
             nextStage: "hart_flees",
-            resultText: "Arthur reaches toward the animal. The hart bounds away, leaving the shard behind in the moss.",
-          },
-        ],
+            resultText: "Arthur reaches toward the animal. The hart bounds away, leaving the shard behind in the moss."
+          }
+        ]
       },
       hart_flees: {
         resultStage: true,
@@ -4928,8 +4976,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road", "fountain_of_barenton"],
     directions: ["outbound", "returning"],
     weight: 2,
-    minimumDistance: 101,
-    maximumDistance: 175,
+    minimumDistance: 80,
+    maximumDistance: 185,
     tags: ["campaign", "barenton", "social", "combat", "moral"],
     repeatable: false,
     requirements: [],
