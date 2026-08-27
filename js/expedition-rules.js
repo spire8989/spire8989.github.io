@@ -486,6 +486,9 @@ const ExpeditionRules = Object.freeze({
       lootDebugLog: [],
       returnRewardsRolled: false,
       returnRewardContents: createRewardBucket(),
+      provisionWarningState: "safe",
+      provisionWarningShown: { warning: false, danger: false },
+      dialogueTriggersFired: [],
       sceneOffset: 0,
       status: "active",
       random: typeof options.random === "function" ? options.random : GameRandom.random,
@@ -631,6 +634,18 @@ const ExpeditionRules = Object.freeze({
         if (!player.learnedRecipes.includes(recipeId)) player.learnedRecipes.push(recipeId);
       });
       player.currentGold += returnRewards.gold;
+      const collectedRewards = [
+        ...expedition.unsecuredLoot.map(({ itemId, quantity }) => ({ type: "item", itemId, quantity })),
+        ...Object.entries(expedition.unsecuredMaterials ?? {}).map(([materialId, quantity]) => ({ type: "material", materialId, quantity })),
+        ...expedition.unsecuredRecipes.map((recipeId) => ({ type: "recipe", recipeId, quantity: 1 })),
+        ...returnRewards.items.map(({ itemId, quantity }) => ({ type: "item", itemId, quantity })),
+        ...Object.entries(returnRewards.materials ?? {}).map(([materialId, quantity]) => ({ type: "material", materialId, quantity })),
+        ...returnRewards.recipes.map((recipeId) => ({ type: "recipe", recipeId, quantity: 1 })),
+      ];
+      expedition.firstDiscoveryRewardKeys = collectedRewards
+        .filter((reward) => !hasDiscoveredContent(player, reward))
+        .filter((reward) => markPlayerContentDiscovered(player, reward))
+        .map(discoveryKeyForReward);
     }
     expedition.rewardsSettled = true;
     player.arthurHealth = Math.min(

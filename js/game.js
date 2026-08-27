@@ -31,6 +31,8 @@ const game = {
   travelScenePresentation: null,
   travelPresentationGeneration: 0,
   rewardPresentationContextId: 0,
+  pendingDiscoveryKeys: new Set(),
+  provisionWarningTimerId: null,
   craftingAction: null,
   restAction: null,
   restActionVersion: 0,
@@ -357,7 +359,6 @@ function beginDeparturePresentation(expedition) {
 }
 
 function renderScreen() {
-  if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel();
   switch (game.screen) {
     case "campaign":
       renderCampaign();
@@ -2995,6 +2996,14 @@ function resolveDialoguePortraitAssetId(node, speaker) {
       : null;
 }
 
+function resolveDialogueSpeaker(speakerId) {
+  if (speakerId === PLAYER_CHARACTER_DEFINITION.id) return PLAYER_CHARACTER_DEFINITION;
+  if (typeof COMPANION_DEFINITIONS !== "undefined" && COMPANION_DEFINITIONS[speakerId]) {
+    return COMPANION_DEFINITIONS[speakerId];
+  }
+  return NPC_DEFINITIONS[speakerId] ?? { id: speakerId, name: "Unknown Speaker" };
+}
+
 const TOWN_HOTSPOT_FALLBACKS = Object.freeze({
   northwest: Object.freeze({ x: 0.18, y: 0.27 }),
   northeast: Object.freeze({ x: 0.82, y: 0.27 }),
@@ -3014,12 +3023,23 @@ function townHotspotForDestination(destination) {
   };
 }
 
-const TOWN_HOTSPOT_STYLES = Object.freeze(["tag", "ribbon", "ink"]);
+const TOWN_HOTSPOT_STYLES = Object.freeze(["tag", "ribbon", "ink", "label"]);
+
+function townPresentationDefaults() {
+  return typeof GLOBAL_SETTINGS !== "undefined" ? GLOBAL_SETTINGS.townDefaults ?? {} : {};
+}
 
 function townHotspotStyle(location) {
   const override = typeof debugTownHotspotStyle === "function" ? debugTownHotspotStyle() : null;
   if (TOWN_HOTSPOT_STYLES.includes(override)) return override;
-  return TOWN_HOTSPOT_STYLES.includes(location?.markerStyle) ? location.markerStyle : "tag";
+  const configured = location?.markerStyle ?? townPresentationDefaults().markerStyle;
+  return TOWN_HOTSPOT_STYLES.includes(configured) ? configured : "tag";
+}
+
+function townHotspotShowsIcon(location, style) {
+  if (style === "label") return false;
+  const configured = location?.showMarkerIcons ?? townPresentationDefaults().showMarkerIcons;
+  return configured !== false;
 }
 
 function clampTownHotspotsToScene(scene = document.querySelector(".location-scene")) {
@@ -3057,10 +3077,18 @@ function renderLocation() {
     const destination = DESTINATION_DEFINITIONS[destinationId];
     const locked = destination.requiresIntro !== false && !locationIsUnlocked(location);
     const hotspot = townHotspotForDestination(destination);
+    const style = townHotspotStyle(location);
+    const defaults = townPresentationDefaults();
+    const fontScale = clamp(Number(defaults.markerFontScale) || 1, 0.8, 1.5);
+    const horizontalPadding = clamp(Number(defaults.markerHorizontalPadding) || 0.38, 0.1, 0.9);
+    const verticalPadding = clamp(Number(defaults.markerVerticalPadding) || 0.1, 0.04, 0.35);
+    const icon = townHotspotShowsIcon(location, style)
+      ? `<span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>`
+      : "";
     return `
-      <button class="hub-hotspot town-hotspot-style-${townHotspotStyle(location)} ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
-        style="left: ${hotspot.x * 100}%; top: ${hotspot.y * 100}%;" data-hotspot-x="${hotspot.x}" data-hotspot-y="${hotspot.y}" data-action="open-destination" data-destination-id="${destination.id}" ${locked ? "disabled aria-disabled=\"true\"" : ""}>
-        <span class="hub-building-icon" aria-hidden="true">${destinationIcon(destination.type)}</span>
+      <button class="hub-hotspot town-hotspot-style-${style} ${destination.type === "story" ? "is-story-destination" : ""} ${locked ? "is-locked" : ""}" type="button"
+        style="left: ${hotspot.x * 100}%; top: ${hotspot.y * 100}%; --town-marker-font-scale:${fontScale}; --town-marker-pad-x:${horizontalPadding}rem; --town-marker-pad-y:${verticalPadding}rem;" data-hotspot-x="${hotspot.x}" data-hotspot-y="${hotspot.y}" data-action="open-destination" data-destination-id="${destination.id}" ${locked ? "disabled aria-disabled=\"true\"" : ""}>
+        ${icon}
         <strong>${destination.name}</strong>
       </button>`;
   }).join("");
@@ -3789,7 +3817,7 @@ function chooseDialogue(choiceId) {
 function dialogueRuntimeContext(session = game.dialogueSession) {
   return {
     player: game.player,
-    ...(session?.context?.type === "encounter" ? { expedition: game.expedition } : {}),
+    ...(["encounter", "expedition"].includes(session?.context?.type) ? { expedition: game.expedition } : {}),
   };
 }
 
@@ -3799,6 +3827,23 @@ function applyDialogueResult(result, returnContext = null) {
     message: toast.message ?? "",
     type: toast.toastType ?? "normal",
   }));
+  if (returnContext?.type === "expedition" && result.ended) {
+    const expedition = game.expedition;
+    game.dialogueSession = null;
+    if ((result.effects ?? []).length > 0 || (result.rewards ?? []).length > 0) savePlayer();
+    if (expedition?.status === "active") {
+      expedition.travelState = returnContext.previousTravelState ?? "traveling";
+      if ((result.rewards ?? []).length > 0) {
+        queueRewardRevealPresentation(result.rewards, {
+          source: "expedition-dialogue",
+          expedition,
+          eventId: `expedition-dialogue:${game.rewardPresentationContextId}:${returnContext.triggerId ?? "dialogue"}`,
+        });
+      }
+      renderScreen();
+    }
+    return;
+  }
   if (returnContext?.type === "encounter" && result.ended && game.expedition?.activeEncounter) {
     const completed = EncounterManager.completeDialogue(
       game.expedition,
@@ -3834,9 +3879,7 @@ function applyDialogueResult(result, returnContext = null) {
 function renderDialogueOverlay(session) {
   const node = DialogueSystem.currentNode(session);
   if (!node) return "";
-  const speaker = node.speakerId === PLAYER_CHARACTER_DEFINITION.id
-    ? PLAYER_CHARACTER_DEFINITION
-    : NPC_DEFINITIONS[node.speakerId] ?? { name: "Unknown Speaker" };
+  const speaker = resolveDialogueSpeaker(node.speakerId);
   const choices = DialogueSystem.availableChoices(session, dialogueRuntimeContext(session));
   const initials = (speaker.name ?? "?")
     .split(/\s+/)
@@ -4467,6 +4510,7 @@ async function startExpedition() {
   }
   const committedProvisions = game.preparationSupplies;
   game.rewardPresentationContextId += 1;
+  game.pendingDiscoveryKeys.clear();
   if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel({ resetSeen: true });
   game.expeditionStartPending = true;
   refreshPreparation();
@@ -4721,6 +4765,12 @@ function renderExpedition() {
     game.travelVisualState = captureTravelVisualState(expedition) ?? game.travelVisualState;
   }
   if (expedition.combat) {
+    if (!expedition.combat.initialVisualsReady) {
+      if (!document.querySelector(".travel-scene, .combat-preparing")) {
+        ui.screenRoot.innerHTML = `<section class="screen expedition-screen combat-screen combat-preparing" aria-label="Preparing combat"><div class="visual-frame combat-scene"><p class="combat-preparing-message">The company takes position...</p></div></section>`;
+      }
+      return;
+    }
     renderCombat(expedition, expedition.combat);
     return;
   }
@@ -4761,6 +4811,10 @@ function renderExpedition() {
         .forEach((child) => child.remove());
       expeditionScreen.append(panelHost);
       panelHost.innerHTML = expeditionPanelMarkup;
+      expeditionScreen.querySelector(".dialogue-overlay")?.remove();
+      if (game.dialogueSession?.context?.type === "expedition") {
+        expeditionScreen.insertAdjacentHTML("beforeend", renderDialogueOverlay(game.dialogueSession));
+      }
       initializeCharacterSprites(expeditionScreen);
       applyEncounterPartyLayout(activeEncounter, expedition.activeEncounter, game.travelPartyVisualState);
       game.travelVisualState = null;
@@ -4783,6 +4837,7 @@ function renderExpedition() {
         ${expedition.travelState === "departure" ? renderExpeditionDepartureBanner(expedition) : ""}
       </div>
       <div id="expedition-panel-host">${expeditionPanelMarkup}</div>
+      ${game.dialogueSession?.context?.type === "expedition" ? renderDialogueOverlay(game.dialogueSession) : ""}
     </section>`;
   markTravelPresentationNode(document.querySelector("#travel-scene"));
   markTravelPresentationNode(document.querySelector("#travel-art"));
@@ -5532,7 +5587,8 @@ function encounterChoiceTone(choice) {
 
 function updateExpedition(deltaSeconds) {
   const expedition = game.expedition;
-  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat) {
+  if (!expedition || expedition.status !== "active" || expedition.activeEncounter || expedition.combat
+    || game.dialogueSession?.context?.type === "expedition") {
     return;
   }
 
@@ -5540,6 +5596,7 @@ function updateExpedition(deltaSeconds) {
     ? ExpeditionRules.returnSpeedMultiplier(expedition)
     : 1;
   const paceMultiplier = ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier;
+  const previousDistance = expedition.distance;
   const travel = ExpeditionRules.travel(
     expedition,
     game.player,
@@ -5564,6 +5621,12 @@ function updateExpedition(deltaSeconds) {
     playEncounterAudio(EncounterManager.definitionFor(expedition));
     renderScreen();
   }
+
+  if (travel.distanceTraveled > 0 && triggerExpeditionDialogue(expedition, "distanceReached", {
+    previousDistance,
+  })) {
+    return;
+  }
 }
 
 function beginReturn() {
@@ -5577,7 +5640,9 @@ function beginReturn() {
     return;
   }
 
+  const previousTravelState = expedition.travelState;
   ExpeditionRules.beginReturn(expedition);
+  if (triggerExpeditionDialogue(expedition, "beginReturn", { previousTravelState })) return;
   announceTravelEvent("The company turns back toward the forest edge.");
   updateTravelHud();
 }
@@ -5823,6 +5888,10 @@ function finishEncounterResolution(result, expedition, rewardStartIndex = null) 
   if (!result.combatStarted && !result.dialogueStarted) {
     queueEncounterRewardReveal(expedition, "encounter", rewardStartIndex);
   }
+  if (triggerExpeditionDialogue(expedition, "encounterOutcome")) {
+    renderScreen();
+    return;
+  }
 
   renderScreen();
 }
@@ -5836,15 +5905,35 @@ function startCombat(expedition, combatId, options = {}) {
     return false;
   }
   expedition.combat = combat;
-  [...combat.allies, ...combat.enemies].forEach((combatant) => {
-    preloadCharacterVisuals(
-      characterDefinitionForCombatant(combatant),
-      combatant.side === "enemy" ? ["idle", "attack"] : CHARACTER_VISUAL_SLOTS,
-    );
+  combat.initialVisualsReady = false;
+  combat.initialVisualsPromise = prepareCombatInitialVisuals(expedition, combat).then(() => {
+    if (expedition.combat !== combat) return;
+    combat.initialVisualsReady = true;
+    // Attack and other non-critical slots are deliberately warmed after the
+    // first frame is ready, so an attack sheet can never delay combat entry.
+    [...combat.allies, ...combat.enemies].forEach((combatant) => {
+      preloadCharacterVisuals(
+        characterDefinitionForCombatant(combatant),
+        combatant.side === "enemy" ? ["attack"] : CHARACTER_VISUAL_SLOTS,
+      );
+    });
+    if (game.expedition === expedition && game.screen === "expedition") renderScreen();
   });
   const combatStartSfxId = expeditionDefinition(expedition).combatStartSfxId;
   if (combatStartSfxId) AudioManager.playSfx(combatStartSfxId);
   return true;
+}
+
+function prepareCombatInitialVisuals(expedition, combat) {
+  const encounter = expedition?.activeEncounter
+    ? EncounterManager.definitionFor(expedition)
+    : null;
+  const backgroundId = resolveCombatBackgroundAssetId(expedition, encounter);
+  const idleLoads = [...combat.allies, ...combat.enemies].map((combatant) => (
+    preloadCharacterVisualSlot(characterDefinitionForCombatant(combatant), "idle")
+  ));
+  if (backgroundId) idleLoads.push(preloadTravelSceneAsset(backgroundId));
+  return Promise.allSettled(idleLoads);
 }
 
 function hasSynthSfx(id) {
@@ -5937,6 +6026,48 @@ function startEncounterDialogue(expedition, dialogueId) {
   if (!session) return false;
   game.dialogueSession = session;
   return true;
+}
+
+function startExpeditionDialogue(expedition, trigger) {
+  if (!expedition || expedition.status !== "active" || game.dialogueSession || !trigger?.dialogueId) return false;
+  const previousTravelState = trigger.previousTravelState ?? expedition.travelState;
+  const session = DialogueSystem.start(trigger.dialogueId, {
+    player: game.player,
+    expedition,
+    returnContext: {
+      type: "expedition",
+      triggerId: trigger.id ?? null,
+      previousTravelState,
+    },
+  });
+  if (!session) return false;
+  expedition.travelState = "paused";
+  game.dialogueSession = session;
+  if (game.screen === "expedition") renderScreen();
+  return true;
+}
+
+function triggerExpeditionDialogue(expedition, triggerName, context = {}) {
+  if (!expedition || expedition.status !== "active" || game.dialogueSession) return false;
+  const triggers = expeditionDefinition(expedition)?.dialogueTriggers;
+  if (!Array.isArray(triggers)) return false;
+  expedition.dialogueTriggersFired ??= [];
+  const candidate = triggers.find((trigger) => {
+    if (!trigger || trigger.trigger !== triggerName || !trigger.dialogueId) return false;
+    if (trigger.repeatable !== true && expedition.dialogueTriggersFired.includes(trigger.id)) return false;
+    if (trigger.direction && trigger.direction !== expedition.direction) return false;
+    if (triggerName === "distanceReached") {
+      const distance = Number(trigger.distance);
+      if (!Number.isFinite(distance)
+        || !(Number(context.previousDistance) < distance && expedition.distance >= distance)) return false;
+    }
+    return typeof EncounterRequirements === "undefined"
+      || EncounterRequirements.meetsAll(trigger.requirements ?? [], { expedition, player: game.player });
+  });
+  if (!candidate) return false;
+  const started = startExpeditionDialogue(expedition, { ...candidate, previousTravelState: context.previousTravelState });
+  if (started && candidate.repeatable !== true && candidate.id) expedition.dialogueTriggersFired.push(candidate.id);
+  return started;
 }
 
 function chooseCombatAbility(abilityId) {
@@ -6072,6 +6203,7 @@ function finishCombatResolution(expedition) {
     if (!completed.combatStarted && !completed.dialogueStarted) {
       queueEncounterRewardReveal(expedition, "combat");
     }
+    if (result === "victory") triggerExpeditionDialogue(expedition, "combatVictory");
     renderScreen();
   }
 }
@@ -6159,8 +6291,12 @@ function completeReturn() {
     provisionsReturned: expedition.provisionsReturned,
   };
   showScreen("summary");
+  const firstDiscoveryKeys = new Set(expedition.firstDiscoveryRewardKeys ?? []);
   queueRewardRevealPresentation(
-    rewardBucketEntries(expedition.returnRewardContents),
+    rewardBucketEntries(expedition.returnRewardContents).map((reward) => ({
+      ...reward,
+      firstDiscovery: firstDiscoveryKeys.has(discoveryKeyForReward(reward)),
+    })),
     {
       source: "return",
       eventId: `return:${game.rewardPresentationContextId}:${expedition.returnRewardTier ?? "none"}`,
@@ -6241,21 +6377,57 @@ function rewardIconKind(reward) {
 }
 
 function rewardPresentation(reward) {
+  const explicit = reward?.revealTier ?? reward?.presentationTier ?? reward?.rewardPresentation;
+  if (["routine", "notable", "major"].includes(explicit)) return explicit;
+  if (["minor", "normal", "major"].includes(explicit)) {
+    return ({ minor: "routine", normal: "notable", major: "major" })[explicit];
+  }
+  const settings = typeof GLOBAL_SETTINGS !== "undefined" ? GLOBAL_SETTINGS.rewardPresentation ?? {} : {};
   const definition = rewardDefinition(reward);
   const rarityRank = RARITY_DEFINITIONS[definition?.rarity ?? "common"]?.rank ?? 0;
-  if (reward.type === "recipe" || definition?.questItem || definition?.category === "quest"
-    || definition?.category === "relic" || rarityRank >= 3
-    || (rarityRank >= 2 && definition?.category !== "valuable" && reward.type !== "material")) {
+  const rarityRankFor = (rarity) => RARITY_DEFINITIONS[rarity]?.rank ?? 0;
+  const fullCategories = new Set(settings.fullPopupCategories ?? ["quest", "relic"]);
+  const fullTypes = new Set(settings.fullPopupTypes ?? ["recipe", "ability", "knowledge"]);
+  const majorCategories = new Set(settings.majorPopupCategories ?? ["quest", "relic"]);
+  const majorTypes = new Set(settings.majorPopupTypes ?? ["recipe", "ability", "knowledge"]);
+  const category = definition?.category;
+  const fullByRarity = rarityRank >= rarityRankFor(settings.fullPopupMinimumRarity ?? "uncommon");
+  const majorByRarity = rarityRank >= rarityRankFor(settings.majorPopupMinimumRarity ?? "rare")
+    && category !== "valuable" && reward.type !== "material";
+  const goldBehavior = settings.goldBehavior ?? "minor";
+  const materialBehavior = settings.materialBehavior ?? "normal";
+  const categoryOrTypeIsFull = fullCategories.has(category) || fullTypes.has(reward.type);
+  const categoryOrTypeIsMajor = majorCategories.has(category) || majorTypes.has(reward.type);
+  if (reward.type === "gold" && goldBehavior === "minor") return "routine";
+  if (reward.type === "material" && materialBehavior === "minor") return "routine";
+  if (categoryOrTypeIsMajor || majorByRarity || (reward.type === "recipe" && fullTypes.has("recipe"))) {
     return "major";
   }
-  if (rarityRank >= 1 || ["valuable", "curiosity"].includes(definition?.category)) {
+  if (categoryOrTypeIsFull || fullByRarity || ["valuable", "curiosity"].includes(category)) {
     return "notable";
   }
   return "routine";
 }
 
-function rewardRevealTier(reward) {
-  return ({ routine: "minor", notable: "normal", major: "major" })[rewardPresentation(reward)] ?? "minor";
+function rewardPresentationWithFirstDiscovery(reward, firstDiscovery = false) {
+  const base = rewardPresentation(reward);
+  const explicit = reward?.revealTier ?? reward?.presentationTier ?? reward?.rewardPresentation;
+  if (explicit !== undefined && explicit !== null && explicit !== "") return base;
+  if (!firstDiscovery || typeof GLOBAL_SETTINGS === "undefined" || GLOBAL_SETTINGS.firstDiscovery?.enabled === false) {
+    return base;
+  }
+  const settings = GLOBAL_SETTINGS.firstDiscovery ?? {};
+  const definition = rewardDefinition(reward);
+  const eligible = (settings.eligibleTypes ?? []).includes(reward.type)
+    || (settings.eligibleCategories ?? []).includes(definition?.category);
+  if (!eligible) return base;
+  const minimum = settings.minimumPresentation === "major" ? "major" : "notable";
+  const order = { routine: 0, notable: 1, major: 2 };
+  return order[base] >= order[minimum] ? base : minimum;
+}
+
+function rewardRevealTier(reward, firstDiscovery = false) {
+  return ({ routine: "minor", notable: "normal", major: "major" })[rewardPresentationWithFirstDiscovery(reward, firstDiscovery)] ?? "minor";
 }
 
 function rewardRevealLabel(reward, tier, definition) {
@@ -6276,11 +6448,18 @@ function rewardRevealAnnouncement(reward, name) {
   return `Found ${quantity > 1 ? `${quantity} ` : ""}${name}.`;
 }
 
-function rewardRevealModel(reward) {
+function rewardRevealModel(reward, options = {}) {
   if (!rewardHasCollectedQuantity(reward)) return null;
   const definition = rewardDefinition(reward);
   const rarity = definition?.rarity ?? "common";
-  const tier = rewardRevealTier(reward);
+  const discoveryKey = discoveryKeyForReward(reward);
+  const firstDiscovery = reward.firstDiscovery === true
+    || (options.allowFirstDiscovery !== false
+      && discoveryKey
+      && !hasDiscoveredContent(game.player, reward)
+      && !game.pendingDiscoveryKeys.has(discoveryKey));
+  if (firstDiscovery && discoveryKey) game.pendingDiscoveryKeys.add(discoveryKey);
+  const tier = rewardRevealTier(reward, firstDiscovery);
   const name = rewardDisplayName(reward);
   return {
     type: reward.type,
@@ -6304,12 +6483,13 @@ function rewardRevealModel(reward) {
     announcement: rewardRevealAnnouncement(reward, name),
     soundRole: tier === "major" ? "majorLoot" : "loot",
     sfxId: reward.sfxId ?? null,
+    firstDiscovery,
   };
 }
 
 function queueRewardRevealPresentation(rewards = [], options = {}) {
   if (typeof RewardRevealSystem === "undefined") return false;
-  const models = rewards.map(rewardRevealModel).filter(Boolean);
+  const models = rewards.map((reward) => rewardRevealModel(reward, options)).filter(Boolean);
   if (models.length === 0) return false;
   return RewardRevealSystem.queue(models, {
     contextKey: `expedition:${game.rewardPresentationContextId}`,
@@ -6492,6 +6672,7 @@ function updateTravelHudText(expedition = game.expedition) {
   if (provisionsCard) {
     provisionsCard.dataset.provisionState = provisionStatus.state;
   }
+  updateProvisionWarningTransition(expedition, provisionStatus);
   setText("#health-value", `${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}`);
   setText("#material-bag-count", `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity()}`);
   setText("#loot-count", unsecuredLootDisplayValue(expedition));
@@ -6521,6 +6702,49 @@ function updateTravelHudText(expedition = game.expedition) {
   }
   setText("#path-value", pathLabel(expedition.currentPathId));
   setText("#journey-log-preview", journeyLogPreview(expedition));
+}
+
+function expeditionWarningSettings() {
+  return typeof GLOBAL_SETTINGS !== "undefined" ? GLOBAL_SETTINGS.expeditionWarnings ?? {} : {};
+}
+
+function showProvisionWarningBanner(expedition, state) {
+  if (!expedition || expedition.direction === "returning") return;
+  const settings = expeditionWarningSettings();
+  const message = state === "danger" ? settings.criticalText : settings.lowText;
+  const enabled = state === "danger" ? settings.criticalEnabled !== false : settings.lowEnabled !== false;
+  const scene = document.querySelector("#travel-scene");
+  if (!enabled || !message || !scene) return;
+  scene.querySelector(".provision-warning-banner")?.remove();
+  if (game.provisionWarningTimerId !== null) window.clearTimeout(game.provisionWarningTimerId);
+  const banner = document.createElement("div");
+  banner.className = `provision-warning-banner provision-warning-${state}`;
+  banner.setAttribute("role", "status");
+  banner.textContent = message;
+  scene.appendChild(banner);
+  const duration = Math.max(800, Number(settings.bannerDurationMs) || 3200);
+  game.provisionWarningTimerId = window.setTimeout(() => {
+    banner.remove();
+    game.provisionWarningTimerId = null;
+  }, duration);
+}
+
+function updateProvisionWarningTransition(expedition, status) {
+  if (!expedition || !status) return;
+  expedition.provisionWarningShown ??= { warning: false, danger: false };
+  const previous = expedition.provisionWarningState ?? "safe";
+  if (status.state === "safe" && expeditionWarningSettings().retriggerAfterSafe !== false) {
+    expedition.provisionWarningShown.warning = false;
+    expedition.provisionWarningShown.danger = false;
+  }
+  const warningTransition = status.state === "warning" && previous === "safe";
+  const dangerTransition = status.state === "danger" && previous !== "danger";
+  expedition.provisionWarningState = status.state;
+  if ((warningTransition || dangerTransition) && !expedition.provisionWarningShown[status.state]) {
+    expedition.provisionWarningShown[status.state] = true;
+    showProvisionWarningBanner(expedition, status.state);
+    if (status.state === "warning") triggerExpeditionDialogue(expedition, "lowProvisionWarning");
+  }
 }
 
 function syncTravelPresentation(expedition = game.expedition) {
@@ -6625,6 +6849,7 @@ function resetSave() {
 
   cancelRestAction();
   game.player = SaveSystem.reset();
+  game.pendingDiscoveryKeys.clear();
   if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel({ resetSeen: true });
   game.expedition = null;
   game.expeditionStartPending = false;

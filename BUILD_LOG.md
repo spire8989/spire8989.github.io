@@ -5517,6 +5517,44 @@ The attached simulator guide supplied the outcome-based classifier, Cautious pre
 
 The focused deterministic simulation suite passes 64 assertions, including safe loot/recipe preference, combat/health/random/unknown-risk cases, neutral-choice ties, selected-choice telemetry, CSV fields, and batch summaries. The Old Forest balance suite passes 10 assertions. Broader campaign, progression, and replay suites were also attempted but retain unrelated current-branch fixture failures from the separate recipe/content work; none of those files were modified here. `git diff --check` passes.
 
+## 2026-08-27 - Cross-Cutting Audio/Expedition Presentation Polish
+
+### Goal
+
+Make expedition presentation reliable and configurable without changing the
+dependency-free game architecture or simulator behavior.
+
+### AI-assisted implementation
+
+- Combat now waits for the first ally/enemy idle visuals and combat background
+  before replacing the travel frame; attack visuals continue warming
+  asynchronously.
+- Reward reveals survive same-screen refreshes, keep duplicate-event guards,
+  and use configurable minor/normal/major rules, global synth SFX, and
+  persistent first-discovery promotion with backward-compatible save migration.
+- Added the `GLOBAL_SETTINGS` singleton and Content Editor category for reward,
+  warning, town-marker, and bark defaults. Town Label markers omit icon markup.
+- Added transition-only low/critical provision banners and reusable expedition
+  dialogue triggers using the existing DialogueSystem, including companion
+  speaker resolution and one-shot trigger tracking.
+
+### Manual changes
+
+The attached polish guide supplied the presentation, Global Settings, Label
+marker, expedition dialogue, warning, and regression-safety requirements. No
+new audio assets or runtime dependencies were introduced; existing authored
+content and simulator balance remain data-driven.
+
+### Verification and resulting prototype state
+
+The reward-reveal browser checks pass 16 assertions, including persistent
+first-discovery state and save migration. Synth-audio and asset/audio smoke
+checks pass 9 and 5 assertions, and the targeted Global Settings/Label editor
+checks pass. The headless Content Editor loads the Global Settings category
+with zero validation errors. The broader legacy editor/combat suites still
+report unrelated fixture/layout mismatches; existing authored data changes in
+the Grail worktree remain unstaged.
+
 ## 2026-08-26 - Corrective Context-Aware Cautious Simulator Policy
 
 ### Goal

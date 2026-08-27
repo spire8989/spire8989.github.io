@@ -2677,6 +2677,36 @@ button:active:not(:disabled) {
   color: #d99b87;
 }
 
+.provision-warning-banner {
+  position: absolute;
+  z-index: 12;
+  top: 3.05rem;
+  left: 50%;
+  width: min(88%, 25rem);
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgb(244 221 160 / 62%);
+  border-radius: 0.32rem;
+  background: rgb(17 25 18 / 92%);
+  box-shadow: 0 0.18rem 0.6rem rgb(0 0 0 / 35%);
+  color: #fff1c5;
+  font-size: clamp(0.68rem, 2.8cqw, 0.86rem);
+  line-height: 1.3;
+  text-align: center;
+  transform: translateX(-50%);
+  animation: provision-warning-in 180ms ease-out both;
+  pointer-events: none;
+}
+
+.provision-warning-danger {
+  border-color: rgb(224 123 91 / 78%);
+  color: #ffd6bd;
+}
+
+@keyframes provision-warning-in {
+  from { opacity: 0; transform: translate(-50%, -0.35rem); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
 @keyframes provision-warning-pulse {
   0%, 100% {
     box-shadow: 0 0 0 rgb(217 189 114 / 0%);
@@ -4433,8 +4463,8 @@ button.combatant {
 }
 
 .hub-hotspot.town-hotspot-style-tag {
-  padding-right: 0.38rem;
-  padding-left: 0.38rem;
+  padding-right: var(--town-marker-pad-x, 0.38rem);
+  padding-left: var(--town-marker-pad-x, 0.38rem);
   border-color: rgb(244 221 160 / 34%);
   background: rgb(17 25 18 / 82%);
   box-shadow: 0 0.08rem 0.2rem rgb(0 0 0 / 28%);
@@ -4455,6 +4485,15 @@ button.combatant {
   padding: 0.1rem 0.26rem;
   color: #f7e9bb;
   text-shadow: 0 0.08rem 0.18rem #081008, 0 0 0.2rem rgb(8 16 8 / 85%);
+}
+
+.hub-hotspot.town-hotspot-style-label {
+  min-width: 3.2rem;
+  padding: calc(var(--town-marker-pad-y, 0.1rem) + 0.04rem) calc(var(--town-marker-pad-x, 0.38rem) + 0.08rem);
+  border: 1px solid rgb(244 221 160 / 48%);
+  border-radius: 0.28rem;
+  background: rgb(17 25 18 / 88%);
+  box-shadow: 0 0.1rem 0.28rem rgb(0 0 0 / 30%);
 }
 
 .hub-hotspot.town-hotspot-style-ink::before {
@@ -4484,7 +4523,12 @@ button.combatant {
 }
 
 .hub-hotspot.town-hotspot-style-tag strong {
-  font-size: clamp(0.66rem, 2.82cqw, 0.86rem);
+  font-size: calc(clamp(0.66rem, 2.82cqw, 0.86rem) * var(--town-marker-font-scale, 1));
+}
+
+.hub-hotspot.town-hotspot-style-label strong {
+  font-size: calc(clamp(0.72rem, 3.05cqw, 0.94rem) * var(--town-marker-font-scale, 1));
+  line-height: 1.15;
 }
 
 .hub-building-icon {

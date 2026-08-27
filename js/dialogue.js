@@ -146,8 +146,10 @@ const DialogueSystem = Object.freeze({
         case "giveItem": {
           const item = ITEM_DEFINITIONS[effect.itemId];
           if (item && (!item.unique || !player.ownedItems[effect.itemId])) {
-            player.ownedItems[effect.itemId] = (player.ownedItems[effect.itemId] ?? 0) + (effect.quantity ?? 1);
+            const reward = { type: "item", itemId: effect.itemId, quantity: effect.quantity ?? 1 };
+            player.ownedItems[effect.itemId] = (player.ownedItems[effect.itemId] ?? 0) + reward.quantity;
             messages.push(`Received ${effect.quantity ?? 1} ${item.name}.`);
+            rewards.push({ ...reward, firstDiscovery: markPlayerContentDiscovered(player, reward) });
             applied.push(effect);
           }
           break;
@@ -162,7 +164,8 @@ const DialogueSystem = Object.freeze({
           } else {
             player.learnedRecipes.push(effect.recipeId);
             messages.push(`Learned the ${recipe.name} recipe.`);
-            rewards.push({ type: "recipe", recipeId: effect.recipeId, quantity: 1 });
+            const reward = { type: "recipe", recipeId: effect.recipeId, quantity: 1 };
+            rewards.push({ ...reward, firstDiscovery: markPlayerContentDiscovered(player, reward) });
           }
           applied.push(effect);
           break;
@@ -170,7 +173,8 @@ const DialogueSystem = Object.freeze({
         case "learnAbility": {
           const learned = AbilityRules.learn(player, effect.abilityId);
           if (learned.applied) {
-            rewards.push({ type: "ability", abilityId: effect.abilityId, quantity: 1 });
+            const reward = { type: "ability", abilityId: effect.abilityId, quantity: 1 };
+            rewards.push({ ...reward, firstDiscovery: markPlayerContentDiscovered(player, reward) });
             messages.push(`Learned ${AbilityRules.definition(effect.abilityId)?.name ?? effect.abilityId}.`);
             applied.push(effect);
           }
@@ -182,7 +186,8 @@ const DialogueSystem = Object.freeze({
             if (typeof KNOWLEDGE_DEFINITIONS !== "undefined" && KNOWLEDGE_DEFINITIONS[effect.knowledgeId]) {
               messages.push(`Knowledge learned: ${KNOWLEDGE_DEFINITIONS[effect.knowledgeId].name}`);
             }
-            rewards.push({ type: "knowledge", knowledgeId: effect.knowledgeId, quantity: 1 });
+            const reward = { type: "knowledge", knowledgeId: effect.knowledgeId, quantity: 1 };
+            rewards.push({ ...reward, firstDiscovery: markPlayerContentDiscovered(player, reward) });
             applied.push(effect);
           }
           break;
@@ -205,7 +210,8 @@ const DialogueSystem = Object.freeze({
           if (player.ownedItems[effect.fromItemId] <= 0) delete player.ownedItems[effect.fromItemId];
           player.ownedItems[effect.toItemId] = (player.ownedItems[effect.toItemId] ?? 0) + 1;
           messages.push(`${fromItem.name} becomes ${toItem.name}.`);
-          rewards.push({ type: "item", itemId: effect.toItemId, quantity: 1 });
+          const reward = { type: "item", itemId: effect.toItemId, quantity: 1 };
+          rewards.push({ ...reward, firstDiscovery: markPlayerContentDiscovered(player, reward) });
           applied.push(effect);
           break;
         }

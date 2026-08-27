@@ -71,7 +71,7 @@ def run() -> None:
             "})()",
             "Glint in the Mud did not settle into its result phase",
         )
-        time.sleep(0.36)
+        time.sleep(0.5)
         check(
             "document.querySelector('#reward-reveal-host')?.classList.contains('is-normal')"
             "&&document.querySelector('#reward-reveal-host')?.textContent.includes('Old Silver Coins')"
@@ -95,8 +95,8 @@ def run() -> None:
             "(() => {"
             "RewardRevealSystem.cancel({resetSeen:true});"
             "const rewards=[{type:'material',materialId:'wood',quantity:3},{type:'material',materialId:'wood',quantity:2},{type:'gold',quantity:6}];"
-            "const first=queueRewardRevealPresentation(rewards,{source:'test',eventId:'test-minor'});"
-            "const duplicate=queueRewardRevealPresentation(rewards,{source:'test',eventId:'test-minor'});"
+            "const first=queueRewardRevealPresentation(rewards,{source:'test',eventId:'test-minor',allowFirstDiscovery:false});"
+            "const duplicate=queueRewardRevealPresentation(rewards,{source:'test',eventId:'test-minor',allowFirstDiscovery:false});"
             "return first===true&&duplicate===false;"
             "})()",
             "Reward queue did not deduplicate a repeated event token",
@@ -118,7 +118,7 @@ def run() -> None:
             "})()",
             "Major reward could not be queued",
         )
-        time.sleep(0.38)
+        time.sleep(0.5)
         check(
             "document.querySelector('#reward-reveal-host')?.classList.contains('is-major')"
             "&&document.querySelector('#reward-reveal-host')?.textContent.includes('Green Glass Vial')"
@@ -129,6 +129,62 @@ def run() -> None:
         check(
             "(() => { RewardRevealSystem.cancel(); return RewardRevealSystem.pendingCount()===0 && !document.querySelector('#reward-reveal-host')?.classList.contains('is-visible'); })()",
             "Reward reveal cancellation left stale presentation state",
+        )
+
+        check(
+            "(() => {"
+            "RewardRevealSystem.cancel({resetSeen:true});"
+            "queueRewardRevealPresentation([{type:'item',itemId:'green_glass_vial',quantity:1}],{source:'refresh',eventId:'refresh-reveal'});"
+            "renderScreen();"
+            "return RewardRevealSystem.pendingCount()===0 || RewardRevealSystem.isBlocking() || document.querySelector('#reward-reveal-host')?.classList.contains('is-visible');"
+            "})()",
+            "A normal expedition render cancelled an active or queued reward reveal",
+        )
+
+        check(
+            "(() => {"
+            "RewardRevealSystem.cancel({resetSeen:true}); game.pendingDiscoveryKeys.clear(); game.player.discoveredContent=[];"
+            "const reward={type:'item',itemId:'torch',quantity:1};"
+            "const first=rewardRevealModel(reward); const second=rewardRevealModel(reward);"
+            "const marked=markPlayerContentDiscovered(game.player,reward); game.pendingDiscoveryKeys.clear();"
+            "const known=rewardRevealModel(reward);"
+            "const explicit=rewardRevealModel({type:'item',itemId:'silver_stag_medallion',quantity:1,revealTier:'minor'});"
+            "return first?.firstDiscovery===true&&first.tier==='normal'&&second?.firstDiscovery===false&&second.tier==='minor'&&marked&&known?.firstDiscovery===false&&explicit?.tier==='minor';"
+            "})()",
+            "First-discovery promotion did not respect persistent state or explicit tier priority",
+        )
+
+        check(
+            "(() => { const defaults=SaveSystem.createDefaultPlayerState(); const migrated=sanitizePlayerState({saveVersion:1,ownedItems:{},equippedItems:{}},defaults); return migrated.saveVersion===12&&Array.isArray(migrated.discoveredContent)&&migrated.discoveredContent.length===0; })()",
+            "Older saves did not migrate with an empty discovered-content ledger",
+        )
+
+        check(
+            "resolveDialogueSpeaker('sir_kay')?.id==='sir_kay'"
+            "&&resolveDialogueSpeaker('arthur')?.id==='arthur'",
+            "Companion dialogue speakers did not resolve through the shared runtime",
+        )
+
+        check(
+            "(() => {"
+            "const location=LOCATION_DEFINITIONS.broceliande_village; const previous=location.markerStyle; location.markerStyle='label'; game.player.currentLocationId='broceliande_village'; renderLocation();"
+            "const marker=document.querySelector('.hub-hotspot.town-hotspot-style-label'); const textOnly=Boolean(marker)&&!marker.querySelector('.hub-building-icon');"
+            "if(previous===undefined) delete location.markerStyle; else location.markerStyle=previous; renderScreen(); return textOnly;"
+            "})()",
+            "Label town markers did not omit icon markup",
+        )
+
+        check(
+            "(() => {"
+            "const expedition=game.expedition; expedition.direction='outbound'; expedition.provisionWarningShown={warning:false,danger:false}; expedition.provisionWarningState='safe'; renderExpedition();"
+            "updateProvisionWarningTransition(expedition,{state:'warning'}); const first=expedition.provisionWarningShown.warning&&document.querySelector('.provision-warning-warning');"
+            "updateProvisionWarningTransition(expedition,{state:'warning'}); const once=expedition.provisionWarningShown.warning;"
+            "updateProvisionWarningTransition(expedition,{state:'safe'}); const reset=!expedition.provisionWarningShown.warning;"
+            "updateProvisionWarningTransition(expedition,{state:'warning'}); const retrigger=expedition.provisionWarningShown.warning;"
+            "updateProvisionWarningTransition(expedition,{state:'danger'}); const critical=expedition.provisionWarningShown.danger&&document.querySelector('.provision-warning-danger');"
+            "return Boolean(first)&&once&&reset&&retrigger&&Boolean(critical);"
+            "})()",
+            "Provision warning transitions did not produce the expected one-shot/retrigger banners",
         )
 
         if devtools.console_errors:

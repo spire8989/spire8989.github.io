@@ -182,6 +182,10 @@ function grantLootEntry(entry, context, sourceTableId) {
     else if (context.expedition) context.expedition.unsecuredRecipes.push(entry.recipeId);
     else if (!context.player.learnedRecipes.includes(entry.recipeId)) context.player.learnedRecipes.push(entry.recipeId);
   }
+  if (context.player && !context.expedition && !context.rewardBucket
+    && ["item", "material", "recipe"].includes(reward.type)) {
+    reward.firstDiscovery = markPlayerContentDiscovered(context.player, reward);
+  }
   recordLootEvent(context, { type: "loot-granted", ...reward });
   return reward;
 }

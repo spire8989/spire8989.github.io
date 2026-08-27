@@ -54,6 +54,10 @@ def run() -> None:
             "Three-ally combat anchors did not stagger the party with its HUDs, or the humanoid-only enemy stagger was applied incorrectly",
         )
         check(
+            "(() => { const originalExpedition=game.expedition; const originalScreen=game.screen; const expedition=ExpeditionRules.createExpedition(game.player,{expeditionId:'old_forest_road',companions:[],provisions:10,random:()=>0}); expedition.status='active'; game.expedition=expedition; game.screen='expedition'; const started=startCombat(expedition,'wild_boar'); const gated=started&&expedition.combat.initialVisualsReady===false&&expedition.combat.initialVisualsPromise instanceof Promise; renderExpedition(); const preparing=Boolean(document.querySelector('.combat-preparing, .travel-scene')); game.expedition=originalExpedition; game.screen=originalScreen; renderScreen(); return gated&&preparing; })()",
+            "Combat did not create an actual idle/background readiness gate before showing its first frame",
+        )
+        check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=['llamrei']; const e=ExpeditionRules.createExpedition(p,{companions:['llamrei'],provisions:5,random:()=>0}); const c=CombatSystem.create(e,'wolves',{random:()=>0}); const arthur=c.allies.find(ally=>ally.id==='arthur'); const llamrei=c.allies.find(ally=>ally.id==='llamrei'); const scale=(unit,count)=>combatCharacterLayoutScale(unit,count); const a1=scale(arthur,1),a2=scale(arthur,2),a3=scale(arthur,3),l1=scale(llamrei,1),l3=scale(llamrei,3); return combatFormationDensityScale(1)===1&&combatFormationDensityScale(2)===1&&Math.abs(combatFormationDensityScale(3)-.87)<.0001&&Math.abs(a2/a1-combatCharacterContextScale(2)/combatCharacterContextScale(1))<.0001&&Math.abs(a3/a1-combatCharacterContextScale(3)*.87/combatCharacterContextScale(1))<.0001&&Math.abs(l3/a3-l1/a1)<.0001; })()",
             "Formation density scaling did not reduce only three-unit visuals or preserve per-character relative size",
         )

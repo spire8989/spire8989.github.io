@@ -48,6 +48,7 @@ const STARTING_PLAYER_STATE = Object.freeze({
     druid_favor_complete: false,
   },
   learnedKnowledge: [],
+  discoveredContent: [],
   completedChapters: ["chapter_01", "chapter_02"],
   bestExpeditionDistance: 0,
   currentGold: 12,
@@ -210,6 +211,7 @@ function sanitizePlayerState(savedState, defaults) {
     selectedExpeditionId,
     campaignFlags,
     learnedKnowledge: sanitizeKnowledge(savedState.learnedKnowledge, defaults.learnedKnowledge),
+    discoveredContent: sanitizeDiscoveredContent(savedState.discoveredContent, defaults.discoveredContent),
     completedChapters: validStringArray(savedState.completedChapters, defaults.completedChapters),
     bestExpeditionDistance: nonNegativeNumber(savedState.bestExpeditionDistance),
     currentGold: nonNegativeNumber(savedState.currentGold),
@@ -227,6 +229,31 @@ function sanitizePlayerState(savedState, defaults) {
       ? savedState.currentLocationId
       : defaults.currentLocationId,
   };
+}
+
+function discoveryKeyForReward(reward) {
+  if (!reward?.type) return null;
+  const id = reward.itemId ?? reward.materialId ?? reward.recipeId ?? reward.abilityId ?? reward.knowledgeId;
+  return typeof id === "string" && id ? `${reward.type}:${id}` : null;
+}
+
+function sanitizeDiscoveredContent(value, fallback = []) {
+  const source = Array.isArray(value) ? value : fallback;
+  return [...new Set(source.filter((entry) => typeof entry === "string" && entry.includes(":")))];
+}
+
+function hasDiscoveredContent(player, reward) {
+  const key = discoveryKeyForReward(reward);
+  return Boolean(key && Array.isArray(player?.discoveredContent) && player.discoveredContent.includes(key));
+}
+
+function markPlayerContentDiscovered(player, reward) {
+  const key = discoveryKeyForReward(reward);
+  if (!player || !key) return false;
+  player.discoveredContent = sanitizeDiscoveredContent(player.discoveredContent);
+  if (player.discoveredContent.includes(key)) return false;
+  player.discoveredContent.push(key);
+  return true;
 }
 
 function sanitizeMaterials(value, legacyItems = {}) {

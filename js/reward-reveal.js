@@ -26,6 +26,22 @@ const RewardRevealSystem = (() => {
     return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
   }
 
+  function rewardPresentationSettings() {
+    return typeof GLOBAL_SETTINGS !== "undefined"
+      ? GLOBAL_SETTINGS.rewardPresentation ?? {}
+      : {};
+  }
+
+  function holdDuration(tier) {
+    const settings = rewardPresentationSettings();
+    const configured = tier === "major"
+      ? settings.majorHoldDurationMs
+      : tier === "normal" ? settings.normalHoldDurationMs : settings.minorHoldDurationMs;
+    return Number.isFinite(Number(configured)) && Number(configured) >= 0
+      ? Number(configured)
+      : REWARD_REVEAL_TIMINGS[tier]?.holdMs ?? 820;
+  }
+
   function clearTimer() {
     if (timerId !== null) {
       window.clearTimeout(timerId);
@@ -171,20 +187,23 @@ const RewardRevealSystem = (() => {
     setBlocking(tier !== "minor");
 
     const model = entry.model ?? entry.items?.[0];
+    const settings = rewardPresentationSettings();
     const directSfxId = model?.sfxId;
+    const discoverySfxId = model?.firstDiscovery && typeof GLOBAL_SETTINGS !== "undefined"
+      ? GLOBAL_SETTINGS.firstDiscovery?.sfxId
+      : null;
+    const globalSfxId = tier === "major" ? settings.majorLootSfxId : settings.defaultLootSfxId;
     const soundRole = model?.soundRole ?? "loot";
     if (typeof AudioManager !== "undefined") {
-      if (!directSfxId || !AudioManager.playSfx(directSfxId)) {
-        AudioManager.playSemantic(soundRole);
-      }
+      const candidates = [directSfxId, discoverySfxId, globalSfxId].filter(Boolean);
+      const played = candidates.some((sfxId) => AudioManager.playSfx(sfxId));
+      if (!played) AudioManager.playSemantic(soundRole);
     }
     window.requestAnimationFrame(() => {
       if (token === lifecycleToken) revealHost.classList.add("is-presented");
     });
 
-    const holdMs = reducedMotion()
-      ? (tier === "minor" ? 420 : 720)
-      : (REWARD_REVEAL_TIMINGS[tier]?.holdMs ?? 820);
+    const holdMs = reducedMotion() ? (tier === "minor" ? 420 : 720) : holdDuration(tier);
     timerId = window.setTimeout(() => finishEntry(token), holdMs);
   }
 
