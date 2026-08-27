@@ -35,13 +35,27 @@ const CombatEffectResolver = Object.freeze({
     const target = effectTarget(state, context, effect.target);
     switch (effect.type) {
       case "dealDamage":
-        return this.dealDamage(state, { ...context, targetCombatant: target }, effect, false);
+        {
+          const result = this.dealDamage(state, {
+            ...context,
+            targetCombatant: target,
+            nonReflectableDamage: Boolean(context.nonReflectableDamage
+              || context.sourceStatus
+              || context.sourcePassive?.equipmentTrigger),
+          }, effect, false);
+          recordEquipmentEffect(state, context, effect, target, result);
+          return result;
+        }
       case "weaponDamage":
         return this.dealDamage(state, { ...context, targetCombatant: target }, effect, true);
       case "heal":
         return this.heal(target, effect.amount);
       case "modifyGauge":
-        return this.modifyGauge(target, effect.amount);
+        {
+          const result = this.modifyGauge(target, effect.amount);
+          recordEquipmentEffect(state, context, effect, target, result);
+          return result;
+        }
       case "applyStatus":
         return this.applyStatus(state, { ...context, targetCombatant: target }, effect);
       case "removeStatus":
@@ -73,6 +87,7 @@ const CombatEffectResolver = Object.freeze({
           passed,
           abilityId: context.abilityId ?? null,
         });
+        recordEquipmentEffect(state, context, effect, target, { passed, chance });
         return this.resolve(state, context, passed ? effect.effects ?? [] : effect.elseEffects ?? []);
       }
       case "setDefending":
@@ -121,6 +136,8 @@ const CombatEffectResolver = Object.freeze({
       }
       const damageEvent = {
         ...context,
+        eventSourceCombatant: source,
+        eventTargetCombatant: target,
         eventType: "damageDealt",
         damage: amount,
         baseDamage: amount,
@@ -182,6 +199,8 @@ const CombatEffectResolver = Object.freeze({
     context.resultMetadata.modifiedDamage = modified;
     const damageEvent = {
       ...damageContext,
+      eventSourceCombatant: source,
+      eventTargetCombatant: target,
       eventType: "damageDealt",
       damage: finalDamage,
       source: source.id,
@@ -258,6 +277,7 @@ const CombatEffectResolver = Object.freeze({
       recordCombatEvent(state, {
         type: "equipment-trigger",
         trigger: context.eventType === "attackHit" ? "onHit" : context.eventType,
+        triggerEvent: context.eventType ?? null,
         effect: "applyStatus",
         sourceItemId: sourcePassive.sourceItemId,
         equipmentSlot: sourcePassive.equipmentSlot ?? null,
@@ -265,6 +285,8 @@ const CombatEffectResolver = Object.freeze({
         chance: chance ?? 1,
         applied: passed,
         target: target.id,
+        eventSource: context.eventSourceCombatant?.id ?? null,
+        eventTarget: context.eventTargetCombatant?.id ?? null,
       });
     }
     if (!passed) return { applied: false, statusId: effect.statusId };
@@ -419,8 +441,29 @@ const CombatEffectResolver = Object.freeze({
 function effectTarget(state, context, targetMode) {
   if (!targetMode || targetMode === "target") return context.targetCombatant ?? context.target;
   if (targetMode === "source" || targetMode === "self") return context.sourceCombatant ?? context.source;
+  if (targetMode === "eventSource") {
+    return context.eventSourceCombatant ?? context.eventSource
+      ?? context.sourceCombatant ?? context.source;
+  }
   if (typeof targetMode === "string") return findCombatant(state, targetMode);
   return context.targetCombatant ?? context.target;
+}
+
+function recordEquipmentEffect(state, context, effect, target, details = {}) {
+  const passive = context.sourcePassive;
+  if (!passive?.equipmentTrigger || !passive.sourceItemId) return;
+  recordCombatEvent(state, {
+    type: "equipment-trigger",
+    trigger: context.eventType ?? null,
+    triggerEvent: context.eventType ?? null,
+    effect: effect.type,
+    sourceItemId: passive.sourceItemId,
+    equipmentSlot: passive.equipmentSlot ?? null,
+    target: target?.id ?? null,
+    eventSource: context.eventSourceCombatant?.id ?? null,
+    eventTarget: context.eventTargetCombatant?.id ?? null,
+    ...details,
+  });
 }
 
 function resourceOwner(state, context, resource) {

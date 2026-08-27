@@ -685,13 +685,31 @@ function equipmentPassives(equippedCombatEffects) {
   }));
   (equippedCombatEffects.combatTriggers ?? []).forEach((trigger, index) => passives.push({
     id: `equipment:${trigger.sourceItemId}:trigger:${index}`,
-    trigger: { event: trigger.trigger === "beforeNormalAttack" ? "beforeAction" : "damagePrevented", conditions: trigger.trigger === "beforeNormalAttack" ? { actionId: "attack" } : null },
-    effects: trigger.effect === "storeCharge"
-      ? [{ type: "storeCharge", chargeId: trigger.chargeId, cap: trigger.cap, amount: "damagePrevented" }]
-      : [{ type: "consumeCharge", chargeId: trigger.chargeId }],
-    sourceItemId: trigger.sourceItemId, equipmentSlot: trigger.equipmentSlot,
+    ...normalizeEquipmentTrigger(trigger),
+    sourceItemId: trigger.sourceItemId,
+    equipmentSlot: trigger.equipmentSlot,
+    equipmentTrigger: true,
   }));
   return passives;
+}
+
+function normalizeEquipmentTrigger(trigger) {
+  if (trigger?.trigger && typeof trigger.trigger === "object") {
+    return {
+      trigger: trigger.trigger,
+      effects: Array.isArray(trigger.effects) ? trigger.effects : [],
+    };
+  }
+  if (trigger?.trigger === "beforeNormalAttack") {
+    return {
+      trigger: { event: "beforeAction", conditions: { actionId: "attack" } },
+      effects: [{ type: "consumeCharge", chargeId: trigger.chargeId }],
+    };
+  }
+  return {
+    trigger: { event: "damagePrevented" },
+    effects: [{ type: "storeCharge", chargeId: trigger?.chargeId, cap: trigger?.cap, amount: "damagePrevented" }],
+  };
 }
 
 function enemyTraitsToPassives(enemyId, traits, index) {

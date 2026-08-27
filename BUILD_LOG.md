@@ -1,5 +1,58 @@
 # Build Log
 
+## 2026-08-26 - Generic Reactive Equipment Triggers
+
+### Goal
+
+Add the reusable equipment foundation for status retaliation, flat reflected
+damage, and action-gauge retaliation when the wearer takes damage, while
+preserving existing combat behavior and authored data.
+
+### Human direction
+
+- Add generic `damageTaken` equipment triggers with `eventSource` targeting.
+- Support Apply Status, flat Deal Damage, Modify Gauge, and Random Chance
+  effects across weapon, shield, armor, and relic equipment.
+- Preserve Resolve/store-charge triggers, existing statuses and equipment
+  behavior, deterministic replay/simulation, and surgical editor saves.
+- Do not create Splinterbark Shield, statuses, slots, stats, or rebalanced
+  equipment in this pass; update both repositories, tests, and this log.
+
+### AI-assisted implementation
+
+- Kept listener owner, event source, and event target as separate combat
+  context fields, and added `target: "eventSource"` to the shared effect
+  resolver.
+- Normalized generic and legacy equipment combat triggers into the existing
+  passive dispatcher. Reactive damage is marked non-reflectable, and indirect
+  status damage does not start reflection loops.
+- Added equipment-originated event metadata for item, slot, trigger, effect,
+  target, and chance outcome where applicable.
+- Added Content Editor validation and controls for generic trigger events,
+  conditions, effect types, targets, statuses, numeric amounts, chances, and
+  nested Random Chance effects while retaining legacy Resolve authoring.
+- Added focused runtime, editor validation/round-trip, and editor-browser
+  regressions covering event-source targeting, all three reactions, loop
+  prevention, all equipment slots, legacy data, and surgical saves.
+
+### Reported manual changes
+
+- None. Existing Splinterbark Shield data was left untouched, and no new
+  reactive item or combat rebalance was authored.
+
+### Verification and resulting prototype state
+
+- Reactive equipment suite passes 8 assertions; equipment suite passes 14;
+  replay suite passes 15.
+- Focused Content Editor generic/legacy validation and round-trip tests pass;
+  generic-trigger UI and existing item-filter browser regressions pass.
+- The current branch's broader combat and simulation suites still stop on an
+  unrelated stale Pommel Strike expectation because the default
+  `arthur_sword` fixture does not grant that ability. No unrelated data or
+  balance was changed to mask it.
+- No new status, slot, stat, percentage reflection, or authored reactive item
+  was added.
+
 ## 2026-08-26 - Shield Slot and Two-Handed Compatibility
 
 ### Goal

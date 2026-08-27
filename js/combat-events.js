@@ -28,11 +28,15 @@ const CombatEventSystem = Object.freeze({
     }
     const source = context.sourceCombatant ?? context.source ?? null;
     const target = context.targetCombatant ?? context.target ?? null;
+    const eventSource = context.eventSourceCombatant ?? context.eventSource ?? source;
+    const eventTarget = context.eventTargetCombatant ?? context.eventTarget ?? target;
     const normalized = context;
     normalized.state = state;
     normalized.eventType = eventType;
     normalized.sourceCombatant = source;
     normalized.targetCombatant = target;
+    normalized.eventSourceCombatant = eventSource;
+    normalized.eventTargetCombatant = eventTarget;
     normalized.random = state.random;
     if (!options.skipRecord) {
       recordCombatEvent(state, {
@@ -40,6 +44,8 @@ const CombatEventSystem = Object.freeze({
         eventType,
         source: source?.id ?? null,
         target: target?.id ?? null,
+        eventSource: eventSource?.id ?? null,
+        eventTarget: eventTarget?.id ?? null,
         abilityId: normalized.abilityId ?? null,
         sourceItemId: normalized.sourceItem?.id ?? normalized.sourceItemId ?? null,
         sourcePassiveId: normalized.sourcePassive?.id ?? null,
@@ -86,6 +92,8 @@ const CombatEventSystem = Object.freeze({
             source: listener.owner?.id ?? null,
             sourcePassiveId: listener.id,
             sourceStatusId: listener.sourceStatus ?? null,
+            eventSource: normalized.eventSourceCombatant?.id ?? null,
+            eventTarget: normalized.eventTargetCombatant?.id ?? null,
           });
           CombatEffectResolver.resolve(state, listenerContext, listener.effects ?? []);
           // These fields intentionally flow back into the shared event. This
@@ -106,15 +114,19 @@ const CombatEventSystem = Object.freeze({
   listeners(state, context, eventType) {
     const source = context.sourceCombatant;
     const target = context.targetCombatant;
+    const includeEquipment = !(eventType === "damageTaken" && context.nonReflectableDamage);
+    const includeSourceEquipment = includeEquipment && !(eventType === "damageTaken" && source !== target);
     const listeners = [];
     if (source) {
       listeners.push(...statusListeners(source, eventType, "actor-status"));
       listeners.push(...collectAbilityPassives(collectStatusAbilityIds(source))
         .filter((passive) => passive.trigger?.event === eventType)
         .map((passive) => normalizePassive(passive, source, "actor-status")));
-      listeners.push(...(source.equippedPassives ?? [])
-        .filter((passive) => passive.trigger?.event === eventType)
-        .map((passive) => normalizePassive(passive, source, "equipped-effects")));
+      if (includeSourceEquipment) {
+        listeners.push(...(source.equippedPassives ?? [])
+          .filter((passive) => passive.trigger?.event === eventType)
+          .map((passive) => normalizePassive(passive, source, "equipped-effects")));
+      }
       listeners.push(...(source.learnedPassives ?? [])
         .filter((passive) => passive.trigger?.event === eventType)
         .map((passive) => normalizePassive(passive, source, "learned-passives")));
@@ -127,13 +139,15 @@ const CombatEventSystem = Object.freeze({
       listeners.push(...collectAbilityPassives(collectStatusAbilityIds(target))
         .filter((passive) => passive.trigger?.event === eventType)
         .map((passive) => normalizePassive(passive, target, "target-status")));
-      listeners.push(...(target.equippedPassives ?? [])
-        // Equipment on-hit effects belong to the striking item owner. They
-        // must not run as a target reaction when an enemy weapon emits the
-        // same shared attackHit lifecycle event.
-        .filter((passive) => passive.trigger?.event === eventType
-          && !(eventType === "attackHit" && passive.sourceItemId))
-        .map((passive) => normalizePassive(passive, target, "target-passives")));
+      if (includeEquipment) {
+        listeners.push(...(target.equippedPassives ?? [])
+          // Equipment on-hit effects belong to the striking item owner. They
+          // must not run as a target reaction when an enemy weapon emits the
+          // same shared attackHit lifecycle event.
+          .filter((passive) => passive.trigger?.event === eventType
+            && !(eventType === "attackHit" && passive.sourceItemId))
+          .map((passive) => normalizePassive(passive, target, "target-passives")));
+      }
       listeners.push(...(target.learnedPassives ?? [])
         .filter((passive) => passive.trigger?.event === eventType)
         .map((passive) => normalizePassive(passive, target, "target-passives")));
