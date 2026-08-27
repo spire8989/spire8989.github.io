@@ -2108,7 +2108,7 @@ function bindTravelImage(scene, image) {
 function travelSpeedForVisualLookahead(expedition) {
   const paceMultiplier = EXPEDITION_TUNING.travelPaces?.[expedition?.paceId]?.speedMultiplier ?? 1;
   const directionMultiplier = expedition?.direction === "returning"
-    ? EXPEDITION_TUNING.returnSpeedMultiplier
+    ? ExpeditionRules.returnSpeedMultiplier(expedition)
     : 1;
   const partyMultiplier = ExpeditionRules.travelSpeedMultiplier(expedition);
   return EXPEDITION_TUNING.outboundTravelSpeed * paceMultiplier * directionMultiplier * partyMultiplier;
@@ -5486,7 +5486,7 @@ function updateExpedition(deltaSeconds) {
   }
 
   const speedMultiplier = expedition.direction === "returning"
-    ? EXPEDITION_TUNING.returnSpeedMultiplier
+    ? ExpeditionRules.returnSpeedMultiplier(expedition)
     : 1;
   const paceMultiplier = ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier;
   const travel = ExpeditionRules.travel(

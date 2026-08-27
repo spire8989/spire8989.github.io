@@ -1,5 +1,55 @@
 # Build Log
 
+## 2026-08-26 - Expedition-Specific Travel and Encounter Cadence
+
+### Goal
+
+Move encounter spacing and return travel speed from global-only tuning to
+optional expedition-level overrides, fixing return-trip encounter frequency
+without changing encounter content, travel pace, provisions, or rewards.
+
+### Human direction
+
+- Keep the global encounter spacing and return speed as fallback defaults.
+- Author `old_forest_road` with outbound 7-10 leagues, returning 14-20
+  leagues, and return speed 4x.
+- Update normal gameplay, encounter scheduling, instant simulation, replay,
+  and the Expedition editor while preserving optional-field round trips.
+- Add/commit/push the coordinated game and Content Editor change without other
+  balance changes.
+
+### AI-assisted implementation
+
+- Added `ExpeditionRules.encounterSpacing()` and
+  `ExpeditionRules.returnSpeedMultiplier()` with direction-aware overrides,
+  outbound fallback for missing returning values, safe numeric validation, and
+  global tuning fallback without mutating authored data.
+- Routed gameplay travel visuals/updates, encounter initialization and
+  rescheduling, simulation, replay, and exhausted-pool scheduling through the
+  shared helpers.
+- Added the requested Old Forest Road fields only; other expeditions continue
+  using global defaults.
+- Added the Content Editor's Travel &amp; Encounter Cadence section, dynamic
+  global-default hints from `EXPEDITION_TUNING`, optional nested-field cleanup,
+  field-specific validation, and surgical round-trip coverage.
+
+### Reported manual changes
+
+- None beyond the requested Old Forest Road cadence override. Encounter
+  weights, direction filters, provision consumption, pace definitions, combat,
+  loot, rewards, safe-distance tuning, and expedition distances were unchanged.
+
+### Verification and resulting prototype state
+
+- Expedition cadence browser suite passes 4 assertions, including global
+  fallback, authored outbound/return scheduling, invalid-value safety, and
+  simulation parity.
+- Replay suite passes 15 assertions. Focused Content Editor cadence
+  validation/round-trip and Expedition browser UI tests pass.
+- Broader current-branch location/editor suites retain unrelated stale fixture
+  expectations (village/shop/layout/content counts); they were not changed to
+  mask this pacing fix.
+
 ## 2026-08-26 - Generic Reactive Equipment Triggers
 
 ### Goal

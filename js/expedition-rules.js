@@ -51,6 +51,38 @@ const ExpeditionRules = Object.freeze({
       * InjuryRules.partyTravelSpeedMultiplier(expedition);
   },
 
+  encounterSpacing(expedition, direction = expedition?.direction) {
+    const definition = expeditionDefinitionForRules(expedition);
+    const authored = expedition?.encounterSpacing ?? definition?.encounterSpacing ?? {};
+    const normalizedDirection = direction === "returning" ? "returning" : "outbound";
+    const direct = authored[normalizedDirection] ?? {};
+    const fallback = normalizedDirection === "returning" ? (authored.outbound ?? {}) : {};
+    const globalMinimum = Math.max(0, Number(EXPEDITION_TUNING.encounterMinimumDistance) || 0);
+    const globalMaximum = Math.max(globalMinimum, Number(EXPEDITION_TUNING.encounterMaximumDistance) || globalMinimum);
+    const minimumDistance = validNonNegativeNumber(direct.minimumDistance)
+      ? Number(direct.minimumDistance)
+      : validNonNegativeNumber(fallback.minimumDistance)
+        ? Number(fallback.minimumDistance)
+        : globalMinimum;
+    const requestedMaximum = validNonNegativeNumber(direct.maximumDistance)
+      ? Number(direct.maximumDistance)
+      : validNonNegativeNumber(fallback.maximumDistance)
+        ? Number(fallback.maximumDistance)
+        : globalMaximum;
+    return {
+      minimumDistance,
+      maximumDistance: Math.max(minimumDistance, requestedMaximum),
+    };
+  },
+
+  returnSpeedMultiplier(expedition) {
+    const definition = expeditionDefinitionForRules(expedition);
+    const authored = expedition?.returnSpeedMultiplier ?? definition?.returnSpeedMultiplier;
+    return validPositiveNumber(authored)
+      ? Number(authored)
+      : Math.max(0.0001, Number(EXPEDITION_TUNING.returnSpeedMultiplier) || 1);
+  },
+
   discoveryWeightMultiplier(expedition, encounter) {
     const discoveryTags = ["discovery", "secret", "exploration", "mystery"];
     if (!encounter?.tags?.some((tag) => discoveryTags.includes(tag))) return 1;
@@ -644,6 +676,24 @@ const ExpeditionRules = Object.freeze({
     return player;
   },
 });
+
+function expeditionDefinitionForRules(expedition) {
+  if (expedition?.expeditionId && EXPEDITION_DEFINITIONS[expedition.expeditionId]) {
+    return EXPEDITION_DEFINITIONS[expedition.expeditionId];
+  }
+  if (expedition?.id && EXPEDITION_DEFINITIONS[expedition.id]) {
+    return EXPEDITION_DEFINITIONS[expedition.id];
+  }
+  return null;
+}
+
+function validNonNegativeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function validPositiveNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
 
 function selectedPartyIds(expedition) {
   return ["arthur", ...selectedCompanionIds(expedition)];

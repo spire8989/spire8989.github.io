@@ -600,7 +600,7 @@ const EncounterManager = Object.freeze({
 
   initializeExpedition(expedition) {
     expedition.encounterTravelDistance = 0;
-    expedition.nextEncounterAt = randomEncounterSpacing(expedition.random);
+    expedition.nextEncounterAt = randomEncounterSpacing(expedition);
     expedition.seenEncounterIds = [];
     expedition.encounterOccurrences = {};
     expedition.runFlags = {};
@@ -638,7 +638,7 @@ const EncounterManager = Object.freeze({
     if (!encounter) {
       // An exhausted pool produces uninterrupted travel instead of recycling content.
       expedition.nextEncounterAt = expedition.encounterTravelDistance
-        + EXPEDITION_TUNING.encounterMaximumDistance;
+        + ExpeditionRules.encounterSpacing(expedition).maximumDistance;
       return null;
     }
 
@@ -925,7 +925,7 @@ const EncounterManager = Object.freeze({
     expedition.lastEncounterTravelDistance = expedition.encounterTravelDistance;
     expedition.activeEncounter = null;
     expedition.nextEncounterAt = expedition.encounterTravelDistance
-      + Math.max(randomEncounterSpacing(expedition.random), EXPEDITION_TUNING.postEncounterSafeDistance);
+      + Math.max(randomEncounterSpacing(expedition), EXPEDITION_TUNING.postEncounterSafeDistance);
     return true;
   },
 
@@ -998,11 +998,12 @@ const EncounterManager = Object.freeze({
   },
 });
 
-function randomEncounterSpacing(random) {
+function randomEncounterSpacing(expedition) {
+  const spacing = ExpeditionRules.encounterSpacing(expedition);
   return randomBetween(
-    EXPEDITION_TUNING.encounterMinimumDistance,
-    EXPEDITION_TUNING.encounterMaximumDistance,
-    random,
+    spacing.minimumDistance,
+    spacing.maximumDistance,
+    expedition?.random,
   );
 }
 

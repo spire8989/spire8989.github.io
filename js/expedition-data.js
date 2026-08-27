@@ -19,6 +19,17 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
     campAmbienceAssetId: null,
     kind: "normal",
     minimumObjectiveDistance: 180,
+    encounterSpacing: {
+      outbound: {
+        minimumDistance: 7,
+        maximumDistance: 10
+      },
+      returning: {
+        minimumDistance: 16,
+        maximumDistance: 24
+      }
+    },
+    returnSpeedMultiplier: 4,
     campEventTableIds: ["forest_wildlife", "road_travelers"],
     prerequisites: [],
     routeBranches: {

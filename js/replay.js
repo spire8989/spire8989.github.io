@@ -455,7 +455,7 @@ const ReplayController = Object.freeze({
     }
 
     let travelDistance = replayState.data.travelStepDistance
-      * (expedition.direction === "returning" ? EXPEDITION_TUNING.returnSpeedMultiplier : 1)
+      * (expedition.direction === "returning" ? ExpeditionRules.returnSpeedMultiplier(expedition) : 1)
       * ExpeditionRules.paceDefinition(expedition.paceId).speedMultiplier
       * ExpeditionRules.travelSpeedMultiplier(expedition);
     const distanceToEncounter = expedition.nextEncounterAt - expedition.encounterTravelDistance;
