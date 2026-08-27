@@ -34,12 +34,15 @@ scenes, icons, initials, and combat tokens visible as fallbacks.
 
 `js/game.js` resolves location, destination, route, camp, encounter, dialogue,
 and combat visuals through that catalog. A single music resolver applies
-location, expedition, camp, and encounter synth tracks without restarting the
-same track. `js/audio.js` owns gesture unlocking, local mute/volume
-preferences, synth playback, and semantic SFX hooks. The small header
-music-note button exposes those settings. Edit image files and synth
-definitions through `Tools/ContentEditor`; the browser game itself still runs
-directly from a local HTTP server.
+location, destination, expedition, camp, encounter, and combat synth tracks
+without restarting the same track. Combat and progression SFX are driven by
+resolved results and semantic roles, with optional authored ability, enemy,
+item, encounter, reward, and expedition overrides. `js/audio.js` owns gesture
+unlocking, local mute/volume preferences, synth playback, and semantic SFX
+hooks; missing synth IDs remain silent. The small header music-note button
+exposes those settings. Edit image files and synth definitions through
+`Tools/ContentEditor`; the browser game itself still runs directly from a
+local HTTP server.
 
 ## Project layout
 

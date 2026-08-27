@@ -249,6 +249,7 @@ const CombatSystem = Object.freeze({
       targetMode: itemEffect.target === "self" ? "self" : "singleAlly",
       kind: "active",
       selectionPrompt: itemEffect.selectionPrompt,
+      useSfxId: itemEffect.useSfxId ?? null,
       effects: [{ type: itemEffect.effectType === "heal" ? "heal" : itemEffect.effectType, amount: itemEffect.amount }],
     };
     const targetResult = playerTargetResult(state, actor, itemAbility, targetId, itemId);
@@ -442,6 +443,7 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
     expedition,
   };
   CombatEventSystem.dispatch(state, "beforeAction", baseContext);
+  const actionEventStart = state.events.length;
   const aggregate = { damage: 0, baseDamage: 0, healingAmount: 0, gaugeReduction: 0, damagePrevented: 0, targetTagBonus: 0, injuryId: null };
   const effectTargets = targets.length > 0 ? targets : [null];
   effectTargets.forEach((target) => {
@@ -468,6 +470,7 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
     refreshSelectedEnemy(state);
   }
   CombatEventSystem.dispatch(state, "actionUsed", { ...baseContext, eventType: "actionUsed", targetCombatant: targets[0] ?? null, target: targets[0] ?? null, resultMetadata: { ...baseContext.resultMetadata, ...aggregate } });
+  const actionRecords = state.events.slice(actionEventStart);
   aggregate.actionEvent = recordCombatEvent(state, {
     actor: actor.id, action: metadata.action ?? ability.id,
     abilityId: metadata.abilityId ?? (metadata.action === "ability" ? ability.id : null), itemId: metadata.itemId ?? null,
@@ -479,6 +482,11 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
     selectedTarget: baseContext.resultMetadata.selectedTargetId ?? null,
     redirectedByIntercede: baseContext.resultMetadata.redirectedByIntercede ?? false,
     injuryId: baseContext.injuryId ?? null,
+    useSfxId: ability.useSfxId ?? null,
+    impactSfxId: ability.impactSfxId ?? null,
+    statusApplied: actionRecords.some((event) => event.type === "status-applied"),
+    defeatedTargetIds: effectTargets.filter((target) => target && !isLivingCombatant(target)).map((target) => target.id),
+    escaped: actionRecords.find((event) => event.action === "flee" && typeof event.escaped === "boolean")?.escaped ?? null,
   });
   checkCombatOutcome(state);
   return aggregate;

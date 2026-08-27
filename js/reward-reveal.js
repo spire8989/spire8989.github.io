@@ -170,8 +170,14 @@ const RewardRevealSystem = (() => {
     revealHost.innerHTML = renderEntry(entry);
     setBlocking(tier !== "minor");
 
-    const soundRole = entry.model?.soundRole ?? "loot";
-    if (typeof AudioManager !== "undefined") AudioManager.playSemantic(soundRole);
+    const model = entry.model ?? entry.items?.[0];
+    const directSfxId = model?.sfxId;
+    const soundRole = model?.soundRole ?? "loot";
+    if (typeof AudioManager !== "undefined") {
+      if (!directSfxId || !AudioManager.playSfx(directSfxId)) {
+        AudioManager.playSemantic(soundRole);
+      }
+    }
     window.requestAnimationFrame(() => {
       if (token === lifecycleToken) revealHost.classList.add("is-presented");
     });

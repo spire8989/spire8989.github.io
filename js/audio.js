@@ -11,6 +11,7 @@ const AUDIO_SETTINGS_DEFAULTS = Object.freeze({
 // stable synthesized SFX IDs.
 const AUDIO_SEMANTIC_SFX_IDS = Object.freeze({
   confirm: "pickup_confirm",
+  reject: "reject",
   coins: "coins",
   loot: "loot",
   majorLoot: "major_loot",
@@ -20,7 +21,15 @@ const AUDIO_SEMANTIC_SFX_IDS = Object.freeze({
   hit: "sword_hit",
   block: "block",
   heal: "heal",
+  status: "status",
+  enemyDown: "enemy_down",
+  allyDown: "ally_down",
+  fleeSuccess: "flee_success",
+  fleeFail: "flee_fail",
   victory: "victory",
+  defeat: "defeat",
+  departure: "departure",
+  safeReturn: "safe_return",
 });
 
 function clampAudioSetting(value, fallback) {
@@ -120,23 +129,14 @@ const AudioManager = (() => {
 
   function playAction(action) {
     const roles = {
-      "buy-item": "coins",
-      "buy-provisions": "coins",
-      "sell-item": "coins",
-      "craft-item": "crafting",
-      "inn-cook-recipe": "cooking",
-      "cook-recipe": "cooking",
-      "camp-craft-item": "crafting",
-      "encounter-choice": "encounter",
-      "combat-action": "confirm",
-      "combat-ability": "hit",
-      "combat-item": "heal",
-      "combat-target": "confirm",
-      "camp-rest": "heal",
-      "rest-at-inn": "heal",
       "continue-journey": "confirm",
+      "dialogue-choice": "confirm",
+      "dialogue-continue": "confirm",
+      "preparation-continue": "confirm",
+      "preparation-back": "confirm",
+      "show-campaign": "confirm",
     };
-    return playSemantic(roles[action] ?? "confirm");
+    return roles[action] ? playSemantic(roles[action]) : false;
   }
 
   function unlock() {

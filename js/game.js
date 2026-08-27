@@ -2933,23 +2933,43 @@ function resolveExpeditionMusicTrackId(expedition = game.expedition) {
   const activeEvent = expedition.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
-  if (typeof activeEvent?.musicTrackId === "string" && activeEvent.musicTrackId) {
-    return activeEvent.musicTrackId;
+  const authoredTrack = (owner, field) => {
+    if (!owner || !Object.prototype.hasOwnProperty.call(owner, field)) return undefined;
+    return typeof owner[field] === "string" && owner[field] ? owner[field] : null;
+  };
+  const encounterTrack = authoredTrack(activeEvent, "musicTrackId");
+  if (encounterTrack !== undefined) return encounterTrack;
+  if (expedition.combat) {
+    const combatTrack = authoredTrack(definition, "combatMusicTrackId");
+    if (combatTrack !== undefined) return combatTrack;
   }
-  if (expedition.travelState === "camped"
-    && Object.prototype.hasOwnProperty.call(definition, "campMusicTrackId")) {
-    return typeof definition.campMusicTrackId === "string" && definition.campMusicTrackId
-      ? definition.campMusicTrackId
-      : null;
+  if (expedition.travelState === "camped") {
+    const campTrack = authoredTrack(definition, "campMusicTrackId");
+    if (campTrack !== undefined) return campTrack;
   }
-  return typeof definition.travelMusicTrackId === "string" && definition.travelMusicTrackId
-    ? definition.travelMusicTrackId
-    : null;
+  const travelTrack = authoredTrack(definition, "travelMusicTrackId");
+  if (travelTrack !== undefined) return travelTrack;
+  return authoredTrack(currentLocationForUi(), "musicTrackId") ?? null;
 }
 
 function resolveCurrentMusicTrackId() {
-  if (game.screen === "location" || game.screen === "destination") {
-    return currentLocationForUi()?.musicTrackId ?? null;
+  if (game.screen === "location") {
+    const location = currentLocationForUi();
+    return Object.prototype.hasOwnProperty.call(location || {}, "musicTrackId")
+      ? (typeof location.musicTrackId === "string" && location.musicTrackId ? location.musicTrackId : null)
+      : null;
+  }
+  if (game.screen === "destination") {
+    const location = currentLocationForUi();
+    const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+    if (Object.prototype.hasOwnProperty.call(destination || {}, "musicTrackId")) {
+      return typeof destination.musicTrackId === "string" && destination.musicTrackId
+        ? destination.musicTrackId
+        : null;
+    }
+    return typeof location?.musicTrackId === "string" && location.musicTrackId
+      ? location.musicTrackId
+      : null;
   }
   if (game.screen === "expedition") return resolveExpeditionMusicTrackId();
   return null;
@@ -2960,6 +2980,9 @@ function syncAudioForCurrentContext() {
 }
 
 function playEncounterAudio(encounter) {
+  const active = game.expedition?.activeEncounter;
+  const stageSfxId = encounter?.stages?.[active?.stageId]?.sfxId;
+  if (stageSfxId && AudioManager.playSfx(stageSfxId)) return;
   if (encounter?.stingSfxId && AudioManager.playSfx(encounter.stingSfxId)) return;
   AudioManager.playSemantic("encounter");
 }
@@ -3308,6 +3331,7 @@ function restAtInn() {
       message: `${recovery}${treated.length ? `. Eased ${treated.join(", ")}` : ""}. ${result.goldCost} gold was paid.`,
       type: "success",
     });
+    AudioManager.playSemantic("heal");
     savePlayer();
   } else if (result.fullHealth) {
     showToast({
@@ -3519,6 +3543,7 @@ function buyShopItem(itemId) {
     message: `-${result.goldCost} gold`,
     type: "success",
   });
+  AudioManager.playSemantic("coins");
   savePlayer();
   refreshDestination();
 }
@@ -3543,6 +3568,7 @@ function buyProvisions(quantity) {
     message: `-${result.goldCost} gold`,
     type: "success",
   });
+  AudioManager.playSemantic("coins");
   savePlayer();
   refreshDestination();
 }
@@ -3565,6 +3591,7 @@ function sellShopItem(itemId) {
     message: `+${result.goldEarned} gold`,
     type: "success",
   });
+  AudioManager.playSemantic("coins");
   savePlayer();
   refreshDestination();
 }
@@ -3658,10 +3685,12 @@ function completeCraftingAction() {
     showToast({ title: craftingFailureTitle(result), message: craftingFailureMessage(result), type: "warning" });
   } else if (result.provisions > 0) {
     showToast({ title: "Meal Cooked", message: `The meal adds ${result.provisions} provisions.`, type: "success" });
+    AudioManager.playSemantic("cooking");
     savePlayer();
   } else {
     const item = ITEM_DEFINITIONS[result.itemId];
     showToast({ title: `Crafted ${item?.name ?? "Item"}`, message: `${result.quantity} ${item?.name ?? "item"} added to your inventory`, type: "success" });
+    AudioManager.playSemantic("crafting");
     savePlayer();
   }
   if (game.screen === "destination") refreshDestination();
@@ -4467,6 +4496,7 @@ async function startExpedition() {
   game.expeditionStartPending = false;
   if (game.screen !== "preparation" || game.expedition !== startedExpedition || startedExpedition.status !== "active") return;
   showScreen("expedition");
+  AudioManager.playSemantic("departure");
   beginDeparturePresentation(startedExpedition);
 }
 
@@ -5658,6 +5688,7 @@ function completeExpeditionRestAction(action) {
     refreshExpedition();
     return;
   }
+  AudioManager.playSemantic("heal");
   if (action.context === "brief-rest") {
     showToast({ title: "Brief Rest", message: `The company recovers ${result.totalHealingAmount} health for ${result.cost} provision.`, type: "success" });
   } else {
@@ -5678,6 +5709,7 @@ function interruptCampRest(action) {
     refreshExpedition();
     return;
   }
+  playEncounterAudio(EncounterManager.definitionFor(action.expedition));
   renderScreen();
 }
 
@@ -5781,6 +5813,8 @@ function finishEncounterResolution(result, expedition, rewardStartIndex = null) 
     return;
   }
 
+  if (result.sfxId) AudioManager.playSfx(result.sfxId);
+
   if (result.locationStop?.locationId) {
     enterExpeditionLocation(expedition, result.locationStop.locationId);
     return;
@@ -5808,8 +5842,61 @@ function startCombat(expedition, combatId, options = {}) {
       combatant.side === "enemy" ? ["idle", "attack"] : CHARACTER_VISUAL_SLOTS,
     );
   });
-  AudioManager.playSemantic("encounter");
+  const combatStartSfxId = expeditionDefinition(expedition).combatStartSfxId;
+  if (combatStartSfxId) AudioManager.playSfx(combatStartSfxId);
   return true;
+}
+
+function hasSynthSfx(id) {
+  return Boolean(id
+    && typeof SYNTH_AUDIO_DEFINITIONS !== "undefined"
+    && SYNTH_AUDIO_DEFINITIONS.sfx?.[id]);
+}
+
+function playCombatActionAudio(actionEvents = [], combat = null) {
+  const latestActions = new Map();
+  actionEvents.forEach((event) => {
+    if (!event?.actor || !event.action) return;
+    latestActions.set(`${event.actor}:${event.action}`, event);
+  });
+  latestActions.forEach((event) => {
+    if (event.action === "flee") {
+      AudioManager.playSemantic(event.escaped === true ? "fleeSuccess" : "fleeFail");
+      return;
+    }
+
+    if (event.useSfxId && hasSynthSfx(event.useSfxId)) AudioManager.playSfx(event.useSfxId);
+
+    if (event.impactSfxId && hasSynthSfx(event.impactSfxId)) {
+      AudioManager.playSfx(event.impactSfxId);
+    } else if (Number(event.damagePrevented) > 0) {
+      AudioManager.playSemantic("block");
+    } else if (Number(event.damage) > 0) {
+      AudioManager.playSemantic("hit");
+    } else if (Number(event.healingAmount) > 0) {
+      AudioManager.playSemantic("heal");
+    } else if (event.statusApplied) {
+      AudioManager.playSemantic("status");
+    }
+
+    (event.defeatedTargetIds ?? []).forEach((targetId) => {
+      const target = [...(combat?.enemies ?? []), ...(combat?.allies ?? [])].find((entry) => entry.id === targetId);
+      AudioManager.playSemantic(target?.side === "ally" ? "allyDown" : "enemyDown");
+    });
+  });
+}
+
+function playCombatResultAudio(expedition, result) {
+  if (result === "victory") {
+    const authored = expeditionDefinition(expedition).combatVictorySfxId;
+    if (authored && hasSynthSfx(authored)) {
+      AudioManager.playSfx(authored);
+      return;
+    }
+    AudioManager.playSemantic("victory");
+  } else if (result === "defeat") {
+    AudioManager.playSemantic("defeat");
+  }
 }
 
 function chooseCombatAction(actionId) {
@@ -5876,6 +5963,7 @@ function handleCombatInteractionResult(expedition, combat, result, actionEvents 
     return;
   }
   if (result?.resolved) {
+    playCombatActionAudio(actionEvents, combat);
     enqueueCombatActionPresentations(combat, actionEvents);
     savePlayer();
     if (result.action === "item") {
@@ -5919,6 +6007,7 @@ function updateCombat(deltaSeconds) {
   const eventStart = combat.events.length;
   const update = CombatSystem.update(combat, expedition, deltaSeconds);
   const actionEvents = combat.events.slice(eventStart);
+  playCombatActionAudio(actionEvents, combat);
   enqueueCombatActionPresentations(combat, actionEvents);
   if (update.result) {
     finishCombatResolution(expedition);
@@ -5971,7 +6060,7 @@ function finishCombatResolution(expedition) {
   }
   combat.resultHandled = true;
   const result = combat.result;
-  if (result === "victory") AudioManager.playSemantic("victory");
+  playCombatResultAudio(expedition, result);
   expedition.combat = null;
   const completed = EncounterManager.completeCombat(expedition, game.player, result, {
     combat,
@@ -5979,6 +6068,7 @@ function finishCombatResolution(expedition) {
     startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
   });
   if (expedition.status === "active") {
+    if (completed.sfxId) AudioManager.playSfx(completed.sfxId);
     if (!completed.combatStarted && !completed.dialogueStarted) {
       queueEncounterRewardReveal(expedition, "combat");
     }
@@ -6051,6 +6141,7 @@ function completeReturn() {
   expedition.combat = null;
   expedition.status = "returned";
   ExpeditionRules.settle(game.player, expedition, true);
+  AudioManager.playSemantic("safeReturn");
   savePlayer();
 
   game.summary = {
@@ -6212,6 +6303,7 @@ function rewardRevealModel(reward) {
     revealLabel: rewardRevealLabel(reward, tier, definition),
     announcement: rewardRevealAnnouncement(reward, name),
     soundRole: tier === "major" ? "majorLoot" : "loot",
+    sfxId: reward.sfxId ?? null,
   };
 }
 

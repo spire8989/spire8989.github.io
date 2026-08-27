@@ -1,5 +1,48 @@
 # Build Log
 
+## 2026-08-27 - Result-Driven Synth Audio Plumbing
+
+### Goal
+
+Extend the lightweight synth-only audio backend across the authored content
+and gameplay result paths without adding audio assets or changing the synth
+core.
+
+### Human direction
+
+- Keep optional audio IDs data-driven and safe when no synth definition exists.
+- Use the Content Editor dropdowns for expedition, destination, combat,
+  ability, enemy-action, item, encounter, and reward audio fields.
+- Commit and push the completed game and tool repository changes separately.
+
+### AI-assisted implementation
+
+- Added one central music precedence resolver for encounter, combat
+  expedition, destination, camp, travel, location, and explicit silence cases.
+- Moved combat audio from button clicks to resolved combat events, including
+  authored use/impact SFX, hit/block/heal/status fallbacks, defeat/flee hooks,
+  and enemy/ally down events.
+- Added result-driven success hooks for shop coins, craft/cook, rest, departure,
+  safe return, encounter resolution, reward reveals, and combat outcomes.
+- Propagated optional encounter/reward SFX IDs through resolution and exposed
+  synth selectors plus validation for the new authored fields in GrailTools.
+
+### Reported manual changes
+
+- None. No new sound definitions or binary audio assets were authored in this
+  plumbing pass.
+
+### Verification and resulting prototype state
+
+- Focused synth browser coverage passes 9 assertions, including precedence,
+  destination inheritance, same-track stability, unknown-action silence, and
+  combat-event audio metadata.
+- Existing image/audio smoke coverage passes 5 assertions; the editor's
+  audio-specific browser checks pass. The broader legacy suites still report
+  their pre-existing loot/layout/shop fixture mismatches.
+- The prototype remains dependency-free at runtime and uses only native Web
+  Audio synth definitions; absent or unassigned audio IDs remain safe/silent.
+
 ## 2026-08-27 - Complete Synth-Only Audio Migration
 
 ### Goal

@@ -104,7 +104,7 @@ const EncounterRequirements = Object.freeze({
 
 const EncounterOutcomes = Object.freeze({
   resolveAll(effects = [], context = {}) {
-    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null, locationStop: null };
+    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null, locationStop: null, sfxId: null };
     for (let index = 0; index < effects.length; index += 1) {
       const effect = effects[index];
       const resolved = this.resolve(effect, context);
@@ -118,6 +118,7 @@ const EncounterOutcomes = Object.freeze({
       if (resolved.locationStop) {
         combined.locationStop = resolved.locationStop;
       }
+      if (resolved.sfxId) combined.sfxId = resolved.sfxId;
       combined.rewards.push(...(resolved.rewards ?? []).map((reward) => annotateEncounterReward(reward, context)));
       if (resolved.dialogue) {
         combined.dialogue = {
@@ -148,6 +149,7 @@ const EncounterOutcomes = Object.freeze({
     let resultText = effect.resultText ?? "";
     let combat = null;
     let locationStop = null;
+    let sfxId = effect.sfxId ?? null;
 
     switch (effect.type) {
       case "modifyResource": {
@@ -347,6 +349,7 @@ const EncounterOutcomes = Object.freeze({
         rewards = resolved.rewards;
         combat = resolved.combat;
         locationStop = resolved.locationStop;
+        sfxId = resolved.sfxId ?? sfxId;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "";
         break;
@@ -359,6 +362,7 @@ const EncounterOutcomes = Object.freeze({
         rewards = resolved.rewards;
         combat = resolved.combat;
         locationStop = resolved.locationStop;
+        sfxId = resolved.sfxId ?? sfxId;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (succeeded ? effect.resultText : effect.elseResultText) || "" };
         resultText = resolved.resultText
           || (succeeded ? effect.resultText : effect.elseResultText)
@@ -374,6 +378,7 @@ const EncounterOutcomes = Object.freeze({
           rewards.push(...secondaryResolved.rewards);
           combat = secondaryResolved.combat ?? combat;
           locationStop = secondaryResolved.locationStop ?? locationStop;
+          sfxId = secondaryResolved.sfxId ?? sfxId;
           if (secondaryResolved.dialogue) return { ...secondaryResolved, messages, rewards, combat };
           resultText = secondaryResolved.resultText
             || (secondarySucceeded ? secondary.resultText : secondary.elseResultText)
@@ -397,6 +402,7 @@ const EncounterOutcomes = Object.freeze({
         rewards = resolved.rewards;
         combat = resolved.combat;
         locationStop = resolved.locationStop;
+        sfxId = resolved.sfxId ?? sfxId;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || selected.resultText || "" };
         resultText = resolved.resultText || selected.resultText || "";
         break;
@@ -415,6 +421,7 @@ const EncounterOutcomes = Object.freeze({
             resultText,
             combat,
             dialogue: { dialogueId: effect.dialogueId, remainingEffects: [] },
+            sfxId,
           };
         }
         break;
@@ -423,7 +430,7 @@ const EncounterOutcomes = Object.freeze({
         break;
     }
 
-    return { messages, rewards, resultText, combat, dialogue: null, locationStop };
+    return { messages, rewards, resultText, combat, dialogue: null, locationStop, sfxId };
   },
 });
 
@@ -519,7 +526,13 @@ function beginEncounterCombat(expedition, combat, resume, callbacks = {}) {
     delete active.combatResume;
     return { resolved: false, ended: false, message: "" };
   }
-  return { resolved: true, ended: false, combatStarted: true, message: "" };
+  return {
+    resolved: true,
+    ended: false,
+    combatStarted: true,
+    message: "",
+    sfxId: combat.sfxId ?? resume?.sfxId ?? null,
+  };
 }
 
 function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
@@ -541,10 +554,12 @@ function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
       const resolvedStage = EncounterOutcomes.resolveAll(nextStage.outcomes, context);
       appendEncounterOutcome(active, resolvedStage);
       const resultText = resolvedStage.resultText || nextStage.text;
+      const stageSfxId = resolvedStage.sfxId ?? nextStage.sfxId ?? null;
       if (resolvedStage.dialogue) {
         return queueEncounterDialogue(expedition, player, resolvedStage.dialogue, {
           type: "result",
           resultText,
+          sfxId: stageSfxId,
           fallbackPhase: "choice",
         }, callbacks);
       }
@@ -552,6 +567,7 @@ function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
         return beginEncounterCombat(expedition, resolvedStage.combat, {
           type: "result",
           resultText,
+          sfxId: stageSfxId,
           fallbackPhase: "choice",
         }, callbacks);
       }
@@ -564,12 +580,18 @@ function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
         awaitingContinue: true,
         message: active.resultText,
         locationStop: resolvedStage.locationStop ?? null,
+        sfxId: stageSfxId,
       };
     }
 
     active.phase = "choice";
     active.stageText = route.authoredResultText || nextStage.text;
-    return { resolved: true, ended: false, message: active.stageText };
+    return {
+      resolved: true,
+      ended: false,
+      message: active.stageText,
+      sfxId: route.sfxId ?? nextStage.sfxId ?? null,
+    };
   }
 
   if (route.endEncounter) {
@@ -585,6 +607,7 @@ function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
       awaitingContinue: true,
       message,
       locationStop: route.locationStop ?? null,
+      sfxId: route.sfxId ?? null,
     };
   }
 
@@ -847,6 +870,7 @@ const EncounterManager = Object.freeze({
       authoredResultText,
       resultText: resolvedOutcomes.resultText,
       locationStop: resolvedOutcomes.locationStop ?? null,
+      sfxId: branch?.sfxId ?? choice.sfxId ?? resolvedOutcomes.sfxId ?? null,
       visualOverride,
       fallbackPhase: "choice",
     };
@@ -854,7 +878,7 @@ const EncounterManager = Object.freeze({
       return queueEncounterDialogue(expedition, player, resolvedOutcomes.dialogue, route, callbacks);
     }
     if (resolvedOutcomes.combat) {
-      return beginEncounterCombat(expedition, resolvedOutcomes.combat, null, callbacks);
+      return beginEncounterCombat(expedition, resolvedOutcomes.combat, route, callbacks);
     }
     return finishEncounterChoiceRoute(expedition, player, route, callbacks);
   },
@@ -903,6 +927,7 @@ const EncounterManager = Object.freeze({
       awaitingContinue: true,
       message: active.resultText,
       locationStop: resolved.locationStop ?? resolution.resume.locationStop ?? null,
+      sfxId: resolved.sfxId ?? resolution.resume.sfxId ?? null,
     };
   },
 
@@ -978,6 +1003,7 @@ const EncounterManager = Object.freeze({
       return queueEncounterDialogue(expedition, player, resolved.dialogue, {
         type: "combatResult",
         resultText,
+        sfxId: resolved.sfxId ?? resolution.sfxId ?? null,
         fallbackPhase: "choice",
       }, callbacks);
     }
@@ -990,6 +1016,7 @@ const EncounterManager = Object.freeze({
       awaitingContinue: true,
       message: active.resultText,
       locationStop: resolved.locationStop ?? null,
+      sfxId: resolved.sfxId ?? resolution.sfxId ?? null,
     };
   },
 

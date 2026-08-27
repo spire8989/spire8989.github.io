@@ -155,6 +155,29 @@ def run() -> None:
             "return travel==='wisps_of_the_forest'&&inherited===travel&&disabled===null; })()",
             "Expedition travel/camp synth inheritance and explicit camp silence are not stable",
         )
+        check(
+            "(() => { const expedition={expeditionId:'old_forest_road',status:'active',travelState:'camped'};"
+            "const definition=EXPEDITION_DEFINITIONS.old_forest_road;"
+            "const oldCombat=definition.combatMusicTrackId; const oldCamp=definition.campMusicTrackId;"
+            "definition.combatMusicTrackId='camelot_twilight'; definition.campMusicTrackId='wisps_of_the_forest'; expedition.combat={};"
+            "const combat=resolveExpeditionMusicTrackId(expedition); delete expedition.combat;"
+            "const camp=resolveExpeditionMusicTrackId(expedition); delete definition.campMusicTrackId;"
+            "const travel=resolveExpeditionMusicTrackId(expedition);"
+            "if(oldCombat===undefined) delete definition.combatMusicTrackId; else definition.combatMusicTrackId=oldCombat;"
+            "if(oldCamp===undefined) delete definition.campMusicTrackId; else definition.campMusicTrackId=oldCamp;"
+            "const destination=DESTINATION_DEFINITIONS.inn; const oldDestinationMusic=destination.musicTrackId;"
+            "destination.musicTrackId='wisps_of_the_forest'; game.activeDestinationId='inn'; game.screen='destination';"
+            "const explicitDestination=resolveCurrentMusicTrackId(); delete destination.musicTrackId;"
+            "const inheritedDestination=resolveCurrentMusicTrackId();"
+            "if(oldDestinationMusic===undefined) delete destination.musicTrackId; else destination.musicTrackId=oldDestinationMusic;"
+            "game.activeDestinationId=null; game.screen='campaign'; renderScreen();"
+            "return combat==='camelot_twilight'&&camp==='wisps_of_the_forest'&&travel==='wisps_of_the_forest'&&explicitDestination==='wisps_of_the_forest'&&inheritedDestination==='camelot_twilight'&&AudioManager.playAction('unknown-audio-action')===false; })()",
+            "Music precedence or unknown action audio behavior is not stable",
+        )
+        check(
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:5,random:()=>0}); const c=CombatSystem.create(e,'wild_boar',{random:()=>0}); const target=c.enemies[0]; c.status='awaitingAction'; c.activeActorId='arthur'; const result=CombatSystem.resolveDefinition(c,e,{id:'audio_probe',name:'Audio Probe',kind:'active',target:'enemy',targetMode:'singleEnemy',useSfxId:'use_probe',impactSfxId:'impact_probe',effects:[{type:'weaponDamage'}]},target.id); const action=c.events.at(-1); return result.resolved&&action.useSfxId==='use_probe'&&action.impactSfxId==='impact_probe'&&Array.isArray(action.defeatedTargetIds); })()",
+            "Combat result events did not preserve authored audio metadata",
+        )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")
         print(f"PASS: {checks} synthesized-audio runtime assertions")
