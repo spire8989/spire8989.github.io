@@ -38,9 +38,9 @@ const GLOBAL_SETTINGS = Object.freeze({
   townDefaults: {
     markerStyle: "label",
     showMarkerIcons: false,
-    markerFontScale: 1,
-    markerHorizontalPadding: 0.4,
-    markerVerticalPadding: 1
+    markerFontScale: 1.25,
+    markerHorizontalPadding: 0.57,
+    markerVerticalPadding: 0.3
   },
   dialogueDefaults: {
     oneNodeBarkMode: "tap",

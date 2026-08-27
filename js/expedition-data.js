@@ -66,7 +66,8 @@ const EXPEDITION_DEFINITIONS = Object.freeze({
       }
     ],
     travelSeamForegroundAssetId: "expedition_old_forest_road_tree_6",
-    travelMusicTrackId: "wisps_of_the_forest"
+    travelMusicTrackId: "wisps_of_the_forest",
+    combatMusicTrackId: "combat_old_forest_battle"
   },
   fountain_of_barenton: {
     id: "fountain_of_barenton",

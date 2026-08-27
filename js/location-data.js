@@ -502,6 +502,7 @@ const LOCATION_DEFINITIONS = Object.freeze({
     serviceConfig: {
       autoProvisionGrant: false,
       restockProvisionShopId: null
-    }
+    },
+    musicTrackId: "moonlit_court"
   },
 });

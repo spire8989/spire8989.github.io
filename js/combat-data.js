@@ -2,19 +2,23 @@
 
 // Combat content stays separate from the frame-rate-independent simulation.
 const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
-  attack: Object.freeze({
+  attack: {
     id: "attack",
     name: "Attack",
     target: "enemy",
     targetMode: "singleEnemy",
     kind: "active",
     tags: ["martial", "basic"],
-    effects: Object.freeze([
-      Object.freeze({ type: "weaponDamage", multiplier: 1 }),
-    ]),
+    effects: [
+      {
+        type: "weaponDamage",
+        multiplier: 1
+      }
+    ],
     selectionPrompt: "Choose an enemy target",
     category: "action",
-  }),
+    impactSfxId: "attack_impact"
+  },
   defend: Object.freeze({
     id: "defend",
     name: "Defend",
