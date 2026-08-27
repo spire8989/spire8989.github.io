@@ -469,6 +469,7 @@ const LOCATION_DEFINITIONS = Object.freeze({
     description: "A small inhabited refuge beside the ancient forest.",
     chapterId: "chapter_03",
     regionId: "broceliande",
+    musicTrackId: "camelot_twilight",
     visualKey: "broceliande_village",
     visualAssetId: "location_village_at_the_edge_of_broc_liande_woodcut_1",
     markerStyle: "tag",

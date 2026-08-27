@@ -358,7 +358,6 @@ function beginDeparturePresentation(expedition) {
 
 function renderScreen() {
   if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel();
-  if (game.screen !== "expedition") AudioManager.stopAmbience();
   switch (game.screen) {
     case "campaign":
       renderCampaign();
@@ -381,6 +380,7 @@ function renderScreen() {
     default:
       throw new Error(`Unknown screen: ${game.screen}`);
   }
+  syncAudioForCurrentContext();
 }
 
 function renderCampaign() {
@@ -493,6 +493,7 @@ function leaveExpeditionLocation() {
 function handleAudioSettingInput(event) {
   const setting = event.target?.dataset?.audioSetting;
   if (setting === "sfxVolume") AudioManager.setSfxVolume(event.target.value);
+  if (setting === "musicVolume") AudioManager.setMusicVolume(event.target.value);
   if (setting === "ambienceVolume") AudioManager.setAmbienceVolume(event.target.value);
 }
 
@@ -2928,11 +2929,20 @@ function markTravelTransitionFailed(image) {
 }
 
 function syncExpeditionAmbience(expedition, mode = "travel", encounter = null) {
+  AudioManager.setMusic(null);
   const definition = expeditionDefinition(expedition);
   const assetId = encounter?.ambienceAssetId
     ?? (mode === "camp" ? definition.campAmbienceAssetId : definition.travelAmbienceAssetId)
     ?? null;
   AudioManager.setAmbience(assetId);
+}
+
+function syncAudioForCurrentContext() {
+  const locationContext = game.screen === "location" || game.screen === "destination"
+    ? currentLocationForUi()
+    : null;
+  AudioManager.setMusic(locationContext?.musicTrackId ?? null);
+  if (game.screen !== "expedition") AudioManager.stopAmbience();
 }
 
 function playEncounterAudio(encounter) {
@@ -3045,8 +3055,9 @@ function renderLocation() {
               <button class="game-button" type="button" data-action="prepare-expedition" ${locationIsUnlocked(location) ? "" : "disabled"}>Prepare for Expedition</button>`}
         </div>
       </div>
-    </section>`;
+  </section>`;
   clampTownHotspotsToScene();
+  syncAudioForCurrentContext();
 }
 
 function openDestination(destinationId) {
@@ -3106,6 +3117,7 @@ function renderDestination() {
       </div>
       ${game.dialogueSession ? renderDialogueOverlay(game.dialogueSession) : ""}
     </section>`;
+  syncAudioForCurrentContext();
 }
 
 function renderHallInteraction(destination, npc) {

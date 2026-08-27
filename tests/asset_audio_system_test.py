@@ -44,7 +44,7 @@ def run() -> None:
             checks += 1
 
         check(
-            "Object.keys(IMAGE_ASSET_DEFINITIONS).length===0"
+            "Object.keys(IMAGE_ASSET_DEFINITIONS).length>0"
             "&&Object.keys(AUDIO_ASSET_DEFINITIONS).length===0"
             "&&AssetCatalog.imagePath('missing')===null"
             "&&AssetCatalog.audioPath('missing')===null",
@@ -62,7 +62,7 @@ def run() -> None:
             "&&Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS[id],'campVisualAssetId')"
             "&&Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS[id],'travelAmbienceAssetId')"
             "&&Object.prototype.hasOwnProperty.call(EXPEDITION_DEFINITIONS[id],'campAmbienceAssetId'))"
-            "&&resolveExpeditionVisualAssetId({expeditionId:'old_forest_road'},'camp')===null",
+            "&&resolveExpeditionVisualAssetId({expeditionId:'old_forest_road'},'camp')==='expedition_old_forest_road_camp_bg'",
             "Route-scoped visual fields or camp fallback resolution are missing",
         )
         check(

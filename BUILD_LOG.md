@@ -1,5 +1,55 @@
 # Build Log
 
+## 2026-08-27 - Canonical Synth Audio Runtime Integration
+
+### Goal
+
+Promote the lightweight synthesized-audio experiment into the playable game
+without adding binary audio assets or replacing the existing AudioManager.
+
+### Human direction
+
+- Make the Grail catalog the source of truth and have GrailTools edit it
+  directly.
+- Add runtime synth music/SFX, optional low-pass filters and vibrato, and
+  preserve conventional file-backed Audio Assets.
+- Assign Camelot Twilight to Brocéliande village, inherit it in destinations,
+  migrate Ambience settings to Music, and keep the pass focused without
+  expedition/combat music systems.
+
+### AI-assisted implementation
+
+- Added `js/audio-synth-data.js` with the migrated Moonlit Court, Camelot
+  Twilight, and Pickup Confirm definitions, plus `js/audio-synth.js` as the
+  native Web Audio backend with timestamp-based loop scheduling, cleanup,
+  filters, vibrato, separate music/SFX gain paths, and safe restart behavior.
+- Extended `AudioManager` to resolve synth and file-backed SFX through the same
+  semantic path, synchronize synth music through a centralized game-context
+  resolver, preserve mute/unlock behavior, and migrate `ambienceVolume` saves
+  to `musicVolume`.
+- Added `musicTrackId` to the canonical village definition and exposed a
+  Content Editor Music Track selector with reference validation.
+- Redirected the editor's source-hash, surgical-save, and backup flow from its
+  experimental JSON file to the canonical game-side JavaScript catalog; the
+  duplicate editor-only file was removed.
+
+### Reported manual changes
+
+- None. The existing unrelated `js/encounter-data.js` working-tree edit was
+  preserved and was not included in this milestone.
+
+### Verification and resulting prototype state
+
+- Focused game synth browser test passes 6 assertions, including script order,
+  settings migration, filter/vibrato node creation and cleanup, synth SFX,
+  stable village/destination music, and no audio asset requirement.
+- Focused editor source/validation tests pass, and the editor browser tests
+  pass for Music Tracks/SFX, filter/vibrato preview support, lifecycle cleanup,
+  and the canonical location selector.
+- The starting Brocéliande village now owns Camelot Twilight; its Town, Inn,
+  Merchant, Blacksmith, Apothecary, and Hall views share the same uninterrupted
+  track, while campaign/preparation/summary contexts stop it cleanly.
+
 ## 2026-08-27 - Remove Duplicate Old Forest Route Objective Distance
 
 ### Goal
