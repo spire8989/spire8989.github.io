@@ -1,5 +1,49 @@
 # Build Log
 
+## 2026-08-26 - Distance Unit Rename to Stadion/Stadia
+
+### Goal
+
+Rename the game's displayed travel-distance unit from the former distance unit to stadion
+(singular) and stadia (plural) across the runtime and Content Editor without
+changing numeric distance behavior or authored balance.
+
+### Human direction
+
+- Use `stadion` for singular display values and `stadia` for plural values.
+- Keep generic distance field names and all numeric values unchanged.
+- Update gameplay, simulator, replay/debug output, editor labels, tests,
+  comments, and current-distance documentation in both repositories.
+- Preserve save/content compatibility, run focused and regression tests, and
+  add/commit/push the coordinated pass.
+
+### AI-assisted implementation
+
+- Updated the shared runtime formatter to produce values such as `1 stadion`
+  and `180 stadia`, and routed injury, simulation, debug, and replay-facing
+  displays through the new wording.
+- Updated simulator controls, editor distance labels/cadence help, filters,
+  test descriptions, README/reference documentation, tuning comments, and
+  historical build-log unit prose.
+- Added runtime and Content Editor assertions for singular/plural formatting,
+  visible stadia labels, and absence of the old unit wording while retaining
+  the existing numeric cadence checks.
+
+### Reported manual changes
+
+- None. No distance fields, authored values, encounter balance, progression,
+  save keys, or export schema keys were renamed or numerically changed.
+
+### Verification and resulting prototype state
+
+- Case-insensitive searches across both repositories report no remaining
+  references to the former distance-unit wording.
+- Expedition cadence browser suite passes 6 assertions; replay suite passes
+  15 assertions; focused Content Editor round-trip and browser tests pass.
+- Existing campaign and single-expedition suites still stop on their known
+  unrelated combat/content fixture expectations; their numeric distance
+  behavior was not changed by this pass.
+
 ## 2026-08-26 - Authored Campaign Progression Distances
 
 ### Goal
@@ -57,8 +101,8 @@ without changing encounter content, travel pace, provisions, or rewards.
 ### Human direction
 
 - Keep the global encounter spacing and return speed as fallback defaults.
-- Author `old_forest_road` with outbound 7-10 leagues, returning 14-20
-  leagues, and return speed 4x.
+- Author `old_forest_road` with outbound 7-10 stadia, returning 14-20
+  stadia, and return speed 4x.
 - Update normal gameplay, encounter scheduling, instant simulation, replay,
   and the Expedition editor while preserving optional-field round trips.
 - Add/commit/push the coordinated game and Content Editor change without other
@@ -260,7 +304,7 @@ deterministic simulation/replay behavior.
 ### Goal
 
 Stop Cautious Old Forest progression from looping on shallow preparation runs
-when the hidden village makes the 180-league Warden attempt physically viable.
+when the hidden village makes the 180-stadion Warden attempt physically viable.
 
 ### AI-assisted implementation
 
@@ -269,7 +313,7 @@ when the hidden village makes the 180-league Warden attempt physically viable.
   current provisions, hidden-village stock/price, gold, and reach-to-village
   cost; Cautious margin, encounter reserve, and uncertainty remain preferred
   safety signals.
-- Allow a hard-feasible Warden objective to launch at its real 180-league
+- Allow a hard-feasible Warden objective to launch at its real 180-stadion
   target when only preferred safety is short. The single-expedition simulator
   temporarily suppresses only the optional emergency-return reserve for that
   explicitly authorized progression attempt; ordinary consumption and safe
@@ -353,7 +397,7 @@ without changing authored gameplay balance.
   a future milestone without counting as violations; a violation is recorded
   only for an actual progression attempt whose executed distance stayed below
   its required floor. Compact and CSV exports preserve both fields.
-- Kept 140 leagues as the canonical Thorn-Crowned Hart planner milestone;
+- Kept 140 stadia as the canonical Thorn-Crowned Hart planner milestone;
   the authored 132-146 appearance band remains unchanged, so the encounter
   may technically appear before the planner's reliable milestone target.
 
@@ -378,7 +422,7 @@ removing Full Campaign mode.
 ### AI-assisted implementation
 
 - Replaced the Camelot-only readiness assumption with a pure Old Forest
-  projection for the known village at 95 leagues. The projection evaluates the
+  projection for the known village at 95 stadia. The projection evaluates the
   reach-to-village segment, authored hidden-shop price and finite stock, player
   gold, capacity, current provisions, strategy reserve, and the post-resupply
   village-to-target plus return segments. It never mutates gold, provisions, or
@@ -1317,7 +1361,7 @@ asset differs from the current panorama.
 
 ### Verification and resulting prototype state
 
-The focused location browser regression now checks 0, 14, 15, and 24 league
+The focused location browser regression now checks 0, 14, 15, and 24 stadion
 selection plus same-asset continuity. Passed `python tests/location_system_test.py`
 with 440 browser assertions and `git diff --check`.
 
@@ -1563,7 +1607,7 @@ an add/commit when complete.
 - Extended campaign entry, compact, CSV, and decision diagnostics with the
   progression floor, minimum/preferred requirements, capacity, packed stock,
   shortfall, readiness, blocker, and supply-run benefit fields. Added focused
-  deterministic coverage for aggressive 105-league planning, compact
+  deterministic coverage for aggressive 105-stadion planning, compact
   diagnostics, underprepared Old Forest deferral, and non-improving supply
   loops.
 
@@ -1589,7 +1633,7 @@ Passed:
 - `python tests/replay_system_test.py` — 15 replay assertions.
 - `git diff --check`.
 
-The required fresh 100-campaign progression validation used a 105-league
+The required fresh 100-campaign progression validation used a 105-stadion
 target, 20-expedition cap, default authored player state with 20 starting gold
 and 15 starting provisions, and the requested policy/strategy pairs. Aggressive
 recorded 96% Old Forest completion, 0 planned progression target reductions,
@@ -1647,7 +1691,7 @@ Passed:
 - `python tests/campaign_system_test.py` — 99 campaign/health/Inn assertions.
 - `python tests/simulation_system_test.py` — 62 deterministic simulation
   assertions.
-- A fresh 100-campaign Aggressive progression batch at a 105-league target,
+- A fresh 100-campaign Aggressive progression batch at a 105-stadion target,
   20-expedition cap, and `aggressive-reinvestor` policy reduced hard failure
   from the supplied 100% baseline to 34%, resource exhaustion from 63% to 2%,
   and death from 37% to 32%. Barenton completion was 10% versus 28%, Val
@@ -1931,7 +1975,7 @@ progression configuration.
 ### AI-assisted implementation
 
 - Set the defaults to 100 campaigns, current campaign progression, 20 maximum
-  attempts, aggressive strategy, aggressive-reinvestor policy, and a 105-league
+  attempts, aggressive strategy, aggressive-reinvestor policy, and a 105-stadion
   turnaround distance.
 - Added a browser regression assertion for the visible default controls.
 
@@ -2116,7 +2160,7 @@ no broad rebalance of existing content.
 
 Verified 10 existing Barenton/Val browser-content assertions, 53 deterministic
 simulation assertions, focused new-ID/combat/dialogue/camp registration checks,
-replay determinism, clean HTTP startup, and exact 101-league seeded Barenton
+replay determinism, clean HTTP startup, and exact 101-stadion seeded Barenton
 and Val progression reward runs. The broader campaign and location suites
 remain blocked by their documented pre-existing stale glimmering_blade and
 recipe-count fixtures. No new files were staged or committed; the user will
@@ -2187,7 +2231,7 @@ recipe balance changes and Infection retuning.
   processing with remainder accumulation, multiple-interval handling,
   Arthur/companion health updates, journey-log entries, and deterministic
   `injury-travel-damage` telemetry. Poisoned is authored as one damage every
-  five leagues; Infection remains unchanged.
+  five stadia; Infection remains unchanged.
 - Added the Content Editor Materials category backed by
   `MATERIAL_DEFINITIONS`, including add/edit/delete, identity/name/
   description/rarity fields, reference-aware deletion protection, and live
@@ -2359,7 +2403,7 @@ verified source-preserving edits that change only the owning encounter.
 
 ### Goal
 
-Make a small preparation pass for 101-league progression play without
+Make a small preparation pass for 101-stadion progression play without
 changing travel consumption, combat balance, encounter frequency, or quest
 content. The patch also makes wolf and ordinary bandit field rewards more
 intuitive while keeping all seeded simulation and replay paths compatible.
@@ -2380,7 +2424,7 @@ left unchanged.
   campaign simulation, and campaign replay through `CampaignRules`.
 - Added high-level progression preparation logic that, when Barenton or Val
   cannot safely support the current deep objective, launches a strategy-sized
-  Old Forest Road supply run at 60, 65, or 75 leagues. The progression stage
+  Old Forest Road supply run at 60, 65, or 75 stadia. The progression stage
   remains unchanged, and telemetry distinguishes the supply route, objective
   route, target, route attempts, compact export, and replay actions.
 - Changed three-wolf victory to stage exactly 3 Raw Meat. Added a seeded 35%
@@ -2397,8 +2441,8 @@ verification, and local commit. No manual code edits were reported.
 ### Verification and resulting prototype state
 
 The town supply remains finite per stock pool and replenishes only up to the
-70-provision merchant cap. A seeded progression smoke case with a 101-league
-deep objective produced a marked 65-league Old Forest supply run, without
+70-provision merchant cap. A seeded progression smoke case with a 101-stadion
+deep objective produced a marked 65-stadion Old Forest supply run, without
 incrementing a Barenton attempt. Three-wolf victory staged 3 Raw Meat, and a
 seeded ordinary-bandit victory granted 2 provisions from the 2–4 branch.
 
@@ -2407,7 +2451,7 @@ Verified 22 progression assertions, 47 deterministic simulation assertions,
 30 campaign-replay assertions, 10 Barenton/Val content assertions, 429
 UI/provision/location assertions, and `git diff --check`. The remaining
 provision bottleneck is the finite 30-provision default Arthur/Sir Kay party
-capacity: a 101-league run can still be target-reduced or require a supply run
+capacity: a 101-stadion run can still be target-reduced or require a supply run
 when cooking, gold, or merchant stock cannot cover the preferred buffer.
 
 ## 2026-08-15 - Current Campaign Progression Simulation
@@ -2460,10 +2504,10 @@ verification and commit. No manual code edits were reported.
 
 ### Verification and resulting prototype state
 
-With a Flask available, deterministic cautious and aggressive 101-league
+With a Flask available, deterministic cautious and aggressive 101-stadion
 samples completed in three attempts with the route sequence
 `old_forest_road -> fountain_of_barenton -> val_sans_retour` and stopped after
-Morgan's Token. A seeded random 101-league sample remained a truthful
+Morgan's Token. A seeded random 101-stadion sample remained a truthful
 incomplete baseline after reaching Val and exhausting expedition resources;
 no completion-rate tuning was applied.
 
@@ -2504,7 +2548,7 @@ global combat/economy rebalance, and broad provision changes.
   not a combatant; refusing the deep offer leads to Morgan's Guardian, whose
   deliberate victory reward is unsecured Morgan's Token.
 - Added route-aware milestone selection that preserves encounter spacing except
-  for the deep guardian threshold needed to resolve a 100-league target, and
+  for the deep guardian threshold needed to resolve a 100-stadion target, and
   extended the normal travel pool with a restrained mix of forest, weather,
   shrine, stream, shelter, and return content. Existing legacy fountain data
   remains unreachable in production but is retained for old replay/test shape
@@ -2523,8 +2567,8 @@ verification, and a local commit. No manual code edits were reported.
 
 ### Verification and resulting prototype state
 
-The two routes now reach their deep milestones near 94–100 leagues in focused
-100-league simulations. The sampled full round trips produced 14–18 total
+The two routes now reach their deep milestones near 94–100 stadia in focused
+100-stadion simulations. The sampled full round trips produced 14–18 total
 encounters, 0–1 combats, and no content-specific provision failure; the normal
 route pool remains mixed with story, forest, weather, recovery, and return
 events. Cautious, Random, and Aggressive runs all terminated cleanly, while
@@ -2581,7 +2625,7 @@ manual code edits were reported.
 
 ### Verification and resulting prototype state
 
-Representative 50-campaign smoke batches with 100/101-league targets and
+Representative 50-campaign smoke batches with 100/101-stadion targets and
 100 gold/30 provisions showed aggressive Reinforced Mail purchases on all
 sampled campaigns, followed by Knightly Longsword purchases in nearly all
 campaigns. Aggressive 101 campaigns averaged about 4.49 combats, 29.11 damage,
@@ -2591,7 +2635,7 @@ HP. Cautious remained safer in the comparison sample, with 0 deaths and 49/50
 completed campaigns versus aggressive's 1 death and 31/50 completed campaigns;
 the remaining aggressive stops were primarily resource exhaustion rather than
 Arthur deaths. Starter armor remains materially riskier than Reinforced Mail
-in direct 101-league smoke runs.
+in direct 101-stadion smoke runs.
 
 Focused browser suites passed: simulation (45 assertions), campaign (78),
 single-expedition replay (15), campaign replay (30), and location/UI (429).
@@ -2601,7 +2645,7 @@ single-expedition replay (15), campaign replay (30), and location/UI (429).
 
 ### Goal
 
-Rebalance the league scale so a 100-league expedition has substantially more
+Rebalance the stadion scale so a 100-stadion expedition has substantially more
 room for authored encounters without making interruptions arrive much more
 often in real-world play time or doubling baseline provision pressure.
 
@@ -2618,14 +2662,14 @@ cleanup.
   simulation, campaign simulation, compact export, and replay playback before
   editing.
 - Reduced the shared outbound presentation speed from `2.25` to `1.0`
-  league/second, approximately 44% of the former progression rate. The return
+  stadion/second, approximately 44% of the former progression rate. The return
   multiplier and pace identities remain unchanged.
-- Tightened shared encounter rolls from `14–22` to `7–10` leagues and reduced
-  the post-encounter safety floor from `8` to `4.5` leagues. Existing weighted
+- Tightened shared encounter rolls from `14–22` to `7–10` stadia and reduced
+  the post-encounter safety floor from `8` to `4.5` stadia. Existing weighted
   selection, route/direction filters, occurrence limits, requirements, seeded
   RNG, and minimum/maximum authored distances remain intact.
 - Kept provisions distance-based through `ExpeditionRules`; no new time-based
-  food cost was introduced. Baseline 100-league round trips therefore retain
+  food cost was introduced. Baseline 100-stadion round trips therefore retain
   their existing pressure while pace and ration multipliers remain active.
 - Updated the production UI assertion and replay coverage fixture for the new
   scale. Simulation, campaign, compact export, and replay continue to consume
@@ -2638,13 +2682,13 @@ code edits were reported.
 
 ### Verification and resulting prototype state
 
-The prototype now advances through league distance at approximately 44% of the
-former normal rate while rolling encounters in a 7–10 league window. A
-representative 32-seed normal batch averaged about 8.3 leagues between outbound
-encounters and 9.7 outbound encounters on a 100-league target; the former
-configured roll average was 18 leagues, or roughly 5–6 slots. Arthur plus Kay
+The prototype now advances through stadion distance at approximately 44% of the
+former normal rate while rolling encounters in a 7–10 stadion window. A
+representative 32-seed normal batch averaged about 8.3 stadia between outbound
+encounters and 9.7 outbound encounters on a 100-stadion target; the former
+configured roll average was 18 stadia, or roughly 5–6 slots. Arthur plus Kay
 normal round-trip provision costs remain approximately 13.26, 17.68, and 17.86
-for 75, 100, and 101 leagues respectively.
+for 75, 100, and 101 stadia respectively.
 
 Verified 429 UI/provision/location assertions, 45 deterministic simulation
 assertions, 78 campaign/health/Inn assertions, 15 replay assertions, and
@@ -2913,7 +2957,7 @@ The human developer supplied the attached gameplay/UI/content polish guide and r
 
 ### AI-assisted implementation
 
-- Added regular Bandit Ambush and conditional Bandit Leader encounters with distinct combat definitions, modest shared loot tables, seeded run-flag eligibility, normal victory settlement, and Fountain of Barenton gating at 90 leagues.
+- Added regular Bandit Ambush and conditional Bandit Leader encounters with distinct combat definitions, modest shared loot tables, seeded run-flag eligibility, normal victory settlement, and Fountain of Barenton gating at 90 stadia.
 - Added Knightly Longsword and Reinforced Mail as expensive Smithy upgrades, and taught campaign preparation to buy and equip one affordable upgrade when provision needs are covered.
 - Moved crafting/cooking progress into the active recipe card, disabled conflicting station actions while busy, added a town Inn Cook tab using the real campfire recipes/material mutations, and added a centralized 2.2-second Inn rest completion delay with completion-only healing and charging.
 - Updated Strong Tonic to produce two items and reduced only the campfire visual; removed the large summary emblem and added modest mobile town touch/readability rules.
@@ -2953,7 +2997,7 @@ Verified 425 UI/provision/location browser assertions, 44 deterministic simulati
 
 ### Goal
 
-Correct the latest 75-league simulation issues without changing global combat, encounter, reward, economy, or provision balance.
+Correct the latest 75-stadion simulation issues without changing global combat, encounter, reward, economy, or provision balance.
 
 ### Human prompt and direction
 
@@ -2962,7 +3006,7 @@ The human developer supplied a corrective mechanics guide covering useless bot r
 ### AI-assisted implementation
 
 - Converted persistent injuries to normalized instances with one seeded recovery-distance roll for Sprained Ankle, Bruised Ribs, and Deep Cut, while migrating legacy injury-ID arrays safely.
-- Added travel-based recovery, Camp/Inn recovery acceleration, Deep Cut's one-time 12-league infection check at 25%, the distinct Infection status, and metadata-driven medical treatment coverage.
+- Added travel-based recovery, Camp/Inn recovery acceleration, Deep Cut's one-time 12-stadion infection check at 25%, the distinct Infection status, and metadata-driven medical treatment coverage.
 - Prevented zero-benefit Brief Rests and unsafe optional rests in simulation policy; Cautious now prefers a reasonable Camp Rest for Exhaustion and all strategies avoid useless full-health rests.
 - Removed the duplicate injury-gain event path and added natural recovery, infection, stabilization, recovery-distance, and corrected exhaustion telemetry to single-expedition and campaign exports/replays.
 - Updated injury UI feedback and incremented the save schema from 10 to 11 with legacy migration support.
@@ -3341,7 +3385,7 @@ The human developer supplied a structural campaign guide requesting three select
 ### AI-assisted implementation
 
 - Added data-driven Old Forest Road, Fountain of Barenton, Val sans Retour, and Search for Merlin expedition definitions. Preparation now preserves loadout state while selecting routes, renders restrained SVG skull danger ratings, shows missing campaign prerequisites, and launches the selected route.
-- Added protected unique campaign items for Merlin's Flask, Water of Barenton, and Morgan's Token, plus conditional Fountain content, Old Forest Road Flask/Llamrei discoveries, Morgan's Voice, a summoned guardian combat placeholder, and a 100–125 league Merlin placeholder encounter.
+- Added protected unique campaign items for Merlin's Flask, Water of Barenton, and Morgan's Token, plus conditional Fountain content, Old Forest Road Flask/Llamrei discoveries, Morgan's Voice, a summoned guardian combat placeholder, and a 100–125 stadion Merlin placeholder encounter.
 - Expanded party state to two companion slots with legacy single-companion migration. Added capability-driven Llamrei behavior, provision and travel bonuses, Kick/Charge combat content, restricted human actions, and non-permanent defeat handling.
 - Added The Hall and Reeve content, moved the Apothecary southeast, and introduced reusable data-driven dialogue sequences with portrait placeholders, choices, explicit effects, mobile-sized overlay controls, and a five-node first-entry introduction.
 - Added the fresh-save Hall-only village gate, immediate intro save/unlock behavior, campaign prerequisite helpers, route-aware encounters, and multi-party simulation/campaign telemetry and planning support.
@@ -3696,11 +3740,11 @@ The human developer reported that encounters occurred too frequently, repeated c
 ### AI-assisted implementation
 
 - Added one centralized expedition-tuning object for outbound speed, return multiplier, provision cost per distance, random encounter spacing, safe post-encounter distance, and starting provision limits.
-- Increased random spacing from 5–9 leagues to 14–22 leagues and guaranteed breathing room after every resolved encounter.
+- Increased random spacing from 5–9 stadia to 14–22 stadia and guaranteed breathing room after every resolved encounter.
 - Marked all six current encounters non-repeatable for one expedition while preserving data-level repeatability support.
 - Added a generic encounter-result phase that keeps narrative and accumulated consequences visible until the player explicitly selects **Continue Journey**.
 - Kept distance, normal provision consumption, scenery, return progress, and further encounter selection paused throughout choices and results.
-- Changed provisions from time-based depletion to a shared per-league cost of `0.16` in both directions.
+- Changed provisions from time-based depletion to a shared per-stadion cost of `0.16` in both directions.
 - Set return movement to four times outbound speed while retaining equal baseline provision cost for equal distance.
 - Ran 21 automated browser assertions covering spacing, exhaustion, repeatability, results, pausing, post-encounter safety, resource economics, direction pools, return banking, failure loss, and runtime errors; every assertion passed.
 
@@ -3710,7 +3754,7 @@ The human developer playtested the previous phone build and supplied the pacing 
 
 ### Resulting prototype state
 
-Expeditions now contain longer stretches of visible travel between unique events. Encounter consequences remain readable for as long as needed, provisions support substantially greater travel distance, and the return journey is compressed in real time without becoming cheaper per league.
+Expeditions now contain longer stretches of visible travel between unique events. Encounter consequences remain readable for as long as needed, provisions support substantially greater travel distance, and the return journey is compressed in real time without becoming cheaper per stadion.
 
 ## 2026-08-12 — Brocéliande Encounters and Loot
 
@@ -3927,7 +3971,7 @@ Replace the fixed expedition food cap with party-derived carrying capacity and m
 
 ### Human prompt and direction
 
-The human developer reported that the existing provision balance was not fun and supplied a focused party-provision guide. It defined Arthur's 20-provision capacity and 1.0× consumption, Sir Kay's +10 capacity and +0.30× consumption, a new 0.07 baseline cost per league, visible preparation feedback, expedition snapshots, and preservation of the 10-provision town safety floor and all unrelated systems.
+The human developer reported that the existing provision balance was not fun and supplied a focused party-provision guide. It defined Arthur's 20-provision capacity and 1.0× consumption, Sir Kay's +10 capacity and +0.30× consumption, a new 0.07 baseline cost per stadion, visible preparation feedback, expedition snapshots, and preservation of the 10-provision town safety floor and all unrelated systems.
 
 ### AI-assisted implementation
 
@@ -3937,7 +3981,7 @@ The human developer reported that the existing provision balance was not fun and
 - Updated preparation to show the selected party, owned food, selected food versus calculated capacity, and the current consumption multiplier.
 - Clamped selected provisions immediately when party capacity decreases and continued to preserve preparation scroll position through party and provision changes.
 - Snapshotted departure capacity, consumption multiplier, and carried provisions into expedition state so later player-state changes cannot alter an active run.
-- Kept consumption fractional and distance-based in both directions: Arthur uses 0.07 provisions per league, while Arthur and Kay use 0.091 provisions per league regardless of return animation speed.
+- Kept consumption fractional and distance-based in both directions: Arthur uses 0.07 provisions per stadion, while Arthur and Kay use 0.091 provisions per stadion regardless of return animation speed.
 - Preserved encounter-found provisions above departure capacity, persistent provision settlement, prices, shops, the 10-provision village floor, and all encounter and campaign behavior.
 - Expanded the Chrome regression suite from 117 to 130 assertions, covering party data, optional companion save state, capacity clamping, preparation feedback, expedition snapshots, solo rendering, effective rates, snapshot isolation, found-food overflow, equal outbound/return distance costs, settlement, reset behavior, and runtime exceptions; all passed.
 
@@ -3969,7 +4013,7 @@ The human developer reported that provisions drained slightly too slowly, loot o
 - Added Rope interaction at the Broken Bridge, capped Glint and Wolves recurrence at twice per run, and added future-facing `waysideOfferingMade` and `sunkenRoadExplored` run flags without explaining or rewarding them supernaturally.
 - Kept the absent hermit explicitly unidentified and added no Merlin implication, corpse, historical canon, new path, or campaign revelation.
 - Reworked relevant camp, cart, oak, hollow, and shelter tables so common supplies and valuables outweigh uncommon and special finds; the Green Glass Vial remains the lowest-weight root discovery.
-- Left Glint in the Mud, Broken Bridge, Wolves in the Brush, and other suitable generic events eligible on deep runs while preserving the existing 14–22 league encounter spacing and using no secondary loot timer.
+- Left Glint in the Mud, Broken Bridge, Wolves in the Brush, and other suitable generic events eligible on deep runs while preserving the existing 14–22 stadion encounter spacing and using no secondary loot timer.
 - Expanded the Chrome regression suite from 130 to 156 assertions, covering all nine definitions, path and direction pools, deep-run eligibility, recurrence caps, weighted rarity, dynamic result names, pending actions, locked Rope access, run flags, live unsecured discovery feedback, explicit empty searches, revised consumption rates, existing settlement flows, and runtime exceptions; all passed.
 
 ### Manual changes
@@ -4062,7 +4106,7 @@ The human developer supplied the multi-expedition campaign guide and added an ex
 - Extended `?sim=1` with practical campaign fields, one/batch execution, aggregate results, individual campaign timelines, and all three campaign exports.
 - Added a dedicated campaign/health/Inn Chrome suite covering migration, healing display/cost/affordability/save parity, actual normal-game return and next-departure persistence, deterministic/divergent campaigns, insolvency, viable ten-run completion, economy carryover, batches/CSV, and replay payloads.
 - Verified 19 focused campaign/health/Inn assertions, 9 single-expedition determinism assertions, and all 207 existing UI/location/browser assertions together; `git diff --check` also passed.
-- Measured a representative cautious 50-league campaign at roughly 12.2 ms for 10 expeditions and 202.2 ms for 100 ten-expedition campaigns in headless Chrome on this machine.
+- Measured a representative cautious 50-stadion campaign at roughly 12.2 ms for 10 expeditions and 202.2 ms for 100 ten-expedition campaigns in headless Chrome on this machine.
 - The measured 100-campaign sample completed all ten attempts 93% of the time, ended with 57.77 average gold from a 100-gold start, and averaged 25.57 ending health and 46.13 Arthur damage. This is descriptive test output, not an automatic balance recommendation.
 - Preserved all encounter, provision, equipment, enemy, and combat damage values; no hidden rebalance was performed.
 
@@ -4256,7 +4300,7 @@ The human developer requested one isolated balance adjustment and explicitly pre
 ### AI-assisted implementation
 
 - Reduced the centralized `baseProvisionsPerDistance` tuning value from 0.08 to 0.068.
-- Updated the narrow browser assertions for the resulting Arthur rate of 0.068 provisions per league and Arthur-plus-Kay rate of 0.0884 provisions per league.
+- Updated the narrow browser assertions for the resulting Arthur rate of 0.068 provisions per stadion and Arthur-plus-Kay rate of 0.0884 provisions per stadion.
 - Left all other production and tuning values unchanged.
 
 ### Manual changes
@@ -4369,7 +4413,7 @@ The human developer supplied a detailed implementation guide requiring a functio
 - Added reusable weighted loot tables for common/uncommon/rare/forest materials, Apothecary recipe pools, encounter forage, and five return tiers. Table entries can award gold, materials, items, recipes, or nested tables; rarity remains display metadata and never controls probability.
 - Added generic eligibility filtering without mutating definitions. Learned or already-staged recipes are skipped, exhausted child tables safely disappear from the weighted pool, unique owned items are ineligible, and ancestor/depth guards prevent recursive table loops.
 - Routed Abandoned Camp through the generic encounter loot resolver as a second reward source. Expedition loot stages materials and recipe knowledge alongside existing unsecured items/gold, then shared settlement either secures all four reward types or loses unsecured discoveries on failure.
-- Added Minor, Low, Medium, High, and Deep successful-return reward tiers at 0, 20, 40, 60, and 90 maximum leagues reached. Shared settlement rolls the configured tables exactly once, including voluntary returns, and reports tier/results/debug traces.
+- Added Minor, Low, Medium, High, and Deep successful-return reward tiers at 0, 20, 40, 60, and 90 maximum stadia reached. Shared settlement rolls the configured tables exactly once, including voluntary returns, and reports tier/results/debug traces.
 - Migrated saves to version 7 with safe stable-ID sanitization for material quantities and learned recipes. Fresh campaigns know Bandages and Repair Kit and hold a small test material supply so both provider loops can be exercised immediately.
 - Propagated material, recipe, return-reward, and loot-trace state through deterministic expedition and persistent campaign simulation. Between-expedition automation now crafts useful known Bandages before buying only the remaining strategy target.
 - Updated player-facing architecture and simulation documentation and expanded browser coverage for provider UI, atomic crafting, separate inventory state, save migration, nested resolution, cycle protection, learned-recipe filtering, return tiers, idempotent settlement, telemetry, and cross-expedition persistence.
@@ -4383,7 +4427,7 @@ The human developer provided the complete design guide, content scale, architect
 
 Materials found in authored encounters or successful-return tables now feed a persistent provider-specific crafting loop: players can buy expensive finished remedies immediately, or discover permanent recipes and turn secured resources into the same ordinary item/ability system. The framework supports future providers, rare equipment outputs, unique authored loot pools, and additional reward sources without provider switches or parallel inventory/effect systems.
 
-Intentional first-pass limits remain: Antidote and Repair Kit have no poison/durability action yet; no such subsystem was invented for this pass. The current expedition has no authored story-completion boundary, so 90+ leagues uses the best generic Deep return tier rather than claiming chapter completion. Loot traces are available to debug/simulation output and the browser console, while the normal UI shows only concise rewards.
+Intentional first-pass limits remain: Antidote and Repair Kit have no poison/durability action yet; no such subsystem was invented for this pass. The current expedition has no authored story-completion boundary, so 90+ stadia uses the best generic Deep return tier rather than claiming chapter completion. Loot traces are available to debug/simulation output and the browser console, while the normal UI shows only concise rewards.
 
 ## 2026-08-12 — Scroll Preservation and Apothecary Hub Fix
 
@@ -4829,7 +4873,7 @@ Prevent progression simulations from knowingly launching below an authored route
 
 ### Human prompt and direction
 
-The human developer supplied a focused simulation-planning guide after observing Cautious Search for Merlin runs repeatedly departing below the route's 120-league objective. The guide required a generic metadata-driven fix, deterministic preparation behavior, compact telemetry, focused tests, and local commits in the affected repositories.
+The human developer supplied a focused simulation-planning guide after observing Cautious Search for Merlin runs repeatedly departing below the route's 120-stadion objective. The guide required a generic metadata-driven fix, deterministic preparation behavior, compact telemetry, focused tests, and local commits in the affected repositories.
 
 ### AI-assisted implementation
 
@@ -4845,7 +4889,7 @@ The human developer supplied the simulation-planning guide and explicitly author
 
 ### Verification and resulting prototype state
 
-The focused progression suite passed 36 assertions; the deterministic simulation suite passed 62 assertions; and the campaign/health/Inn suite passed 92 assertions. Cautious Merlin campaigns now record preparation runs before a committed 120-league attempt, Aggressive may proceed sooner but also never targets below 120, and validated campaigns recorded zero objective-floor violations. `git diff --check` passed. The standalone replay suite still has its unrelated camp/combat decision-coverage fixture failure, and the campaign replay suite still has its unrelated Campaign 40 loadout fixture failure; both are documented for handoff. No Tools files were changed.
+The focused progression suite passed 36 assertions; the deterministic simulation suite passed 62 assertions; and the campaign/health/Inn suite passed 92 assertions. Cautious Merlin campaigns now record preparation runs before a committed 120-stadion attempt, Aggressive may proceed sooner but also never targets below 120, and validated campaigns recorded zero objective-floor violations. `git diff --check` passed. The standalone replay suite still has its unrelated camp/combat decision-coverage fixture failure, and the campaign replay suite still has its unrelated Campaign 40 loadout fixture failure; both are documented for handoff. No Tools files were changed.
 
 ## 2026-08-19 - Travel Debug Controls
 
@@ -5087,7 +5131,7 @@ Make Old Forest Road the contest-ready focus route: support deeper progression, 
 
 ### AI-assisted implementation
 
-- Extended Old Forest Road progression through 180 leagues, added distance scenes through 200+, added nonlinear late return reward tiers at 120, 160, and 200 leagues, and gave this route a data-driven +30 provision-capacity bonus so the contest objective is supportable without changing the party baseline elsewhere.
+- Extended Old Forest Road progression through 180 stadia, added distance scenes through 200+, added nonlinear late return reward tiers at 120, 160, and 200 stadia, and gave this route a data-driven +30 provision-capacity bonus so the contest objective is supportable without changing the party baseline elsewhere.
 - Added a bounded Overgrown Trail route with a map-enabled turnoff near 20, a normal turnoff near 40, automatic Main Road rejoin near 80, and correct return behavior toward the entrance.
 - Added Old Forester's Map as a rare forest find and a 25-gold Camelot supply, plus a full-screen hidden forest village stop around 95 with persistent safe-return discovery, limited expensive supplies, an inn, and an apothecary/Druid placeholder.
 - Added the Verdant scaffold IDs and a placeholder grove rite, a final altar near 180, a minimal Verdant Warden combat definition, and safe-return Flask ownership only after that boss victory. Fountain of Barenton and Val sans Retour remain visibly gated by Flask.
@@ -5106,15 +5150,15 @@ The focused Old Forest browser suite passes 8 assertions, the current-campaign p
 
 ### Goal
 
-Keep Old Forest Road progression-focused without treating the 180-league objective as an immediately sustainable run.
+Keep Old Forest Road progression-focused without treating the 180-stadion objective as an immediately sustainable run.
 
 ### AI-assisted implementation
 
 - Removed the Old Forest route-specific +30 provision-capacity bonus; the route now uses the same global and companion capacity rules as every other expedition.
 - Retained the generalized optional route-capacity plumbing in `ExpeditionRules` for future tuning, but no current expedition definition uses it.
 - Removed campaign-simulator deep-run forcing, including the automatic sparse-ration override and locked travel settings. Restored the normal supply-run targets so unsupported deep attempts defer naturally.
-- Updated the campaign regressions to expect an early Old Forest supply/defer result rather than guaranteed 180-league reach, while retaining direct Flask gate coverage and repeated-run route focus checks.
-- Kept 180 leagues as the late-game Old Forest objective. Pass 2 can add earned cooking, ingredients, forage, Woodcraft, village resupply, gear, and other progression that improves supported depth without a global capacity rebalance.
+- Updated the campaign regressions to expect an early Old Forest supply/defer result rather than guaranteed 180-stadion reach, while retaining direct Flask gate coverage and repeated-run route focus checks.
+- Kept 180 stadia as the late-game Old Forest objective. Pass 2 can add earned cooking, ingredients, forage, Woodcraft, village resupply, gear, and other progression that improves supported depth without a global capacity rebalance.
 
 ### Verification and resulting prototype state
 
@@ -5128,14 +5172,14 @@ Make Old Forest Road a progression-friendly contest route built around earned Wo
 
 ### AI-assisted implementation
 
-- Gated the early Overgrown fork near league 20 behind Old Forester's Map while keeping the normal map-independent turnoff near league 40.
+- Gated the early Overgrown fork near stadion 20 behind Old Forester's Map while keeping the normal map-independent turnoff near stadion 40.
 - Replaced the placeholder deep route event with the Thornbound Crossing and added Woodcraft branches to practical forest encounters. The Injured Hunter now teaches Woodcraft reliably, with the Mossbound Guide as an alternate route.
 - Removed the Bandit Leader's unrelated Threefold Seal recipe reward and kept the Glimmering Sword/Sweeping Strike progression focused. Glimmering Sword now has a meaningful bonus against Verdant and enchanted targets.
-- Reworked the White Hart into a peaceful multi-stage meeting around leagues 50-80. Calm or observant choices can secure the persistent Grace shard; pursuit or aggression makes it flee, with a later campaign opportunity and no shard farming.
-- Added the guaranteed Thorn-Crowned Hart around league 140 with dedicated combat, the persistent Wrath shard, a defeat flag, and no post-victory respawn.
+- Reworked the White Hart into a peaceful multi-stage meeting around stadia 50-80. Calm or observant choices can secure the persistent Grace shard; pursuit or aggression makes it flee, with a later campaign opportunity and no shard farming.
+- Added the guaranteed Thorn-Crowned Hart around stadion 140 with dedicated combat, the persistent Wrath shard, a defeat flag, and no post-victory respawn.
 - Added the protected unique Verdant Heart recipe, the Druid's one-time favor chain, the Communion Draught, Song of the Forest, Heart awakening, and several Woodcraft-enabled food/provision recipes.
 - Made the altar remain visible with friendly retry hints until the expedition has Song of the Forest and an enchanted Heart. Its Warden encounter is stronger, telegraphed, status-aware, and regeneration-suppressible; Glimmering Sword helps without being mandatory.
-- Added protected mid-route armor and utility/relic rewards, optional 200+ league discoveries, and deep-avoidance pressure beyond leagues 80, 120, and 150 without making Woodcraft mandatory.
+- Added protected mid-route armor and utility/relic rewards, optional 200+ stadion discoveries, and deep-avoidance pressure beyond stadia 80, 120, and 150 without making Woodcraft mandatory.
 - Added first-time-only knowledge/ability/recipe reward reveals, generic knowledge support in the game reward model, simulator pursuit of Old Forest progression services, and telemetry for shards, Heart, Warden attempts, depth, Glimmering Sword, and return failures.
 
 ### Manual changes
@@ -5150,12 +5194,12 @@ The Pass 2 Old Forest browser suite passes 11 assertions. The existing Old Fores
 
 ### Goal
 
-Replace the Old Forest simulator's repeated generic 180-league readiness check and shallow supply loop with explicit next-milestone planning. The simulator should explain its current goal, pursue the authored chain, and stop only when the actual next milestone has no viable preparation path.
+Replace the Old Forest simulator's repeated generic 180-stadion readiness check and shallow supply loop with explicit next-milestone planning. The simulator should explain its current goal, pursue the authored chain, and stop only when the actual next milestone has no viable preparation path.
 
 ### AI-assisted implementation
 
 - Added `assessOldForestProgressionGoal` with structured goals for Woodcraft, Grace, village discovery, Druid favor, Wrath, Heart forging, Heart enchantment, and the Verdant Warden.
-- Old Forest progression now targets approximately 70, 75, 95, 100, 140, 80/95, and 180 leagues as the campaign state advances, while retaining the final 180-league route objective for completion accounting.
+- Old Forest progression now targets approximately 70, 75, 95, 100, 140, 80/95, and 180 stadia as the campaign state advances, while retaining the final 180-stadion route objective for completion accounting.
 - Added reasonable-attempt readiness floors so a slightly constrained milestone attempt is preferred over an unnecessary supply loop. Supply runs remain conditional on a goal-specific material benefit and are tracked per goal rather than suppressing later milestones.
 - Made simulator route choices goal-aware: early goals use the Overgrown route, village/Druid goals enter the hidden village, the Grace goal follows the peaceful White Hart sequence, the Wrath goal fights the Thorn-Crowned Hart, and the final goal sings at the altar. Random retains weaker general choices while still understanding mandatory authored progression.
 - Added goal-aware aggressive milestone travel settings for the critical Hart and Warden attempts, avoiding a simulator-created hard-push return failure without changing capacity, food, encounter, combat, or boss tuning values.

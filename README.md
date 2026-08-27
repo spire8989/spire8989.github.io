@@ -19,7 +19,7 @@ submenu reads the actual carried expedition inventory; Bandages heal 8 HP on one
 immediately on successful use, and remain synchronized with Arthur's or Kay's run HP. Menus and enemy or ally targeting
 pause the ATB gauges, while Intercede remains active until Kay intercepts one applicable Arthur attack.
 
-Rewards use reusable weighted loot tables that can grant gold, materials, items, recipes, or recursively reference another table. Entries are filtered for eligibility before rolling, so learned recipes remain in static definitions but cannot drop again. Encounter discoveries stay unsecured until the expedition returns safely. A successful return also rolls a modest reward tier based on the farthest distance reached: 0, 20, 40, 60, and 90 leagues begin the Minor, Low, Medium, High, and Deep tiers.
+Rewards use reusable weighted loot tables that can grant gold, materials, items, recipes, or recursively reference another table. Entries are filtered for eligibility before rolling, so learned recipes remain in static definitions but cannot drop again. Encounter discoveries stay unsecured until the expedition returns safely. A successful return also rolls a modest reward tier based on the farthest distance reached: 0, 20, 40, 60, and 90 stadia begin the Minor, Low, Medium, High, and Deep tiers.
 
 Progress is stored in the browser with `localStorage`. The reset button in the top-right corner restores the initial prototype save.
 

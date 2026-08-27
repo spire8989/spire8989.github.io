@@ -3410,7 +3410,7 @@ function renderPersistentInjuryPanel(holder, options = {}) {
     const itemId = InjuryRules.treatmentItemFor(injuryId);
     const canTreat = options.includeTreatment && itemId && (holder.ownedItems?.[itemId] ?? 0) > 0;
     const recovery = Number(instance.remainingRecoveryDistance) > 0
-      ? `<span>${Math.ceil(instance.remainingRecoveryDistance)} leagues until recovery${instance.stabilized ? " · Stabilized" : ""}</span>`
+      ? `<span>${formatDistance(Math.ceil(instance.remainingRecoveryDistance))} until recovery${instance.stabilized ? " · Stabilized" : ""}</span>`
       : instance.stabilized ? "<span>Stabilized</span>" : "";
     return `<div class="injury-row"><div><strong>${characterNameForUi(characterId)} · <span class="injury-name ${injurySemanticTone(injuryId)}">${injury.name}</span></strong><span>${injury.description}</span>${recovery}</div>${canTreat ? `<button class="small-button" type="button" data-action="treat-injury" data-target-id="${characterId}" data-item-id="${itemId}">Use ${ITEM_DEFINITIONS[itemId].name}</button>` : itemId && options.includeTreatment ? `<span class="injury-treatment-missing">Need ${ITEM_DEFINITIONS[itemId].name}</span>` : ""}</div>`;
   }).join("");
@@ -6623,7 +6623,9 @@ function debugExpeditionState(expedition) {
 }
 
 function formatDistance(distance) {
-  return `${distance.toFixed(1)} leagues`;
+  const numeric = Number(distance);
+  const rounded = Number.isFinite(numeric) ? Number(numeric.toFixed(1)) : 0;
+  return `${rounded} ${rounded === 1 ? "stadion" : "stadia"}`;
 }
 
 function formatResource(value) {

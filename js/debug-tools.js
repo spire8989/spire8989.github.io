@@ -518,7 +518,7 @@ function renderDebugExpeditionSection() {
     const enemies = entry.enemyIds.map((enemyId) => COMBAT_ENEMY_DEFINITIONS[enemyId]?.name ?? enemyId).join(", ");
     return `<option value="${escapeDebugText(entry.id)}" ${entry.id === selectedCombatId() ? "selected" : ""}>${escapeDebugText(entry.id)} · ${escapeDebugText(enemies)}</option>`;
   }).join("");
-  const expeditionReadout = active ? `<div class="debug-readout-grid"><span>Distance</span><strong>${Number(expedition.distance).toFixed(1)}</strong><span>Direction</span><strong>${escapeDebugText(expedition.direction)}</strong><span>Path</span><strong>${escapeDebugText(expedition.currentPathId)}</strong><span>Provisions</span><strong>${Number(expedition.provisions).toFixed(1)}</strong></div>
+  const expeditionReadout = active ? `<div class="debug-readout-grid"><span>Distance (stadia)</span><strong>${formatDistance(expedition.distance)}</strong><span>Direction</span><strong>${escapeDebugText(expedition.direction)}</strong><span>Path</span><strong>${escapeDebugText(expedition.currentPathId)}</strong><span>Provisions</span><strong>${Number(expedition.provisions).toFixed(1)}</strong></div>
     <pre id="debug-expedition-state">${escapeDebugText(debugExpeditionSnapshot(expedition))}</pre>` : '<p class="debug-muted">No active expedition. Start one through normal preparation.</p>';
   return `<details class="debug-section" data-debug-details="expedition" open>
     <summary>Encounters / Expedition</summary><div class="debug-section-content">
@@ -528,7 +528,7 @@ function renderDebugExpeditionSection() {
       <div class="debug-actions"><button type="button" data-debug-action="trigger-encounter" ${active ? "" : "disabled"}>Trigger Selected</button><button type="button" data-debug-action="next-encounter" ${active ? "" : "disabled"}>Next Encounter Soon</button></div>
       <select id="debug-combat-select" aria-label="Combat definition to start">${combatOptions}</select>
       <button type="button" data-debug-action="start-combat" ${active ? "" : "disabled"}>Start Selected Combat</button>
-      ${active ? `<div class="debug-direct-row"><label>Set distance <input id="debug-distance-set" type="number" min="0" step="0.1" value="${Number(expedition.distance).toFixed(1)}"></label><button type="button" data-debug-action="set-distance">Set</button><button type="button" data-debug-action="add-distance" data-amount="10">+10</button><button type="button" data-debug-action="add-distance" data-amount="50">+50</button></div>
+      ${active ? `<div class="debug-direct-row"><label>Set distance (stadia) <input id="debug-distance-set" type="number" min="0" step="0.1" value="${Number(expedition.distance).toFixed(1)}"></label><button type="button" data-debug-action="set-distance">Set</button><button type="button" data-debug-action="add-distance" data-amount="10">+10</button><button type="button" data-debug-action="add-distance" data-amount="50">+50</button></div>
         <div class="debug-direct-row"><span>Direction</span><button type="button" data-debug-action="set-travel-direction" data-direction="outbound">Outbound</button><button type="button" data-debug-action="set-travel-direction" data-direction="returning">Return</button></div>
         <div class="debug-actions"><button type="button" data-debug-action="force-return">Begin Return</button>${expedition.travelState === "paused" ? '<button type="button" data-debug-action="resume-travel">Resume</button>' : '<button type="button" data-debug-action="pause-travel">Pause</button>'}</div>` : ""}
       ${expeditionReadout}

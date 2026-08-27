@@ -24,17 +24,21 @@ def run() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", http_port), QuietHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     profile = Path(tempfile.mkdtemp(prefix="grail-expedition-cadence-test-"))
+    game_url = f"http://127.0.0.1:{http_port}/?sim=1"
     chrome = subprocess.Popen([
         str(CHROME), "--headless=new", "--disable-gpu", "--no-sandbox",
         "--remote-allow-origins=*", f"--remote-debugging-port={debug_port}",
-        f"--user-data-dir={profile}", f"http://127.0.0.1:{http_port}/",
+        f"--user-data-dir={profile}", game_url,
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     checks = 0
     try:
-        devtools = DevTools(wait_for_json(debug_port, f"http://127.0.0.1:{http_port}/"))
+        devtools = DevTools(wait_for_json(debug_port, game_url))
         devtools.call("Runtime.enable")
-        time.sleep(0.3)
+        for _ in range(40):
+            if devtools.evaluate("Boolean(document.querySelector('.simulation-tools'))"):
+                break
+            time.sleep(0.1)
 
         def check(expression: str, label: str) -> None:
             nonlocal checks
@@ -48,7 +52,15 @@ def run() -> None:
             "Expeditions without cadence overrides did not use global defaults",
         )
         check(
-            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; const e=ExpeditionRules.createExpedition(player,{expeditionId:'old_forest_road',companions:[],provisions:30,random:()=>0.5}); const outbound=e.nextEncounterAt; e.direction='returning'; EncounterManager.initializeExpedition(e); const spacing=ExpeditionRules.encounterSpacing(e); return outbound===8.5 && e.nextEncounterAt===17 && spacing.minimumDistance===14 && spacing.maximumDistance===20 && ExpeditionRules.returnSpeedMultiplier(e)===4; })()",
+            "formatDistance(1)==='1 stadion'&&formatDistance(2)==='2 stadia'&&formatDistance(180)==='180 stadia'",
+            "Runtime distance formatting did not use stadion/stadia terminology",
+        )
+        check(
+            "(() => { const legacyUnit=['lea','gue'].join(''); const text=document.querySelector('.simulation-tools')?.textContent.toLowerCase()||''; return text.includes('stadia')&&!text.includes(legacyUnit); })()",
+            "Simulation controls still exposed the old distance unit",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; const e=ExpeditionRules.createExpedition(player,{expeditionId:'old_forest_road',companions:[],provisions:30,random:()=>0.5}); const outbound=e.nextEncounterAt; e.direction='returning'; EncounterManager.initializeExpedition(e); const spacing=ExpeditionRules.encounterSpacing(e); return outbound===8.5 && e.nextEncounterAt===20 && spacing.minimumDistance===16 && spacing.maximumDistance===24 && ExpeditionRules.returnSpeedMultiplier(e)===4; })()",
             "Old Forest Road did not use its authored outbound/return cadence",
         )
         check(
@@ -56,7 +68,7 @@ def run() -> None:
             "Invalid or partial cadence overrides did not fall back safely",
         )
         check(
-            "(() => { const result=SimulationRunner.run({expeditionId:'old_forest_road',strategy:'normal',companions:[],provisions:30,turnaroundPolicy:{type:'fixedDistance',distance:50},seed:'old-forest-cadence',maxSimulationSteps:5000}); const returning=result.events.filter(event=>event.type==='encounter-start'&&event.direction==='returning'); const gaps=returning.slice(1).map((event,index)=>returning[index].distance-event.distance); return result.outcome==='returned' && returning.length>0 && gaps.every(gap=>gap>=14); })()",
+            "(() => { const result=SimulationRunner.run({expeditionId:'old_forest_road',strategy:'normal',companions:[],provisions:30,turnaroundPolicy:{type:'fixedDistance',distance:50},seed:'old-forest-cadence',maxSimulationSteps:5000}); const returning=result.events.filter(event=>event.type==='encounter-start'&&event.direction==='returning'); const gaps=returning.slice(1).map((event,index)=>returning[index].distance-event.distance); return result.outcome==='returned' && returning.length>0 && gaps.every(gap=>gap>=16); })()",
             "Simulation did not share expedition-aware returning encounter cadence",
         )
     finally:

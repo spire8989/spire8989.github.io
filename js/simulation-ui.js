@@ -16,7 +16,7 @@ function initializeSimulationTools() {
       <label>Strategy <select id="sim-strategy">
         ${Object.keys(SimulationStrategies).map((name) => `<option value="${name}">${name}</option>`).join("")}
       </select></label>
-      <label>Turn at distance <input id="sim-distance" type="number" min="1" value="50"></label>
+      <label>Turn at distance (stadia) <input id="sim-distance" type="number" min="1" value="50"></label>
       <button type="button" data-sim-action="current">Run current loadout</button>
       <button type="button" data-sim-action="suite">Run standard suite</button>
       <button type="button" data-sim-action="distribution">Encounter distribution</button>
@@ -50,7 +50,7 @@ function initializeSimulationTools() {
       <label>Between runs <select id="campaign-policy">
         ${Object.keys(BetweenExpeditionPolicies).map((name) => `<option value="${name}" ${name === "aggressive-reinvestor" ? "selected" : ""}>${name}</option>`).join("")}
       </select></label>
-      <label>Turn at <input id="campaign-distance" type="number" min="1" value="180"></label>
+      <label>Turn at (stadia) <input id="campaign-distance" type="number" min="1" value="180"></label>
       <label>Starting gold <input id="campaign-gold" type="number" min="0" value="${Math.floor(game.player.currentGold)}"></label>
       <label>Starting food <input id="campaign-provisions" type="number" min="0" value="${game.player.provisions}"></label>
       <label>Starting health <input id="campaign-health" type="number" min="1" max="${HealingRules.arthurMaxHealth(game.player)}" value="${HealingRules.arthurMaxHealth(game.player)}"></label>
@@ -269,7 +269,7 @@ function renderSimulationBatch(panel, batch) {
   inspect.hidden = false;
   const select = panel.querySelector("#sim-run-select");
   select.innerHTML = batch.results.map((run, index) => (
-    `<option value="${index}">${index + 1}: ${run.seed} · ${run.outcome} · ${run.maximumDistance}</option>`
+    `<option value="${index}">${index + 1}: ${run.seed} · ${run.outcome} · ${formatDistance(run.maximumDistance)}</option>`
   )).join("");
   panel.querySelector("#sim-run-detail").textContent = JSON.stringify(batch.results[0], null, 2);
 }

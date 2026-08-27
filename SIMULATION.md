@@ -77,7 +77,7 @@ const batch = await SimulationRunner.runBatchAsync({
 - `startingState`: optional player-state overrides such as owned items, knowledge, flags, health, or provision stock.
 - `regionId` and `pathId`: starting expedition region/path; defaults to Brocéliande's old forest road.
 - `maxSimulationSteps`, `maxCombatSteps`: infinite-loop safeguards.
-- `travelStepDistance`: rule-step size in leagues; defaults to one.
+- `travelStepDistance`: rule-step size in stadia; defaults to one.
 
 Built-in strategies are `random`, `normal`, `cautious`, `aggressive`, and `greedy`. They score only choices that pass the production requirement and affordability checks. At departure, Cautious selects Cautious pace and uses Generous rations when supplies are healthy; Normal/Random stays on Normal/Normal; Aggressive selects Hard Push and can use Sparse rations when constrained. The same strategy policy can change rations during travel as the known return margin changes.
 

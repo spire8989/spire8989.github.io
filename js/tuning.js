@@ -2,7 +2,7 @@
 
 // Central gameplay-feel values for rapid iteration during playtesting.
 const EXPEDITION_TUNING = Object.freeze({
-  // One league per second is approximately 44% of the former 2.25 league/s
+  // One stadion per second is approximately 44% of the former 2.25 stadion/s
   // presentation speed. Encounter spacing is rescaled with it below so the
   // real-time interruption cadence stays close to the existing feel.
   outboundTravelSpeed: 1,
@@ -88,7 +88,7 @@ const EXPEDITION_TUNING = Object.freeze({
     aggressive: 0,
     greedy: 1,
   }),
-  // More authored encounter slots across a 100-league route without making
+  // More authored encounter slots across a 100-stadion route without making
   // encounters interrupt travel more often in wall-clock time.
   encounterMinimumDistance: 7,
   encounterMaximumDistance: 10,
