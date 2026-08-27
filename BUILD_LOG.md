@@ -1,5 +1,54 @@
 # Build Log
 
+## 2026-08-26 - Shield Slot and Two-Handed Compatibility
+
+### Goal
+
+Add the four-slot equipment model (Weapon, Shield, Armor, Relic), additive
+shield defense, simple two-handed weapon compatibility, and Content Editor
+authoring support without changing acquisition, progression, or existing
+weapon balance.
+
+### Human direction
+
+- Add exactly `weathered_round_shield` (2 defense) and
+  `knights_kite_shield` (4 defense), with no loot, shop, recipe, encounter,
+  reward, or starting-inventory references.
+- Treat `twoHanded: true` as a shield conflict everywhere equipment is
+  equipped, loaded, snapshotted, simulated, or replayed; keep existing
+  weapons one-handed by default.
+- Update both repositories, focused tests, this build log, and the GitHub
+  branches.
+
+### AI-assisted implementation
+
+- Centralized the four conventional slots and compatibility normalization in
+  `EquipmentRules`; manual equip, persistence, expeditions, debug tools,
+  simulations, campaign automation, and replay now share the rule.
+- Made equipped combat effects generic, summed armor and shield defense, and
+  updated preparation/review UI, item labels, shield iconography, and the
+  responsive equipment grid.
+- Added the two exact shield definitions only, plus Content Editor category,
+  slot, typed defense, two-handed checkbox, validation, starting-state, and
+  surgical round-trip support.
+- Added focused browser and editor regressions covering shield defense,
+  compatibility repair, save compatibility, snapshots, auto-equipping,
+  simulation, filtering, and round-tripping.
+
+### Reported manual changes
+
+- None beyond the requested shield/two-handed design and repository
+  integration work. No existing weapon was marked two-handed or rebalanced.
+
+### Verification and resulting prototype state
+
+- Focused game equipment suite passes 14 assertions; combat passes 43 and
+  replay passes 15 assertions.
+- Focused Content Editor round-trip and Shield-filter tests pass.
+- The broader current-branch simulation, campaign, location, and Content
+  Editor suites retain unrelated pre-existing stale expectation failures;
+  none are caused by the equipment changes. `git diff --check` is clean.
+
 ## 2026-08-26 - Structural Combat Loot Ownership Pass
 
 ### Goal

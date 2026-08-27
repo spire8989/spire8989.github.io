@@ -6,6 +6,8 @@ const CombatSystem = Object.freeze({
   create(expedition, combatId, options = {}) {
     const definition = COMBAT_DEFINITIONS[combatId];
     if (!definition) return null;
+    expedition.selectedEquipment ??= {};
+    EquipmentRules.normalizeEquipmentCompatibility(expedition);
     expedition.companionCombatHp ??= {};
     const allies = [createArthurCombatant(expedition)];
     selectedCompanionIds(expedition).forEach((companionId) => {
@@ -318,10 +320,8 @@ const CombatSystem = Object.freeze({
 });
 
 function createArthurCombatant(expedition) {
-  const weapon = ITEM_DEFINITIONS[expedition.selectedEquipment.weapon];
-  const armor = ITEM_DEFINITIONS[expedition.selectedEquipment.armor];
-  const relic = ITEM_DEFINITIONS[expedition.selectedEquipment.relic];
   const equippedCombatEffects = EquipmentRules.aggregateEquippedCombatEffects(expedition);
+  const weapon = equippedCombatEffects.items.find((entry) => entry.equipmentSlot === "weapon")?.item;
   const player = expedition.playerState ?? null;
   const learnedAbilityIds = AbilityRules.sanitizeLearned(player?.learnedAbilityIds);
   const selectedActiveAbilityIds = AbilityRules.sanitizeLoadout(
@@ -336,9 +336,7 @@ function createArthurCombatant(expedition) {
   );
   const grantedAbilityIds = collectAbilityIds(
     PLAYER_CHARACTER_DEFINITION.combatAbilities,
-    weapon,
-    armor,
-    relic,
+    equippedCombatEffects.grantedAbilityIds,
   );
   const grantedPassives = collectAbilityPassives(grantedAbilityIds);
   return {
@@ -347,7 +345,7 @@ function createArthurCombatant(expedition) {
     maxHp: InjuryRules.effectiveMaxHealth(expedition, "arthur"),
     hp: clampCombatNumber(expedition.health, 0, InjuryRules.effectiveMaxHealth(expedition, "arthur")),
     speed: Math.max(1, PLAYER_CHARACTER_DEFINITION.combat.speed + equippedCombatEffects.combatSpeed),
-    defense: Math.max(0, Math.floor((Number(armor?.effects?.combatDefense) || 0)
+    defense: Math.max(0, Math.floor(equippedCombatEffects.combatDefense
       * InjuryRules.combatDefenseMultiplier(expedition, "arthur"))),
     damage: weapon?.effects?.combatDamage ?? { minimum: 4, maximum: 6 }, gauge: 0,
     damageBonusesAgainstTags: weapon?.effects?.damageBonusesAgainstTags ?? [],
@@ -359,7 +357,7 @@ function createArthurCombatant(expedition) {
     selectedActiveAbilityIds,
     selectedPassiveAbilityIds,
     grantedAbilityIds,
-    sourceItemIds: [weapon?.id, armor?.id, relic?.id].filter(Boolean), equippedCombatEffects,
+    sourceItemIds: equippedCombatEffects.items.map((entry) => entry.itemId).filter(Boolean), equippedCombatEffects,
     equippedPassives: [
       ...equipmentPassives(equippedCombatEffects),
       ...grantedPassives,

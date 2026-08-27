@@ -89,6 +89,7 @@ const ReplayData = Object.freeze({
     Object.values(player.equippedItems).filter(Boolean).forEach((itemId) => {
       if (ITEM_DEFINITIONS[itemId]) player.ownedItems[itemId] ??= 1;
     });
+    EquipmentRules.normalizeEquipmentCompatibility(player);
     player.packedItems = (Array.isArray(data.packedItems)
       ? data.packedItems
       : Object.keys(data.packedItems ?? {}))
@@ -2118,6 +2119,7 @@ function createCampaignReplayPlayer(snapshot = {}) {
   player.selectedCompanion = snapshot.selectedCompanion ?? player.selectedCompanions[0] ?? null;
   player.unlockedCompanions = [...new Set([...(player.unlockedCompanions ?? []), ...player.selectedCompanions])];
   AbilityRules.sanitizePlayerState(player, defaults);
+  EquipmentRules.normalizeEquipmentCompatibility(player);
   return player;
 }
 
@@ -2126,10 +2128,7 @@ function applyReplayEquipment(player, itemId, equipmentSlot) {
   if (!item?.equippable || !player.ownedItems[itemId] || item.equipmentSlot !== equipmentSlot) {
     return { applied: false, reason: "The recorded equipment is not owned or does not fit the recorded slot." };
   }
-  const previousItemId = player.equippedItems[equipmentSlot] ?? null;
-  player.equippedItems[equipmentSlot] = itemId;
-  player.packedItems = player.packedItems.filter((packedItemId) => packedItemId !== itemId);
-  return { applied: true, previousItemId };
+  return EquipmentRules.equip(player, itemId);
 }
 
 function applyReplayPack(player, packedItems, packedMaterials) {

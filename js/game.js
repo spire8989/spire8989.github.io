@@ -3956,7 +3956,7 @@ function renderPreparationGear() {
     .filter(([itemId]) => !MaterialRules.isMaterialId(itemId))
     .map(([itemId, quantity]) => inventoryCard(ITEM_DEFINITIONS[itemId], quantity))
     .join("");
-  const equipment = ["weapon", "armor", "relic"]
+  const equipment = EquipmentRules.equipmentSlots()
     .map((slot) => equipmentSlotCard(slot, game.player.equippedItems[slot]))
     .join("");
   const packedItems = game.player.packedItems
@@ -3969,7 +3969,7 @@ function renderPreparationGear() {
     <section class="preparation-section" aria-labelledby="equipment-title">
       <div class="section-title-row">
         <h2 id="equipment-title">Equipped Gear</h2>
-        <span>Weapon · Armor · Relic</span>
+        <span>Weapon · Shield · Armor · Relic</span>
       </div>
       <div class="equipment-slots">${equipment}</div>
     </section>
@@ -4097,7 +4097,7 @@ function renderPreparationReview() {
   const companionNames = selectedCompanions.length > 0
     ? selectedCompanions.map((id) => COMPANION_DEFINITIONS[id]?.name).filter(Boolean)
     : ["Traveling Alone"];
-  const equippedNames = ["weapon", "armor", "relic"]
+  const equippedNames = EquipmentRules.equipmentSlots()
     .map((slot) => ITEM_DEFINITIONS[game.player.equippedItems[slot]]?.name ?? "Empty")
     .join(" · ");
   const packedNames = game.player.packedItems.length > 0
@@ -4184,7 +4184,7 @@ function inventoryCard(item, quantity) {
       <div class="item-copy">
         <div class="item-title-row"><h3>${item.name}</h3>${quantity > 1 ? `<span>×${quantity}</span>` : ""}</div>
         <p>${item.description}</p>
-        <span class="item-category">${item.equipmentSlot ?? item.category}${item.rarity ? ` · ${item.rarity}` : ""}</span>
+        <span class="item-category">${item.equipmentSlot ?? item.category}${item.rarity ? ` · ${item.rarity}` : ""}${item.twoHanded === true ? " · Two-Handed" : ""}</span>
       </div>
       <div class="item-actions">${actions.join("")}</div>
     </article>`;
@@ -4264,9 +4264,13 @@ function equipItem(itemId) {
 
   showToast({
     title: `Equipped ${item.name}`,
-    message: result.previousItemId && result.previousItemId !== itemId
-      ? `Replaced ${ITEM_DEFINITIONS[result.previousItemId]?.name ?? "previous gear"}.`
-      : "Ready for the next expedition.",
+    message: [
+      result.previousItemId && result.previousItemId !== itemId
+        ? `Replaced ${ITEM_DEFINITIONS[result.previousItemId]?.name ?? "previous gear"}.`
+        : "",
+      ...(result.compatibilityChanges ?? []).map((change) =>
+        `Unequipped ${ITEM_DEFINITIONS[change.itemId]?.name ?? "conflicting gear"}.`),
+    ].filter(Boolean).join(" ") || "Ready for the next expedition.",
     type: "success",
   });
   savePlayer();
@@ -6496,6 +6500,7 @@ function savePlayer() {
     ui.saveStatus.textContent = "Replay sandbox";
     return false;
   }
+  EquipmentRules.normalizeEquipmentCompatibility(game.player);
   const saved = SaveSystem.save(game.player);
   ui.saveStatus.textContent = saved ? "Saved locally" : "Save unavailable";
 }
@@ -6528,6 +6533,7 @@ function resetSave() {
 const CATEGORY_ICON_MARKUP = Object.freeze({
   weapon: '<path d="m14.5 3.5 6-1.5-1.5 6-8.8 8.8-2.9-2.9 8.8-8.8Z"/><path d="m5.6 14.4-2.1 2.1m4.2 1-2.1 2.1m4.2-1-2.1 2.1"/>',
   armor: '<path d="M12 3 19 6v5.3c0 4.5-2.8 7.6-7 9.7-4.2-2.1-7-5.2-7-9.7V6l7-3Z"/><path d="M8.5 12h7M12 8.5v7"/>',
+  shield: '<path d="M12 3 19 6v5.3c0 4.5-2.8 7.6-7 9.7-4.2-2.1-7-5.2-7-9.7V6l7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-4.8"/>',
   potion: '<path d="M9 3h6M10 3v4l-3.2 5.1A4 4 0 0 0 10.2 18h3.6a4 4 0 0 0 3.4-5.9L14 7V3"/><path d="M8.2 12h7.6"/>',
   healing: '<path d="M8 5.2 12 3l4 2.2v5.1c0 3-1.7 5.4-4 7.2-2.3-1.8-4-4.2-4-7.2V5.2Z"/><path d="M12 7.2v5.2m-2.6-2.6h5.2"/>',
   herb: '<path d="M12 20V9"/><path d="M12 13C8 13 5 11 5 6c4.8 0 7 2.5 7 7Zm0-3c0-4 2.5-6 7-6 0 4.5-2.3 6-7 6Z"/>',
@@ -6565,6 +6571,7 @@ function itemIconKind(category, item = null) {
   if (category === "quest") return "relic";
   if (category === "weapon") return "weapon";
   if (category === "armor") return "armor";
+  if (category === "shield") return "shield";
   if (id === "rope") return "rope";
   if (id === "torch") return "torch";
   if (tags.includes("medical")) return "healing";

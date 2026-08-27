@@ -88,6 +88,10 @@ const SaveSystem = Object.freeze({
 
   save(playerState) {
     try {
+      if (typeof EquipmentRules !== "undefined"
+        && typeof EquipmentRules.normalizeEquipmentCompatibility === "function") {
+        EquipmentRules.normalizeEquipmentCompatibility(playerState);
+      }
       localStorage.setItem(SAVE_KEY, JSON.stringify(playerState));
       return true;
     } catch (error) {
@@ -130,7 +134,11 @@ function sanitizePlayerState(savedState, defaults) {
   }
 
   const equippedItems = {};
-  ["weapon", "armor", "relic"].forEach((slot) => {
+  const equipmentSlots = typeof EquipmentRules !== "undefined"
+    && typeof EquipmentRules.supportedSlots === "function"
+    ? EquipmentRules.supportedSlots()
+    : ["armor", "relic", "shield", "weapon"];
+  equipmentSlots.forEach((slot) => {
     const legacyRelic = slot === "relic" && savedState.equippedItems?.utility === "silver_stag_medallion"
       ? "silver_stag_medallion"
       : null;
@@ -146,6 +154,10 @@ function sanitizePlayerState(savedState, defaults) {
       equippedItems[slot] = defaultItemId;
     }
   });
+  if (typeof EquipmentRules !== "undefined"
+    && typeof EquipmentRules.normalizeEquipmentCompatibility === "function") {
+    EquipmentRules.normalizeEquipmentCompatibility({ equippedItems });
+  }
 
   const materials = sanitizeMaterials(savedState.materials, savedItems);
   const packedItems = sanitizePackedItems(savedState, ownedItems, equippedItems, defaults.packedItems);

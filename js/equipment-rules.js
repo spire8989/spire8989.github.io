@@ -3,7 +3,28 @@
 // Campaign automation evaluates only effects the production combat system can
 // currently use. New authored equipment participates through its slot and
 // authored combat effects rather than through an item-specific preference list.
+const EQUIPMENT_SLOTS = Object.freeze(["weapon", "shield", "armor", "relic"]);
+
 const EquipmentRules = Object.freeze({
+  equipmentSlots() {
+    return [...EQUIPMENT_SLOTS];
+  },
+
+  normalizeEquipmentCompatibility(source, definitions = ITEM_DEFINITIONS, options = {}) {
+    const equipment = source?.equippedItems ?? source?.selectedEquipment ?? source;
+    if (!equipment || typeof equipment !== "object" || Array.isArray(equipment)) return [];
+
+    const weapon = definitions?.[equipment.weapon];
+    if (weapon?.twoHanded !== true || !equipment.shield) return [];
+
+    const preferredSlot = options.preferredSlot;
+    const slotToClear = preferredSlot === "shield" ? "weapon" : "shield";
+    const removedItemId = equipment[slotToClear] ?? null;
+    if (!removedItemId) return [];
+    delete equipment[slotToClear];
+    return [{ slot: slotToClear, itemId: removedItemId, reason: "two-handed-conflict" }];
+  },
+
   equip(player, itemId, definitions = ITEM_DEFINITIONS) {
     const item = definitions?.[itemId];
     if (!player || !item?.equippable || !item.equipmentSlot
@@ -14,6 +35,9 @@ const EquipmentRules = Object.freeze({
     player.equippedItems ??= {};
     const previousItemId = player.equippedItems[item.equipmentSlot] ?? null;
     player.equippedItems[item.equipmentSlot] = itemId;
+    const compatibilityChanges = this.normalizeEquipmentCompatibility(player, definitions, {
+      preferredSlot: item.equipmentSlot,
+    });
     if (Array.isArray(player.packedItems)) {
       player.packedItems = player.packedItems.filter((packedItemId) => packedItemId !== itemId);
     }
@@ -27,29 +51,34 @@ const EquipmentRules = Object.freeze({
       itemId,
       equipmentSlot: item.equipmentSlot,
       previousItemId,
+      compatibilityChanges,
     };
   },
 
   supportedSlots(definitions = ITEM_DEFINITIONS) {
-    return [...new Set(Object.values(definitions ?? {})
+    return [...new Set([...EQUIPMENT_SLOTS, ...Object.values(definitions ?? {})
       .filter((item) => item?.equippable && item.equipmentSlot)
-      .map((item) => item.equipmentSlot))].sort();
+      .map((item) => item.equipmentSlot)])].sort();
   },
 
   aggregateEquippedCombatEffects(source, definitions = ITEM_DEFINITIONS) {
     const selectedEquipment = source?.selectedEquipment ?? source?.equippedItems ?? {};
-    const items = ["weapon", "armor", "relic"]
-      .map((equipmentSlot) => ({
+    const items = Object.entries(selectedEquipment)
+      .map(([equipmentSlot, itemId]) => ({
         equipmentSlot,
-        itemId: selectedEquipment[equipmentSlot] ?? null,
-        item: definitions?.[selectedEquipment[equipmentSlot]],
+        itemId: itemId ?? null,
+        item: definitions?.[itemId],
       }))
       .filter((entry) => entry.item);
     return {
       items,
+      combatDefense: items.reduce(
+        (total, entry) => total + (Number(entry.item.effects?.combatDefense) || 0), 0,
+      ),
       combatSpeed: items.reduce(
         (total, entry) => total + (Number(entry.item.effects?.combatSpeed) || 0), 0,
       ),
+      grantedAbilityIds: [...new Set(items.flatMap((entry) => entry.item.effects?.grantedAbilityIds ?? []))],
       onHitEffects: items.flatMap((entry) => (entry.item.effects?.onHitEffects ?? [])
         .map((effect) => ({ ...effect, sourceItemId: entry.itemId, equipmentSlot: entry.equipmentSlot }))),
       combatTriggers: items.flatMap((entry) => (entry.item.effects?.combatTriggers ?? [])
@@ -68,7 +97,7 @@ const EquipmentRules = Object.freeze({
     if (item.equipmentSlot === "weapon") {
       return weaponValue(item, strategyName) + abilityValue + passiveValue;
     }
-    if (item.equipmentSlot === "armor") {
+    if (["armor", "shield"].includes(item.equipmentSlot)) {
       return armorValue(item, strategyName) + abilityValue + passiveValue;
     }
     // Relics and future slots may grant passive effects without a direct stat.
@@ -102,12 +131,13 @@ const EquipmentRules = Object.freeze({
     slots.forEach((slot) => {
       const best = this.bestOwnedForSlot(player, slot, strategyName, definitions);
       if (!best || player.equippedItems[slot] === best.itemId) return;
-      const previousItemId = player.equippedItems[slot] ?? null;
-      player.equippedItems[slot] = best.itemId;
+      const result = this.equip(player, best.itemId, definitions);
+      if (!result.applied) return;
       changes.push({
         itemId: best.itemId,
         equipmentSlot: slot,
-        previousItemId,
+        previousItemId: result.previousItemId,
+        compatibilityChanges: result.compatibilityChanges,
         score: this.scoreItem(best.item, strategyName),
         source: "owned-inventory",
         strategy: strategyName,
@@ -117,6 +147,8 @@ const EquipmentRules = Object.freeze({
       && typeof ExpeditionRules !== "undefined"
       && typeof ExpeditionRules.normalizePackedState === "function") {
       ExpeditionRules.normalizePackedState(player);
+    } else {
+      this.normalizeEquipmentCompatibility(player, definitions);
     }
     return changes;
   },

@@ -1463,6 +1463,7 @@ function createSimulationPlayer(scenario) {
     );
   });
   Object.values(player.equippedItems).filter(Boolean).forEach((itemId) => { player.ownedItems[itemId] ??= 1; });
+  EquipmentRules.normalizeEquipmentCompatibility(player);
   player.packedItems = packedEntries
     .map(([itemId]) => itemId)
     .filter((itemId) => !MaterialRules.isMaterialId(itemId))

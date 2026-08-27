@@ -383,6 +383,7 @@ const ExpeditionRules = Object.freeze({
     const capacity = this.partyProvisionCapacity(selectedCompanions, expeditionDefinition.id);
     const provisions = Math.max(0, Math.min(Number(options.provisions) || 0, capacity));
     const selectedEquipment = { ...player.equippedItems, ...(options.equipment ?? {}) };
+    EquipmentRules.normalizeEquipmentCompatibility({ selectedEquipment });
     const materialBagRequest = options.materialBagContents
       ?? options.packedMaterials
       ?? (Array.isArray(options.packedItems)
@@ -620,6 +621,7 @@ const ExpeditionRules = Object.freeze({
   normalizePackedState(player) {
     player.ownedItems ??= {};
     player.equippedItems ??= {};
+    EquipmentRules.normalizeEquipmentCompatibility(player);
     player.packedItems = [...new Set(player.packedItems ?? [])]
       .filter((itemId) => ITEM_DEFINITIONS[itemId]?.carriable
         && !MaterialRules.isMaterialId(itemId)
