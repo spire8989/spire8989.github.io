@@ -40,8 +40,6 @@ const CAMPAIGN_COMPLETION_OBJECTIVE_DEFINITIONS = Object.freeze({
   }),
 });
 
-const OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE = 95;
-
 const CAMPAIGN_FOOD_RECIPE_IDS = Object.freeze([
   "roasted_meat",
   "foraged_meal",
@@ -50,6 +48,31 @@ const CAMPAIGN_FOOD_RECIPE_IDS = Object.freeze([
   "forestwarden_stew",
   "honeyed_forest_preserves",
 ]);
+
+function resolveProgressionEncounterDistance(encounterId) {
+  const encounter = ENCOUNTER_DEFINITIONS[encounterId];
+  if (!encounter) {
+    throw new Error(
+      `Progression encounter "${encounterId}" was not found in ENCOUNTER_DEFINITIONS.`,
+    );
+  }
+  const authoredDistance = encounter.minimumDistance ?? encounter.distance;
+  const distance = Number(authoredDistance);
+  if (!Number.isFinite(distance) || distance < 0) {
+    throw new Error(
+      `Progression encounter "${encounterId}" has invalid authored distance "${authoredDistance}".`,
+    );
+  }
+  if (encounter.maximumDistance !== undefined) {
+    const maximumDistance = Number(encounter.maximumDistance);
+    if (!Number.isFinite(maximumDistance) || maximumDistance < distance) {
+      throw new Error(
+        `Progression encounter "${encounterId}" has invalid authored distance range "${authoredDistance}-${encounter.maximumDistance}".`,
+      );
+    }
+  }
+  return distance;
+}
 
 const CampaignSimulationRunner = Object.freeze({
   run(configuration = {}) {
@@ -444,7 +467,11 @@ const CampaignSimulationRunner = Object.freeze({
           decision.progressionAttemptAllowedDespiteSafetyShortfall,
         ),
         locationServicePlans: progressionRouteId === "old_forest_road"
-          ? [{ locationId: "hidden_forest_village", encounterId: "hidden_forest_village", minimumDistance: 95 }]
+          ? [{
+            locationId: "hidden_forest_village",
+            encounterId: "hidden_forest_village",
+            minimumDistance: resolveProgressionEncounterDistance("hidden_forest_village"),
+          }]
           : [],
         onLocationEntered: (locationId, context) => campaignLocationProvisionService(
           locationId,
@@ -3754,6 +3781,7 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
     ? Number(player.arthurHealth) / Math.max(1, Number(player?.arthurMaxHealth) || PLAYER_CHARACTER_DEFINITION.combat.maxHp)
     : 0;
   const strategy = campaignState.strategy ?? "cautious";
+  const villageResupplyDistance = resolveProgressionEncounterDistance("hidden_forest_village");
   const villageProvisionOffer = CampaignRules.provisionShopForLocation("hidden_forest_village")
     ?.provisionsForSale;
   const villageReachTravelSettings = campaignDepartureSettings(strategy, {
@@ -3766,7 +3794,7 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
     && Number.isFinite(Number(villageProvisionOffer?.price))
     && Number(player?.currentGold) >= Number(villageProvisionOffer.price)
     && Number(player?.provisions) >= campaignOneWayProvisionCost(
-      OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE,
+      villageResupplyDistance,
       selectedCompanionIds(player),
       villageReachTravelSettings,
     );
@@ -3793,26 +3821,37 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
         supplyRunReason: supply.reason,
       });
     }
+    const whiteHartDistance = resolveProgressionEncounterDistance("white_hart");
     const supply = preparationRunUseful("secure-the-white-hart-grace-shard");
     return oldForestGoal({
       goalId: "secure-grace-shard",
-      targetDistance: 75,
-      minimumAttemptDistance: 60,
+      targetDistance: whiteHartDistance,
+      minimumAttemptDistance: whiteHartDistance,
       reason: "The first Verdant shard is still missing; deliberately take the peaceful White Hart path.",
-      requiredPreparation: { item: "verdant_shard_grace", route: "overgrown_trail" },
+      requiredPreparation: {
+        item: "verdant_shard_grace",
+        route: "overgrown_trail",
+        encounter: "white_hart",
+        targetDistance: whiteHartDistance,
+      },
       supplyRunUseful: supply.useful,
       supplyRunReason: supply.reason,
     });
   }
 
   if (!villageDiscovered) {
+    const villageDistance = resolveProgressionEncounterDistance("hidden_forest_village");
     const supply = optionalSupplyRun("prepare-provisions-and-healing-before-the-village-milestone");
     return oldForestGoal({
       goalId: "discover-village",
-      targetDistance: 95,
-      minimumAttemptDistance: strategy === "aggressive" ? 70 : 78,
+      targetDistance: villageDistance,
+      minimumAttemptDistance: Math.min(villageDistance, strategy === "aggressive" ? 70 : 78),
       reason: "Early route progress is established; stop farming the shallow band and deliberately reach the hidden village milestone.",
-      requiredPreparation: { campaignFlag: "forest_village_discovered", targetDistance: 95 },
+      requiredPreparation: {
+        campaignFlag: "forest_village_discovered",
+        encounter: "hidden_forest_village",
+        targetDistance: villageDistance,
+      },
       supplyRunUseful: supply.useful,
       supplyRunReason: supply.reason,
     });
@@ -3838,13 +3877,18 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
   }
 
   if (!hasWrath) {
+    const thornHartDistance = resolveProgressionEncounterDistance("thorn_crowned_hart");
     const supply = optionalSupplyRun("build enough survivability and supplies for the Thorn-Crowned Hart");
     return oldForestGoal({
       goalId: "secure-wrath-shard",
-      targetDistance: 140,
-      minimumAttemptDistance: 140,
+      targetDistance: thornHartDistance,
+      minimumAttemptDistance: thornHartDistance,
       reason: "The Druid chain is complete; the next mandatory piece is the guaranteed Thorn-Crowned Hart at the deep milestone.",
-      requiredPreparation: { item: "verdant_shard_wrath", encounter: "thorn_crowned_hart", targetDistance: 140 },
+      requiredPreparation: {
+        item: "verdant_shard_wrath",
+        encounter: "thorn_crowned_hart",
+        targetDistance: thornHartDistance,
+      },
       supplyRunUseful: supply.useful || healthRatio < 0.8,
       supplyRunReason: supply.reason,
       travelSettings: strategy === "aggressive" ? { paceId: "normal", rationId: "normal" } : null,
@@ -3875,12 +3919,18 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
     });
   }
 
+  const verdantAltarDistance = resolveProgressionEncounterDistance("verdant_altar");
   return oldForestGoal({
     goalId: "defeat-verdant-warden",
-    targetDistance: 180,
-    minimumAttemptDistance: 180,
+    targetDistance: verdantAltarDistance,
+    minimumAttemptDistance: verdantAltarDistance,
     reason: "The Heart is enchanted and the Song is known; make the final altar and Verdant Warden attempt.",
-    requiredPreparation: { item: "enchanted_verdant_heart", knowledge: ["song_of_the_forest"], encounter: "verdant_altar", targetDistance: 180 },
+    requiredPreparation: {
+      item: "enchanted_verdant_heart",
+      knowledge: ["song_of_the_forest"],
+      encounter: "verdant_altar",
+      targetDistance: verdantAltarDistance,
+    },
     supplyRunUseful: liquidWealth < 60
       || (Number(player?.provisions) < 30 && !canReachKnownVillageResupply)
       || healthRatio < 0.8,
@@ -4208,23 +4258,24 @@ function projectOldForestVillageResupply({
   }, campaignGoal);
   const encounterProvisionReserve = SimulationProvisionPlanning.encounterReserve(strategyName);
   const serviceKnown = player?.campaignFlags?.forest_village_discovered === true;
+  const villageResupplyDistance = resolveProgressionEncounterDistance("hidden_forest_village");
   const price = Number(offer?.price);
   const serviceEnabled = Boolean(
-    target > OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE
+    target > villageResupplyDistance
       && serviceKnown
       && offer
       && Number.isFinite(price)
       && price >= 0,
   );
   const provisionsRequiredToReachResupply = campaignOneWayProvisionCost(
-    OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE, companionIds, travelSettings,
+    villageResupplyDistance, companionIds, travelSettings,
   );
   const canReachResupply = serviceEnabled
     && currentProvisions >= provisionsRequiredToReachResupply;
   const projectedProvisionsAtResupply = canReachResupply
     ? Math.max(0, currentProvisions - provisionsRequiredToReachResupply) : null;
   const expectedAfterVillageTravel = campaignOneWayProvisionCost(
-    target - OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE, companionIds, travelSettings,
+    target - villageResupplyDistance, companionIds, travelSettings,
   ) + campaignOneWayProvisionCost(target, companionIds, travelSettings);
   const projectedProvisionTarget = Math.min(
     capacity,
@@ -4257,7 +4308,7 @@ function projectOldForestVillageResupply({
     ? null
     : maximumCampaignDistanceAfterResupply(
       projectedProvisionsAfterResupply,
-      OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE,
+      villageResupplyDistance,
       companionIds,
       travelSettings,
       0,
@@ -4267,7 +4318,7 @@ function projectOldForestVillageResupply({
     ? null
     : maximumCampaignDistanceAfterResupply(
       projectedProvisionsAfterResupply,
-      OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE,
+      villageResupplyDistance,
       companionIds,
       travelSettings,
       policy?.provisionMargin,
@@ -4279,7 +4330,7 @@ function projectOldForestVillageResupply({
       canReachResupply && quantity > 0 && postResupplySupportedDistance >= target,
     ),
     resupplyLocationId: serviceEnabled ? "hidden_forest_village" : null,
-    resupplyDistance: serviceEnabled ? OLD_FOREST_VILLAGE_RESUPPLY_DISTANCE : null,
+    resupplyDistance: serviceEnabled ? villageResupplyDistance : null,
     provisionsRequiredToReachResupply,
     projectedProvisionsAtResupply,
     projectedVillageProvisionPurchase: Math.max(0, quantity),

@@ -422,8 +422,8 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   leper_knight: {
     id: "leper_knight",
     name: "Leper Knight",
-    maxHp: 69,
-    speed: 10,
+    maxHp: 48,
+    speed: 11,
     defense: 2,
     actionPattern: ["leper_blade", "leper_cough", "leper_blade"],
     lootSources: [
@@ -444,8 +444,8 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   briar_knight: {
     id: "briar_knight",
     name: "Briar Knight",
-    maxHp: 56,
-    speed: 10,
+    maxHp: 69,
+    speed: 5,
     defense: 3,
     actionPattern: ["briar_cut", "briar_thrust", "briar_surge"],
     lootSources: [

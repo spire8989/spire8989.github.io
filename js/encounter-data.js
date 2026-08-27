@@ -54,7 +54,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     directions: ["outbound"],
     weight: 1,
-    minimumDistance: 148,
+    minimumDistance: 118,
     maximumDistance: 158,
     milestone: true,
     milestoneOrder: 150,
@@ -69,49 +69,106 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "read_the_thorns",
             label: "Read the Thorns with Woodcraft",
-            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            requirements: [
+              {
+                type: "knowledge",
+                knowledgeId: "woodcraft",
+                unavailable: "locked",
+                lockedLabel: "Requires Woodcraft"
+              }
+            ],
             outcomes: [
-              { type: "modifyResource", resource: "provisions", amount: -1 },
-              { type: "setRunFlag", flag: "thornbound_route_read", value: true },
+              {
+                type: "modifyResource",
+                resource: "provisions",
+                amount: -1
+              },
+              {
+                type: "setRunFlag",
+                flag: "thornbound_route_read",
+                value: true
+              }
             ],
             resultText: "Woodcraft reveals a seam in the briars. The company slips through with only a small loss of provisions and learns that the road beyond is not yet the altar.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "use_rope",
             label: "Anchor a Rope and Pull Through",
-            requirements: [{ type: "availableExpeditionItem", itemId: "rope", unavailable: "locked", lockedLabel: "Requires Rope" }],
-            costs: [{ type: "consumeExpeditionItem", itemId: "rope", quantity: 1 }],
-            outcomes: [{ type: "modifyResource", resource: "provisions", amount: -2 }],
+            requirements: [
+              {
+                type: "availableExpeditionItem",
+                itemId: "rope",
+                unavailable: "locked",
+                lockedLabel: "Requires Rope"
+              }
+            ],
+            costs: [
+              {
+                type: "consumeExpeditionItem",
+                itemId: "rope",
+                quantity: 1
+              }
+            ],
+            outcomes: [
+              {
+                type: "modifyResource",
+                resource: "provisions",
+                amount: -2
+              }
+            ],
             resultText: "The rope gives the company a line through the briars, but the effort costs time and provisions.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "force_through",
             label: "Force a Way Through",
-            outcomes: [{
-              type: "startCombat",
-              combatId: "briar_knight",
-              victory: {
-                resultText: "The briar guardian breaks apart. The safest route onward is earned, not given.",
-                outcomes: [{ type: "gainUnsecuredItem", itemId: "antler_fragment", quantity: 1 }],
-              },
-              defeat: { resultText: "The briars drive the company back." },
-              fled: { resultText: "The company retreats from the living thorns." },
-            }],
+            outcomes: [
+              {
+                type: "startCombat",
+                combatId: "briar_knight",
+                victory: {
+                  resultText: "The briar guardian breaks apart. The safest route onward is earned, not given.",
+                  outcomes: [
+                    {
+                      type: "gainUnsecuredItem",
+                      itemId: "antler_fragment",
+                      quantity: 1
+                    }
+                  ]
+                },
+                defeat: {
+                  resultText: "The briars drive the company back."
+                },
+                fled: {
+                  resultText: "The company retreats from the living thorns."
+                }
+              }
+            ],
             resultText: "The briars knot themselves into the shape of a knight.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "wait_for_opening",
             label: "Wait for the Briars to Part",
-            outcomes: [{ type: "modifyResource", resource: "health", amount: -2 }, { type: "modifyResource", resource: "provisions", amount: -2 }],
+            outcomes: [
+              {
+                type: "modifyResource",
+                resource: "health",
+                amount: -2
+              },
+              {
+                type: "modifyResource",
+                resource: "provisions",
+                amount: -2
+              }
+            ],
             resultText: "The company waits until the briars loosen, but the cold thorns find every gap in their protection.",
-            endEncounter: true,
-          },
-        ],
-      },
-    },
+            endEncounter: true
+          }
+        ]
+      }
+    }
   },
   verdant_altar: {
     id: "verdant_altar",

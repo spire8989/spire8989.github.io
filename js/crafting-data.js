@@ -247,6 +247,11 @@ const RECIPE_DEFINITIONS = Object.freeze({
         type: "item",
         id: "antler_fragment",
         quantity: 2
+      },
+      {
+        type: "item",
+        id: "poisonous_vines",
+        quantity: 2
       }
     ],
     output: {

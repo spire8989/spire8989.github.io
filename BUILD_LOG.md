@@ -1,5 +1,51 @@
 # Build Log
 
+## 2026-08-26 - Authored Campaign Progression Distances
+
+### Goal
+
+Make campaign progression resolve encounter-backed milestone distances from
+the authored encounter definitions so Content Editor distance changes are
+immediately reflected by the simulator.
+
+### Human direction
+
+- Use the normal encounter data as the source of truth for White Hart grace,
+  hidden village, Thorn-Crowned Hart, and Verdant Altar progression distances.
+- Replace the hardcoded Verdant Warden final target while preserving
+  `expeditionPlan` as a fallback for non-progression/repeated simulations.
+- Fail clearly when a required progression encounter or authored distance is
+  missing or invalid; do not rebalance encounter content or other systems.
+- Add/update tests, update this log, and add/commit/push the finished change.
+
+### AI-assisted implementation
+
+- Added `resolveProgressionEncounterDistance()` to validate and read an
+  encounter's authored minimum/fixed distance, including invalid range
+  diagnostics.
+- Routed Old Forest White Hart, hidden village, Thorn-Crowned Hart, and
+  Verdant Altar goals, preparation metadata, and village resupply planning
+  through authored distances at assessment time.
+- Kept Woodcraft and town crafting/enchantment targets behavioral, and kept
+  configured distances authoritative for repeated simulations.
+- Added fixture-mutation coverage for dynamic authored distances, plan
+  override behavior, earlier milestones, invalid data, and non-progression
+  targets.
+
+### Reported manual changes
+
+- The user authorized inclusion of pre-existing in-progress combat tuning,
+  crafting recipe, and encounter-content edits in the same Game commit. Those
+  edits are outside the simulator distance-resolution change.
+
+### Verification and resulting prototype state
+
+- Current-campaign progression browser suite passes 10 assertions.
+- Replay suite passes 15 assertions.
+- Existing campaign and single-expedition suites currently stop on unrelated
+  expectations affected by the authorized in-progress combat/content edits;
+  those edits were preserved rather than rewritten for this task.
+
 ## 2026-08-26 - Expedition-Specific Travel and Encounter Cadence
 
 ### Goal
