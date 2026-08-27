@@ -461,7 +461,7 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
       {
         tableId: "briar_knight_loot",
         rolls: 1,
-        chance: 0.3
+        chance: 0.75
       }
     ]
   },

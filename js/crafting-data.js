@@ -235,13 +235,18 @@ const RECIPE_DEFINITIONS = Object.freeze({
   splinterbark_shield: {
     id: "splinterbark_shield",
     name: "Splinterbark Shield",
-    description: "Weave together the most dangerous plants of the forest in order to create a stalwart defense.",
+    description: "Weave the most dangerous plants of the forest onto sharp antlers in order to create a stalwart defense.",
     craftingProvider: "blacksmith",
     ingredients: [
       {
         type: "material",
         id: "wood",
         quantity: 4
+      },
+      {
+        type: "item",
+        id: "antler_fragment",
+        quantity: 2
       }
     ],
     output: {

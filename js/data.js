@@ -1107,11 +1107,50 @@ const ITEM_DEFINITIONS = Object.freeze({
     consumable: false,
     effects: {
       combatDefense: 6,
-      combatTriggers: [],
+      combatTriggers: [
+        {
+          trigger: {
+            event: "damageTaken"
+          },
+          effects: [
+            {
+              type: "applyStatus",
+              target: "eventSource",
+              statusId: "poisoned",
+              chance: 0.25
+            },
+            {
+              type: "dealDamage",
+              target: "eventSource",
+              amount: 2
+            }
+          ]
+        }
+      ],
       onHitEffects: []
     },
     questItem: false,
     unique: true
+  },
+  poisonous_vines: {
+    id: "poisonous_vines",
+    name: "Poisonous Vines",
+    description: "Ripped from the dense forest, these vines leak out poison that you dare not touch.",
+    category: "ingredient",
+    rarity: "uncommon",
+    tags: ["natural", "poison", "wood"],
+    equippable: false,
+    carriable: true,
+    consumable: false,
+    effects: {
+      combatDamage: {
+        minimum: 1,
+        maximum: 2
+      },
+      grantedAbilityIds: []
+    },
+    questItem: false,
+    unique: false
   }
 });
 

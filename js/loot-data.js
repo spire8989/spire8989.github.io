@@ -76,15 +76,33 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         itemId: "green_glass_vial",
         weight: 15,
         quantity: 1
+      },
+      {
+        type: "item",
+        itemId: "poisonous_vines",
+        weight: 20,
+        minimum: 1,
+        maximum: 4
       }
     ]
   },
-  rare_materials: Object.freeze({
+  rare_materials: {
     id: "rare_materials",
-    entries: Object.freeze([
-      Object.freeze({ type: "material", materialId: "relic_fragment", quantity: 1, weight: 1 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "material",
+        materialId: "relic_fragment",
+        quantity: 1,
+        weight: 1
+      },
+      {
+        type: "item",
+        itemId: "green_glass_vial",
+        weight: 1,
+        quantity: 1
+      }
+    ]
+  },
   forest_materials: {
     id: "forest_materials",
     entries: [
@@ -119,6 +137,13 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         type: "table",
         tableId: "common_materials",
         weight: 12
+      },
+      {
+        type: "item",
+        itemId: "poisonous_vines",
+        weight: 10,
+        minimum: 1,
+        maximum: 2
       }
     ]
   },
@@ -158,6 +183,19 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         weight: 20,
         minimum: 1,
         maximum: 4
+      },
+      {
+        type: "item",
+        itemId: "antler_fragment",
+        weight: 12,
+        quantity: 1
+      },
+      {
+        type: "item",
+        itemId: "poisonous_vines",
+        weight: 15,
+        minimum: 1,
+        maximum: 2
       }
     ]
   },
@@ -254,12 +292,22 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       }
     ]
   },
-  briar_knight_loot: Object.freeze({
+  briar_knight_loot: {
     id: "briar_knight_loot",
-    entries: Object.freeze([
-      Object.freeze({ type: "item", itemId: "thorn_of_the_dolorous_vale", weight: 1, quantity: 1 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "item",
+        itemId: "thorn_of_the_dolorous_vale",
+        weight: 1,
+        quantity: 1
+      },
+      {
+        type: "recipe",
+        recipeId: "splinterbark_shield",
+        weight: 1
+      }
+    ]
+  },
   apothecary_common_recipes: Object.freeze({
     id: "apothecary_common_recipes",
     entries: Object.freeze([
@@ -273,15 +321,38 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "recipe", recipeId: "strong_tonic", weight: 1 }),
     ]),
   }),
-  forest_encounter_forage: Object.freeze({
+  forest_encounter_forage: {
     id: "forest_encounter_forage",
-    entries: Object.freeze([
-      Object.freeze({ type: "table", tableId: "forest_materials", weight: 6 }),
-      Object.freeze({ type: "table", tableId: "forest_ingredients", weight: 5 }),
-      Object.freeze({ type: "table", tableId: "apothecary_common_recipes", weight: 2 }),
-      Object.freeze({ type: "item", itemId: "old_foresters_map", weight: 1, quantity: 1 }),
-    ]),
-  }),
+    entries: [
+      {
+        type: "table",
+        tableId: "forest_materials",
+        weight: 6
+      },
+      {
+        type: "table",
+        tableId: "forest_ingredients",
+        weight: 5
+      },
+      {
+        type: "table",
+        tableId: "apothecary_common_recipes",
+        weight: 2
+      },
+      {
+        type: "item",
+        itemId: "old_foresters_map",
+        weight: 1,
+        quantity: 1
+      },
+      {
+        type: "item",
+        itemId: "antler_fragment",
+        weight: 3,
+        quantity: 1
+      }
+    ]
+  },
   expedition_return_minor: Object.freeze({
     id: "expedition_return_minor",
     entries: Object.freeze([
@@ -475,6 +546,11 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         weight: 2,
         minimum: 1,
         maximum: 3
+      },
+      {
+        type: "recipe",
+        recipeId: "splinterbark_shield",
+        weight: 0.25
       }
     ],
     rolls: 1
