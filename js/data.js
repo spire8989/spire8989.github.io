@@ -13,11 +13,14 @@ const ITEM_DEFINITIONS = Object.freeze({
     carriable: false,
     consumable: false,
     effects: {
-      combatDamage: Object.freeze({ minimum: 8, maximum: 12 }),
-      grantedAbilityIds: ["pommel_strike"],
+      combatDamage: {
+        minimum: 8,
+        maximum: 12
+      },
+      grantedAbilityIds: []
     },
     questItem: false,
-    unique: true,
+    unique: true
   },
   quilted_hauberk: {
     id: "quilted_hauberk",
@@ -1090,6 +1093,25 @@ const ITEM_DEFINITIONS = Object.freeze({
     unique: true,
     sellable: false,
     protected: true,
+  },
+  splinterbark_shield: {
+    id: "splinterbark_shield",
+    name: "Splinterbark Shield",
+    description: "A thorny shield constructed from poisonous vines - attackers may be poisoned.",
+    category: "shield",
+    rarity: "rare",
+    tags: ["shield", "wood", "enchanted", "poison"],
+    equippable: true,
+    equipmentSlot: "shield",
+    carriable: false,
+    consumable: false,
+    effects: {
+      combatDefense: 6,
+      combatTriggers: [],
+      onHitEffects: []
+    },
+    questItem: false,
+    unique: true
   }
 });
 

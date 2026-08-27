@@ -204,14 +204,17 @@ const SHOP_DEFINITIONS = Object.freeze({
     id: "village_smithy",
     displayName: "Smithy Stock",
     itemsForSale: {
+      fine_hunting_knife: {
+        price: 10
+      },
       knightly_longsword: {
         price: 48
       },
       reinforced_mail: {
         price: 60
       },
-      fine_hunting_knife: {
-        price: 10
+      knights_kite_shield: {
+        price: 42
       }
     },
     acceptedCategories: ["weapon", "armor"],

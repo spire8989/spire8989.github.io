@@ -231,5 +231,25 @@ const RECIPE_DEFINITIONS = Object.freeze({
     rarity: "rare",
     starter: false,
     craftingDurationMs: 5
+  },
+  splinterbark_shield: {
+    id: "splinterbark_shield",
+    name: "Splinterbark Shield",
+    description: "Weave together the most dangerous plants of the forest in order to create a stalwart defense.",
+    craftingProvider: "blacksmith",
+    ingredients: [
+      {
+        type: "material",
+        id: "wood",
+        quantity: 4
+      }
+    ],
+    output: {
+      quantity: 1,
+      itemId: "splinterbark_shield"
+    },
+    goldCost: 10,
+    rarity: "rare",
+    craftingDurationMs: 3.5
   }
 });
