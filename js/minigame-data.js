@@ -84,7 +84,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
       completionText: "The fisher nods. You know how to read a stream now.",
     }),
   }),
-  woodland_stream_fishing: Object.freeze({
+  woodland_stream_fishing: {
     id: "woodland_stream_fishing",
     type: "fishing",
     name: "Fish the Stream",
@@ -93,43 +93,64 @@ const MINIGAME_DEFINITIONS = Object.freeze({
     attemptLimit: 3,
     timeLimitSeconds: null,
     castBounds: {
-      minX: 0.08, maxX: 0.92, nearWaterY: 0.58, farWaterY: 0.29,
+      minX: 0.08,
+      maxX: 0.92,
+      nearWaterY: 0.58,
+      farWaterY: 0.29
     },
-    defaultWater: Object.freeze({
+    defaultWater: {
       biteChance: 0.58,
       biteDelayMin: 0.75,
       biteDelayMax: 1.45,
       hookWindowMs: 720,
       hookSuccessChance: 0.84,
-      lootTableId: "fishing_woodland_default",
-    }),
-    hotspots: Object.freeze([
-      Object.freeze({
+      lootTableId: "fishing_woodland_default"
+    },
+    hotspots: [
+      {
         id: "reed_shadow",
         name: "Reed Shadow",
-        x: 0.25, y: 0.43, radius: 0.12, priority: 2,
-        biteChance: 0.68, biteDelayMin: 0.7, biteDelayMax: 1.55, hookWindowMs: 690,
-        lootTableId: "fishing_woodland_reeds",
-      }),
-      Object.freeze({
+        x: 0.4248387490549395,
+        y: 0.5489606084789427,
+        radius: 0.12,
+        priority: 2,
+        biteChance: 0.68,
+        biteDelayMin: 0.7,
+        biteDelayMax: 1.55,
+        hookWindowMs: 690,
+        lootTableId: "fishing_woodland_reeds"
+      },
+      {
         id: "deep_pool",
         name: "Deep Pool",
-        x: 0.73, y: 0.35, radius: 0.15, priority: 3,
-        biteChance: 0.57, biteDelayMin: 0.95, biteDelayMax: 1.8, hookWindowMs: 650,
-        lootTableId: "fishing_woodland_deep_pool",
-      }),
-      Object.freeze({
+        x: 0.6803225609564012,
+        y: 0.42279573392697134,
+        radius: 0.15,
+        priority: 3,
+        biteChance: 0.57,
+        biteDelayMin: 0.95,
+        biteDelayMax: 1.8,
+        hookWindowMs: 650,
+        lootTableId: "fishing_woodland_deep_pool"
+      },
+      {
         id: "fallen_log",
         name: "Fallen Log",
-        x: 0.52, y: 0.49, radius: 0.09, priority: 1,
-        biteChance: 0.76, biteDelayMin: 0.6, biteDelayMax: 1.25, hookWindowMs: 780,
-        lootTableId: "fishing_woodland_default",
-      }),
-    ]),
-    tutorial: Object.freeze({
+        x: 0.47258064516129034,
+        y: 0.2094623305891577,
+        radius: 0.09,
+        priority: 1,
+        biteChance: 0.76,
+        biteDelayMin: 0.6,
+        biteDelayMax: 1.25,
+        hookWindowMs: 780,
+        lootTableId: "fishing_woodland_default"
+      }
+    ],
+    tutorial: {
       title: "Fish the Stream",
       text: "Press and hold on the water to charge, release to cast, then watch the float. Tap the bobber when it plunges.",
-      completionText: "The stream settles back into silence.",
-    }),
-  }),
+      completionText: "The stream settles back into silence."
+    }
+  },
 });
