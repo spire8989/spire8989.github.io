@@ -58,7 +58,7 @@ const GLOBAL_SETTINGS = Object.freeze({
     combat: {
       playerAttackUseSfxId: "attack_swing",
       playerAttackImpactSfxId: "attack_impact",
-      enemyAttackUseSfxId: null,
+      enemyAttackUseSfxId: "attack_swing",
       enemyAttackImpactSfxId: "attack_impact",
       blockSfxId: null,
       healSfxId: null,
@@ -68,7 +68,7 @@ const GLOBAL_SETTINGS = Object.freeze({
       fleeSuccessSfxId: null,
       fleeFailSfxId: null,
       victorySfxId: null,
-      defeatSfxId: null,
-    },
+      defeatSfxId: null
+    }
   },
 });

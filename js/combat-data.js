@@ -17,7 +17,8 @@ const COMBAT_ABILITY_DEFINITIONS = Object.freeze({
     ],
     selectionPrompt: "Choose an enemy target",
     category: "action",
-    impactSfxId: "attack_impact"
+    impactSfxId: "attack_impact",
+    useSfxId: "attack_swing"
   },
   defend: Object.freeze({
     id: "defend",
