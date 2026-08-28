@@ -446,6 +446,9 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
   const actionEventStart = state.events.length;
   const aggregate = { damage: 0, baseDamage: 0, healingAmount: 0, gaugeReduction: 0, damagePrevented: 0, targetTagBonus: 0, injuryId: null };
   const effectTargets = targets.length > 0 ? targets : [null];
+  const hpBefore = Object.fromEntries(effectTargets
+    .filter((target) => target?.id)
+    .map((target) => [target.id, Number(target.hp) || 0]));
   effectTargets.forEach((target) => {
     const targetContext = { ...baseContext, targetCombatant: target, target };
     const result = CombatEffectResolver.resolve(state, targetContext, ability.effects ?? normalizeLegacyAbilityEffects(ability));
@@ -455,6 +458,9 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
     aggregate.targetTagBonus += Number(result.targetTagBonus) || 0;
     aggregate.injuryId ??= targetContext.injuryId ?? null;
   });
+  const hpAfter = Object.fromEntries(effectTargets
+    .filter((target) => target?.id)
+    .map((target) => [target.id, Number(target.hp) || 0]));
   const authoredEffects = ability.effects ?? normalizeLegacyAbilityEffects(ability);
   const hasWeaponDamage = authoredEffects.some((effect) => effect.type === "weaponDamage");
   const setsDefense = authoredEffects.some((effect) => effect.type === "setDefending" && effect.value !== false);
@@ -474,7 +480,11 @@ function resolveCombatAbility(state, expedition, actor, ability, targets, metada
   aggregate.actionEvent = recordCombatEvent(state, {
     actor: actor.id, action: metadata.action ?? ability.id,
     abilityId: metadata.abilityId ?? (metadata.action === "ability" ? ability.id : null), itemId: metadata.itemId ?? null,
-    target: targets[0]?.id ?? null, damage: aggregate.damage, baseDamage: aggregate.baseDamage,
+    target: targets[0]?.id ?? null, targetIds: effectTargets.filter((target) => target?.id).map((target) => target.id),
+    hpBefore: targets[0]?.id ? hpBefore[targets[0].id] : null,
+    hpAfter: targets[0]?.id ? hpAfter[targets[0].id] : null,
+    targetHpBefore: hpBefore, targetHpAfter: hpAfter,
+    damage: aggregate.damage, baseDamage: aggregate.baseDamage,
     bonusDamage: (Number(baseContext.damageBonus) || 0) + aggregate.targetTagBonus,
     targetTagBonus: aggregate.targetTagBonus, healingAmount: aggregate.healingAmount,
     gaugeReduction: aggregate.gaugeReduction, damagePrevented: aggregate.damagePrevented,

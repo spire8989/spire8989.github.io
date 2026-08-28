@@ -2727,14 +2727,21 @@ function combatPresentationEventIsPending(combat, event) {
 
 function combatPresentationDisplayedHp(combat, combatant) {
   const maximum = Math.max(0, Number(combatant?.maxHp) || 0);
-  let hp = Number(combatant?.hp) || 0;
+  const hp = Number(combatant?.hp) || 0;
   const controller = combatPresentationControllers.get(combat);
   const pendingEvents = [controller?.active?.event, ...(controller?.queue ?? [])].filter(Boolean);
-  pendingEvents.forEach((event) => {
-    if (!combatPresentationEventIsPending(combat, event) || !combatPresentationEventTargets(event).includes(combatant.id)) return;
-    hp += Number(event.damage) || 0;
-    hp -= Number(event.healingAmount) || 0;
-  });
+  const pendingEvent = pendingEvents.find((event) => (
+    combatPresentationEventIsPending(combat, event)
+      && combatPresentationEventTargets(event).includes(combatant.id)
+  ));
+  if (pendingEvent) {
+    const mappedBefore = pendingEvent.targetHpBefore?.[combatant.id]
+      ?? (typeof pendingEvent.hpBefore === "object" ? pendingEvent.hpBefore?.[combatant.id] : null);
+    const scalarBefore = pendingEvent.target === combatant.id && typeof pendingEvent.hpBefore !== "object"
+      ? pendingEvent.hpBefore : null;
+    const hpBefore = Number.isFinite(Number(mappedBefore)) ? mappedBefore : scalarBefore;
+    if (Number.isFinite(Number(hpBefore))) return clamp(Number(hpBefore), 0, maximum || Number(hpBefore));
+  }
   return clamp(hp, 0, maximum || hp);
 }
 
@@ -3245,7 +3252,11 @@ function renderInnInteraction(destination, npc) {
       ${tabs}
       ${renderInnCookingPanel(destination)}`;
   }
-  const rest = HealingRules.quoteInnRest(game.player, destination.restConfig);
+  const expeditionInn = game.locationContext?.type === "expedition"
+    && game.expedition?.status === "active";
+  const rest = expeditionInn
+    ? HealingRules.quoteExpeditionInnRest(game.expedition, game.player, destination.restConfig)
+    : HealingRules.quoteInnRest(game.player, destination.restConfig);
   const restBusy = Boolean(game.restAction);
   const partyHealth = rest.partyMembers.map((member) => `
     <div class="inn-health-row">
@@ -3272,7 +3283,10 @@ function renderInnInteraction(destination, npc) {
     <article class="provision-offer inn-rest-offer">
       <div class="inn-rest-heading"><strong>Rest the Company</strong><span>${rest.fullHealth ? "No payment needed" : "One rest"}</span></div>
       <div class="inn-health-list">${partyHealth}</div>
-      ${renderPersistentInjuryPanel(game.player, { title: "Persistent injuries", includeTreatment: false })}
+      ${renderPersistentInjuryPanel(
+        expeditionInn ? game.expedition : game.player,
+        { title: expeditionInn ? "Expedition injuries" : "Persistent injuries", includeTreatment: false },
+      )}
       ${restAction}
     </article>`;
 }
@@ -3330,7 +3344,8 @@ function isCurrentRestAction(action) {
   if (!action || game.restAction !== action || action.token !== game.restActionVersion) return false;
   if (game.screen !== action.screen) return false;
   if (action.context === "inn-rest") {
-    return game.activeDestinationId === action.destinationId;
+    return game.activeDestinationId === action.destinationId
+      && (!action.expedition || game.expedition === action.expedition);
   }
   return game.expedition === action.expedition
     && action.expedition?.status === "active"
@@ -3370,7 +3385,11 @@ function beginInnRest() {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   if (destination?.type !== "inn") return;
   if (game.restAction || game.craftingAction) return;
-  const quote = HealingRules.quoteInnRest(game.player, destination.restConfig);
+  const expeditionInn = game.locationContext?.type === "expedition"
+    && game.expedition?.status === "active";
+  const quote = expeditionInn
+    ? HealingRules.quoteExpeditionInnRest(game.expedition, game.player, destination.restConfig)
+    : HealingRules.quoteInnRest(game.player, destination.restConfig);
   if (quote.fullHealth || !quote.available) {
     restAtInn();
     return;
@@ -3378,6 +3397,7 @@ function beginInnRest() {
   beginRestAction("inn-rest", {
     screen: "destination",
     destinationId: game.activeDestinationId,
+    expedition: expeditionInn ? game.expedition : null,
     durationMs: HEALING_TUNING.innRestDurationMs,
   });
   refreshDestination();
@@ -3386,7 +3406,11 @@ function beginInnRest() {
 function restAtInn() {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   if (destination?.type !== "inn") return;
-  const result = HealingRules.restAtInn(game.player, destination.restConfig);
+  const expeditionInn = game.locationContext?.type === "expedition"
+    && game.expedition?.status === "active";
+  const result = expeditionInn
+    ? HealingRules.restAtExpeditionInn(game.expedition, game.player, destination.restConfig)
+    : HealingRules.restAtInn(game.player, destination.restConfig);
   if (result.applied) {
     const recovery = result.partyMembers.map(
       (member) => `${member.name} recovers ${member.healingAmount} health`,

@@ -34,6 +34,31 @@ const HealingRules = Object.freeze({
     return members;
   },
 
+  expeditionParty(expedition) {
+    const members = [{
+      id: PLAYER_CHARACTER_DEFINITION.id,
+      name: PLAYER_CHARACTER_DEFINITION.name,
+      health: clampHealingNumber(
+        expedition?.health,
+        0,
+        InjuryRules.effectiveMaxHealth(expedition, PLAYER_CHARACTER_DEFINITION.id),
+      ),
+      maxHealth: InjuryRules.effectiveMaxHealth(expedition, PLAYER_CHARACTER_DEFINITION.id),
+    }];
+    selectedCompanionIds(expedition).forEach((companionId) => {
+      const companion = COMPANION_DEFINITIONS[companionId];
+      if (!companion) return;
+      const maxHealth = InjuryRules.effectiveMaxHealth(expedition, companion.id);
+      members.push({
+        id: companion.id,
+        name: companion.name,
+        health: clampHealingNumber(expedition?.companionCombatHp?.[companion.id], 0, maxHealth),
+        maxHealth,
+      });
+    });
+    return members;
+  },
+
   quoteInnRest(player, options = {}) {
     const restoration = Number(options.restoration ?? HEALING_TUNING.innRestoration);
     const goldCost = Number(options.goldCost ?? HEALING_TUNING.innRestGoldCost);
@@ -126,6 +151,104 @@ const HealingRules = Object.freeze({
     return { ...quote, applied: true, injuriesTreated, recoveryAccelerated };
   },
 
+  quoteExpeditionInnRest(expedition, player, options = {}) {
+    const restoration = Number(options.restoration ?? HEALING_TUNING.innRestoration);
+    const goldCost = Number(options.goldCost ?? HEALING_TUNING.innRestGoldCost);
+    const partyMembers = this.expeditionParty(expedition).map((member) => {
+      const healingAmount = Math.min(restoration, member.maxHealth - member.health);
+      return {
+        id: member.id,
+        name: member.name,
+        healthBefore: member.health,
+        healthAfter: member.health + healingAmount,
+        quotedHealthAfter: member.health + healingAmount,
+        maxHealth: member.maxHealth,
+        healingAmount,
+        quotedHealingAmount: healingAmount,
+      };
+    });
+    const arthur = partyMembers[0];
+    const totalHealingAmount = partyMembers.reduce((sum, member) => sum + member.healingAmount, 0);
+    const exhaustionMembers = partyMembers.filter((member) => InjuryRules.has(expedition, member.id, "exhaustion"));
+    const recoveryMembers = partyMembers.filter((member) => InjuryRules.forCharacter(expedition, member.id)
+      .some((instance) => Number(instance.remainingRecoveryDistance) > 0
+        && INJURY_DEFINITIONS[InjuryRules.idOf(instance)]?.recoveryDistanceRange));
+    const needsRest = totalHealingAmount > 0 || exhaustionMembers.length > 0 || recoveryMembers.length > 0;
+    const affordable = Number(player?.currentGold) >= goldCost;
+    return {
+      available: needsRest && affordable && expedition?.status === "active",
+      fullHealth: !needsRest,
+      affordable,
+      healthBefore: arthur.healthBefore,
+      healthAfter: arthur.healthAfter,
+      healingAmount: arthur.healingAmount,
+      quotedHealthAfter: arthur.healthAfter,
+      quotedHealingAmount: arthur.healingAmount,
+      totalHealingAmount,
+      quotedTotalHealingAmount: totalHealingAmount,
+      partyMembers,
+      healingByPartyMember: Object.fromEntries(partyMembers.map(
+        (member) => [member.id, member.healingAmount],
+      )),
+      exhaustionMembers: exhaustionMembers.map((member) => member.id),
+      recoveryMembers: recoveryMembers.map((member) => member.id),
+      goldCost: needsRest ? goldCost : 0,
+      quotedGoldCost: needsRest ? goldCost : 0,
+      restoration,
+      recoveryDistanceReduction: Number(options.recoveryDistanceReduction ?? HEALING_TUNING.innRecoveryDistanceReduction),
+      resource: "gold",
+    };
+  },
+
+  restAtExpeditionInn(expedition, player, options = {}) {
+    const quote = this.quoteExpeditionInnRest(expedition, player, options);
+    if (!quote.available) {
+      return {
+        ...quote,
+        applied: false,
+        healthAfter: quote.healthBefore,
+        healingAmount: 0,
+        totalHealingAmount: 0,
+        goldCost: 0,
+        partyMembers: quote.partyMembers.map((member) => ({
+          ...member,
+          healthAfter: member.healthBefore,
+          healingAmount: 0,
+        })),
+        healingByPartyMember: Object.fromEntries(quote.partyMembers.map(
+          (member) => [member.id, 0],
+        )),
+        injuriesTreated: [],
+      };
+    }
+    player.currentGold -= quote.goldCost;
+    const healing = this.restExpeditionParty(expedition, quote.restoration);
+    const partyMembers = quote.partyMembers.map((member) => ({
+      ...member,
+      healthAfter: member.healthBefore + (healing.healingByPartyMember[member.id] ?? 0),
+      healingAmount: healing.healingByPartyMember[member.id] ?? 0,
+    }));
+    const injuriesTreated = quote.exhaustionMembers
+      .map((characterId) => InjuryRules.recoverExhaustion(expedition, characterId, "inn"))
+      .filter((result) => result.applied);
+    const recoveryAccelerated = quote.recoveryMembers.flatMap((characterId) => (
+      InjuryRules.accelerateRecovery(
+        expedition, characterId, quote.recoveryDistanceReduction, "inn",
+      )
+    ));
+    return {
+      ...quote,
+      applied: true,
+      healthAfter: healing.arthurHealthAfter,
+      healingAmount: healing.healingByPartyMember.arthur ?? 0,
+      totalHealingAmount: healing.totalHealingAmount,
+      partyMembers,
+      healingByPartyMember: healing.healingByPartyMember,
+      injuriesTreated,
+      recoveryAccelerated,
+    };
+  },
+
   restExpeditionParty(expedition, amount) {
     const requested = Math.max(0, Number(amount) || 0);
     const healingByPartyMember = {};
@@ -137,10 +260,12 @@ const HealingRules = Object.freeze({
     healingByPartyMember.arthur = arthurHealing;
     totalHealingAmount += arthurHealing;
 
-    Object.entries(expedition.companionCombatHp ?? {}).forEach(([companionId, health]) => {
+    selectedCompanionIds(expedition).forEach((companionId) => {
+      const health = expedition.companionCombatHp?.[companionId];
       const maximum = InjuryRules.effectiveMaxHealth(expedition, companionId);
       const before = clampHealingNumber(health, 0, maximum);
       const healing = Math.min(requested, maximum - before);
+      expedition.companionCombatHp ??= {};
       expedition.companionCombatHp[companionId] = before + healing;
       healingByPartyMember[companionId] = healing;
       totalHealingAmount += healing;

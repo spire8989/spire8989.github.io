@@ -1,5 +1,42 @@
 # Build Log
 
+## 2026-08-27 - Expedition Inn and Combat HP Presentation Fixes
+
+### Goal
+
+Keep expedition-location inn healing on the active expedition party and keep
+enemy HP visually stable until combat damage reaches its presentation impact.
+
+### Human direction
+
+- Fix expedition inn health quoting/healing and overkill HP presentation.
+- Keep the changes targeted, add focused regressions, and commit/push the game
+  repository.
+
+### AI-assisted implementation
+
+- Added expedition-party inn quote and apply paths through `HealingRules`,
+  preserving destination restoration, gold cost, injury recovery, and the
+  persistent town health state.
+- Recorded scalar primary-target and per-target `hpBefore`/`hpAfter` snapshots
+  on combat action events, and made pending presentation use the pre-impact
+  snapshot rather than raw damage arithmetic.
+- Added focused campaign and combat regressions for expedition inn healing and
+  a 2 HP enemy receiving 7 damage.
+
+### Reported manual changes
+
+- None.
+
+### Verification and resulting prototype state
+
+- The new overkill presentation regression passes in the focused combat suite.
+- The new expedition inn regression runs successfully in the campaign suite;
+  that broader suite later stops at its existing unrelated emergency telemetry
+  assertion, while the combat suite later stops at its existing Pommel Strike
+  fixture assertion.
+- `git diff --check` passes.
+
 ## 2026-08-27 - Global Combat Audio Defaults
 
 ### Goal

@@ -78,6 +78,10 @@ def run() -> None:
             "Weapon damage multiplier did not use the shared resolver",
         )
         check(
+            "(() => { const originalExpedition=game.expedition; const originalScreen=game.screen; const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:5,random:()=>0}); const c=CombatSystem.create(e,'wild_boar',{random:()=>0}); e.combat=c; c.status='awaitingAction'; c.activeActorId='arthur'; const t=c.enemies[0]; t.hp=2; const result=CombatSystem.resolveDefinition(c,e,{id:'attack',name:'Attack',kind:'active',targetMode:'singleEnemy',effects:[{type:'dealDamage',amount:7}]},t.id); const event=c.events.at(-1); game.expedition=e; game.screen='expedition'; const controller=combatPresentationController(c); controller.queue=[event]; const pending=combatPresentationDisplayedHp(c,t); controller.queue=[]; controller.active={event,version:1,finished:false}; presentCombatImpact(e,c,event,1,{playSfx:()=>true,playSemantic:()=>true}); const impacted=combatPresentationDisplayedHp(c,t); game.expedition=originalExpedition; game.screen=originalScreen; renderScreen(); return result.resolved&&event.hpBefore===2&&event.hpAfter===0&&pending===2&&impacted===0&&pending!==7&&impacted!==7; })()",
+            "Overkill presented an enemy at raw damage HP before its killing impact",
+        )
+        check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:5,health:20,random:()=>0}); const c=CombatSystem.create(e,'wild_boar',{random:()=>0}); const a=c.allies[0]; a.hp=20; const healed=CombatEffectResolver.resolve(c,{sourceCombatant:a,targetCombatant:a},[{type:'heal',amount:8}]); a.gauge=80; const gauge=CombatEffectResolver.resolve(c,{sourceCombatant:a,targetCombatant:a},[{type:'modifyGauge',amount:-25}]); return healed.healingAmount===8&&a.hp===28&&gauge.gaugeReduction===25&&a.gauge===55; })()",
             "Healing or gauge modification did not use composable effects",
         )
