@@ -65,8 +65,12 @@ function fishingRewardMessage(reward) {
   if (!reward || Number(reward.quantity) <= 0) return "";
   const quantity = reward.quantity === 1 ? "" : ` ×${reward.quantity}`;
   if (reward.type === "catch") return `Caught ${reward.displayName}${quantity}.`;
-  if (reward.type === "material") return `Collected ${reward.materialId}${quantity}.`;
-  if (reward.type === "item") return `Found ${reward.itemId}${quantity}.`;
+  if (reward.type === "material") {
+    return `Collected ${MaterialRules.definition(reward.materialId).name ?? reward.materialId}${quantity}.`;
+  }
+  if (reward.type === "item") {
+    return `Found ${ITEM_DEFINITIONS[reward.itemId]?.name ?? reward.itemId}${quantity}.`;
+  }
   return "";
 }
 
@@ -159,7 +163,12 @@ const MinigameRules = Object.freeze({
     const landing = fishingLandingPosition(definition, x, power);
     const hotspot = fishingHotspot(definition, landing.x, landing.y);
     const water = fishingWaterDefinition(definition, hotspot);
-    const biteOccurs = minigameRandom(random) < Number(water.biteChance);
+    const timedMode = Number.isFinite(definition.timeLimitSeconds)
+      && definition.timeLimitSeconds > 0;
+    const biteRoll = minigameRandom(random);
+    // Limited-cast Fishing always gives the player a real bite opportunity.
+    // biteChance remains authored for timed mode and future nibble behavior.
+    const biteOccurs = timedMode ? biteRoll < Number(water.biteChance) : true;
     const activeCast = {
       castNumber: definition.attemptLimit - session.castsRemaining + 1,
       aimX: landing.x,
@@ -168,6 +177,7 @@ const MinigameRules = Object.freeze({
       hotspotId: hotspot.id,
       hotspotName: hotspot.name ?? "Open Water",
       biteOccurs,
+      timedMode,
       water: {
         biteChance: water.biteChance,
         biteDelayMin: water.biteDelayMin,
@@ -194,6 +204,7 @@ const MinigameRules = Object.freeze({
     const successfulHook = Boolean(hooked && cast.biteOccurs);
     let rewards = [];
     let messages = [];
+    let reward = null;
     let catchReward = null;
     if (successfulHook) {
       const results = LootRules.resolveSources([{ tableId: cast.water.lootTableId, rolls: 1 }], {
@@ -205,7 +216,8 @@ const MinigameRules = Object.freeze({
         sourceEncounterId: expedition?.activeEncounter?.encounterId,
         sourceChoiceId: expedition?.activeEncounter?.lastChoiceId,
       });
-      catchReward = results[0] ?? null;
+      reward = results[0] ?? null;
+      catchReward = reward?.type === "catch" ? reward : null;
       rewards = results.filter((reward) => Number(reward.quantity) > 0 || reward.type === "recipe");
       messages = rewards.map(fishingRewardMessage).filter(Boolean);
     }
@@ -218,6 +230,7 @@ const MinigameRules = Object.freeze({
       biteOccurred: cast.biteOccurs,
       hooked: successfulHook,
       missed: !successfulHook,
+      reward,
       catch: catchReward,
       rewards,
       messages,

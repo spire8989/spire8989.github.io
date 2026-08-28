@@ -5749,3 +5749,25 @@ The attached minigame/Fishing guide supplied the authored behavior, editor requi
 ### Verification and resulting prototype state
 
 The focused Fishing browser suite passes 8 checks, including module loading, normalized hotspot priority/fallback, teacher and stream authoring, catch/material/campfire resolution, two separated stream occurrences, single-run and campaign telemetry, deterministic simulation, and the playable cast-to-bite-to-Hook flow. Focused Content Editor validation/round-trip and browser authoring tests pass 3 tests, replay smoke tests pass 15 assertions, and `git diff --check` passes. The broader campaign suite was attempted but currently stops at the existing unrelated aggressive-emergency telemetry fixture assertion; no fishing-specific failure was reported.
+
+## 2026-08-27 - Fishing Minigame Player UX Correction Pass
+
+### Goal
+
+Make the Fishing interaction immediately understandable on both narrow and desktop viewports while preserving the reusable minigame, authored water, encounter, simulation, replay, and editor architecture.
+
+### AI-assisted implementation
+
+- Made the fishing artwork itself the pointer/touch input surface. Horizontal pointer position controls aim, hold time controls oscillating power, pointer capture supports mouse and touch, and cancelled charges return safely to aim without consuming a cast.
+- Moved the temporary horizontal power gauge and subtle aim marker onto the artwork, removed the lower cast-area interaction panel and separate Hook button, and kept Fishing in the centered portrait layout at every viewport width.
+- Made the bobber an enlarged mobile-friendly hit target that is only interactive during the hook window. Added waiting drift and obvious bite plunge animation, and restricted bobber rendering to active waiting/hook casts so resolved landings cannot remain visible.
+- Improved catch/item result presentation with display names and reward quantities, separated existing item loot from fish catch definitions, and guaranteed a real bite opportunity for every limited-cast mode attempt while retaining authored biteChance for timed mode.
+- Expanded the focused browser coverage to include the image pointer flow, mouse/touch paths, cancellation, bobber lifecycle, hook targeting, portrait layout, limited-cast guarantees, and existing item rewards.
+
+### Manual changes
+
+The attached corrective guide supplied the player-facing interaction and presentation requirements. Existing authored hotspot edits in `js/minigame-data.js` were preserved as pre-existing work and were not included in this correction commit.
+
+### Verification and resulting prototype state
+
+The focused Fishing browser suite passes 9 checks on a 390x844 viewport, including image-surface input, charge gauge/aim feedback, animated waiting/plunge states, bobber-only hooking, no-bobber result/summary states, guaranteed limited-cast bites, and existing-item loot. Focused Content Editor validation/round-trip and browser authoring tests pass 3 tests, replay smoke tests pass 15 assertions, asset/audio checks pass 5 assertions, and `git diff --check` passes. The broader simulation, campaign, campaign-replay, and location suites were attempted but stop at existing unrelated fixture/layout failures documented by those suites; no fishing-specific failure was reported.

@@ -60,7 +60,7 @@ function initializeGame() {
   document.addEventListener("pointerdown", handleFishingPointerDown);
   document.addEventListener("pointermove", handleFishingPointerMove);
   document.addEventListener("pointerup", handleFishingPointerUp);
-  document.addEventListener("pointercancel", handleFishingPointerUp);
+  document.addEventListener("pointercancel", handleFishingPointerCancel);
   window.addEventListener("resize", () => {
     if (game.screen === "location") window.requestAnimationFrame(clampTownHotspotsToScene);
     if (game.screen === "expedition") {
@@ -251,9 +251,6 @@ function handleAction(event) {
       break;
     case "encounter-choice":
       resolveEncounterChoice(choiceId);
-      break;
-    case "fishing-hook":
-      resolveFishingHook(true);
       break;
     case "fishing-dismiss-result":
       dismissFishingResult();
@@ -5293,62 +5290,100 @@ function fishingDefinitionForSession(session) {
 
 function fishingSessionStatus(session) {
   if (session.state === "charging") return "Release to cast";
-  if (session.state === "waiting") return "The bobber drifts...";
-  if (session.state === "hook") return "A fish is on the line!";
+  if (session.state === "waiting") return "The float drifts...";
+  if (session.state === "hook") return "Bite! Tap the bobber";
   if (session.state === "result") return session.lastResult?.hooked ? "Catch secured" : "The cast is spent";
   if (session.state === "summary") return "Fishing complete";
-  return "Hold to charge your cast";
+  return "Press and hold on the water to cast";
+}
+
+function fishingRewardName(reward) {
+  if (!reward) return "Unknown catch";
+  if (reward.type === "catch") return reward.displayName ?? reward.catchId ?? "Catch";
+  if (reward.type === "material") return MaterialRules.definition(reward.materialId).name ?? reward.materialId ?? "Material";
+  if (reward.type === "item") return ITEM_DEFINITIONS[reward.itemId]?.name ?? reward.itemId ?? "Item";
+  if (reward.type === "gold") return "Gold";
+  return reward.name ?? reward.id ?? "Reward";
+}
+
+function fishingRewardItemName(reward) {
+  if (!reward) return "Reward";
+  const rewardId = reward.type === "catch" ? reward.rewardItemId
+    : reward.type === "material" ? reward.materialId
+      : reward.itemId;
+  if (MaterialRules.isMaterialId(rewardId)) return MaterialRules.definition(rewardId).name ?? rewardId;
+  return ITEM_DEFINITIONS[rewardId]?.name ?? rewardId ?? "Reward";
+}
+
+function fishingRewardDescription(reward) {
+  if (reward?.type === "catch") return `You caught a ${fishingRewardName(reward)}.`;
+  if (reward?.type === "item") return `You pulled ${fishingRewardName(reward)} from the stream.`;
+  if (reward?.type === "material") return `You gathered ${fishingRewardName(reward)} from the stream.`;
+  return "The cast brought something back from the water.";
+}
+
+function fishingRewardLine(reward) {
+  if (!reward || Number(reward.quantity) <= 0) return "";
+  return `+${reward.quantity} ${fishingRewardItemName(reward)}`;
 }
 
 function fishingResultMarkup(session) {
   if (session.state === "result" && session.lastResult) {
     const result = session.lastResult;
-    const title = result.hooked ? `Caught ${result.catch?.displayName ?? "something"}` : "The line goes slack";
+    const reward = result.reward ?? result.catch ?? result.rewards?.[0] ?? null;
+    const title = result.hooked ? fishingRewardName(reward) : "The fish got away";
     const message = result.hooked
-      ? (result.messages?.[0] ?? "The catch is added to the expedition's unsecured discoveries.")
-      : (result.biteOccurred ? "The fish got away. That cast is spent." : "Nothing took the bait. That cast is spent.");
-    return `<section class="fishing-result-card" aria-live="polite"><p class="eyebrow">${result.hooked ? "Catch" : "Miss"}</p><h2>${assetAttribute(title)}</h2><p>${assetAttribute(message)}</p><button class="game-button" type="button" data-action="fishing-dismiss-result">${session.castsRemaining > 0 ? "Cast Again" : "View Summary"}</button></section>`;
+      ? fishingRewardDescription(reward)
+      : "The bobber is gone. That cast is spent.";
+    const rewardLine = result.hooked ? fishingRewardLine(reward) : "";
+    return `<section class="fishing-result-card" aria-live="polite"><p class="eyebrow">${result.hooked ? "Catch" : "Miss"}</p><h2>${assetAttribute(title)}</h2><p>${assetAttribute(message)}</p>${rewardLine ? `<strong class="fishing-reward-line">${assetAttribute(rewardLine)}</strong>` : ""}<button class="game-button" type="button" data-action="fishing-dismiss-result">${session.castsRemaining > 0 ? "Cast Again" : "View Summary"}</button></section>`;
   }
   if (session.state !== "summary") return "";
-  const catches = session.casts.filter((cast) => cast.catch);
-  const catchList = catches.map((cast) => `<li>${assetAttribute(cast.catch.displayName)}${quantityMarker(cast.catch.quantity)}</li>`).join("");
-  return `<section class="fishing-result-card fishing-summary-card" aria-live="polite"><p class="eyebrow">Session Complete</p><h2>${catches.length ? `${catches.length} catch${catches.length === 1 ? "" : "es"}` : "No fish caught"}</h2>${catchList ? `<ul>${catchList}</ul>` : "<p>The stream keeps its secrets for now.</p>"}<button class="game-button" type="button" data-action="fishing-return">Return to the encounter</button></section>`;
+  const results = session.casts.filter((cast) => cast.hooked && (cast.reward ?? cast.catch));
+  const catches = results.filter((cast) => cast.catch);
+  const resultList = results.map((cast) => {
+    const reward = cast.reward ?? cast.catch;
+    return `<li><span>${assetAttribute(fishingRewardName(reward))}</span><strong>${assetAttribute(fishingRewardLine(reward))}</strong></li>`;
+  }).join("");
+  const heading = catches.length
+    ? `${catches.length} catch${catches.length === 1 ? "" : "es"}`
+    : results.length ? "Fishing complete" : "No catch";
+  return `<section class="fishing-result-card fishing-summary-card" aria-live="polite"><p class="eyebrow">Session Complete</p><h2>${assetAttribute(heading)}</h2>${resultList ? `<ul>${resultList}</ul>` : "<p>The stream keeps its secrets for now.</p>"}<button class="game-button" type="button" data-action="fishing-return">Return to the encounter</button></section>`;
 }
 
 function renderFishing(expedition, session) {
   const definition = fishingDefinitionForSession(session);
   if (!definition) return;
   const backgroundPath = AssetCatalog.imagePath(definition.backgroundAssetId);
-  const activeCast = session.activeCast ?? session.lastResult;
+  const activeCast = ["waiting", "hook"].includes(session.state) ? session.activeCast : null;
   const bobber = activeCast?.landing
-    ? `<span class="fishing-bobber" style="left:${activeCast.landing.x * 100}%;top:${activeCast.landing.y * 100}%" aria-label="Bobber"></span>`
+    ? `<button class="fishing-bobber ${session.state === "hook" ? "is-hook" : "is-waiting"}" type="button" data-fishing-bobber aria-label="${session.state === "hook" ? "Tap bobber to hook the fish" : "Fishing bobber"}" style="left:${activeCast.landing.x * 100}%;top:${activeCast.landing.y * 100}%"><span class="fishing-bobber-visual" aria-hidden="true"></span></button>`
     : "";
   const power = Math.round((session.power ?? 0) * 100);
   const aim = Math.round((session.selectedX ?? 0.5) * 100);
-  const hookEnabled = session.state === "hook";
-  const canCharge = session.state === "aim" || session.state === "charging";
+  const charging = session.state === "charging";
+  const stageHint = session.state === "aim"
+    ? "Press and hold on the water to cast"
+    : session.state === "charging"
+      ? "Release to cast"
+      : session.state === "waiting"
+        ? "Watch the float"
+        : session.state === "hook" ? "Tap the bobber!" : "";
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen fishing-screen" aria-label="${assetAttribute(definition.name)}">
-      <div class="fishing-stage" data-fishing-stage>
+      <div class="fishing-stage" data-fishing-stage role="button" aria-label="Fishing water. Press and hold to cast">
         ${backgroundPath ? `<img class="fishing-background" src="${assetAttribute(backgroundPath)}" alt="Woodland stream">` : ""}
         <div class="fishing-water-overlay" aria-hidden="true"></div>
         ${bobber}
+        <div class="fishing-power-overlay ${charging ? "" : "is-hidden"}" aria-label="Cast power"><span class="fishing-gauge-fill" style="width:${power}%"></span><span class="fishing-gauge-marker" style="left:${power}%"></span></div>
+        <span class="fishing-aim-marker ${charging ? "" : "is-hidden"}" style="left:${aim}%" aria-hidden="true"></span>
+        ${stageHint ? `<div class="fishing-stage-hint" aria-live="polite">${assetAttribute(stageHint)}</div>` : ""}
         <div class="fishing-stage-caption"><span>${assetAttribute(fishingSessionStatus(session))}</span><span>${session.castsRemaining} cast${session.castsRemaining === 1 ? "" : "s"} remaining</span></div>
       </div>
       <div class="fishing-panel" aria-live="polite">
         <p class="eyebrow">${assetAttribute(definition.tutorial?.title ?? "Fishing")}</p>
         <h1>${assetAttribute(definition.name)}</h1>
         <p class="fishing-instructions">${assetAttribute(definition.tutorial?.text ?? definition.description)}</p>
-        <div class="fishing-gauge-row">
-          <div class="fishing-power-gauge" aria-label="Cast power"><span class="fishing-gauge-fill" style="height:${power}%"></span><span class="fishing-gauge-marker" style="bottom:${power}%"></span></div>
-          <div class="fishing-cast-area ${canCharge ? "is-active" : "is-disabled"}" data-fishing-cast-area role="button" aria-label="${canCharge ? "Hold to charge cast" : "Cast area"}">
-            <span class="fishing-aim-line" style="left:${aim}%"></span>
-            <span class="fishing-cast-prompt">${assetAttribute(session.state === "charging" ? "Release to cast" : canCharge ? "Hold here to charge" : session.state === "hook" ? "Tap Hook" : "Watch the bobber")}</span>
-          </div>
-        </div>
-        <div class="fishing-controls">
-          <button class="game-button fishing-hook-button" type="button" data-action="fishing-hook" ${hookEnabled ? "" : "disabled"}>Hook!</button>
-        </div>
         ${fishingResultMarkup(session)}
       </div>
     </section>`;
@@ -5381,18 +5416,29 @@ function fishingPointerPosition(element, event) {
 
 function handleFishingPointerDown(event) {
   const session = game.minigameSession;
-  const area = event.target.closest?.("[data-fishing-cast-area]");
+  const bobber = event.target.closest?.("[data-fishing-bobber]");
+  if (session?.expedition === game.expedition && game.screen === "expedition"
+    && session.state === "hook" && bobber) {
+    event.preventDefault();
+    resolveFishingHook(true);
+    return;
+  }
+  const stage = event.target.closest?.("[data-fishing-stage]");
   if (!session || session.expedition !== game.expedition || game.screen !== "expedition"
-    || !area || !["aim", "charging"].includes(session.state)) return;
+    || !stage || !["aim", "charging"].includes(session.state)) return;
   event.preventDefault();
-  const position = fishingPointerPosition(area, event);
+  const position = fishingPointerPosition(stage, event);
   session.pointerId = event.pointerId;
-  session.pointerElement = area;
+  session.pointerElement = stage;
   session.selectedX = position.x;
   session.state = "charging";
   session.power = 0.05;
   session.chargeDirection = 1;
-  area.setPointerCapture?.(event.pointerId);
+  try {
+    stage.setPointerCapture?.(event.pointerId);
+  } catch (_error) {
+    // Synthetic pointer events and older browsers may not expose capture.
+  }
   updateFishingHud();
 }
 
@@ -5410,10 +5456,32 @@ function handleFishingPointerUp(event) {
   const session = game.minigameSession;
   if (!session || session.pointerId !== event.pointerId) return;
   event.preventDefault();
-  session.pointerElement?.releasePointerCapture?.(event.pointerId);
+  try {
+    session.pointerElement?.releasePointerCapture?.(event.pointerId);
+  } catch (_error) {
+    // The pointer may already have been cancelled by the browser.
+  }
   session.pointerId = null;
   session.pointerElement = null;
   if (session.state === "charging") releaseFishingCast();
+}
+
+function handleFishingPointerCancel(event) {
+  const session = game.minigameSession;
+  if (!session || session.pointerId !== event.pointerId) return;
+  try {
+    session.pointerElement?.releasePointerCapture?.(event.pointerId);
+  } catch (_error) {
+    // The pointer is already cancelled.
+  }
+  session.pointerId = null;
+  session.pointerElement = null;
+  if (session.state === "charging") {
+    session.state = "aim";
+    session.power = 0;
+    session.chargeDirection = 1;
+    renderScreen();
+  }
 }
 
 function releaseFishingCast() {
@@ -5483,10 +5551,15 @@ function updateFishingHud() {
   const aim = Math.round((session.selectedX ?? 0.5) * 100);
   const fill = document.querySelector(".fishing-gauge-fill");
   const marker = document.querySelector(".fishing-gauge-marker");
-  const aimLine = document.querySelector(".fishing-aim-line");
-  if (fill) fill.style.height = `${power}%`;
-  if (marker) marker.style.bottom = `${power}%`;
-  if (aimLine) aimLine.style.left = `${aim}%`;
+  const gauge = document.querySelector(".fishing-power-overlay");
+  const aimMarker = document.querySelector(".fishing-aim-marker");
+  if (fill) fill.style.width = `${power}%`;
+  if (marker) marker.style.left = `${power}%`;
+  gauge?.classList.toggle("is-hidden", session.state !== "charging");
+  aimMarker?.classList.toggle("is-hidden", session.state !== "charging");
+  if (aimMarker) aimMarker.style.left = `${aim}%`;
+  const stageHint = document.querySelector(".fishing-stage-hint");
+  if (stageHint && session.state === "charging") stageHint.textContent = "Release to cast";
   const caption = document.querySelector(".fishing-stage-caption");
   if (caption?.firstElementChild) caption.firstElementChild.textContent = fishingSessionStatus(session);
 }

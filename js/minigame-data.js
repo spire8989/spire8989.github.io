@@ -80,7 +80,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
     ]),
     tutorial: Object.freeze({
       title: "Read the Water",
-      text: "Hold the cast area to charge your cast. Release to place the bobber; aim for a ripple and tap Hook when the fish bites.",
+      text: "Press and hold on the water to charge your cast. Release to place the bobber; watch the float and tap it when it plunges.",
       completionText: "The fisher nods. You know how to read a stream now.",
     }),
   }),
@@ -128,7 +128,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
     ]),
     tutorial: Object.freeze({
       title: "Fish the Stream",
-      text: "Hold to charge, release to cast, then watch the bobber. Every cast gets its chance; Hook quickly when it submerges.",
+      text: "Press and hold on the water to charge, release to cast, then watch the float. Tap the bobber when it plunges.",
       completionText: "The stream settles back into silence.",
     }),
   }),

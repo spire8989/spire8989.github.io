@@ -878,35 +878,33 @@ button:focus-visible {
 
 /* Fishing minigame */
 .fishing-screen { background: #0d1720; overflow: auto; }
-.fishing-stage { position: relative; min-height: min(58vh, 470px); overflow: hidden; background: linear-gradient(180deg, #9ab5bc, #264b55 62%, #102d37); }
-.fishing-background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.fishing-stage { position: relative; flex: 0 0 auto; width: 100%; aspect-ratio: var(--interaction-visual-aspect); overflow: hidden; border-bottom: 2px solid rgb(217 189 114 / 55%); background: linear-gradient(180deg, #9ab5bc, #264b55 62%, #102d37); cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
+.fishing-background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .fishing-water-overlay { position: absolute; inset: 28% 0 0; background: linear-gradient(180deg, transparent, rgba(8, 36, 47, .42)); pointer-events: none; }
-.fishing-bobber { position: absolute; z-index: 2; width: 13px; height: 18px; border-radius: 50% 50% 45% 45%; transform: translate(-50%, -50%); background: #f5e4bd; border: 2px solid #4b2c1d; box-shadow: 0 0 0 3px rgba(255,255,255,.25), 0 4px 8px rgba(0,0,0,.35); }
-.fishing-bobber::after { content: ""; position: absolute; left: 50%; bottom: 100%; width: 1px; height: 42px; background: rgba(245, 228, 189, .7); }
-.fishing-stage-caption { position: absolute; z-index: 3; inset: auto 14px 13px; display: flex; justify-content: space-between; gap: 12px; color: #f1f0e7; text-shadow: 0 1px 3px #071116; font-size: 11px; font-weight: 700; }
-.fishing-panel { padding: 18px 16px 24px; background: #101b24; color: #e7edf0; }
-.fishing-panel h1 { margin: 3px 0 6px; font-family: Georgia, serif; font-size: clamp(23px, 6vw, 34px); color: #f0d49b; }
-.fishing-instructions { max-width: 620px; margin: 0 0 15px; color: #b8c7ce; line-height: 1.45; font-size: 13px; }
-.fishing-gauge-row { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: stretch; }
-.fishing-power-gauge { position: relative; min-height: 142px; border: 1px solid #55717b; border-radius: 9px; overflow: hidden; background: linear-gradient(180deg, #b06a54, #d4b260 48%, #4e956f); }
-.fishing-gauge-fill { position: absolute; inset: auto 0 0; display: block; background: rgba(244, 223, 159, .38); transition: height .06s linear; }
-.fishing-gauge-marker { position: absolute; left: 2px; right: 2px; height: 3px; transform: translateY(50%); background: #fff7d7; box-shadow: 0 0 6px #fff7d7; }
-.fishing-cast-area { position: relative; min-height: 142px; display: grid; place-items: center; overflow: hidden; border: 1px solid #55717b; border-radius: 9px; background: radial-gradient(circle at 50% 75%, rgba(121, 193, 191, .36), transparent 45%), #173744; user-select: none; touch-action: none; }
-.fishing-cast-area.is-active { cursor: pointer; border-color: #d9bd7d; }
-.fishing-cast-area.is-disabled { opacity: .7; }
-.fishing-aim-line { position: absolute; inset: 0 auto 0; width: 2px; transform: translateX(-50%); background: rgba(244, 223, 159, .65); box-shadow: 0 0 8px rgba(244, 223, 159, .35); pointer-events: none; }
-.fishing-cast-prompt { position: relative; z-index: 1; color: #e9eef0; text-align: center; font-size: 12px; font-weight: 700; text-shadow: 0 1px 3px #071116; pointer-events: none; }
-.fishing-controls { display: flex; justify-content: center; padding: 14px 0 2px; }
-.fishing-hook-button { min-width: 150px; background: #a04f43; border-color: #d8876f; }
-.fishing-result-card { margin-top: 14px; padding: 14px; border: 1px solid #806e4d; border-radius: 8px; background: #201f22; text-align: center; }
-.fishing-result-card h2 { margin: 3px 0 5px; color: #f0d49b; font-family: Georgia, serif; font-size: 22px; }
-.fishing-result-card p { margin: 4px 0 13px; color: #c9d3d7; font-size: 13px; }
-.fishing-result-card ul { margin: 7px auto 13px; padding: 0; list-style: none; color: #e7d7a9; font-size: 13px; }
-@media (min-width: 701px) {
-  .fishing-screen { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); align-items: stretch; }
-  .fishing-stage { min-height: 100vh; }
-  .fishing-panel { padding: 42px 28px; overflow: auto; }
-}
+.fishing-stage-hint { position: absolute; z-index: 3; right: 14px; bottom: 43px; left: 14px; color: #f1f0e7; text-align: center; text-shadow: 0 1px 3px #071116; font-size: 12px; font-weight: 700; pointer-events: none; }
+.fishing-stage-caption { position: absolute; z-index: 3; right: 14px; bottom: 13px; left: 14px; display: flex; justify-content: space-between; gap: 12px; color: #f1f0e7; text-shadow: 0 1px 3px #071116; font-size: 11px; font-weight: 700; pointer-events: none; }
+.fishing-aim-marker { position: absolute; z-index: 3; bottom: 9px; width: 2px; height: 25px; transform: translateX(-50%); background: rgb(244 223 159 / 72%); box-shadow: 0 0 8px rgb(244 223 159 / 45%); pointer-events: none; }
+.fishing-power-overlay { position: absolute; z-index: 4; right: 14px; bottom: 15px; left: 14px; height: 10px; overflow: hidden; border: 1px solid rgb(255 247 215 / 72%); border-radius: 999px; background: rgb(8 24 29 / 72%); box-shadow: 0 1px 7px rgb(0 0 0 / 35%); pointer-events: none; }
+.fishing-power-overlay.is-hidden, .fishing-aim-marker.is-hidden { display: none; }
+.fishing-gauge-fill { position: absolute; inset: 0 auto 0 0; display: block; width: 0; border-radius: inherit; background: linear-gradient(90deg, #4e956f, #d4b260 55%, #b06a54); transition: width .06s linear; }
+.fishing-gauge-marker { position: absolute; top: -3px; bottom: -3px; width: 3px; transform: translateX(-50%); background: #fff7d7; box-shadow: 0 0 6px #fff7d7; }
+.fishing-bobber { position: absolute; z-index: 5; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; touch-action: manipulation; transform: translate(-50%, -50%); }
+.fishing-bobber:focus-visible { outline: 2px solid #fff4c7; outline-offset: 2px; }
+.fishing-bobber-visual { position: absolute; top: 50%; left: 50%; width: 14px; height: 18px; transform: translate(-50%, -50%); border: 2px solid #4b2c1d; border-radius: 50% 50% 45% 45%; background: #f5e4bd; box-shadow: 0 0 0 3px rgb(255 255 255 / 25%), 0 4px 8px rgb(0 0 0 / 35%); }
+.fishing-bobber-visual::after { content: ""; position: absolute; bottom: 100%; left: 50%; width: 1px; height: 42px; background: rgb(245 228 189 / 70%); }
+.fishing-bobber.is-waiting .fishing-bobber-visual { animation: fishing-bobber-drift 1.35s ease-in-out infinite; }
+.fishing-bobber.is-hook .fishing-bobber-visual { animation: fishing-bobber-plunge .34s ease-out 1 both; box-shadow: 0 0 0 5px rgb(255 247 215 / 45%), 0 5px 10px rgb(0 0 0 / 45%); }
+@keyframes fishing-bobber-drift { 0%, 100% { transform: translate(-50%, -50%) translateY(-3px) rotate(-2deg); } 50% { transform: translate(-50%, -50%) translateY(3px) rotate(2deg); } }
+@keyframes fishing-bobber-plunge { 0% { transform: translate(-50%, -50%) translateY(0) scale(1); } 55% { transform: translate(-50%, -50%) translateY(13px) scale(.88); } 100% { transform: translate(-50%, -50%) translateY(9px) scale(.92); } }
+.fishing-panel { padding: 10px 14px 16px; background: #101b24; color: #e7edf0; }
+.fishing-panel h1 { margin: 2px 0 4px; font-family: Georgia, serif; font-size: clamp(20px, 5.5vw, 28px); color: #f0d49b; }
+.fishing-instructions { max-width: 620px; margin: 0; color: #b8c7ce; line-height: 1.4; font-size: 12px; }
+.fishing-result-card { margin-top: 12px; padding: 14px; border: 1px solid #806e4d; border-radius: 8px; background: #201f22; text-align: center; }
+.fishing-result-card h2 { margin: 3px 0 5px; color: #f0d49b; font-family: Georgia, serif; font-size: 22px; text-transform: uppercase; }
+.fishing-result-card p { margin: 4px 0 10px; color: #c9d3d7; font-size: 13px; }
+.fishing-result-card ul { display: grid; gap: 5px; margin: 9px auto 13px; padding: 0; list-style: none; color: #e7d7a9; font-size: 13px; }
+.fishing-result-card li { display: flex; justify-content: space-between; gap: 12px; }
+.fishing-result-card li strong, .fishing-reward-line { color: #f4dda0; }
 
 .toast {
   display: grid;

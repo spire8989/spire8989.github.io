@@ -1975,11 +1975,18 @@ function resolveMinigameInstantly(expedition, player, strategy, random, telemetr
   telemetry.fishingHooks += result.casts.filter((cast) => cast.hooked).length;
   telemetry.fishingMisses += result.casts.filter((cast) => cast.missed).length;
   result.casts.forEach((cast) => {
-    if (!cast.catch) return;
-    telemetry.fishCaught += 1;
-    telemetry.fishingLoot[cast.catch.catchId] = (telemetry.fishingLoot[cast.catch.catchId] ?? 0)
-      + (Number(cast.catch.quantity) || 0);
-    if (cast.catch.rewardItemId === "raw_fish") telemetry.rawFishGained += Number(cast.catch.quantity) || 0;
+    const reward = cast.reward ?? cast.catch;
+    if (!reward) return;
+    const quantity = Number(reward.quantity) || 0;
+    if (cast.catch) {
+      telemetry.fishCaught += 1;
+      telemetry.fishingLoot[cast.catch.catchId] = (telemetry.fishingLoot[cast.catch.catchId] ?? 0)
+        + quantity;
+      if (cast.catch.rewardItemId === "raw_fish") telemetry.rawFishGained += quantity;
+      return;
+    }
+    const lootId = reward.itemId ?? reward.materialId ?? reward.recipeId;
+    if (lootId) telemetry.fishingLoot[lootId] = (telemetry.fishingLoot[lootId] ?? 0) + quantity;
   });
   telemetry.decisions.push({
     type: "minigame",

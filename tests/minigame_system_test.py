@@ -31,6 +31,7 @@ def run():
         "--disable-gpu",
         "--no-sandbox",
         "--remote-allow-origins=*",
+        "--window-size=390,844",
         f"--remote-debugging-port={debug_port}",
         f"--user-data-dir={profile}",
         game_url,
@@ -58,7 +59,7 @@ def run():
             "(() => { const d=MINIGAME_DEFINITIONS.woodland_stream_fishing;"
             " const overlap={id:'low',x:0.73,y:0.35,radius:0.3,priority:1};"
             " const priority=MinigameRules.fishingHotspot({...d,hotspots:[overlap,d.hotspots[1]]},0.73,0.35);"
-            " const fallback=MinigameRules.fishingHotspot(d,0.5,0.58);"
+            " const fallback=MinigameRules.fishingHotspot(d,0.95,0.95);"
             " return d.attemptLimit===3 && d.timeLimitSeconds===null"
             " && priority.id==='deep_pool' && fallback.id==='default_water'; })()",
             "Fishing hotspots did not use normalized coordinates, priority, and default fallback",
@@ -84,6 +85,7 @@ def run():
             " EncounterManager.begin(e,'woodland_stream');"
             " const started=EncounterManager.resolveChoice(e,p,'fish_the_stream',{startMinigame:()=>true});"
             " const sim=Minigames.simulate('woodland_stream_fishing',{player:p,expedition:e,random:()=>0,strategyName:'aggressive'});"
+            " const guaranteed=Minigames.simulate('woodland_stream_fishing',{player:p,expedition:e,random:()=>0.99,strategyName:'aggressive'});"
             " const completed=EncounterManager.completeMinigame(e,p,sim,{startMinigame:()=>true});"
             " const fishChoice=ENCOUNTER_DEFINITIONS.woodland_stream.stages.start.choices.find(c=>c.id==='fish_the_stream');"
             " const unavailable=EncounterRequirements.choiceAvailability(fishChoice,{player:p,expedition:e}).available===false;"
@@ -91,6 +93,7 @@ def run():
             " const cooked=CraftingRules.craft(p,'cooked_fish','campfire',{expedition:e,context:'camp'});"
             " const ok=started.minigameStarted===true && sim.state==='summary' && sim.casts.length===3"
             " && sim.casts.every(c=>c.hooked&&c.catch?.catchId==='large_pike')"
+            " && guaranteed.casts.length===3 && guaranteed.casts.every(c=>c.biteOccurred===true)"
             " && rawFishBeforeCook===9 && !completed.minigameCompleted"
             " && e.activeEncounter.encounterFlags.fishing_used===true && unavailable"
             " && cooked.applied===true && cooked.provisions===4"
@@ -110,6 +113,16 @@ def run():
             " return choice.minigameStarted===true && completed.resolved===true"
             " && p.learnedKnowledge.includes('fishing') && e.activeEncounter.phase==='result'; })()",
             "The fishing tutorial did not grant Fishing knowledge on completion",
+        )
+        check(
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; p.selectedCompanion=null; p.packedMaterials={};"
+            " const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:20,random:()=>0});"
+            " const d=MINIGAME_DEFINITIONS.woodland_stream_fishing; const s=MinigameRules.createFishingSession(d);"
+            " const rolls=[0.99,0,0,0.99,0]; const random=()=>rolls.shift()??0;"
+            " MinigameRules.beginFishingCast(s,d,{x:0.95,power:0.5,random});"
+            " const result=MinigameRules.resolveFishingCast(s,d,{hooked:true,player:p,expedition:e,random});"
+            " return result?.biteOccurred===true && result.reward?.type==='item' && result.reward.itemId==='old_coin' && result.catch===null; })()",
+            "Fishing did not preserve existing item rewards separately from fish catch definitions",
         )
         check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.learnedKnowledge=['fishing'];"
@@ -162,19 +175,54 @@ def run():
             " EncounterManager.begin(e,'woodland_stream'); game.expedition=e; game.screen='expedition';"
             " const resolved=EncounterManager.resolveChoice(e,game.player,'fish_the_stream',{startMinigame:(id,d)=>startMinigame(e,id,d)});"
             " window.__minigameDebug={resolved,session:Boolean(game.minigameSession),active:e.activeEncounter}; renderScreen();"
-            " const stage=Boolean(document.querySelector('[data-fishing-cast-area]'));"
-            " if (!game.minigameSession) return false;"
-            " game.minigameSession.state='charging'; game.minigameSession.power=0.9; releaseFishingCast();"
+            " const stage=document.querySelector('[data-fishing-stage]');"
+            " const oldArea=document.querySelector('[data-fishing-cast-area]');"
+            " const hookButton=document.querySelector('.fishing-hook-button');"
+            " const fishingScreen=document.querySelector('.fishing-screen');"
+            " const portraitLayout=fishingScreen && stage && getComputedStyle(fishingScreen).display!=='grid'"
+            " && getComputedStyle(stage).aspectRatio!=='auto';"
+            " if (!game.minigameSession || !stage || oldArea || hookButton || !portraitLayout) return false;"
+            " const rect=stage.getBoundingClientRect();"
+            " const pointer=(type,x,id=17)=>stage.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,clientX:rect.left+rect.width*x,clientY:rect.top+rect.height*0.62,pointerId:id,pointerType:'mouse',buttons:type==='pointerup'?0:1}));"
+            " pointer('pointerdown',0.22);"
+            " const charging=game.minigameSession.state==='charging'"
+            " && !document.querySelector('.fishing-power-overlay').classList.contains('is-hidden')"
+            " && !document.querySelector('.fishing-bobber')"
+            " && document.querySelector('.fishing-stage-hint')?.textContent==='Release to cast'"
+            " && Number(game.minigameSession.selectedX).toFixed(2)==='0.22';"
+            " pointer('pointermove',0.76); pointer('pointerup',0.76);"
             " const castStarted=game.minigameSession.state==='waiting'"
-            " && Boolean(document.querySelector('.fishing-bobber'));"
-            " game.minigameSession.activeCast.remainingMs=0; updateFishing(0.1);"
-            " const biteState=game.minigameSession.state==='hook'"
-            " && !document.querySelector('.fishing-hook-button').disabled;"
-            " resolveFishingHook(true);"
-            " window.__minigameDebug={...window.__minigameDebug,afterCastState:game.minigameSession.state,afterCastSession:game.minigameSession,"
-            "bobber:Boolean(document.querySelector('.fishing-bobber')),stage:Boolean(document.querySelector('[data-fishing-cast-area]')),biteState};"
-            " return stage && castStarted && biteState && game.minigameSession.state==='result'; })()",
-            "The playable fishing screen did not render or resolve a cast",
+            " && Boolean(document.querySelector('.fishing-bobber'))"
+            " && getComputedStyle(document.querySelector('.fishing-bobber-visual')).animationName.includes('fishing-bobber-drift')"
+            " && Math.abs(game.minigameSession.activeCast.aimX-0.76)<0.01;"
+            " const noBobberBeforeCast=(()=>{const s=game.minigameSession; s.state='aim'; s.activeCast=null; renderScreen(); return !document.querySelector('.fishing-bobber');})();"
+            " const recast=(()=>{const s=game.minigameSession; const next=document.querySelector('[data-fishing-stage]'); const r=next.getBoundingClientRect();"
+            " next.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.68,clientY:r.top+r.height*0.62,pointerId:18,pointerType:'touch',buttons:1}));"
+            " next.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.68,clientY:r.top+r.height*0.62,pointerId:18,pointerType:'touch',buttons:0}));"
+            " s.activeCast.remainingMs=0; updateFishing(0.1); return s.state==='hook' && Boolean(document.querySelector('.fishing-bobber.is-hook'));})();"
+            " const plungeMotion=getComputedStyle(document.querySelector('.fishing-bobber-visual')).animationName.includes('fishing-bobber-plunge');"
+            " const elsewhere=document.querySelector('[data-fishing-stage]'); elsewhere.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,clientX:rect.left+rect.width*0.05,clientY:rect.top+rect.height*0.1,pointerId:19,pointerType:'mouse',buttons:1}));"
+            " const elsewhereDoesNotHook=game.minigameSession.state==='hook';"
+            " const bobber=document.querySelector('[data-fishing-bobber]'); bobber.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,clientX:rect.left+rect.width*0.68,clientY:rect.top+rect.height*0.35,pointerId:20,pointerType:'touch',buttons:1}));"
+            " const successfulResult=game.minigameSession.state==='result' && !document.querySelector('.fishing-bobber')"
+            " && document.querySelector('.fishing-result-card')?.textContent.includes('Raw Fish');"
+            " dismissFishingResult();"
+            " const canceled=(()=>{const s=game.minigameSession; const next=document.querySelector('[data-fishing-stage]'); const r=next.getBoundingClientRect();"
+            " next.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.4,clientY:r.top+r.height*0.62,pointerId:23,pointerType:'mouse',buttons:1}));"
+            " next.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.4,clientY:r.top+r.height*0.62,pointerId:23,pointerType:'mouse',buttons:0}));"
+            " return s.state==='aim' && s.casts.length===1 && s.castsRemaining===2 && !document.querySelector('.fishing-bobber');})();"
+            " const miss=(()=>{const s=game.minigameSession; const next=document.querySelector('[data-fishing-stage]'); const r=next.getBoundingClientRect();"
+            " next.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.4,clientY:r.top+r.height*0.62,pointerId:21,pointerType:'mouse',buttons:1}));"
+            " next.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.4,clientY:r.top+r.height*0.62,pointerId:21,pointerType:'mouse',buttons:0}));"
+            " s.activeCast.remainingMs=0; updateFishing(0.1); s.hookRemainingMs=0; updateFishing(0.8); return s.state==='result' && !document.querySelector('.fishing-bobber');})();"
+            " dismissFishingResult();"
+            " const finalMiss=(()=>{const s=game.minigameSession; const next=document.querySelector('[data-fishing-stage]'); const r=next.getBoundingClientRect();"
+            " next.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.5,clientY:r.top+r.height*0.62,pointerId:22,pointerType:'touch',buttons:1}));"
+            " next.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,cancelable:true,clientX:r.left+r.width*0.5,clientY:r.top+r.height*0.62,pointerId:22,pointerType:'touch',buttons:0}));"
+            " s.activeCast.remainingMs=0; updateFishing(0.1); s.hookRemainingMs=0; updateFishing(0.8); return s.state==='summary' && !document.querySelector('.fishing-bobber');})();"
+            " window.__minigameDebug={...window.__minigameDebug,charging,castStarted,noBobberBeforeCast,recast,plungeMotion,elsewhereDoesNotHook,successfulResult,canceled,miss,finalMiss,portraitLayout,finalSession:game.minigameSession};"
+            " return charging && castStarted && noBobberBeforeCast && recast && plungeMotion && elsewhereDoesNotHook && successfulResult && canceled && miss && finalMiss; })()",
+            "The playable fishing image input, bobber hook flow, or cast lifecycle did not work",
         )
         if devtools.console_errors:
             raise AssertionError(f"Browser reported runtime exceptions: {devtools.console_errors[:3]}")
