@@ -5793,3 +5793,24 @@ The attached focused correction guide supplied the portrait layout, copy hierarc
 ### Verification and resulting prototype state
 
 The focused Fishing browser suite passes 10 checks on a 390x844 viewport. Replay smoke tests pass 15 assertions, asset/audio checks pass 5 assertions, the isolated Fishing Content Editor browser test passes, and the isolated Fishing content validation/round-trip test passes. The full 94-test Content Editor suite still reports six unrelated existing combat/audio/encounter-layout/reference fixture failures; none are in the Fishing tests. `git diff --check` passes.
+
+## 2026-08-28 - Fishing Stage Result Overlay Cleanup
+
+### Goal
+
+Keep the complete Fishing loop self-contained on the portrait artwork so players can read cast results and finish the session without page scrolling.
+
+### AI-assisted implementation
+
+- Moved individual catch results, misses, and the final session summary into one reusable, stage-local overlay with a localized dark backdrop. The artwork stays visible, the 2:3 stage dimensions remain fixed, bobbers are absent after resolution, and the lower panel no longer duplicates result content.
+- Added a compact top context slot: the aim prompt uses a dark backed box, charging replaces it with the power gauge, waiting hides it, and the hook state shows `BITE!` alongside the existing bobber motion.
+- Added a compact backed casts-remaining pill, kept ordinary Fishing’s lower panel to a minimal title strip, retained the teacher’s explanatory copy, and made overlay buttons touch-friendly and viewport-visible.
+- Ensured stage input cannot begin or resolve another cast while an overlay is open; dismissing `Cast Again` restores aim immediately. Updated the focused mobile assertions for overlay placement, backdrop, fixed sizing, input blocking, prompt-state transitions, and no-scroll button visibility.
+
+### Manual changes
+
+The attached final cleanup guide supplied the stage-overlay, HUD-slot, prompt-backing, cast-counter, compact-panel, input-blocking, fixed-size, and mobile-flow requirements. No artwork, mechanic, simulator, replay, or Content Editor data changes were introduced.
+
+### Verification and resulting prototype state
+
+The focused Fishing browser suite passes 10 checks on a 390x844 viewport, including catch/miss/summary overlays, fixed stage dimensions, result deduplication, input blocking, prompt/gauge state changes, backed HUD elements, and viewport-visible controls. Replay smoke tests pass 15 assertions, asset/audio checks pass 5 assertions, and `git diff --check` passes. The Tools repository remains clean because this pass required no editor changes.

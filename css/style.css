@@ -879,12 +879,14 @@ button:focus-visible {
 /* Fishing minigame */
 .fishing-screen { background: #0d1720; overflow: auto; }
 .fishing-stage { position: relative; flex: 0 0 auto; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-bottom: 2px solid rgb(217 189 114 / 55%); background: linear-gradient(180deg, #9ab5bc, #264b55 62%, #102d37); cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
+.fishing-stage.has-overlay { cursor: default; }
 .fishing-background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; -webkit-user-drag: none; }
-.fishing-stage-hint { position: absolute; z-index: 3; top: 47%; right: 14px; left: 14px; transform: translateY(-50%); color: #f1f0e7; text-align: center; text-shadow: 0 1px 3px #071116; font-size: 12px; font-weight: 700; pointer-events: none; }
-.fishing-stage-caption { position: absolute; z-index: 3; right: 14px; bottom: 13px; display: flex; justify-content: flex-end; gap: 12px; color: #f1f0e7; text-align: right; text-shadow: 0 1px 3px #071116; font-size: 11px; font-weight: 700; pointer-events: none; }
+.fishing-stage-hint { position: absolute; z-index: 6; top: 10%; left: 50%; width: max-content; max-width: calc(100% - 28px); padding: 6px 10px; transform: translateX(-50%); border: 1px solid rgb(240 212 155 / 62%); border-radius: 6px; background: rgb(5 12 11 / 76%); box-shadow: 0 2px 8px rgb(0 0 0 / 28%); color: #f1f0e7; text-align: center; text-shadow: 0 1px 2px #071116; font-size: 12px; font-weight: 700; line-height: 1.2; pointer-events: none; }
+.fishing-stage-caption { position: absolute; z-index: 6; right: 12px; bottom: 12px; display: flex; justify-content: flex-end; color: #f1f0e7; text-align: right; text-shadow: 0 1px 3px #071116; font-size: 11px; font-weight: 700; pointer-events: none; }
+.fishing-casts-remaining { padding: 4px 7px; border: 1px solid rgb(240 212 155 / 40%); border-radius: 999px; background: rgb(5 12 11 / 70%); }
 .fishing-aim-marker { position: absolute; z-index: 3; bottom: 9%; width: 2px; height: 28px; transform: translateX(-50%); background: rgb(244 223 159 / 58%); box-shadow: 0 0 6px rgb(244 223 159 / 32%); pointer-events: none; }
 .fishing-power-overlay { position: absolute; z-index: 4; top: 10%; right: 14px; left: 14px; height: 18px; overflow: hidden; border: 1px solid rgb(255 247 215 / 72%); border-radius: 999px; background: rgb(8 24 29 / 72%); box-shadow: 0 1px 7px rgb(0 0 0 / 35%); pointer-events: none; }
-.fishing-power-overlay.is-hidden, .fishing-aim-marker.is-hidden { display: none; }
+.fishing-power-overlay.is-hidden, .fishing-aim-marker.is-hidden, .fishing-stage-hint.is-hidden { display: none; }
 .fishing-gauge-fill { position: absolute; inset: 0 auto 0 0; display: block; width: 0; border-radius: inherit; background: linear-gradient(90deg, #4e956f, #d4b260 55%, #b06a54); transition: width .06s linear; }
 .fishing-gauge-marker { position: absolute; top: -3px; bottom: -3px; width: 3px; transform: translateX(-50%); background: #fff7d7; box-shadow: 0 0 6px #fff7d7; }
 .fishing-bobber { position: absolute; z-index: 5; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; touch-action: manipulation; transform: translate(-50%, -50%); }
@@ -910,6 +912,11 @@ button:focus-visible {
 .fishing-result-card li strong, .fishing-reward-line { color: #f4dda0; }
 .fishing-reward-line { display: block; margin: 10px 0 14px; }
 .fishing-result-card .game-button { display: block; margin: 0 auto; }
+.fishing-stage-overlay { position: absolute; z-index: 10; inset: 0; display: grid; place-items: center; padding: 14px; pointer-events: auto; }
+.fishing-stage-overlay-backdrop { position: absolute; inset: 0; background: rgb(3 12 10 / 64%); }
+.fishing-stage-result-card { position: relative; z-index: 1; width: min(100%, 19rem); max-height: calc(100% - 12px); overflow: auto; margin: 0; padding: 14px 13px; border-color: rgb(240 212 155 / 72%); background: rgb(26 29 28 / 96%); box-shadow: 0 5px 18px rgb(0 0 0 / 42%); }
+.fishing-stage-result-card .game-button { min-height: 2.7rem; padding-inline: 1.1rem; }
+.fishing-stage.has-overlay .fishing-stage-caption { visibility: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .fishing-bobber.is-waiting .fishing-bobber-visual,

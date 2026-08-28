@@ -5327,7 +5327,7 @@ function fishingResultMarkup(session) {
       ? fishingRewardDescription(reward)
       : "The bobber is gone. That cast is spent.";
     const rewardLine = result.hooked ? fishingRewardLine(reward) : "";
-    return `<section class="fishing-result-card" aria-live="polite"><p class="eyebrow">${result.hooked ? "Catch" : "Miss"}</p><h2>${assetAttribute(title)}</h2><p>${assetAttribute(message)}</p>${rewardLine ? `<strong class="fishing-reward-line">${assetAttribute(rewardLine)}</strong>` : ""}<button class="game-button" type="button" data-action="fishing-dismiss-result">${session.castsRemaining > 0 ? "Cast Again" : "View Summary"}</button></section>`;
+    return `<div class="fishing-stage-overlay" data-fishing-overlay role="dialog" aria-modal="true" aria-live="polite"><div class="fishing-stage-overlay-backdrop" aria-hidden="true"></div><section class="fishing-stage-result-card fishing-result-card"><p class="eyebrow">${result.hooked ? "Catch" : "Miss"}</p><h2>${assetAttribute(title)}</h2><p>${assetAttribute(message)}</p>${rewardLine ? `<strong class="fishing-reward-line">${assetAttribute(rewardLine)}</strong>` : ""}<button class="game-button" type="button" data-action="fishing-dismiss-result">${session.castsRemaining > 0 ? "Cast Again" : "View Summary"}</button></section></div>`;
   }
   if (session.state !== "summary") return "";
   const results = session.casts.filter((cast) => cast.hooked && (cast.reward ?? cast.catch));
@@ -5338,7 +5338,7 @@ function fishingResultMarkup(session) {
   const heading = results.length
     ? `${results.length} catch${results.length === 1 ? "" : "es"}`
     : "No catch";
-  return `<section class="fishing-result-card fishing-summary-card" aria-live="polite"><p class="eyebrow">Session Complete</p><h2>${assetAttribute(heading)}</h2>${resultList ? `<ul>${resultList}</ul>` : "<p>The stream keeps its secrets for now.</p>"}<button class="game-button" type="button" data-action="fishing-return">Return to the encounter</button></section>`;
+  return `<div class="fishing-stage-overlay" data-fishing-overlay role="dialog" aria-modal="true" aria-live="polite"><div class="fishing-stage-overlay-backdrop" aria-hidden="true"></div><section class="fishing-stage-result-card fishing-result-card fishing-summary-card"><p class="eyebrow">Session Complete</p><h2>${assetAttribute(heading)}</h2>${resultList ? `<ul>${resultList}</ul>` : "<p>The stream keeps its secrets for now.</p>"}<button class="game-button" type="button" data-action="fishing-return">Return to the encounter</button></section></div>`;
 }
 
 function renderFishing(expedition, session) {
@@ -5356,28 +5356,25 @@ function renderFishing(expedition, session) {
   const instructions = teacherTutorial
     ? definition.tutorial?.text ?? definition.description
     : definition.description;
+  const overlayVisible = ["result", "summary"].includes(session.state);
   const stageHint = session.state === "aim"
     ? "Press and hold on the water to cast"
-    : session.state === "charging"
-      ? "Release to cast"
-      : session.state === "waiting"
-        ? ""
-        : session.state === "hook" ? "BITE!" : "";
+    : session.state === "hook" ? "BITE!" : "";
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen fishing-screen" aria-label="${assetAttribute(definition.name)}">
-      <div class="fishing-stage" data-fishing-stage role="button" aria-label="Fishing water. Press and hold to cast">
+      <div class="fishing-stage ${overlayVisible ? "has-overlay" : ""}" data-fishing-stage role="region" aria-label="Fishing water. Press and hold to cast">
         ${backgroundPath ? `<img class="fishing-background" src="${assetAttribute(backgroundPath)}" alt="Woodland stream">` : ""}
         ${bobber}
         <div class="fishing-power-overlay ${charging ? "" : "is-hidden"}" aria-label="Cast power"><span class="fishing-gauge-fill" style="width:${power}%"></span><span class="fishing-gauge-marker" style="left:${power}%"></span></div>
         <span class="fishing-aim-marker ${charging ? "" : "is-hidden"}" style="left:${aim}%" aria-hidden="true"></span>
         ${stageHint ? `<div class="fishing-stage-hint" aria-live="polite">${assetAttribute(stageHint)}</div>` : ""}
-        <div class="fishing-stage-caption"><span>${session.castsRemaining} cast${session.castsRemaining === 1 ? "" : "s"} remaining</span></div>
+        <div class="fishing-stage-caption"><span class="fishing-casts-remaining">${session.castsRemaining} cast${session.castsRemaining === 1 ? "" : "s"} remaining</span></div>
+        ${fishingResultMarkup(session)}
       </div>
-      <div class="fishing-panel ${teacherTutorial ? "is-teacher" : ""}" aria-live="polite">
+      <div class="fishing-panel ${teacherTutorial ? "is-teacher" : "is-compact"}" aria-live="polite">
         ${teacherTutorial ? `<p class="eyebrow">${assetAttribute(definition.tutorial?.title ?? "Fishing")}</p>` : ""}
         <h1>${assetAttribute(definition.name)}</h1>
         <p class="fishing-instructions">${assetAttribute(instructions)}</p>
-        ${fishingResultMarkup(session)}
       </div>
     </section>`;
 }
@@ -5552,7 +5549,11 @@ function updateFishingHud() {
   aimMarker?.classList.toggle("is-hidden", session.state !== "charging");
   if (aimMarker) aimMarker.style.left = `${aim}%`;
   const stageHint = document.querySelector(".fishing-stage-hint");
-  if (stageHint && session.state === "charging") stageHint.textContent = "Release to cast";
+  if (stageHint) {
+    const showHint = session.state === "aim" || session.state === "hook";
+    stageHint.classList.toggle("is-hidden", !showHint);
+    if (showHint) stageHint.textContent = session.state === "hook" ? "BITE!" : "Press and hold on the water to cast";
+  }
 }
 
 function updateFishing(deltaSeconds) {
