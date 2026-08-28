@@ -326,8 +326,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_the_inn_woodcut_2",
     scenePosition: "northwest",
     hotspot: {
-      x: 0.46730775099534255,
-      y: 0.2605769573113857
+      x: 0.4735576923076923,
+      y: 0.2516025641025641
     },
     npcIds: ["village_innkeeper"],
     shopId: null,
@@ -343,8 +343,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_merchant_woodcut_2",
     scenePosition: "northeast",
     hotspot: {
-      x: 0.7865384908822867,
-      y: 0.34006409767346507
+      x: 0.7115384615384616,
+      y: 0.3108974358974359
     },
     npcIds: ["village_merchant"],
     shopId: "village_general_goods",
@@ -360,7 +360,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     scenePosition: "southwest",
     hotspot: {
       x: 0.15384615384615385,
-      y: 0.4990385740231245
+      y: 0.47596153846153844
     },
     npcIds: ["village_blacksmith"],
     shopId: "village_smithy",
@@ -376,8 +376,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_apothecary_woodcut",
     scenePosition: "southeast",
     hotspot: {
-      x: 0.7999999706561749,
-      y: 0.5464743834275466
+      x: 0.8197115384615384,
+      y: 0.5112179487179487
     },
     npcIds: ["village_apothecary"],
     shopId: "village_apothecary_shop",
@@ -433,8 +433,8 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     visualAssetId: "location_merchant_woodcut_2",
     scenePosition: "northeast",
     hotspot: {
-      x: 0.2519230475792518,
-      y: 0.5990384419759115
+      x: 0.22355769230769232,
+      y: 0.5673076923076923
     },
     npcIds: ["hidden_village_merchant"],
     shopId: "forest_village_provisions",
@@ -451,7 +451,7 @@ const DESTINATION_DEFINITIONS = Object.freeze({
     scenePosition: "southeast",
     hotspot: {
       x: 0.75,
-      y: 0.6221154041779346
+      y: 0.5769230769230769
     },
     npcIds: ["hidden_village_druid"],
     shopId: "forest_village_apothecary",
@@ -472,7 +472,7 @@ const LOCATION_DEFINITIONS = Object.freeze({
     musicTrackId: "camelot_twilight",
     visualKey: "broceliande_village",
     visualAssetId: "location_village_at_the_edge_of_broc_liande_woodcut_1",
-    markerStyle: "tag",
+    markerStyle: "label",
     destinations: ["inn", "merchant", "blacksmith", "apothecary", "hall"],
     npcs: ["village_innkeeper", "village_merchant", "village_blacksmith", "village_apothecary", "village_reeve"],
     shops: ["village_general_goods", "village_smithy", "village_apothecary_shop"],
@@ -480,7 +480,10 @@ const LOCATION_DEFINITIONS = Object.freeze({
     availableQuests: [],
     requirements: [],
     requiresIntro: true,
-    serviceConfig: { provisionShopId: "village_general_goods", autoProvisionGrant: true },
+    serviceConfig: {
+      provisionShopId: "village_general_goods",
+      autoProvisionGrant: true
+    }
   },
   hidden_forest_village: {
     id: "hidden_forest_village",

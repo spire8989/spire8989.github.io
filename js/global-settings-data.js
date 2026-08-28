@@ -50,10 +50,10 @@ const GLOBAL_SETTINGS = Object.freeze({
     confirmSfxId: "pickup_confirm",
     transactionSfxId: "coins_transaction",
     cookingLoopSfxId: "cooking_loop",
-    craftingSfxId: null,
+    craftingSfxId: "craft_cloth_loop",
     blacksmithCraftingSfxId: "craft_blacksmith_loop",
     apothecaryCraftingSfxId: "craft_potion_loop",
     restMusicTrackId: "rest_lullaby",
-    uncommonItemSfxId: "item_uncommon",
+    uncommonItemSfxId: "item_uncommon"
   },
 });
