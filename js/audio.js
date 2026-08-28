@@ -8,15 +8,12 @@ const AUDIO_SETTINGS_DEFAULTS = Object.freeze({
 });
 
 // Gameplay uses semantic roles so authored UI and actions only depend on
-// stable synthesized SFX IDs.
+// stable synthesized SFX IDs. Promoted gameplay sounds come from the global
+// settings singleton; only legacy/unconfigured roles retain local fallbacks.
 const AUDIO_SEMANTIC_SFX_IDS = Object.freeze({
-  confirm: "pickup_confirm",
   reject: "reject",
-  coins: "coins",
   loot: "loot",
   majorLoot: "major_loot",
-  crafting: "crafting",
-  cooking: "cooking",
   encounter: "encounter",
   hit: "sword_hit",
   block: "block",
@@ -30,6 +27,14 @@ const AUDIO_SEMANTIC_SFX_IDS = Object.freeze({
   defeat: "defeat",
   departure: "departure",
   safeReturn: "safe_return",
+});
+
+const AUDIO_GLOBAL_SFX_FIELDS = Object.freeze({
+  confirm: "confirmSfxId",
+  coins: "transactionSfxId",
+  transaction: "transactionSfxId",
+  crafting: "craftingSfxId",
+  cooking: "cookingLoopSfxId",
 });
 
 function clampAudioSetting(value, fallback) {
@@ -58,6 +63,8 @@ const AudioManager = (() => {
   let currentMusicId = null;
   let desiredMusicId = null;
   let musicRequest = 0;
+  const loopingSfx = new Map();
+  let activeLoopChannel = null;
 
   function persist() {
     try {
@@ -87,6 +94,12 @@ const AudioManager = (() => {
       : null;
   }
 
+  function sfxDefinition(id) {
+    return typeof SYNTH_AUDIO_DEFINITIONS !== "undefined"
+      ? SYNTH_AUDIO_DEFINITIONS.sfx?.[id] ?? null
+      : null;
+  }
+
   function stopCurrentMusic() {
     musicRequest += 1;
     currentMusicId = null;
@@ -113,18 +126,83 @@ const AudioManager = (() => {
     return true;
   }
 
-  function playSfx(id) {
-    const definition = typeof SYNTH_AUDIO_DEFINITIONS !== "undefined"
-      ? SYNTH_AUDIO_DEFINITIONS.sfx?.[id] ?? null
-      : null;
+  function playSfx(id, loopChannel = null) {
+    const definition = sfxDefinition(id);
     if (!definition || !unlocked || settings.muted || settings.sfxVolume <= 0 || !synthPlayer) return false;
+    activeLoopChannel = loopChannel;
     synthPlayer.setSfxVolume(settings.sfxVolume);
     Promise.resolve(synthPlayer.playSfx(definition)).catch(() => {});
     return true;
   }
 
+  function semanticSfxId(role) {
+    const field = AUDIO_GLOBAL_SFX_FIELDS[role];
+    if (field && typeof GLOBAL_SETTINGS !== "undefined"
+      && Object.prototype.hasOwnProperty.call(GLOBAL_SETTINGS.audioDefaults || {}, field)) {
+      return GLOBAL_SETTINGS.audioDefaults[field];
+    }
+    return AUDIO_SEMANTIC_SFX_IDS[role] ?? null;
+  }
+
   function playSemantic(role) {
-    return playSfx(AUDIO_SEMANTIC_SFX_IDS[role]);
+    return playSfx(semanticSfxId(role));
+  }
+
+  function scheduleLoop(channel) {
+    const loop = loopingSfx.get(channel);
+    if (!loop) return;
+    loop.timerId = null;
+    if (!unlocked || settings.muted || settings.sfxVolume <= 0 || !synthPlayer) return;
+    const started = playSfx(loop.id, channel);
+    if (!started) return;
+    const durationMs = Math.max(80, (Number(loop.definition.duration) || 0.25) * 1000);
+    loop.timerId = window.setTimeout(() => scheduleLoop(channel), durationMs + 40);
+  }
+
+  function startLoopingSfx(id, channel = "default") {
+    const definition = sfxDefinition(id);
+    const key = String(channel || "default");
+    if (!definition) {
+      stopLoopingSfx(key);
+      return false;
+    }
+    const existing = loopingSfx.get(key);
+    if (existing?.id === id) return true;
+    if (existing?.timerId !== null && existing?.timerId !== undefined) window.clearTimeout(existing.timerId);
+    loopingSfx.set(key, { id, definition, timerId: null });
+    scheduleLoop(key);
+    return true;
+  }
+
+  function stopLoopingSfx(channel = "default") {
+    const key = String(channel || "default");
+    const loop = loopingSfx.get(key);
+    if (!loop) return false;
+    if (loop.timerId !== null) window.clearTimeout(loop.timerId);
+    loopingSfx.delete(key);
+    if (activeLoopChannel === key) {
+      activeLoopChannel = null;
+      synthPlayer?.stopSfx();
+    }
+    return true;
+  }
+
+  function pauseLoopTimers() {
+    loopingSfx.forEach((loop) => {
+      if (loop.timerId !== null) window.clearTimeout(loop.timerId);
+      loop.timerId = null;
+    });
+  }
+
+  function resumeLoopTimers() {
+    if (settings.muted || settings.sfxVolume <= 0 || !unlocked) return;
+    loopingSfx.forEach((_loop, channel) => {
+      if (!loopingSfx.get(channel)?.timerId) scheduleLoop(channel);
+    });
+  }
+
+  function loopingSfxChannels() {
+    return [...loopingSfx.entries()].map(([channel, loop]) => ({ channel, id: loop.id }));
   }
 
   function playAction(action) {
@@ -145,6 +223,7 @@ const AudioManager = (() => {
     unlocked = true;
     synthPlayer?.ensureContext().catch(() => {});
     if (desiredMusicId) setMusic(desiredMusicId);
+    resumeLoopTimers();
     return true;
   }
 
@@ -154,14 +233,25 @@ const AudioManager = (() => {
     updateSettingsUi();
     if (settings.muted) {
       stopCurrentMusic();
-    } else if (desiredMusicId) {
-      setMusic(desiredMusicId);
+      pauseLoopTimers();
+      synthPlayer?.stopSfx();
+      activeLoopChannel = null;
+    } else {
+      if (desiredMusicId) setMusic(desiredMusicId);
+      resumeLoopTimers();
     }
   }
 
   function setSfxVolume(value) {
     settings.sfxVolume = clampAudioSetting(value, AUDIO_SETTINGS_DEFAULTS.sfxVolume);
     synthPlayer?.setSfxVolume(settings.sfxVolume);
+    if (settings.sfxVolume <= 0) {
+      pauseLoopTimers();
+      synthPlayer?.stopSfx();
+      activeLoopChannel = null;
+    } else {
+      resumeLoopTimers();
+    }
     persist();
     updateSettingsUi();
   }
@@ -189,7 +279,11 @@ const AudioManager = (() => {
     },
     playSfx,
     playSemantic,
+    semanticSfxId,
     playAction,
+    startLoopingSfx,
+    stopLoopingSfx,
+    loopingSfxChannels,
     setMuted,
     setSfxVolume,
     setMusicVolume,

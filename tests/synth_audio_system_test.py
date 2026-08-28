@@ -135,6 +135,30 @@ def run() -> None:
         checks += 1
 
         check(
+            "(() => {"
+            "const defaults=GLOBAL_SETTINGS.audioDefaults;"
+            "const semantic=AudioManager.semanticSfxId('confirm')==='pickup_confirm'"
+            "&&AudioManager.semanticSfxId('coins')==='coins_transaction'"
+            "&&AudioManager.semanticSfxId('cooking')==='cooking_loop'"
+            "&&AudioManager.semanticSfxId('crafting')===null;"
+            "const hierarchy=CraftingRules.timedActionSfxId('apothecary',RECIPE_DEFINITIONS.bandages)==='craft_cloth_loop'"
+            "&&CraftingRules.timedActionSfxId('apothecary',RECIPE_DEFINITIONS.healing_poultice)==='craft_potion_loop'"
+            "&&CraftingRules.timedActionSfxId('blacksmith',RECIPE_DEFINITIONS.repair_kit)==='craft_blacksmith_loop'"
+            "&&CraftingRules.timedActionSfxId('campfire',RECIPE_DEFINITIONS.roasted_meat)==='cooking_loop';"
+            "const started=AudioManager.startLoopingSfx('cooking_loop','synth-test-loop');"
+            "const active=AudioManager.loopingSfxChannels().some(entry=>entry.channel==='synth-test-loop'&&entry.id==='cooking_loop');"
+            "const stopped=AudioManager.stopLoopingSfx('synth-test-loop')"
+            "&&!AudioManager.loopingSfxChannels().some(entry=>entry.channel==='synth-test-loop');"
+            "const oldScreen=game.screen,oldDestination=game.activeDestinationId,oldRest=game.restAction;"
+            "game.screen='destination';game.activeDestinationId='inn';game.restAction={context:'inn-rest'};"
+            "const rest=resolveCurrentMusicTrackId()==='rest_lullaby';game.restAction=null;"
+            "const contextual=resolveCurrentMusicTrackId()!=='rest_lullaby';"
+            "game.screen=oldScreen;game.activeDestinationId=oldDestination;game.restAction=oldRest;renderScreen();"
+            "return defaults.restMusicTrackId==='rest_lullaby'&&semantic&&hierarchy&&started&&active&&stopped&&rest&&contextual; })()",
+            "Global audio defaults, crafting hierarchy, loop lifecycle, or rest override is not stable",
+        )
+
+        check(
             "(() => { game.player.campaignFlags.broceliande_intro_complete=true;"
             "game.locationContext=null; game.activeDestinationId=null; game.screen='location'; renderScreen();"
             "const first=AudioManager.currentMusicId(); renderLocation();"

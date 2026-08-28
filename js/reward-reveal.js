@@ -193,9 +193,13 @@ const RewardRevealSystem = (() => {
       ? GLOBAL_SETTINGS.firstDiscovery?.sfxId
       : null;
     const globalSfxId = tier === "major" ? settings.majorLootSfxId : settings.defaultLootSfxId;
+    const uncommonSfxId = model?.type === "item" && model?.rarity === "uncommon"
+      && tier !== "major" && typeof GLOBAL_SETTINGS !== "undefined"
+      ? GLOBAL_SETTINGS.audioDefaults?.uncommonItemSfxId
+      : null;
     const soundRole = model?.soundRole ?? "loot";
     if (typeof AudioManager !== "undefined") {
-      const candidates = [directSfxId, discoverySfxId, globalSfxId].filter(Boolean);
+      const candidates = [directSfxId, discoverySfxId, uncommonSfxId, globalSfxId].filter(Boolean);
       const played = candidates.some((sfxId) => AudioManager.playSfx(sfxId));
       if (!played) AudioManager.playSemantic(soundRole);
     }

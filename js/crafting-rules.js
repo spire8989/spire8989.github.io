@@ -12,6 +12,18 @@ const CraftingRules = Object.freeze({
     return CRAFTING_TUNING.providerDurations[providerId] ?? CRAFTING_TUNING.defaultDurationMs;
   },
 
+  timedActionSfxId(providerId, recipeOrId = null) {
+    const recipe = typeof recipeOrId === "string" ? RECIPE_DEFINITIONS[recipeOrId] : recipeOrId;
+    const defaults = typeof GLOBAL_SETTINGS !== "undefined"
+      ? GLOBAL_SETTINGS.audioDefaults ?? {}
+      : {};
+    if (providerId === "campfire") return defaults.cookingLoopSfxId ?? null;
+    if (typeof recipe?.craftingSfxId === "string" && recipe.craftingSfxId) return recipe.craftingSfxId;
+    if (providerId === "blacksmith") return defaults.blacksmithCraftingSfxId ?? defaults.craftingSfxId ?? null;
+    if (providerId === "apothecary") return defaults.apothecaryCraftingSfxId ?? defaults.craftingSfxId ?? null;
+    return defaults.craftingSfxId ?? null;
+  },
+
   knownRecipesForProvider(player, providerId, definitions = RECIPE_DEFINITIONS) {
     return (player.learnedRecipes ?? [])
       .map((recipeId) => definitions[recipeId])

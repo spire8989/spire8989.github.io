@@ -316,6 +316,11 @@ function showScreen(screen) {
     || (screen === "destination" && restAction.destinationId !== game.activeDestinationId))) {
     cancelRestAction({ silent: true });
   }
+  const craftingAction = game.craftingAction;
+  if (craftingAction && (craftingAction.screen !== screen
+    || (screen === "destination" && craftingAction.destinationId !== game.activeDestinationId))) {
+    cancelCraftingAction({ silent: true });
+  }
   if (screen !== "expedition" && game.screen === "expedition") {
     bumpTravelPresentationGeneration(game.expedition, "expedition-screen-exit");
   }
@@ -479,7 +484,7 @@ function leaveExpeditionLocation() {
   const expedition = game.expedition;
   if (!game.locationContext?.type || !expedition || expedition.status !== "active") return;
   cancelRestAction();
-  game.craftingAction = null;
+  cancelCraftingAction();
   if (expedition.activeEncounter?.phase === "result") {
     EncounterManager.continueJourney(expedition);
   }
@@ -2954,6 +2959,13 @@ function resolveExpeditionMusicTrackId(expedition = game.expedition) {
 }
 
 function resolveCurrentMusicTrackId() {
+  const restContext = game.restAction?.context;
+  if (restContext === "inn-rest" || restContext === "camp-rest") {
+    const restTrackId = typeof GLOBAL_SETTINGS !== "undefined"
+      ? GLOBAL_SETTINGS.audioDefaults?.restMusicTrackId
+      : null;
+    if (typeof restTrackId === "string" && restTrackId) return restTrackId;
+  }
   if (game.screen === "location") {
     const location = currentLocationForUi();
     return Object.prototype.hasOwnProperty.call(location || {}, "musicTrackId")
@@ -3288,8 +3300,20 @@ function cancelRestAction({ silent = true } = {}) {
   }
   action.interruptionState = "cancelled";
   game.restAction = null;
+  if (action.context === "inn-rest" || action.context === "camp-rest") syncAudioForCurrentContext();
   if (!silent) {
     showToast({ title: "Rest Cancelled", message: "The resting place is no longer available.", type: "warning" });
+  }
+}
+
+function cancelCraftingAction({ silent = true } = {}) {
+  const action = game.craftingAction;
+  if (!action) return;
+  if (action.loopChannel) AudioManager.stopLoopingSfx(action.loopChannel);
+  action.interruptionState = "cancelled";
+  game.craftingAction = null;
+  if (!silent) {
+    showToast({ title: "Crafting Cancelled", message: "The crafting station is no longer available.", type: "warning" });
   }
 }
 
@@ -3323,6 +3347,7 @@ function beginRestAction(context, options = {}) {
   };
   game.restActionVersion = action.token;
   game.restAction = action;
+  if (context === "inn-rest" || context === "camp-rest") syncAudioForCurrentContext();
   if (action.eventId) {
     action.interruptionTimerId = window.setTimeout(
       () => interruptCampRest(action),
@@ -3681,7 +3706,10 @@ function beginCraftingAction(recipeId, providerId, context = {}) {
     startedAt: performance.now(),
     durationMs: CraftingRules.durationMs(providerId, quote.recipe),
     progress: 0,
+    loopChannel: "timed-crafting",
   };
+  const loopSfxId = CraftingRules.timedActionSfxId(providerId, quote.recipe);
+  if (loopSfxId) AudioManager.startLoopingSfx(loopSfxId, game.craftingAction.loopChannel);
   if (game.screen === "destination") refreshDestination();
   else if (game.screen === "expedition") refreshExpedition();
 }
@@ -3700,6 +3728,7 @@ function craftingBlockReasonForUi(quote) {
 function completeCraftingAction() {
   const action = game.craftingAction;
   if (!action) return;
+  if (action.loopChannel) AudioManager.stopLoopingSfx(action.loopChannel);
   game.craftingAction = null;
   const stillValid = action.screen === game.screen
     && (action.screen !== "destination" || action.destinationId === game.activeDestinationId)
@@ -3717,12 +3746,10 @@ function completeCraftingAction() {
     showToast({ title: craftingFailureTitle(result), message: craftingFailureMessage(result), type: "warning" });
   } else if (result.provisions > 0) {
     showToast({ title: "Meal Cooked", message: `The meal adds ${result.provisions} provisions.`, type: "success" });
-    AudioManager.playSemantic("cooking");
     savePlayer();
   } else {
     const item = ITEM_DEFINITIONS[result.itemId];
     showToast({ title: `Crafted ${item?.name ?? "Item"}`, message: `${result.quantity} ${item?.name ?? "item"} added to your inventory`, type: "success" });
-    AudioManager.playSemantic("crafting");
     savePlayer();
   }
   if (game.screen === "destination") refreshDestination();
@@ -6852,6 +6879,7 @@ function resetSave() {
   }
 
   cancelRestAction();
+  cancelCraftingAction();
   game.player = SaveSystem.reset();
   game.pendingDiscoveryKeys.clear();
   if (typeof RewardRevealSystem !== "undefined") RewardRevealSystem.cancel({ resetSeen: true });
@@ -6864,7 +6892,6 @@ function resetSave() {
   game.shopTab = "buy";
   game.provisionShopStock = createProvisionShopStock();
   game.itemShopStock = createItemShopStock();
-  game.craftingAction = null;
   game.restAction = null;
   game.dialogueSession = null;
   game.preparationSupplies = Math.min(18, game.player.provisions);
@@ -7082,6 +7109,7 @@ function updateRestProgress(timestamp) {
     if (action.context === "inn-rest") {
       game.restAction = null;
       action.interruptionState = "completed";
+      syncAudioForCurrentContext();
       restAtInn();
     } else {
       completeExpeditionRestAction(action);

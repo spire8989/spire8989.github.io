@@ -46,4 +46,14 @@ const GLOBAL_SETTINGS = Object.freeze({
     oneNodeBarkMode: "tap",
     barkAutoDismissDurationMs: 2200,
   },
+  audioDefaults: {
+    confirmSfxId: "pickup_confirm",
+    transactionSfxId: "coins_transaction",
+    cookingLoopSfxId: "cooking_loop",
+    craftingSfxId: null,
+    blacksmithCraftingSfxId: "craft_blacksmith_loop",
+    apothecaryCraftingSfxId: "craft_potion_loop",
+    restMusicTrackId: "rest_lullaby",
+    uncommonItemSfxId: "item_uncommon",
+  },
 });

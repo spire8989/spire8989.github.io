@@ -1,5 +1,43 @@
 # Build Log
 
+## 2026-08-27 - Global Synth Audio Defaults
+
+### Goal
+
+Expose the remaining lightweight synth routing as project-wide authored
+settings and keep timed audio behavior consistent in the game and Content
+Editor.
+
+### Human direction
+
+- Add more global settings using the existing synth catalog.
+- Keep the game and tool repositories aligned.
+- Commit and push the completed changes.
+
+### AI-assisted implementation
+
+- Added global confirm, transaction, cooking, crafting-provider, rest-music,
+  and uncommon-item audio defaults with canonical ID validation.
+- Added recipe-level crafting SFX overrides and the bandages cloth-loop
+  override; timed cooking and crafting now loop only while the action is live.
+- Added rest music overrides for timed inn and camp rests, transactional shop
+  success routing, and uncommon-item reward reveal precedence without double
+  playback.
+- Added Audio Defaults and recipe crafting-SFX controls to GrailTools with
+  surgical source writes and validation.
+
+### Reported manual changes
+
+- None. No binary audio assets or new synth definitions were added.
+
+### Verification and resulting prototype state
+
+- Focused Content Editor audio-defaults validation passed; the broader editor
+  unittest suite retains six pre-existing content/layout fixture failures.
+- Focused synthesized-audio browser coverage includes global routing, crafting
+  hierarchy, loop cleanup, rest override, and existing music precedence checks.
+- Runtime remains dependency-free and simulation state remains audio-free.
+
 ## 2026-08-27 - Result-Driven Synth Audio Plumbing
 
 ### Goal

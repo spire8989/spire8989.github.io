@@ -42,7 +42,8 @@ const RECIPE_DEFINITIONS = Object.freeze({
     },
     goldCost: 0,
     rarity: "common",
-    craftingDurationMs: 1000
+    craftingDurationMs: 1000,
+    craftingSfxId: "craft_cloth_loop",
   },
   healing_poultice: Object.freeze({
     id: "healing_poultice", name: "Healing Poultice", description: "Bind crushed medicinal herbs into a restorative dressing.",
