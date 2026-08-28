@@ -140,7 +140,7 @@ def run() -> None:
             "const semantic=AudioManager.semanticSfxId('confirm')==='pickup_confirm'"
             "&&AudioManager.semanticSfxId('coins')==='coins_transaction'"
             "&&AudioManager.semanticSfxId('cooking')==='cooking_loop'"
-            "&&AudioManager.semanticSfxId('crafting')===null;"
+            "&&AudioManager.semanticSfxId('crafting')==='craft_cloth_loop';"
             "const hierarchy=CraftingRules.timedActionSfxId('apothecary',RECIPE_DEFINITIONS.bandages)==='craft_cloth_loop'"
             "&&CraftingRules.timedActionSfxId('apothecary',RECIPE_DEFINITIONS.healing_poultice)==='craft_potion_loop'"
             "&&CraftingRules.timedActionSfxId('blacksmith',RECIPE_DEFINITIONS.repair_kit)==='craft_blacksmith_loop'"
@@ -201,6 +201,27 @@ def run() -> None:
         check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:5,random:()=>0}); const c=CombatSystem.create(e,'wild_boar',{random:()=>0}); const target=c.enemies[0]; c.status='awaitingAction'; c.activeActorId='arthur'; const result=CombatSystem.resolveDefinition(c,e,{id:'audio_probe',name:'Audio Probe',kind:'active',target:'enemy',targetMode:'singleEnemy',useSfxId:'use_probe',impactSfxId:'impact_probe',effects:[{type:'weaponDamage'}]},target.id); const action=c.events.at(-1); return result.resolved&&action.useSfxId==='use_probe'&&action.impactSfxId==='impact_probe'&&Array.isArray(action.defeatedTargetIds); })()",
             "Combat result events did not preserve authored audio metadata",
+        )
+        check(
+            "(() => {"
+            "const originalExpedition=game.expedition,originalScreen=game.screen;"
+            "const p=SaveSystem.createDefaultPlayerState();p.selectedCompanions=[];"
+            "const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:5,random:()=>0});"
+            "e.status='active';const c=CombatSystem.create(e,'wild_boar',{random:()=>0});e.combat=c;"
+            "game.expedition=e;game.screen='expedition';const target=c.enemies[0];target.hp=0;"
+            "const event={actor:'arthur',action:'attack',target:target.id,damage:target.maxHp,useSfxId:'use_probe',impactSfxId:'impact_probe',defeatedTargetIds:[target.id],sequence:1};"
+            "const calls=[];const fake={playSfx:id=>{calls.push('sfx:'+id);return true;},playSemantic:role=>{calls.push('semantic:'+role);return true;}};"
+            "playCombatActionStartAudio([event],fake);const start=calls.join('|')==='sfx:use_probe';"
+            "const controller=combatPresentationController(c);controller.active={event,version:1,finished:false};"
+            "presentCombatImpact(e,c,event,1,fake);const impact=calls.join('|')==='sfx:use_probe|sfx:impact_probe|semantic:enemyDown';"
+            "presentCombatImpact(e,c,event,1,fake);const once=calls.length===3;"
+            "const blockedCalls=[];const blockedEvent={actor:'wild_boar_1',action:'boar_charge',target:'arthur',damage:0,damagePrevented:4,sequence:2};"
+            "const blockedController=combatPresentationController(c);blockedController.active={event:blockedEvent,version:2,finished:false};"
+            "presentCombatImpact(e,c,blockedEvent,2,{playSfx:id=>{blockedCalls.push('sfx:'+id);return true;},playSemantic:role=>{blockedCalls.push('semantic:'+role);return true;}});"
+            "const blocked=blockedCalls.join('|')==='semantic:block';"
+            "game.expedition=originalExpedition;game.screen=originalScreen;renderScreen();"
+            "return start&&impact&&once&&blocked; })()",
+            "Combat action audio did not separate start, visual impact, defeat, fallback, and duplicate lifecycles",
         )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")

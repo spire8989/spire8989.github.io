@@ -2743,10 +2743,11 @@ function combatPresentationCombatantElement(combatantId) {
     .find((element) => element.dataset.combatantId === combatantId) || null;
 }
 
-function presentCombatImpact(expedition, combat, event, presentationVersion) {
+function presentCombatImpact(expedition, combat, event, presentationVersion, audioManager = AudioManager) {
   if (!expedition || expedition.combat !== combat || !event) return;
   const controller = combatPresentationController(combat);
-  if (controller.active?.event !== event || controller.active.version !== presentationVersion) return;
+  const active = controller.active;
+  if (active?.event !== event || active.version !== presentationVersion) return;
   if (controller.presentedEvents.has(event)) return;
   controller.presentedEvents.add(event);
   controller.impactCounter += 1;
@@ -2774,6 +2775,14 @@ function presentCombatImpact(expedition, combat, event, presentationVersion) {
     window.requestAnimationFrame(clearHit);
   });
   updateCombatHud();
+  if (!active.impactAudioPlayed) {
+    active.impactAudioPlayed = true;
+    playCombatPresentationImpactAudio(event, audioManager);
+  }
+  if (!active.defeatAudioPlayed) {
+    active.defeatAudioPlayed = true;
+    playCombatPresentationDefeatAudio(event, combat, audioManager);
+  }
   document.dispatchEvent(new CustomEvent("combat-presentation-impact", {
     detail: {
       attackerId: event.actor ?? null,
@@ -2789,7 +2798,7 @@ function presentCombatImpact(expedition, combat, event, presentationVersion) {
   }));
 }
 
-function pumpCombatPresentation(expedition, combat) {
+function pumpCombatPresentation(expedition, combat, audioManager = AudioManager) {
   if (!expedition || expedition.combat !== combat) return;
   const controller = combatPresentationController(combat);
   if (controller.active) return;
@@ -2813,7 +2822,7 @@ function pumpCombatPresentation(expedition, combat) {
     controller.active = null;
     if (controller.queue.length > 0) {
       refreshCombat(expedition, combat);
-      pumpCombatPresentation(expedition, combat);
+      pumpCombatPresentation(expedition, combat, audioManager);
     } else if (controller.presentationFinishPending) {
       finishCombatResolution(expedition);
     } else {
@@ -2821,17 +2830,17 @@ function pumpCombatPresentation(expedition, combat) {
     }
   };
   if (!actorElement || !definition || !characterVisualSlotIsUsable(definition, "attack")) {
-    presentCombatImpact(expedition, combat, event, presentationVersion);
+    presentCombatImpact(expedition, combat, event, presentationVersion, audioManager);
     finish();
     return;
   }
   const started = playCharacterVisualAction(actorElement, "attack", {
     mirror: actor.side === "enemy",
-    onImpact: () => presentCombatImpact(expedition, combat, event, presentationVersion),
+    onImpact: () => presentCombatImpact(expedition, combat, event, presentationVersion, audioManager),
     onComplete: finish,
   });
   if (!started) {
-    presentCombatImpact(expedition, combat, event, presentationVersion);
+    presentCombatImpact(expedition, combat, event, presentationVersion, audioManager);
     finish();
   }
 }
@@ -5973,7 +5982,7 @@ function hasSynthSfx(id) {
     && SYNTH_AUDIO_DEFINITIONS.sfx?.[id]);
 }
 
-function playCombatActionAudio(actionEvents = [], combat = null) {
+function playCombatActionStartAudio(actionEvents = [], audioManager = AudioManager) {
   const latestActions = new Map();
   actionEvents.forEach((event) => {
     if (!event?.actor || !event.action) return;
@@ -5981,29 +5990,34 @@ function playCombatActionAudio(actionEvents = [], combat = null) {
   });
   latestActions.forEach((event) => {
     if (event.action === "flee") {
-      AudioManager.playSemantic(event.escaped === true ? "fleeSuccess" : "fleeFail");
+      audioManager.playSemantic(event.escaped === true ? "fleeSuccess" : "fleeFail");
       return;
     }
 
-    if (event.useSfxId && hasSynthSfx(event.useSfxId)) AudioManager.playSfx(event.useSfxId);
-
-    if (event.impactSfxId && hasSynthSfx(event.impactSfxId)) {
-      AudioManager.playSfx(event.impactSfxId);
-    } else if (Number(event.damagePrevented) > 0) {
-      AudioManager.playSemantic("block");
-    } else if (Number(event.damage) > 0) {
-      AudioManager.playSemantic("hit");
-    } else if (Number(event.healingAmount) > 0) {
-      AudioManager.playSemantic("heal");
-    } else if (event.statusApplied) {
-      AudioManager.playSemantic("status");
-    }
-
-    (event.defeatedTargetIds ?? []).forEach((targetId) => {
-      const target = [...(combat?.enemies ?? []), ...(combat?.allies ?? [])].find((entry) => entry.id === targetId);
-      AudioManager.playSemantic(target?.side === "ally" ? "allyDown" : "enemyDown");
-    });
+    if (event.useSfxId) audioManager.playSfx(event.useSfxId);
   });
+}
+
+function playCombatPresentationImpactAudio(event, audioManager = AudioManager) {
+  if (event?.impactSfxId && audioManager.playSfx(event.impactSfxId)) return;
+  if (Number(event?.damagePrevented) > 0) {
+    audioManager.playSemantic("block");
+  } else if (Number(event?.damage) > 0) {
+    audioManager.playSemantic("hit");
+  } else if (Number(event?.healingAmount) > 0) {
+    audioManager.playSemantic("heal");
+  } else if (event?.statusApplied) {
+    audioManager.playSemantic("status");
+  }
+}
+
+function playCombatPresentationDefeatAudio(event, combat, audioManager = AudioManager) {
+  const roles = new Set();
+  (event?.defeatedTargetIds ?? []).forEach((targetId) => {
+    const target = [...(combat?.enemies ?? []), ...(combat?.allies ?? [])].find((entry) => entry.id === targetId);
+    roles.add(target?.side === "ally" ? "allyDown" : "enemyDown");
+  });
+  roles.forEach((role) => audioManager.playSemantic(role));
 }
 
 function playCombatResultAudio(expedition, result) {
@@ -6125,7 +6139,7 @@ function handleCombatInteractionResult(expedition, combat, result, actionEvents 
     return;
   }
   if (result?.resolved) {
-    playCombatActionAudio(actionEvents, combat);
+    playCombatActionStartAudio(actionEvents);
     enqueueCombatActionPresentations(combat, actionEvents);
     savePlayer();
     if (result.action === "item") {
@@ -6169,7 +6183,7 @@ function updateCombat(deltaSeconds) {
   const eventStart = combat.events.length;
   const update = CombatSystem.update(combat, expedition, deltaSeconds);
   const actionEvents = combat.events.slice(eventStart);
-  playCombatActionAudio(actionEvents, combat);
+  playCombatActionStartAudio(actionEvents);
   enqueueCombatActionPresentations(combat, actionEvents);
   if (update.result) {
     finishCombatResolution(expedition);

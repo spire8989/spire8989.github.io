@@ -1,5 +1,39 @@
 # Build Log
 
+## 2026-08-27 - Combat Presentation Audio Timing
+
+### Goal
+
+Align combat audio with the existing visual presentation lifecycle so use
+sounds begin with an action, impact/fallback sounds land on the visual impact,
+and defeat sounds follow displayed defeat state.
+
+### Human direction
+
+- Fix combat audio timing using the focused implementation guide.
+- Commit and push the completed Grail game changes.
+
+### AI-assisted implementation
+
+- Split combat audio into action-start, presentation-impact, and defeat hooks.
+- Routed authored impact SFX and block, hit, heal, and status fallbacks through
+  the existing visual impact callback for both player and automatic enemy
+  actions.
+- Added per-presentation guards so impact and defeat audio cannot duplicate
+  when presentation callbacks or queued events repeat.
+
+### Reported manual changes
+
+- None. No audio definitions, content data, or binary assets were changed.
+
+### Verification and resulting prototype state
+
+- Focused synthesized-audio browser coverage passes 11 assertions, including
+  start/impact/defeat ordering, fallback behavior, and duplicate suppression.
+- Image/audio pipeline smoke coverage passes 5 assertions.
+- The broader combat suite still stops at its unrelated existing Pommel Strike
+  fixture assertion before reaching later checks.
+
 ## 2026-08-27 - Global Synth Audio Defaults
 
 ### Goal
