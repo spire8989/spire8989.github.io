@@ -4,102 +4,6 @@
 // this game-side catalog directly; no binary audio assets are required.
 const SYNTH_AUDIO_DEFINITIONS = Object.freeze({
   "musicTracks": {
-    wisps_of_the_forest: {
-      id: "wisps_of_the_forest",
-      name: "Wisps of the Forest",
-      bpm: 72,
-      loopBeats: 32,
-      voices: [
-        {
-          wave: "triangle",
-          gain: 0.14,
-          attack: 0.08,
-          release: 0.3,
-          filter: {
-            frequency: 900,
-            q: 0.8
-          },
-          notes: [
-            ["D2", 0, 4],
-            ["D2", 4, 4],
-            ["C2", 8, 4],
-            ["D2", 12, 4],
-            ["Bb1", 16, 4],
-            ["C2", 20, 4],
-            ["D2", 24, 4],
-            ["A1", 28, 4]
-          ]
-        },
-        {
-          wave: "triangle",
-          gain: 0.07,
-          attack: 0.03,
-          release: 0.18,
-          filter: {
-            frequency: 1400,
-            q: 0.7
-          },
-          notes: [
-            ["D3", 0, 1],
-            ["A3", 2, 1],
-            ["F3", 4, 1],
-            ["C4", 6, 1],
-            ["D3", 8, 1],
-            ["G3", 10, 1],
-            ["F3", 12, 1],
-            ["A3", 14, 1],
-            ["Bb2", 16, 1],
-            ["F3", 18, 1],
-            ["C4", 20, 1],
-            ["G3", 22, 1],
-            ["D3", 24, 1],
-            ["A3", 26, 1],
-            ["C4", 28, 1],
-            ["F3", 30, 1]
-          ]
-        },
-        {
-          wave: "square",
-          gain: 0.035,
-          attack: 0.04,
-          release: 0.22,
-          filter: {
-            frequency: 1700,
-            q: 1.1
-          },
-          vibrato: {
-            rate: 4.8,
-            depth: 7
-          },
-          notes: [
-            ["A4", 3, 1],
-            ["C5", 7, 1],
-            ["F5", 11, 1],
-            ["D5", 15, 1],
-            ["C5", 19, 1],
-            ["G5", 23, 1],
-            ["F5", 27, 1],
-            ["A4", 31, 1]
-          ]
-        },
-        {
-          wave: "sine",
-          gain: 0.028,
-          attack: 0.12,
-          release: 0.35,
-          vibrato: {
-            rate: 5.4,
-            depth: 5
-          },
-          notes: [
-            ["D5", 5.5, 0.5],
-            ["A5", 13.5, 0.5],
-            ["C6", 21.5, 0.5],
-            ["F5", 29.5, 0.5]
-          ]
-        }
-      ]
-    },
     combat_old_forest_battle: {
       id: "combat_old_forest_battle",
       name: "Battle Beneath the Boughs",
@@ -813,70 +717,177 @@ const SYNTH_AUDIO_DEFINITIONS = Object.freeze({
           ]
         }
       ]
-    }
-  },
-  "sfx": {
-    pickup_confirm: {
-      id: "pickup_confirm",
-      name: "Basic Confirm",
-      duration: 0.09,
-      layers: [
+    },
+    wisps_of_the_forest: {
+      id: "wisps_of_the_forest",
+      name: "Wisps of the Forest",
+      bpm: 72,
+      loopBeats: 32,
+      voices: [
+        {
+          wave: "triangle",
+          gain: 0.14,
+          attack: 0.08,
+          release: 0.3,
+          filter: {
+            frequency: 900,
+            q: 0.8
+          },
+          notes: [
+            ["D2", 0, 4],
+            ["D2", 4, 4],
+            ["C2", 8, 4],
+            ["D2", 12, 4],
+            ["Bb1", 16, 4],
+            ["C2", 20, 4],
+            ["D2", 24, 4],
+            ["A1", 28, 4]
+          ]
+        },
+        {
+          wave: "triangle",
+          gain: 0.07,
+          attack: 0.03,
+          release: 0.18,
+          filter: {
+            frequency: 1400,
+            q: 0.7
+          },
+          notes: [
+            ["D3", 0, 1],
+            ["A3", 2, 1],
+            ["F3", 4, 1],
+            ["C4", 6, 1],
+            ["D3", 8, 1],
+            ["G3", 10, 1],
+            ["F3", 12, 1],
+            ["A3", 14, 1],
+            ["Bb2", 16, 1],
+            ["F3", 18, 1],
+            ["C4", 20, 1],
+            ["G3", 22, 1],
+            ["D3", 24, 1],
+            ["A3", 26, 1],
+            ["C4", 28, 1],
+            ["F3", 30, 1]
+          ]
+        },
         {
           wave: "square",
-          startHz: 660,
-          endHz: 690,
-          gain: 0.055,
-          attack: 0.002,
-          release: 0.035,
-          duration: 0.055,
+          gain: 0.035,
+          attack: 0.04,
+          release: 0.22,
           filter: {
-            frequency: 2200,
-            q: 0.5
-          }
+            frequency: 1700,
+            q: 1.1
+          },
+          vibrato: {
+            rate: 4.8,
+            depth: 7
+          },
+          notes: [
+            ["A4", 3, 1],
+            ["C5", 7, 1],
+            ["F5", 11, 1],
+            ["D5", 15, 1],
+            ["C5", 19, 1],
+            ["G5", 23, 1],
+            ["F5", 27, 1],
+            ["A4", 31, 1]
+          ]
         },
         {
           wave: "sine",
-          startHz: 990,
-          endHz: 990,
-          gain: 0.035,
-          attack: 0.002,
-          release: 0.025,
-          start: 0.035,
-          duration: 0.045
+          gain: 0.028,
+          attack: 0.12,
+          release: 0.35,
+          vibrato: {
+            rate: 5.4,
+            depth: 5
+          },
+          notes: [
+            ["D5", 5.5, 0.5],
+            ["A5", 13.5, 0.5],
+            ["C6", 21.5, 0.5],
+            ["F5", 29.5, 0.5]
+          ]
         }
       ]
     },
-    attack_swing: {
-      id: "attack_swing",
-      name: "Attack Swing",
-      duration: 0.16,
-      layers: [
+    rest_lullaby: {
+      id: "rest_lullaby",
+      name: "Rest by Firelight",
+      bpm: 64,
+      loopBeats: 16,
+      voices: [
         {
-          wave: "sawtooth",
-          startHz: 520,
-          endHz: 180,
-          gain: 0.045,
-          attack: 0.002,
-          release: 0.07,
-          duration: 0.13,
+          wave: "triangle",
+          gain: 0.055,
+          attack: 0.09,
+          release: 0.35,
           filter: {
-            frequency: 1800,
-            q: 0.8
-          }
+            frequency: 1050,
+            q: 0.6
+          },
+          notes: [
+            ["D3", 0, 2],
+            ["A3", 2, 2],
+            ["Bb3", 4, 2],
+            ["F3", 6, 2],
+            ["G3", 8, 2],
+            ["D4", 10, 2],
+            ["A3", 12, 2],
+            ["D3", 14, 2]
+          ]
         },
         {
-          wave: "noise",
+          wave: "sine",
           gain: 0.035,
-          attack: 0.002,
-          release: 0.06,
-          duration: 0.09,
+          attack: 0.12,
+          release: 0.42,
+          vibrato: {
+            rate: 4.1,
+            depth: 5
+          },
+          notes: [
+            ["A4", 0, 2],
+            ["D5", 2, 2],
+            ["F5", 4, 2],
+            ["D5", 6, 2],
+            ["G5", 8, 2],
+            ["F5", 10, 2],
+            ["E5", 12, 2],
+            ["D5", 14, 2]
+          ]
+        },
+        {
+          wave: "square",
+          gain: 0.018,
+          attack: 0.08,
+          release: 0.28,
           filter: {
-            frequency: 2400,
-            q: 0.5
-          }
+            frequency: 1200,
+            q: 0.8
+          },
+          vibrato: {
+            rate: 4.7,
+            depth: 7
+          },
+          notes: [
+            ["F4", 1, 1],
+            ["A4", 3, 1],
+            ["D5", 5, 1],
+            ["A4", 7, 1],
+            ["Bb4", 9, 1],
+            ["A4", 11, 1],
+            ["G4", 13, 1],
+            ["F4", 15, 1]
+          ]
         }
       ]
-    },
+    }
+  },
+  "sfx": {
     attack_impact: {
       id: "attack_impact",
       name: "Attack Impact",
@@ -914,6 +925,421 @@ const SYNTH_AUDIO_DEFINITIONS = Object.freeze({
           attack: 0.001,
           release: 0.035,
           duration: 0.05
+        }
+      ]
+    },
+    pickup_confirm: {
+      id: "pickup_confirm",
+      name: "Basic Confirm",
+      duration: 0.09,
+      layers: [
+        {
+          wave: "square",
+          startHz: 660,
+          endHz: 690,
+          gain: 0.055,
+          attack: 0.002,
+          release: 0.035,
+          duration: 0.055,
+          filter: {
+            frequency: 2200,
+            q: 0.5
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 990,
+          endHz: 990,
+          gain: 0.035,
+          attack: 0.002,
+          release: 0.025,
+          start: 0.035,
+          duration: 0.045
+        }
+      ]
+    },
+    cooking_loop: {
+      id: "cooking_loop",
+      name: "Cooking Loop",
+      duration: 1.4,
+      layers: [
+        {
+          wave: "noise",
+          gain: 0.022,
+          attack: 0.02,
+          release: 0.18,
+          start: 0.05,
+          duration: 0.3,
+          filter: {
+            frequency: 1150,
+            q: 0.7
+          }
+        },
+        {
+          wave: "noise",
+          gain: 0.018,
+          attack: 0.02,
+          release: 0.16,
+          start: 0.48,
+          duration: 0.24,
+          filter: {
+            frequency: 1450,
+            q: 0.8
+          }
+        },
+        {
+          wave: "noise",
+          gain: 0.024,
+          attack: 0.015,
+          release: 0.2,
+          start: 0.92,
+          duration: 0.32,
+          filter: {
+            frequency: 1000,
+            q: 0.65
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 310,
+          endHz: 220,
+          gain: 0.018,
+          attack: 0.01,
+          release: 0.08,
+          start: 0.7,
+          duration: 0.12
+        }
+      ]
+    },
+    craft_blacksmith_loop: {
+      id: "craft_blacksmith_loop",
+      name: "Blacksmith Crafting Loop",
+      duration: 1.35,
+      layers: [
+        {
+          wave: "sine",
+          startHz: 1180,
+          endHz: 920,
+          gain: 0.055,
+          attack: 0.001,
+          release: 0.12,
+          start: 0.08,
+          duration: 0.15
+        },
+        {
+          wave: "sine",
+          startHz: 1620,
+          endHz: 1050,
+          gain: 0.035,
+          attack: 0.001,
+          release: 0.09,
+          start: 0.08,
+          duration: 0.12
+        },
+        {
+          wave: "noise",
+          gain: 0.035,
+          attack: 0.001,
+          release: 0.055,
+          start: 0.08,
+          duration: 0.07,
+          filter: {
+            frequency: 1900,
+            q: 1.2
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 980,
+          endHz: 760,
+          gain: 0.05,
+          attack: 0.001,
+          release: 0.11,
+          start: 0.7,
+          duration: 0.14
+        },
+        {
+          wave: "sine",
+          startHz: 1450,
+          endHz: 980,
+          gain: 0.03,
+          attack: 0.001,
+          release: 0.08,
+          start: 0.7,
+          duration: 0.1
+        }
+      ]
+    },
+    craft_potion_loop: {
+      id: "craft_potion_loop",
+      name: "Potion Making Loop",
+      duration: 1.5,
+      layers: [
+        {
+          wave: "sine",
+          startHz: 240,
+          endHz: 390,
+          gain: 0.025,
+          attack: 0.02,
+          release: 0.09,
+          start: 0.1,
+          duration: 0.18
+        },
+        {
+          wave: "sine",
+          startHz: 330,
+          endHz: 510,
+          gain: 0.022,
+          attack: 0.015,
+          release: 0.08,
+          start: 0.43,
+          duration: 0.15
+        },
+        {
+          wave: "noise",
+          gain: 0.016,
+          attack: 0.01,
+          release: 0.12,
+          start: 0.72,
+          duration: 0.18,
+          filter: {
+            frequency: 850,
+            q: 1
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 410,
+          endHz: 660,
+          gain: 0.021,
+          attack: 0.01,
+          release: 0.1,
+          start: 0.93,
+          duration: 0.17
+        },
+        {
+          wave: "triangle",
+          startHz: 740,
+          endHz: 890,
+          gain: 0.018,
+          attack: 0.015,
+          release: 0.11,
+          start: 1.2,
+          duration: 0.15,
+          filter: {
+            frequency: 1500,
+            q: 0.6
+          }
+        }
+      ]
+    },
+    attack_swing: {
+      id: "attack_swing",
+      name: "Attack Swing",
+      duration: 0.16,
+      layers: [
+        {
+          wave: "sawtooth",
+          startHz: 520,
+          endHz: 180,
+          gain: 0.045,
+          attack: 0.002,
+          release: 0.07,
+          duration: 0.13,
+          filter: {
+            frequency: 1800,
+            q: 0.8
+          }
+        },
+        {
+          wave: "noise",
+          gain: 0.035,
+          attack: 0.002,
+          release: 0.06,
+          duration: 0.09,
+          filter: {
+            frequency: 2400,
+            q: 0.5
+          }
+        }
+      ]
+    },
+    item_uncommon: {
+      id: "item_uncommon",
+      name: "Uncommon Item Found",
+      duration: 0.42,
+      layers: [
+        {
+          wave: "triangle",
+          startHz: 523.25,
+          endHz: 523.25,
+          gain: 0.045,
+          attack: 0.004,
+          release: 0.11,
+          start: 0,
+          duration: 0.13
+        },
+        {
+          wave: "triangle",
+          startHz: 659.25,
+          endHz: 659.25,
+          gain: 0.045,
+          attack: 0.004,
+          release: 0.11,
+          start: 0.11,
+          duration: 0.13
+        },
+        {
+          wave: "sine",
+          startHz: 783.99,
+          endHz: 783.99,
+          gain: 0.055,
+          attack: 0.004,
+          release: 0.18,
+          start: 0.22,
+          duration: 0.19
+        },
+        {
+          wave: "sine",
+          startHz: 1567.98,
+          endHz: 1567.98,
+          gain: 0.018,
+          attack: 0.003,
+          release: 0.12,
+          start: 0.23,
+          duration: 0.15
+        }
+      ]
+    },
+    craft_cloth_loop: {
+      id: "craft_cloth_loop",
+      name: "Cloth Crafting Loop",
+      duration: 1.5,
+      layers: [
+        {
+          wave: "noise",
+          gain: 0.018,
+          attack: 0.005,
+          release: 0.07,
+          start: 0.08,
+          duration: 0.09,
+          filter: {
+            frequency: 2300,
+            q: 1.2
+          }
+        },
+        {
+          wave: "triangle",
+          startHz: 520,
+          endHz: 430,
+          gain: 0.018,
+          attack: 0.003,
+          release: 0.06,
+          start: 0.11,
+          duration: 0.08
+        },
+        {
+          wave: "noise",
+          gain: 0.024,
+          attack: 0.02,
+          release: 0.14,
+          start: 0.5,
+          duration: 0.24,
+          filter: {
+            frequency: 1250,
+            q: 0.45
+          }
+        },
+        {
+          wave: "triangle",
+          startHz: 330,
+          endHz: 390,
+          gain: 0.016,
+          attack: 0.01,
+          release: 0.08,
+          start: 0.78,
+          duration: 0.11
+        },
+        {
+          wave: "noise",
+          gain: 0.015,
+          attack: 0.004,
+          release: 0.06,
+          start: 1.12,
+          duration: 0.08,
+          filter: {
+            frequency: 2600,
+            q: 1.3
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 620,
+          endHz: 570,
+          gain: 0.015,
+          attack: 0.003,
+          release: 0.08,
+          start: 1.15,
+          duration: 0.09
+        }
+      ]
+    },
+    coins_transaction: {
+      id: "coins_transaction",
+      name: "Coins Up",
+      duration: 0.3,
+      layers: [
+        {
+          wave: "sine",
+          startHz: 720,
+          endHz: 840,
+          gain: 0.035,
+          attack: 0.001,
+          release: 0.07,
+          start: 0,
+          duration: 0.08
+        },
+        {
+          wave: "triangle",
+          startHz: 940,
+          endHz: 1080,
+          gain: 0.038,
+          attack: 0.001,
+          release: 0.075,
+          start: 0.055,
+          duration: 0.085
+        },
+        {
+          wave: "sine",
+          startHz: 1220,
+          endHz: 1410,
+          gain: 0.042,
+          attack: 0.001,
+          release: 0.08,
+          start: 0.11,
+          duration: 0.09
+        },
+        {
+          wave: "sine",
+          startHz: 1580,
+          endHz: 1840,
+          gain: 0.036,
+          attack: 0.001,
+          release: 0.09,
+          start: 0.17,
+          duration: 0.1
+        },
+        {
+          wave: "noise",
+          gain: 0.01,
+          attack: 0.001,
+          release: 0.055,
+          start: 0.04,
+          duration: 0.16,
+          filter: {
+            frequency: 3000,
+            q: 1.1
+          }
         }
       ]
     }
