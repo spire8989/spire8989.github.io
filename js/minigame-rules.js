@@ -119,8 +119,8 @@ const MinigameRules = Object.freeze({
         errors.push(`Fishing ${label} bite delay range is invalid.`);
       }
       if (!Number.isFinite(water?.hookWindowMs)
-        || water.hookWindowMs < 500 || water.hookWindowMs > 900) {
-        errors.push(`Fishing ${label} hookWindowMs must be between 500 and 900 milliseconds.`);
+        || water.hookWindowMs < 800 || water.hookWindowMs > 2500) {
+        errors.push(`Fishing ${label} hookWindowMs must be between 800 and 2500 milliseconds.`);
       }
       if (water?.hookSuccessChance !== undefined
         && (!Number.isFinite(water.hookSuccessChance)

@@ -5771,3 +5771,25 @@ The attached corrective guide supplied the player-facing interaction and present
 ### Verification and resulting prototype state
 
 The focused Fishing browser suite passes 9 checks on a 390x844 viewport, including image-surface input, charge gauge/aim feedback, animated waiting/plunge states, bobber-only hooking, no-bobber result/summary states, guaranteed limited-cast bites, and existing-item loot. Focused Content Editor validation/round-trip and browser authoring tests pass 3 tests, replay smoke tests pass 15 assertions, asset/audio checks pass 5 assertions, and `git diff --check` passes. The broader simulation, campaign, campaign-replay, and location suites were attempted but stop at existing unrelated fixture/layout failures documented by those suites; no fishing-specific failure was reported.
+
+## 2026-08-28 - Fishing Portrait Polish Pass
+
+### Goal
+
+Make the Fishing presentation readable and forgiving on a narrow portrait stage while preserving the existing reusable interaction, authored hotspots, result flow, simulator, replay, and editor round trip.
+
+### AI-assisted implementation
+
+- Changed the game and Content Editor Fishing stage to its own 2:3 aspect ratio with cover-cropped artwork and normalized pointer/marker geometry; removed the generic water scrim and all desktop two-column assumptions.
+- Simplified the player-facing Fishing stage to one contextual instruction, a compact lower information panel, casts remaining in the lower-right, and a horizontal 18px charging gauge near the top of the artwork. The hook state now presents `BITE!` and the bobber remains visibly submerged with ongoing tug motion for the complete hook window.
+- Extended game/editor hook-window validation to 800-2500 ms and retuned the authored teacher/default/hotspot windows to forgiving values between 1250 and 1600 ms. New editor minigames use a valid 1350 ms default.
+- Formatted catch, item, material, and other successful rewards as vertical result cards with readable display names and separate reward rows. Fishing summaries now count every successful hooked reward, including existing item loot, and missed casts explicitly report that the fish got away.
+- Expanded browser coverage for the 2:3 layout, prompt uniqueness, gauge placement/visibility, full-window hook animation, result spacing, mixed-reward summary counts, editor 2:3 preview, and normalized authoring. Existing authored normalized hotspot data remains intact.
+
+### Manual changes
+
+The attached focused correction guide supplied the portrait layout, copy hierarchy, forgiving hook timing, bite-state, miss feedback, result-card, summary, editor-preview, and regression requirements. No new artwork or runtime dependency was introduced.
+
+### Verification and resulting prototype state
+
+The focused Fishing browser suite passes 10 checks on a 390x844 viewport. Replay smoke tests pass 15 assertions, asset/audio checks pass 5 assertions, the isolated Fishing Content Editor browser test passes, and the isolated Fishing content validation/round-trip test passes. The full 94-test Content Editor suite still reports six unrelated existing combat/audio/encounter-layout/reference fixture failures; none are in the Fishing tests. `git diff --check` passes.

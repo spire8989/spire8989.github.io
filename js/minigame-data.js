@@ -37,7 +37,7 @@ const FISHING_DEFAULT_WATER = Object.freeze({
   biteChance: 0.58,
   biteDelayMin: 0.75,
   biteDelayMax: 1.45,
-  hookWindowMs: 720,
+  hookWindowMs: 1350,
   hookSuccessChance: 0.84,
   lootTableId: "fishing_woodland_default",
 });
@@ -58,7 +58,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
       biteChance: 0.72,
       biteDelayMin: 0.75,
       biteDelayMax: 1.45,
-      hookWindowMs: 820,
+      hookWindowMs: 1600,
       hookSuccessChance: 0.84,
       lootTableId: "fishing_teacher_pool",
     }),
@@ -67,14 +67,14 @@ const MINIGAME_DEFINITIONS = Object.freeze({
         id: "quiet_reeds",
         name: "Quiet Reeds",
         x: 0.31, y: 0.41, radius: 0.13, priority: 2,
-        biteChance: 0.8, biteDelayMin: 0.65, biteDelayMax: 1.2, hookWindowMs: 850,
+        biteChance: 0.8, biteDelayMin: 0.65, biteDelayMax: 1.2, hookWindowMs: 1500,
         lootTableId: "fishing_teacher_pool",
       }),
       Object.freeze({
         id: "sunlit_ripple",
         name: "Sunlit Ripple",
         x: 0.68, y: 0.34, radius: 0.11, priority: 1,
-        biteChance: 0.68, biteDelayMin: 0.8, biteDelayMax: 1.5, hookWindowMs: 760,
+        biteChance: 0.68, biteDelayMin: 0.8, biteDelayMax: 1.5, hookWindowMs: 1450,
         lootTableId: "fishing_teacher_pool",
       }),
     ]),
@@ -102,7 +102,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
       biteChance: 0.58,
       biteDelayMin: 0.75,
       biteDelayMax: 1.45,
-      hookWindowMs: 720,
+      hookWindowMs: 1350,
       hookSuccessChance: 0.84,
       lootTableId: "fishing_woodland_default"
     },
@@ -117,7 +117,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
         biteChance: 0.68,
         biteDelayMin: 0.7,
         biteDelayMax: 1.55,
-        hookWindowMs: 690,
+        hookWindowMs: 1450,
         lootTableId: "fishing_woodland_reeds"
       },
       {
@@ -130,7 +130,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
         biteChance: 0.57,
         biteDelayMin: 0.95,
         biteDelayMax: 1.8,
-        hookWindowMs: 650,
+        hookWindowMs: 1250,
         lootTableId: "fishing_woodland_deep_pool"
       },
       {
@@ -143,7 +143,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
         biteChance: 0.76,
         biteDelayMin: 0.6,
         biteDelayMax: 1.25,
-        hookWindowMs: 780,
+        hookWindowMs: 1400,
         lootTableId: "fishing_woodland_default"
       }
     ],
