@@ -137,6 +137,7 @@ def run() -> None:
         check(
             "(() => {"
             "const defaults=GLOBAL_SETTINGS.audioDefaults;"
+            "const combat=defaults.combat;"
             "const semantic=AudioManager.semanticSfxId('confirm')==='pickup_confirm'"
             "&&AudioManager.semanticSfxId('coins')==='coins_transaction'"
             "&&AudioManager.semanticSfxId('cooking')==='cooking_loop'"
@@ -154,7 +155,7 @@ def run() -> None:
             "const rest=resolveCurrentMusicTrackId()==='rest_lullaby';game.restAction=null;"
             "const contextual=resolveCurrentMusicTrackId()!=='rest_lullaby';"
             "game.screen=oldScreen;game.activeDestinationId=oldDestination;game.restAction=oldRest;renderScreen();"
-            "return defaults.restMusicTrackId==='rest_lullaby'&&semantic&&hierarchy&&started&&active&&stopped&&rest&&contextual; })()",
+            "return defaults.restMusicTrackId==='rest_lullaby'&&combat.playerAttackUseSfxId==='attack_swing'&&combat.playerAttackImpactSfxId==='attack_impact'&&combat.enemyAttackUseSfxId===null&&combat.enemyAttackImpactSfxId==='attack_impact'&&semantic&&hierarchy&&started&&active&&stopped&&rest&&contextual; })()",
             "Global audio defaults, crafting hierarchy, loop lifecycle, or rest override is not stable",
         )
 
@@ -211,7 +212,14 @@ def run() -> None:
             "game.expedition=e;game.screen='expedition';const target=c.enemies[0];target.hp=0;"
             "const event={actor:'arthur',action:'attack',target:target.id,damage:target.maxHp,useSfxId:'use_probe',impactSfxId:'impact_probe',defeatedTargetIds:[target.id],sequence:1};"
             "const calls=[];const fake={playSfx:id=>{calls.push('sfx:'+id);return true;},playSemantic:role=>{calls.push('semantic:'+role);return true;}};"
-            "playCombatActionStartAudio([event],fake);const start=calls.join('|')==='sfx:use_probe';"
+            "const basic={actor:'arthur',action:'attack',target:target.id,damage:1,sequence:0};const basicCalls=[];const basicFake={playSfx:id=>{basicCalls.push('sfx:'+id);return true;},playSemantic:role=>{basicCalls.push('semantic:'+role);return true;}};"
+            "playCombatActionStartAudio([basic],c,basicFake);const basicStart=basicCalls.join('|')==='sfx:attack_swing';"
+            "const basicController=combatPresentationController(c);basicController.active={event:basic,version:0,finished:false};presentCombatImpact(e,c,basic,0,basicFake);const basicImpact=basicCalls.join('|')==='sfx:attack_swing|sfx:attack_impact';"
+            "const special={actor:'arthur',action:'ability',target:'arthur',healingAmount:3,sequence:3};const specialCalls=[];const specialFake={playSfx:id=>{specialCalls.push('sfx:'+id);return true;},playSemantic:role=>{specialCalls.push('semantic:'+role);return true;}};"
+            "playCombatActionStartAudio([special],c,specialFake);const specialStart=specialCalls.length===0;const specialController=combatPresentationController(c);specialController.active={event:special,version:3,finished:false};presentCombatImpact(e,c,special,3,specialFake);const specialImpact=specialCalls.join('|')==='semantic:heal';"
+            "const enemy={actor:'wild_boar_1',action:'boar_charge',target:'arthur',damage:4,sequence:4};const enemyCalls=[];const enemyFake={playSfx:id=>{enemyCalls.push('sfx:'+id);return true;},playSemantic:role=>{enemyCalls.push('semantic:'+role);return true;}};"
+            "playCombatActionStartAudio([enemy],c,enemyFake);const enemyStart=enemyCalls.length===0;const enemyController=combatPresentationController(c);enemyController.active={event:enemy,version:4,finished:false};presentCombatImpact(e,c,enemy,4,enemyFake);const enemyImpact=enemyCalls.join('|')==='sfx:attack_impact';"
+            "playCombatActionStartAudio([event],c,fake);const start=calls.join('|')==='sfx:use_probe';"
             "const controller=combatPresentationController(c);controller.active={event,version:1,finished:false};"
             "presentCombatImpact(e,c,event,1,fake);const impact=calls.join('|')==='sfx:use_probe|sfx:impact_probe|semantic:enemyDown';"
             "presentCombatImpact(e,c,event,1,fake);const once=calls.length===3;"
@@ -220,7 +228,7 @@ def run() -> None:
             "presentCombatImpact(e,c,blockedEvent,2,{playSfx:id=>{blockedCalls.push('sfx:'+id);return true;},playSemantic:role=>{blockedCalls.push('semantic:'+role);return true;}});"
             "const blocked=blockedCalls.join('|')==='semantic:block';"
             "game.expedition=originalExpedition;game.screen=originalScreen;renderScreen();"
-            "return start&&impact&&once&&blocked; })()",
+            "return basicStart&&basicImpact&&specialStart&&specialImpact&&enemyStart&&enemyImpact&&start&&impact&&once&&blocked; })()",
             "Combat action audio did not separate start, visual impact, defeat, fallback, and duplicate lifecycles",
         )
         if devtools.console_errors:

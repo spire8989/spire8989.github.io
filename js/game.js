@@ -2777,7 +2777,7 @@ function presentCombatImpact(expedition, combat, event, presentationVersion, aud
   updateCombatHud();
   if (!active.impactAudioPlayed) {
     active.impactAudioPlayed = true;
-    playCombatPresentationImpactAudio(event, audioManager);
+    playCombatPresentationImpactAudio(event, combat, audioManager);
   }
   if (!active.defeatAudioPlayed) {
     active.defeatAudioPlayed = true;
@@ -5976,13 +5976,39 @@ function prepareCombatInitialVisuals(expedition, combat) {
   return Promise.allSettled(idleLoads);
 }
 
-function hasSynthSfx(id) {
-  return Boolean(id
-    && typeof SYNTH_AUDIO_DEFINITIONS !== "undefined"
-    && SYNTH_AUDIO_DEFINITIONS.sfx?.[id]);
+function combatAudioDefault(fieldName) {
+  if (typeof GLOBAL_SETTINGS === "undefined") return null;
+  return GLOBAL_SETTINGS.audioDefaults?.combat?.[fieldName] ?? null;
 }
 
-function playCombatActionStartAudio(actionEvents = [], audioManager = AudioManager) {
+function playCombatSfx(audioManager, id) {
+  return Boolean(id && audioManager.playSfx(id));
+}
+
+function combatEventActor(combat, event) {
+  return [...(combat?.allies ?? []), ...(combat?.enemies ?? [])]
+    .find((combatant) => combatant.id === event?.actor) ?? null;
+}
+
+function combatEventIsDamaging(event) {
+  return Number(event?.damage) > 0;
+}
+
+function combatEventIsEnemyAttack(event) {
+  const authored = typeof COMBAT_ENEMY_ACTION_DEFINITIONS !== "undefined"
+    ? COMBAT_ENEMY_ACTION_DEFINITIONS[event?.action]
+    : null;
+  return combatEventIsDamaging(event)
+    || Number(event?.damagePrevented) > 0
+    || Boolean(authored?.damage);
+}
+
+function playCombatSfxOrSemantic(audioManager, sfxId, role) {
+  if (playCombatSfx(audioManager, sfxId)) return true;
+  return Boolean(audioManager.playSemantic(role));
+}
+
+function playCombatActionStartAudio(actionEvents = [], combat = null, audioManager = AudioManager) {
   const latestActions = new Map();
   actionEvents.forEach((event) => {
     if (!event?.actor || !event.action) return;
@@ -5990,24 +6016,41 @@ function playCombatActionStartAudio(actionEvents = [], audioManager = AudioManag
   });
   latestActions.forEach((event) => {
     if (event.action === "flee") {
-      audioManager.playSemantic(event.escaped === true ? "fleeSuccess" : "fleeFail");
+      playCombatSfxOrSemantic(
+        audioManager,
+        combatAudioDefault(event.escaped === true ? "fleeSuccessSfxId" : "fleeFailSfxId"),
+        event.escaped === true ? "fleeSuccess" : "fleeFail",
+      );
       return;
     }
 
-    if (event.useSfxId) audioManager.playSfx(event.useSfxId);
+    const actor = combatEventActor(combat, event);
+    const authored = event.useSfxId;
+    const global = actor?.side === "ally" && event.action === "attack"
+      ? combatAudioDefault("playerAttackUseSfxId")
+      : actor?.side === "enemy" && combatEventIsEnemyAttack(event)
+        ? combatAudioDefault("enemyAttackUseSfxId")
+        : null;
+    if (!playCombatSfx(audioManager, authored)) playCombatSfx(audioManager, global);
   });
 }
 
-function playCombatPresentationImpactAudio(event, audioManager = AudioManager) {
+function playCombatPresentationImpactAudio(event, combat = null, audioManager = AudioManager) {
   if (event?.impactSfxId && audioManager.playSfx(event.impactSfxId)) return;
   if (Number(event?.damagePrevented) > 0) {
-    audioManager.playSemantic("block");
+    playCombatSfxOrSemantic(audioManager, combatAudioDefault("blockSfxId"), "block");
   } else if (Number(event?.damage) > 0) {
-    audioManager.playSemantic("hit");
+    const actor = combatEventActor(combat, event);
+    const global = actor?.side === "ally" && event.action === "attack"
+      ? combatAudioDefault("playerAttackImpactSfxId")
+      : actor?.side === "enemy"
+        ? combatAudioDefault("enemyAttackImpactSfxId")
+        : null;
+    if (!playCombatSfx(audioManager, global)) audioManager.playSemantic("hit");
   } else if (Number(event?.healingAmount) > 0) {
-    audioManager.playSemantic("heal");
+    playCombatSfxOrSemantic(audioManager, combatAudioDefault("healSfxId"), "heal");
   } else if (event?.statusApplied) {
-    audioManager.playSemantic("status");
+    playCombatSfxOrSemantic(audioManager, combatAudioDefault("statusSfxId"), "status");
   }
 }
 
@@ -6017,19 +6060,20 @@ function playCombatPresentationDefeatAudio(event, combat, audioManager = AudioMa
     const target = [...(combat?.enemies ?? []), ...(combat?.allies ?? [])].find((entry) => entry.id === targetId);
     roles.add(target?.side === "ally" ? "allyDown" : "enemyDown");
   });
-  roles.forEach((role) => audioManager.playSemantic(role));
+  roles.forEach((role) => playCombatSfxOrSemantic(
+    audioManager,
+    combatAudioDefault(role === "allyDown" ? "allyDownSfxId" : "enemyDownSfxId"),
+    role,
+  ));
 }
 
 function playCombatResultAudio(expedition, result) {
   if (result === "victory") {
     const authored = expeditionDefinition(expedition).combatVictorySfxId;
-    if (authored && hasSynthSfx(authored)) {
-      AudioManager.playSfx(authored);
-      return;
-    }
-    AudioManager.playSemantic("victory");
+    if (playCombatSfx(AudioManager, authored)) return;
+    playCombatSfxOrSemantic(AudioManager, combatAudioDefault("victorySfxId"), "victory");
   } else if (result === "defeat") {
-    AudioManager.playSemantic("defeat");
+    playCombatSfxOrSemantic(AudioManager, combatAudioDefault("defeatSfxId"), "defeat");
   }
 }
 
@@ -6139,7 +6183,7 @@ function handleCombatInteractionResult(expedition, combat, result, actionEvents 
     return;
   }
   if (result?.resolved) {
-    playCombatActionStartAudio(actionEvents);
+    playCombatActionStartAudio(actionEvents, combat);
     enqueueCombatActionPresentations(combat, actionEvents);
     savePlayer();
     if (result.action === "item") {
@@ -6183,7 +6227,7 @@ function updateCombat(deltaSeconds) {
   const eventStart = combat.events.length;
   const update = CombatSystem.update(combat, expedition, deltaSeconds);
   const actionEvents = combat.events.slice(eventStart);
-  playCombatActionStartAudio(actionEvents);
+  playCombatActionStartAudio(actionEvents, combat);
   enqueueCombatActionPresentations(combat, actionEvents);
   if (update.result) {
     finishCombatResolution(expedition);

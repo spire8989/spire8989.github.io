@@ -1,5 +1,48 @@
 # Build Log
 
+## 2026-08-27 - Global Combat Audio Defaults
+
+### Goal
+
+Give common player and enemy combat actions configurable synth defaults while
+preserving authored overrides, semantic fallbacks, and presentation-synchronized
+timing.
+
+### Human direction
+
+- Add global combat audio defaults to the existing Global Settings architecture.
+- Expose and validate them in GrailTools, with nullable SFX selectors.
+- Commit and push the completed game and tool changes.
+
+### AI-assisted implementation
+
+- Added `audioDefaults.combat` with player attack, enemy attack, block, heal,
+  status, enemy/ally defeat, flee, victory, and battle-defeat fields.
+- Resolved authored action SFX before global defaults, then semantic fallback;
+  basic player attacks and damaging enemy actions receive their dedicated
+  defaults without forcing sword sounds onto special abilities or support
+  actions.
+- Kept impact, defeat, and result playback on the existing combat presentation
+  lifecycle, including authored expedition victory precedence.
+- Added the Combat subsection to Global Settings with friendly synth SFX names,
+  None/null support, nested save handling, validation, tests, and hierarchy
+  documentation.
+
+### Reported manual changes
+
+- Preserved the pre-existing uncommitted `js/combat-data.js` basic-attack SFX
+  edit; it is not part of this changelist.
+- No new binary audio assets or synth definitions were added.
+
+### Verification and resulting prototype state
+
+- Focused synthesized-audio browser coverage passes 11 assertions, including
+  player/enemy defaults, special-ability fallback behavior, impact timing, and
+  defeat deduplication.
+- Image/audio pipeline smoke coverage passes 5 assertions.
+- Focused Content Editor global-audio validation and canonical save coverage
+  passes.
+
 ## 2026-08-27 - Combat Presentation Audio Timing
 
 ### Goal

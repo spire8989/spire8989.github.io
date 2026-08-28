@@ -54,6 +54,21 @@ const GLOBAL_SETTINGS = Object.freeze({
     blacksmithCraftingSfxId: "craft_blacksmith_loop",
     apothecaryCraftingSfxId: "craft_potion_loop",
     restMusicTrackId: "rest_lullaby",
-    uncommonItemSfxId: "item_uncommon"
+    uncommonItemSfxId: "item_uncommon",
+    combat: {
+      playerAttackUseSfxId: "attack_swing",
+      playerAttackImpactSfxId: "attack_impact",
+      enemyAttackUseSfxId: null,
+      enemyAttackImpactSfxId: "attack_impact",
+      blockSfxId: null,
+      healSfxId: null,
+      statusSfxId: null,
+      enemyDownSfxId: null,
+      allyDownSfxId: null,
+      fleeSuccessSfxId: null,
+      fleeFailSfxId: null,
+      victorySfxId: null,
+      defeatSfxId: null,
+    },
   },
 });
