@@ -59,6 +59,12 @@ const EncounterRequirements = Object.freeze({
       case "notRunFlag":
         return Boolean(expedition)
           && expedition.runFlags?.[requirement.flag] !== (requirement.value ?? true);
+      case "encounterFlag":
+        return Boolean(expedition?.activeEncounter)
+          && expedition.activeEncounter.encounterFlags?.[requirement.flag] === (requirement.value ?? true);
+      case "notEncounterFlag":
+        return Boolean(expedition?.activeEncounter)
+          && expedition.activeEncounter.encounterFlags?.[requirement.flag] !== (requirement.value ?? true);
       case "campaignFlag":
         return player?.campaignFlags?.[requirement.flag] === (requirement.value ?? true);
       case "notCampaignFlag":
@@ -104,7 +110,7 @@ const EncounterRequirements = Object.freeze({
 
 const EncounterOutcomes = Object.freeze({
   resolveAll(effects = [], context = {}) {
-    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null, locationStop: null, sfxId: null };
+    const combined = { messages: [], rewards: [], resultText: "", combat: null, dialogue: null, minigame: null, locationStop: null, sfxId: null };
     for (let index = 0; index < effects.length; index += 1) {
       const effect = effects[index];
       const resolved = this.resolve(effect, context);
@@ -114,6 +120,16 @@ const EncounterOutcomes = Object.freeze({
       }
       if (resolved.combat) {
         combined.combat = resolved.combat;
+      }
+      if (resolved.minigame) {
+        combined.minigame = {
+          ...resolved.minigame,
+          remainingEffects: [
+            ...(resolved.minigame.remainingEffects ?? []),
+            ...effects.slice(index + 1),
+          ],
+        };
+        break;
       }
       if (resolved.locationStop) {
         combined.locationStop = resolved.locationStop;
@@ -148,6 +164,7 @@ const EncounterOutcomes = Object.freeze({
     let rewards = [];
     let resultText = effect.resultText ?? "";
     let combat = null;
+    let minigame = null;
     let locationStop = null;
     let sfxId = effect.sfxId ?? null;
 
@@ -301,6 +318,12 @@ const EncounterOutcomes = Object.freeze({
         expedition.runFlags[effect.flag] = effect.value ?? true;
         messages = effect.message ? [effect.message] : [];
         break;
+      case "setEncounterFlag":
+        expedition.activeEncounter ??= {};
+        expedition.activeEncounter.encounterFlags ??= {};
+        expedition.activeEncounter.encounterFlags[effect.flag] = effect.value ?? true;
+        messages = effect.message ? [effect.message] : [];
+        break;
       case "setCampaignFlag":
         player.campaignFlags ??= {};
         player.campaignFlags[effect.flag] = effect.value ?? true;
@@ -348,6 +371,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        minigame = resolved.minigame;
         locationStop = resolved.locationStop;
         sfxId = resolved.sfxId ?? sfxId;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || (branch ? effect.resultText : effect.elseResultText) || "" };
@@ -377,6 +401,7 @@ const EncounterOutcomes = Object.freeze({
           messages.push(...secondaryResolved.messages);
           rewards.push(...secondaryResolved.rewards);
           combat = secondaryResolved.combat ?? combat;
+          minigame = secondaryResolved.minigame ?? minigame;
           locationStop = secondaryResolved.locationStop ?? locationStop;
           sfxId = secondaryResolved.sfxId ?? sfxId;
           if (secondaryResolved.dialogue) return { ...secondaryResolved, messages, rewards, combat };
@@ -401,6 +426,7 @@ const EncounterOutcomes = Object.freeze({
         messages = resolved.messages;
         rewards = resolved.rewards;
         combat = resolved.combat;
+        minigame = resolved.minigame;
         locationStop = resolved.locationStop;
         sfxId = resolved.sfxId ?? sfxId;
         if (resolved.dialogue) return { ...resolved, resultText: resolved.resultText || selected.resultText || "" };
@@ -413,6 +439,18 @@ const EncounterOutcomes = Object.freeze({
       case "startCombat":
         combat = effect;
         break;
+      case "startMinigame": {
+        const definition = Minigames.definitionForEncounter(effect);
+        if (definition) {
+          minigame = {
+            minigameId: definition.id,
+            completionEffects: [...(effect.completionEffects ?? [])],
+            markEncounterFlag: effect.markEncounterFlag ?? null,
+            tutorialText: effect.tutorialText ?? definition.tutorial?.text ?? null,
+          };
+        }
+        break;
+      }
       case "startDialogue":
         if (DIALOGUE_DEFINITIONS[effect.dialogueId]) {
           return {
@@ -430,7 +468,7 @@ const EncounterOutcomes = Object.freeze({
         break;
     }
 
-    return { messages, rewards, resultText, combat, dialogue: null, locationStop, sfxId };
+    return { messages, rewards, resultText, combat, dialogue: null, minigame, locationStop, sfxId };
   },
 });
 
@@ -475,7 +513,7 @@ function appendEncounterOutcome(active, resolved) {
 }
 
 function annotateEncounterReward(reward, context = {}) {
-  if (!reward || reward.sourceType || !["item", "material", "recipe", "gold"].includes(reward.type)) {
+  if (!reward || reward.sourceType || !["item", "material", "recipe", "gold", "catch"].includes(reward.type)) {
     return reward;
   }
   const expedition = context.expedition;
@@ -535,6 +573,28 @@ function beginEncounterCombat(expedition, combat, resume, callbacks = {}) {
   };
 }
 
+function beginEncounterMinigame(expedition, minigame, resume, callbacks = {}) {
+  const active = expedition.activeEncounter;
+  const definition = Minigames.definition(minigame?.minigameId);
+  if (!active || !definition || !minigame) return { resolved: false, ended: false, message: "" };
+  active.phase = "minigame";
+  active.minigameResolution = { ...minigame, resume };
+  const started = callbacks.startMinigame?.(definition.id, definition) === true;
+  if (!started) {
+    delete active.minigameResolution;
+    active.phase = resume.fallbackPhase ?? "choice";
+    return { resolved: false, ended: false, message: "" };
+  }
+  return {
+    resolved: true,
+    ended: false,
+    minigameStarted: true,
+    minigameId: definition.id,
+    message: "",
+    sfxId: resume?.sfxId ?? null,
+  };
+}
+
 function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
   const active = expedition.activeEncounter;
   const encounter = EncounterManager.definitionFor(expedition, active);
@@ -565,6 +625,14 @@ function finishEncounterChoiceRoute(expedition, player, route, callbacks = {}) {
       }
       if (resolvedStage.combat) {
         return beginEncounterCombat(expedition, resolvedStage.combat, {
+          type: "result",
+          resultText,
+          sfxId: stageSfxId,
+          fallbackPhase: "choice",
+        }, callbacks);
+      }
+      if (resolvedStage.minigame) {
+        return beginEncounterMinigame(expedition, resolvedStage.minigame, {
           type: "result",
           resultText,
           sfxId: stageSfxId,
@@ -734,6 +802,7 @@ const EncounterManager = Object.freeze({
       resultText: "",
       outcomeMessages: [],
       rewards: [],
+      encounterFlags: {},
       pendingToken: 0,
     };
     if (!expedition.seenEncounterIds.includes(encounterId)) {
@@ -757,6 +826,7 @@ const EncounterManager = Object.freeze({
       resultText: "",
       outcomeMessages: [],
       rewards: [],
+      encounterFlags: {},
       pendingToken: 0,
     };
     return true;
@@ -880,6 +950,9 @@ const EncounterManager = Object.freeze({
     if (resolvedOutcomes.combat) {
       return beginEncounterCombat(expedition, resolvedOutcomes.combat, route, callbacks);
     }
+    if (resolvedOutcomes.minigame) {
+      return beginEncounterMinigame(expedition, resolvedOutcomes.minigame, route, callbacks);
+    }
     return finishEncounterChoiceRoute(expedition, player, route, callbacks);
   },
 
@@ -915,6 +988,9 @@ const EncounterManager = Object.freeze({
     if (resolved.combat) {
       return beginEncounterCombat(expedition, resolved.combat, resolution.resume, callbacks);
     }
+    if (resolved.minigame) {
+      return beginEncounterMinigame(expedition, resolved.minigame, resolution.resume, callbacks);
+    }
     if (resolution.resume.type === "choice") {
       return finishEncounterChoiceRoute(expedition, player, resolution.resume, callbacks);
     }
@@ -928,6 +1004,62 @@ const EncounterManager = Object.freeze({
       message: active.resultText,
       locationStop: resolved.locationStop ?? resolution.resume.locationStop ?? null,
       sfxId: resolved.sfxId ?? resolution.resume.sfxId ?? null,
+    };
+  },
+
+  completeMinigame(expedition, player, result = {}, callbacks = {}) {
+    const active = expedition.activeEncounter;
+    if (!active || active.phase !== "minigame" || !active.minigameResolution) {
+      return { resolved: false, ended: false, message: "" };
+    }
+    const resolution = active.minigameResolution;
+    delete active.minigameResolution;
+    active.phase = "choice";
+    active.outcomeMessages.push(...(result.messages ?? []));
+    active.rewards ??= [];
+    active.rewards.push(...(result.rewards ?? []));
+    if (resolution.markEncounterFlag) {
+      active.encounterFlags ??= {};
+      active.encounterFlags[resolution.markEncounterFlag] = true;
+    }
+    const context = {
+      expedition,
+      player,
+      sourceEncounterId: active.encounterId,
+      sourceChoiceId: active.lastChoiceId,
+      ...callbacks,
+    };
+    const resolved = EncounterOutcomes.resolveAll([
+      ...(resolution.completionEffects ?? []),
+      ...(resolution.remainingEffects ?? []),
+    ], context);
+    appendEncounterOutcome(active, resolved);
+    if (resolution.resume?.visualOverride !== undefined) {
+      active.visualOverride = resolution.resume.visualOverride ?? null;
+    }
+    if (resolved.dialogue) {
+      return queueEncounterDialogue(expedition, player, resolved.dialogue, resolution.resume, callbacks);
+    }
+    if (resolved.combat) {
+      return beginEncounterCombat(expedition, resolved.combat, resolution.resume, callbacks);
+    }
+    if (resolved.minigame) {
+      return beginEncounterMinigame(expedition, resolved.minigame, resolution.resume, callbacks);
+    }
+    if (resolution.resume?.type === "choice") {
+      return finishEncounterChoiceRoute(expedition, player, resolution.resume, callbacks);
+    }
+    active.phase = "result";
+    active.resultText = resolution.resume?.resultText || resolved.resultText || "The minigame concludes.";
+    recordActiveJourney(expedition, active);
+    return {
+      resolved: true,
+      ended: false,
+      minigameCompleted: true,
+      awaitingContinue: true,
+      message: active.resultText,
+      locationStop: resolved.locationStop ?? resolution.resume?.locationStop ?? null,
+      sfxId: resolved.sfxId ?? resolution.resume?.sfxId ?? null,
     };
   },
 
@@ -1112,6 +1244,7 @@ function lootRewardMessage(reward) {
   }
   if (reward.type === "item") return unsecuredLootMessage(reward.itemId, reward.quantity);
   if (reward.type === "gold") return `Recovered ${reward.quantity} gold.`;
+  if (reward.type === "catch") return `Caught ${reward.displayName}${quantityMarker(reward.quantity)}.`;
   return "";
 }
 

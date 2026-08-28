@@ -5727,3 +5727,25 @@ The corrective guide identified the regression as the static safety score replac
 ### Verification and resulting prototype state
 
 The focused deterministic simulation suite passes 66 assertions. A 12-campaign × 5-expedition Cautious batch improved from the reported broken baseline of 0% completion, 96% resource exhaustion, 2.08 average expeditions, median 1, and 0.18 combats to 100% completion, 0% resource exhaustion/death, 5 average and median expeditions, and 10.08 average combats, while retaining safe-positive selections.
+
+## 2026-08-27 - Reusable Fishing Minigame System
+
+### Goal
+
+Implement the first reusable minigame lifecycle with Fishing as the first authored type. Fishing should teach a permanent knowledge unlock, support repeatable stream opportunities, use authored circular water hotspots and loot, work in the playable game, simulator, replay path, and Content Editor, and preserve deterministic telemetry and encounter state.
+
+### AI-assisted implementation
+
+- Added the generic minigame definition/dispatch layer and Fishing runtime with three casts, normalized aim and power, bobber placement, authored bite delays/chances, a 500-900 ms hook window, miss consumption, catch results, and data-driven loot resolution.
+- Added authored Fishing data for the Old Forest Road teacher/tutorial and Woodland Stream, including priority-resolved circular hotspots, default-water fallback, Brown Trout/Small Trout/Large Pike catch definitions, existing Old Silver Coins item loot, Raw Fish material rewards, and a campfire Raw Fish recipe yielding four provisions.
+- Added permanent `fishing` knowledge, a non-milestone fisher encounter at roughly 115-180 stadia with Honey, Hunting Supplies, and Woodcraft teaching paths, and a repeatable outbound/returning Woodland Stream encounter capped at two occurrences with an active occurrence flag.
+- Integrated Fishing into encounter continuation, save-compatible expedition state, simulation strategy decisions, deterministic replay, single-run and campaign JSON/CSV telemetry, and the existing loot/material provenance flow.
+- Added Content Editor Minigames/Fishing authoring with background selection, attempt/time controls, default water, tutorial text, normalized draggable/resizable circular hotspots, priority ordering, reference-aware loot/catch selectors, validation, duplicate/delete, and surgical round-trip saving.
+
+### Manual changes
+
+The attached minigame/Fishing guide supplied the authored behavior, editor requirements, deterministic simulation/replay requirements, telemetry fields, and regression expectations. No new runtime dependencies or external assets were introduced; Fishing reuses the existing woodland stream artwork and preserves the separate game/tools repository boundary.
+
+### Verification and resulting prototype state
+
+The focused Fishing browser suite passes 8 checks, including module loading, normalized hotspot priority/fallback, teacher and stream authoring, catch/material/campfire resolution, two separated stream occurrences, single-run and campaign telemetry, deterministic simulation, and the playable cast-to-bite-to-Hook flow. Focused Content Editor validation/round-trip and browser authoring tests pass 3 tests, replay smoke tests pass 15 assertions, and `git diff --check` passes. The broader campaign suite was attempted but currently stops at the existing unrelated aggressive-emergency telemetry fixture assertion; no fishing-specific failure was reported.

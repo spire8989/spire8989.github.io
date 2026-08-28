@@ -495,6 +495,34 @@ const ReplayController = Object.freeze({
     if (active.phase === "dialogue") {
       return this.advanceEncounterDialogue();
     }
+    if (active.phase === "minigame") {
+      const decision = this.nextDecision();
+      if (!decision || decision.type !== "minigame"
+        || decision.minigameId !== active.minigameResolution?.minigameId
+        || decision.encounterId !== active.encounterId
+        || decision.stageId !== active.stageId) {
+        return this.desync("The next recorded decision is not the active minigame.", decision);
+      }
+      const result = Minigames.simulate(decision.minigameId, {
+        expedition,
+        player: replayState.player,
+        random: expedition.random,
+        strategyName: decision.strategy ?? "normal",
+        contextId: active.encounterId,
+      });
+      if (!result) return this.desync("The recorded minigame definition could not simulate.", decision);
+      const completed = EncounterManager.completeMinigame(
+        expedition,
+        replayState.player,
+        result,
+        this.encounterCallbacks(),
+      );
+      if (!completed.resolved) return this.desync("The recorded minigame could not resume its encounter.", decision);
+      this.consumeDecision();
+      this.holdPresentation(0.8);
+      this.renderReplayGame();
+      return { meaningful: true, decision: true };
+    }
     if (active.phase === "pending") {
       const result = EncounterManager.completePendingAction(
         expedition,
@@ -711,6 +739,7 @@ const ReplayController = Object.freeze({
       failExpedition: (reason) => this.fail(reason),
       startCombat: (combatId) => this.startCombat(combatId),
       startDialogue: () => true,
+      startMinigame: () => true,
       skipPresentationDelay: true,
     };
   },
@@ -2407,6 +2436,7 @@ function campaignReplaySnapshotForError() {
 function replayPhaseForExpedition(expedition) {
   if (expedition.combat) return "Combat";
   if (expedition.travelState === "camped") return "Camp";
+  if (expedition.activeEncounter?.phase === "minigame") return "Minigame";
   if (expedition.activeEncounter) return expedition.activeEncounter.eventKind === "camp" ? "Camp" : "Encounter";
   if (expedition.direction === "returning") return "Return";
   return "Traveling";

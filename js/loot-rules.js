@@ -77,6 +77,7 @@ const LootRules = Object.freeze({
   entryEligible(entry, context, state = {}) {
     if (!entry || !(Number(entry.weight) > 0)) return false;
     if (entry.type === "gold") return true;
+    if (entry.type === "catch") return Boolean(MINIGAME_CATCH_DEFINITIONS[entry.catchId]);
     if (entry.type === "material") return Boolean(MATERIAL_DEFINITIONS[entry.materialId]);
     if (entry.type === "item") {
       const item = ITEM_DEFINITIONS[entry.itemId];
@@ -143,6 +144,30 @@ const LootRules = Object.freeze({
 });
 
 function grantLootEntry(entry, context, sourceTableId) {
+  if (entry.type === "catch") {
+    const catchDefinition = MINIGAME_CATCH_DEFINITIONS[entry.catchId];
+    if (!catchDefinition) return null;
+    const quantity = Number.isFinite(entry.quantity)
+      ? Math.max(1, Math.floor(entry.quantity))
+      : Number(catchDefinition.quantity) || 1;
+    const granted = grantLootEntry({
+      type: "item",
+      itemId: catchDefinition.rewardItemId,
+      quantity,
+    }, context, sourceTableId);
+    if (!granted) return null;
+    const reward = {
+      ...granted,
+      type: "catch",
+      catchId: catchDefinition.id,
+      displayName: catchDefinition.name,
+      description: catchDefinition.description,
+      rewardItemId: catchDefinition.rewardItemId,
+      sourceTableId,
+    };
+    recordLootEvent(context, { type: "catch-granted", ...reward });
+    return reward;
+  }
   const quantity = lootQuantity(entry, context.random);
   const materialId = entry.type === "material" ? entry.materialId : entry.itemId;
   const isMaterial = entry.type === "material"
@@ -225,6 +250,7 @@ function addEntryQuantity(collection, idField, id, quantity) {
 
 function lootEntryLabel(entry) {
   return entry.type === "table" ? `${entry.type}:${entry.tableId}`
+    : entry.type === "catch" ? `${entry.type}:${entry.catchId}`
     : entry.type === "material" || (entry.type === "item" && MaterialRules.isMaterialId(entry.itemId)) ? `material:${entry.materialId ?? entry.itemId}`
       : entry.type === "item" ? `${entry.type}:${entry.itemId}`
         : entry.type === "recipe" ? `${entry.type}:${entry.recipeId}` : entry.type;

@@ -540,6 +540,14 @@ const SimulationTelemetry = Object.freeze({
       briefRestCount: run.briefRestCount,
       campRestCount: run.campRestCount,
       campEventCount: run.campEventCount,
+      fishingSessions: run.fishingSessions,
+      fishingCasts: run.fishingCasts,
+      fishingHooks: run.fishingHooks,
+      fishingMisses: run.fishingMisses,
+      fishCaught: run.fishCaught,
+      rawFishGained: run.rawFishGained,
+      fishingLoot: run.fishingLoot,
+      fishingKnowledgeLearned: run.fishingKnowledgeLearned,
       cookingActionCount: run.cookingActionCount,
       cookingProvisionsGained: run.cookingProvisionsGained,
       banditAmbushEncounters: run.banditAmbushEncounters,
@@ -656,6 +664,7 @@ const SimulationTelemetry = Object.freeze({
       "villageProvisionStockBefore", "villageProvisionStockAfter", "provisionsBeforeVillagePurchase",
       "provisionsAfterVillagePurchase", "villageProvisionPurchaseReason", "locationServiceActions",
       "briefRestCount", "campRestCount", "campEventCount", "cookingActionCount", "cookingProvisionsGained",
+      "fishingSessions", "fishingCasts", "fishingHooks", "fishingMisses", "fishCaught", "rawFishGained", "fishingLoot", "fishingKnowledgeLearned",
       "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered",
       "banditLeaderEncounters", "banditLeaderVictories", "banditGoldRecovered", "banditLootValueRecovered",
       "safePositiveChoicesAvailable", "safePositiveChoicesSelected", "riskyChoicesSelected", "unknownChoicesSelected",
@@ -790,6 +799,11 @@ function authoredStrategyChoice(strategyName, choices, context = {}) {
   }
   if (oldForestGoal && encounterId === "verdant_altar" && goalId === "defeat-verdant-warden") {
     return choiceById("sing_at_altar") ?? choiceById("inspect_altar") ?? choiceById("leave_altar") ?? null;
+  }
+  if (encounterId === "woodland_stream"
+    && strategyName !== "random" && strategyName !== "normal"
+    && context.player?.learnedKnowledge?.includes("fishing")) {
+    return choiceById("fish_the_stream") ?? null;
   }
   if (strategyName === "random" || strategyName === "normal") return null;
   if (encounterId === "hidden_flask") {
@@ -1263,6 +1277,7 @@ function cautiousChoiceScore(choice, context = {}) {
   else score -= 35;
   score -= cautiousProvisionPenalty(choice, context.expedition, context);
   score += cautiousCombatAdjustment(choice, context, safety);
+  if (choiceStartsFishing(choice) && context.player?.learnedKnowledge?.includes("fishing")) score += 45;
   return score;
 }
 
@@ -1297,6 +1312,7 @@ function aggressiveChoiceScore(choice) {
   const text = choiceText(choice);
   const startsCombat = (choice.outcomes ?? []).some((outcome) => outcome.type === "startCombat");
   return (startsCombat ? 50 : 0)
+    + (choiceStartsFishing(choice) ? 12 : 0)
     + (/fight|combat|attack|stand_ground|confront|force|cross|push/.test(text) ? 20 : 0)
     - (/flee|avoid|leave|wait|return/.test(text) ? 10 : 0);
 }
@@ -1331,6 +1347,7 @@ function equippedDefendTriggerDecision(combat, actions) {
 function greedyChoiceScore(choice) {
   const text = choiceText(choice);
   return (/loot|gain.*item|gold|search|investigate|explore|take|follow|open|dig|track/.test(text) ? 22 : 0)
+    + (choiceStartsFishing(choice) ? 18 : 0)
     - (/leave|ignore|return|avoid|wait/.test(text) ? 8 : 0);
 }
 
@@ -1775,10 +1792,15 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     resolveDialogueInstantly(expedition, player, strategy, random, telemetry, history, fail);
     return;
   }
+  if (active.phase === "minigame") {
+    resolveMinigameInstantly(expedition, player, strategy, random, telemetry, history, fail);
+    return;
+  }
   if (active.phase === "pending") {
     const result = EncounterManager.completePendingAction(expedition, player, active.pendingToken, {
       failExpedition: fail,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
+      startMinigame: () => true,
     });
     checkEncounterSurvival(expedition, fail);
     if (!result.resolved) fail("A pending encounter action could not resolve.");
@@ -1795,12 +1817,13 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     }
     const choiceAnalyses = choices.map((entry) => ({ choice: entry, analysis: analyzeChoiceSafety(entry) }));
     choiceAnalyses.forEach(({ analysis }) => recordChoiceSafety(telemetry, analysis));
-    const choice = strategy.chooseEncounter(choices, {
+    const chosenByStrategy = strategy.chooseEncounter(choices, {
       expedition, player, encounter: definition, stage, stageId: active.stageId, random,
       campaignGoal: scenario.campaignGoal ?? null,
       turnaroundPolicy: scenario.turnaroundPolicy ?? null,
     })
       ?? choices[0];
+    const choice = simulationTutorialChoice(definition, choices) ?? chosenByStrategy;
     const selectedChoiceAnalysis = choiceAnalyses.find((entry) => entry.choice === choice)?.analysis
       ?? analyzeChoiceSafety(choice);
     recordChoiceSafety(telemetry, selectedChoiceAnalysis, true);
@@ -1848,6 +1871,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
       failExpedition: fail,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
       startDialogue: () => true,
+      startMinigame: () => true,
       skipPresentationDelay: true,
     });
     checkEncounterSurvival(expedition, fail);
@@ -1902,6 +1926,89 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
       });
     }
   }
+}
+
+function choiceStartsFishing(choice) {
+  return (choice?.outcomes ?? []).some((effect) => (
+    effect?.type === "startMinigame"
+      && Minigames.definition(effect.minigameId)?.type === "fishing"
+  ));
+}
+
+function simulationTutorialChoice(definition, choices) {
+  if (definition?.id !== "old_road_fisher") return null;
+  const preferred = ["ask_with_woodcraft", "show_hunting_supplies", "offer_honey"];
+  return preferred.map((choiceId) => choices.find((choice) => choice.id === choiceId))
+    .find(Boolean)
+    ?? choices.find((choice) => choice.id === "pass_by_fisher")
+    ?? null;
+}
+
+function resolveMinigameInstantly(expedition, player, strategy, random, telemetry, history, fail) {
+  const active = expedition.activeEncounter;
+  const resolution = active?.minigameResolution;
+  const definition = Minigames.definition(resolution?.minigameId);
+  if (!resolution || !definition) {
+    fail("The active minigame definition is missing.");
+    return;
+  }
+  const learnedBefore = player.learnedKnowledge?.includes("fishing") === true;
+  const result = Minigames.simulate(definition.id, {
+    expedition,
+    player,
+    random,
+    strategyName: strategy.name,
+    contextId: active.encounterId,
+  });
+  if (!result) {
+    fail(`Minigame ${definition.id} could not simulate.`);
+    return;
+  }
+  history.minigames ??= [];
+  history.minigames.push({
+    minigameId: definition.id,
+    casts: result.casts,
+    catches: result.casts.filter((cast) => cast.catch).length,
+  });
+  telemetry.fishingSessions += 1;
+  telemetry.fishingCasts += result.casts.length;
+  telemetry.fishingHooks += result.casts.filter((cast) => cast.hooked).length;
+  telemetry.fishingMisses += result.casts.filter((cast) => cast.missed).length;
+  result.casts.forEach((cast) => {
+    if (!cast.catch) return;
+    telemetry.fishCaught += 1;
+    telemetry.fishingLoot[cast.catch.catchId] = (telemetry.fishingLoot[cast.catch.catchId] ?? 0)
+      + (Number(cast.catch.quantity) || 0);
+    if (cast.catch.rewardItemId === "raw_fish") telemetry.rawFishGained += Number(cast.catch.quantity) || 0;
+  });
+  telemetry.decisions.push({
+    type: "minigame",
+    minigameId: definition.id,
+    encounterId: active.encounterId,
+    stageId: active.stageId,
+    strategy: strategy.name,
+    casts: result.casts.map((cast) => ({
+      castNumber: cast.castNumber,
+      hotspotId: cast.hotspotId,
+      aimX: cast.landing.x,
+      power: cast.power ?? null,
+      hooked: cast.hooked,
+    })),
+  });
+  result.events.forEach((event) => telemetry.events.push({
+    ...event,
+    encounterId: active.encounterId,
+    distance: rounded(expedition.distance),
+  }));
+  const completed = EncounterManager.completeMinigame(expedition, player, result, {
+    failExpedition: fail,
+    startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
+    startDialogue: () => true,
+    startMinigame: () => true,
+  });
+  if (!learnedBefore && player.learnedKnowledge?.includes("fishing")) telemetry.fishingKnowledgeLearned += 1;
+  checkEncounterSurvival(expedition, fail);
+  if (!completed.resolved) fail(`Minigame ${definition.id} could not resume its encounter.`);
 }
 
 function resolveDialogueInstantly(expedition, player, strategy, random, telemetry, history, fail) {
@@ -1982,6 +2089,7 @@ function resolveDialogueInstantly(expedition, player, strategy, random, telemetr
       failExpedition: fail,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
       startDialogue: () => true,
+      startMinigame: () => true,
     },
   );
   if (!completed.resolved) fail(`Dialogue ${dialogueId} could not resume its parent flow.`);
@@ -2180,6 +2288,14 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     campsEntered: 0,
     campRests: [],
     campEvents: [],
+    fishingSessions: 0,
+    fishingCasts: 0,
+    fishingHooks: 0,
+    fishingMisses: 0,
+    fishCaught: 0,
+    rawFishGained: 0,
+    fishingLoot: {},
+    fishingKnowledgeLearned: 0,
     dialogues: [],
     recipesCooked: [],
     ingredientsConsumedById: {},
@@ -2467,6 +2583,14 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     briefRestCount: telemetry.briefRests.filter((rest) => rest.applied).length,
     campRestCount: telemetry.campRests.filter((rest) => rest.applied).length,
     campEventCount: telemetry.campEvents.length,
+    fishingSessions: telemetry.fishingSessions,
+    fishingCasts: telemetry.fishingCasts,
+    fishingHooks: telemetry.fishingHooks,
+    fishingMisses: telemetry.fishingMisses,
+    fishCaught: telemetry.fishCaught,
+    rawFishGained: telemetry.rawFishGained,
+    fishingLoot: deepClone(telemetry.fishingLoot),
+    fishingKnowledgeLearned: telemetry.fishingKnowledgeLearned,
     cookingActionCount: telemetry.recipesCooked.length,
     cookingProvisionsGained: rounded(telemetry.recipesCooked.reduce(
       (sum, recipe) => sum + (Number(recipe.provisionsGained) || 0), 0,
@@ -2837,6 +2961,19 @@ function summarizeRuns(results) {
     averageCampEvents: average(values("campEventCount")),
     averageCookingActions: average(values("cookingActionCount")),
     averageCookingProvisionsGained: average(values("cookingProvisionsGained")),
+    fishingSessions: results.reduce((sum, run) => sum + (Number(run.fishingSessions) || 0), 0),
+    fishingCasts: results.reduce((sum, run) => sum + (Number(run.fishingCasts) || 0), 0),
+    fishingHooks: results.reduce((sum, run) => sum + (Number(run.fishingHooks) || 0), 0),
+    fishingMisses: results.reduce((sum, run) => sum + (Number(run.fishingMisses) || 0), 0),
+    fishCaught: results.reduce((sum, run) => sum + (Number(run.fishCaught) || 0), 0),
+    rawFishGained: results.reduce((sum, run) => sum + (Number(run.rawFishGained) || 0), 0),
+    fishingLoot: results.reduce((loot, run) => {
+      Object.entries(run.fishingLoot ?? {}).forEach(([catchId, quantity]) => {
+        loot[catchId] = (loot[catchId] ?? 0) + (Number(quantity) || 0);
+      });
+      return loot;
+    }, {}),
+    fishingKnowledgeLearned: results.reduce((sum, run) => sum + (Number(run.fishingKnowledgeLearned) || 0), 0),
     banditAmbushEncounters: results.reduce((sum, run) => sum + (Number(run.banditAmbushEncounters) || 0), 0),
     banditAmbushVictories: results.reduce((sum, run) => sum + (Number(run.banditAmbushVictories) || 0), 0),
     banditLeaderEligibilityTriggered: results.reduce((sum, run) => sum + (Number(run.banditLeaderEligibilityTriggered) || 0), 0),

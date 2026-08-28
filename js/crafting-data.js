@@ -87,6 +87,14 @@ const RECIPE_DEFINITIONS = Object.freeze({
     ]),
     output: Object.freeze({ provisions: 3 }), goldCost: 0, rarity: "common",
   }),
+  cooked_fish: Object.freeze({
+    id: "cooked_fish", name: "Cooked Fish", description: "Roast a freshly caught fish over the campfire.",
+    craftingProvider: "campfire", starter: true,
+    ingredients: Object.freeze([
+      Object.freeze({ type: "item", id: "raw_fish", quantity: 1 }),
+    ]),
+    output: Object.freeze({ provisions: 4 }), goldCost: 0, rarity: "common",
+  }),
   foraged_meal: Object.freeze({
     id: "foraged_meal", name: "Foraged Meal", description: "Combine berries and mushrooms into a simple woodland meal.",
     craftingProvider: "campfire", starter: true,

@@ -22,6 +22,7 @@ const game = {
   provisionShopStock: createProvisionShopStock(),
   itemShopStock: createItemShopStock(),
   dialogueSession: null,
+  minigameSession: null,
   summary: null,
   elapsedSeconds: 0,
   lastTimestamp: null,
@@ -56,6 +57,10 @@ function initializeGame() {
   document.addEventListener("pointerdown", showPressedState);
   document.addEventListener("pointerup", clearPressedState);
   document.addEventListener("pointercancel", clearPressedState);
+  document.addEventListener("pointerdown", handleFishingPointerDown);
+  document.addEventListener("pointermove", handleFishingPointerMove);
+  document.addEventListener("pointerup", handleFishingPointerUp);
+  document.addEventListener("pointercancel", handleFishingPointerUp);
   window.addEventListener("resize", () => {
     if (game.screen === "location") window.requestAnimationFrame(clampTownHotspotsToScene);
     if (game.screen === "expedition") {
@@ -246,6 +251,15 @@ function handleAction(event) {
       break;
     case "encounter-choice":
       resolveEncounterChoice(choiceId);
+      break;
+    case "fishing-hook":
+      resolveFishingHook(true);
+      break;
+    case "fishing-dismiss-result":
+      dismissFishingResult();
+      break;
+    case "fishing-return":
+      returnFromFishing();
       break;
     case "continue-journey":
       continueJourney();
@@ -4788,6 +4802,10 @@ function applyEncounterPartyLayout(encounter, activeEncounter = null, livePartyL
 
 function renderExpedition() {
   const expedition = game.expedition;
+  if (game.minigameSession?.expedition === expedition) {
+    renderFishing(expedition, game.minigameSession);
+    return;
+  }
   const existingTravelScene = document.querySelector("#travel-scene");
   const previousPresentation = game.travelScenePresentation;
   const previousEncounterId = previousPresentation?.expedition === expedition
@@ -5223,6 +5241,9 @@ function renderTravelSettings(expedition) {
 
 function renderEncounterPanel(expedition, encounter) {
   const active = expedition.activeEncounter;
+  if (active.phase === "minigame") {
+    return `<div class="travel-panel encounter-panel" aria-live="polite"><p class="eyebrow">Travel Paused · Minigame</p><h1>${assetAttribute(encounter.title)}</h1><p class="encounter-description">The company is focused on the minigame.</p></div>`;
+  }
   if (active.phase === "dialogue") {
     return `
       <div class="travel-panel encounter-panel encounter-dialogue-panel" aria-live="polite">
@@ -5264,6 +5285,253 @@ function renderEncounterPanel(expedition, encounter) {
       <div class="encounter-choices">${choices}</div>
       ${renderJourneyLog(expedition)}
     </div>`;
+}
+
+function fishingDefinitionForSession(session) {
+  return Minigames.definition(session?.definitionId ?? session?.minigameId);
+}
+
+function fishingSessionStatus(session) {
+  if (session.state === "charging") return "Release to cast";
+  if (session.state === "waiting") return "The bobber drifts...";
+  if (session.state === "hook") return "A fish is on the line!";
+  if (session.state === "result") return session.lastResult?.hooked ? "Catch secured" : "The cast is spent";
+  if (session.state === "summary") return "Fishing complete";
+  return "Hold to charge your cast";
+}
+
+function fishingResultMarkup(session) {
+  if (session.state === "result" && session.lastResult) {
+    const result = session.lastResult;
+    const title = result.hooked ? `Caught ${result.catch?.displayName ?? "something"}` : "The line goes slack";
+    const message = result.hooked
+      ? (result.messages?.[0] ?? "The catch is added to the expedition's unsecured discoveries.")
+      : (result.biteOccurred ? "The fish got away. That cast is spent." : "Nothing took the bait. That cast is spent.");
+    return `<section class="fishing-result-card" aria-live="polite"><p class="eyebrow">${result.hooked ? "Catch" : "Miss"}</p><h2>${assetAttribute(title)}</h2><p>${assetAttribute(message)}</p><button class="game-button" type="button" data-action="fishing-dismiss-result">${session.castsRemaining > 0 ? "Cast Again" : "View Summary"}</button></section>`;
+  }
+  if (session.state !== "summary") return "";
+  const catches = session.casts.filter((cast) => cast.catch);
+  const catchList = catches.map((cast) => `<li>${assetAttribute(cast.catch.displayName)}${quantityMarker(cast.catch.quantity)}</li>`).join("");
+  return `<section class="fishing-result-card fishing-summary-card" aria-live="polite"><p class="eyebrow">Session Complete</p><h2>${catches.length ? `${catches.length} catch${catches.length === 1 ? "" : "es"}` : "No fish caught"}</h2>${catchList ? `<ul>${catchList}</ul>` : "<p>The stream keeps its secrets for now.</p>"}<button class="game-button" type="button" data-action="fishing-return">Return to the encounter</button></section>`;
+}
+
+function renderFishing(expedition, session) {
+  const definition = fishingDefinitionForSession(session);
+  if (!definition) return;
+  const backgroundPath = AssetCatalog.imagePath(definition.backgroundAssetId);
+  const activeCast = session.activeCast ?? session.lastResult;
+  const bobber = activeCast?.landing
+    ? `<span class="fishing-bobber" style="left:${activeCast.landing.x * 100}%;top:${activeCast.landing.y * 100}%" aria-label="Bobber"></span>`
+    : "";
+  const power = Math.round((session.power ?? 0) * 100);
+  const aim = Math.round((session.selectedX ?? 0.5) * 100);
+  const hookEnabled = session.state === "hook";
+  const canCharge = session.state === "aim" || session.state === "charging";
+  ui.screenRoot.innerHTML = `
+    <section class="screen expedition-screen fishing-screen" aria-label="${assetAttribute(definition.name)}">
+      <div class="fishing-stage" data-fishing-stage>
+        ${backgroundPath ? `<img class="fishing-background" src="${assetAttribute(backgroundPath)}" alt="Woodland stream">` : ""}
+        <div class="fishing-water-overlay" aria-hidden="true"></div>
+        ${bobber}
+        <div class="fishing-stage-caption"><span>${assetAttribute(fishingSessionStatus(session))}</span><span>${session.castsRemaining} cast${session.castsRemaining === 1 ? "" : "s"} remaining</span></div>
+      </div>
+      <div class="fishing-panel" aria-live="polite">
+        <p class="eyebrow">${assetAttribute(definition.tutorial?.title ?? "Fishing")}</p>
+        <h1>${assetAttribute(definition.name)}</h1>
+        <p class="fishing-instructions">${assetAttribute(definition.tutorial?.text ?? definition.description)}</p>
+        <div class="fishing-gauge-row">
+          <div class="fishing-power-gauge" aria-label="Cast power"><span class="fishing-gauge-fill" style="height:${power}%"></span><span class="fishing-gauge-marker" style="bottom:${power}%"></span></div>
+          <div class="fishing-cast-area ${canCharge ? "is-active" : "is-disabled"}" data-fishing-cast-area role="button" aria-label="${canCharge ? "Hold to charge cast" : "Cast area"}">
+            <span class="fishing-aim-line" style="left:${aim}%"></span>
+            <span class="fishing-cast-prompt">${assetAttribute(session.state === "charging" ? "Release to cast" : canCharge ? "Hold here to charge" : session.state === "hook" ? "Tap Hook" : "Watch the bobber")}</span>
+          </div>
+        </div>
+        <div class="fishing-controls">
+          <button class="game-button fishing-hook-button" type="button" data-action="fishing-hook" ${hookEnabled ? "" : "disabled"}>Hook!</button>
+        </div>
+        ${fishingResultMarkup(session)}
+      </div>
+    </section>`;
+}
+
+function startMinigame(expedition, minigameId, definition) {
+  if (!expedition || expedition.status !== "active" || game.minigameSession) return false;
+  const resolvedDefinition = definition ?? Minigames.definition(minigameId);
+  const session = Minigames.createSession(minigameId, {
+    contextId: `${expedition.activeEncounter?.encounterId ?? "minigame"}:${expedition.encounterOccurrences?.[expedition.activeEncounter?.encounterId] ?? 0}`,
+  });
+  if (!resolvedDefinition || !session) return false;
+  game.minigameSession = {
+    ...session,
+    expedition,
+    definitionId: resolvedDefinition.id,
+    rewardStartIndex: expedition.activeEncounter?.rewards?.length ?? 0,
+  };
+  game.dialogueSession = null;
+  game.screen = "expedition";
+  return true;
+}
+
+function fishingPointerPosition(element, event) {
+  const rect = element.getBoundingClientRect();
+  return {
+    x: clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1),
+  };
+}
+
+function handleFishingPointerDown(event) {
+  const session = game.minigameSession;
+  const area = event.target.closest?.("[data-fishing-cast-area]");
+  if (!session || session.expedition !== game.expedition || game.screen !== "expedition"
+    || !area || !["aim", "charging"].includes(session.state)) return;
+  event.preventDefault();
+  const position = fishingPointerPosition(area, event);
+  session.pointerId = event.pointerId;
+  session.pointerElement = area;
+  session.selectedX = position.x;
+  session.state = "charging";
+  session.power = 0.05;
+  session.chargeDirection = 1;
+  area.setPointerCapture?.(event.pointerId);
+  updateFishingHud();
+}
+
+function handleFishingPointerMove(event) {
+  const session = game.minigameSession;
+  if (!session || session.pointerId !== event.pointerId || session.state !== "charging") return;
+  event.preventDefault();
+  const element = session.pointerElement;
+  if (!element) return;
+  session.selectedX = fishingPointerPosition(element, event).x;
+  updateFishingHud();
+}
+
+function handleFishingPointerUp(event) {
+  const session = game.minigameSession;
+  if (!session || session.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  session.pointerElement?.releasePointerCapture?.(event.pointerId);
+  session.pointerId = null;
+  session.pointerElement = null;
+  if (session.state === "charging") releaseFishingCast();
+}
+
+function releaseFishingCast() {
+  const session = game.minigameSession;
+  const definition = fishingDefinitionForSession(session);
+  if (!session || !definition || session.state !== "charging") return;
+  MinigameRules.beginFishingCast(session, definition, {
+    x: session.selectedX,
+    power: session.power,
+    random: game.expedition.random,
+  });
+  renderScreen();
+}
+
+function resolveFishingCastResult(hooked) {
+  const session = game.minigameSession;
+  const definition = fishingDefinitionForSession(session);
+  if (!session || !definition || !["waiting", "hook"].includes(session.state)) return;
+  MinigameRules.resolveFishingCast(session, definition, {
+    hooked,
+    player: game.player,
+    expedition: game.expedition,
+    random: game.expedition.random,
+  });
+  renderScreen();
+}
+
+function resolveFishingHook(hooked) {
+  const session = game.minigameSession;
+  if (session?.state !== "hook") return;
+  resolveFishingCastResult(hooked);
+}
+
+function dismissFishingResult() {
+  const session = game.minigameSession;
+  if (!session || session.state !== "result") return;
+  session.lastResult = null;
+  session.state = session.castsRemaining > 0 ? "aim" : "summary";
+  renderScreen();
+}
+
+function returnFromFishing() {
+  const session = game.minigameSession;
+  const expedition = game.expedition;
+  if (!session || session.expedition !== expedition || session.state !== "summary") return;
+  const completed = EncounterManager.completeMinigame(
+    expedition,
+    game.player,
+    { messages: session.messages, rewards: session.rewards },
+    {
+      failExpedition,
+      startCombat: (combatId) => startCombat(expedition, combatId),
+      startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
+      startMinigame: (minigameId, nextDefinition) => startMinigame(expedition, minigameId, nextDefinition),
+    },
+  );
+  if (!completed.resolved) return;
+  game.minigameSession = null;
+  savePlayer();
+  finishEncounterResolution(completed, expedition, session.rewardStartIndex);
+}
+
+function updateFishingHud() {
+  const session = game.minigameSession;
+  if (!session) return;
+  const power = Math.round((session.power ?? 0) * 100);
+  const aim = Math.round((session.selectedX ?? 0.5) * 100);
+  const fill = document.querySelector(".fishing-gauge-fill");
+  const marker = document.querySelector(".fishing-gauge-marker");
+  const aimLine = document.querySelector(".fishing-aim-line");
+  if (fill) fill.style.height = `${power}%`;
+  if (marker) marker.style.bottom = `${power}%`;
+  if (aimLine) aimLine.style.left = `${aim}%`;
+  const caption = document.querySelector(".fishing-stage-caption");
+  if (caption?.firstElementChild) caption.firstElementChild.textContent = fishingSessionStatus(session);
+}
+
+function updateFishing(deltaSeconds) {
+  const session = game.minigameSession;
+  const definition = fishingDefinitionForSession(session);
+  if (!session || !definition) return;
+  session.elapsedSeconds += deltaSeconds;
+  if (Number.isFinite(definition.timeLimitSeconds)
+    && session.elapsedSeconds >= definition.timeLimitSeconds
+    && ["aim", "charging", "waiting", "hook"].includes(session.state)) {
+    if (session.state === "waiting") resolveFishingCastResult(false);
+    else if (session.state === "hook") resolveFishingHook(false);
+    else {
+      session.state = session.castsRemaining > 0 ? "summary" : "summary";
+      renderScreen();
+    }
+    return;
+  }
+  if (session.state === "charging") {
+    session.power += session.chargeDirection * deltaSeconds * 0.95;
+    if (session.power >= 1) {
+      session.power = 1;
+      session.chargeDirection = -1;
+    } else if (session.power <= 0.05) {
+      session.power = 0.05;
+      session.chargeDirection = 1;
+    }
+    updateFishingHud();
+  } else if (session.state === "waiting" && session.activeCast) {
+    session.activeCast.remainingMs -= deltaSeconds * 1000;
+    if (session.activeCast.remainingMs <= 0) {
+      if (session.activeCast.biteOccurs) {
+        session.state = "hook";
+        session.hookRemainingMs = session.activeCast.water.hookWindowMs;
+        renderScreen();
+      } else {
+        resolveFishingCastResult(false);
+      }
+    }
+  } else if (session.state === "hook") {
+    session.hookRemainingMs -= deltaSeconds * 1000;
+    if (session.hookRemainingMs <= 0) resolveFishingHook(false);
+  }
 }
 
 function nonRewardOutcomeMessages(messages = []) {
@@ -5896,6 +6164,7 @@ function resolveEncounterChoice(choiceId) {
     failExpedition,
     startCombat: (combatId) => startCombat(expedition, combatId),
     startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
+    startMinigame: (minigameId, definition) => startMinigame(expedition, minigameId, definition),
   });
   if (!result.resolved) {
     return;
@@ -5917,6 +6186,7 @@ function resolveEncounterChoice(choiceId) {
           failExpedition,
           startCombat: (combatId) => startCombat(pendingExpedition, combatId),
           startDialogue: (dialogueId) => startEncounterDialogue(pendingExpedition, dialogueId),
+          startMinigame: (minigameId, definition) => startMinigame(pendingExpedition, minigameId, definition),
         },
       );
       finishEncounterResolution(completed, pendingExpedition, rewardStartIndex);
@@ -5944,12 +6214,17 @@ function finishEncounterResolution(result, expedition, rewardStartIndex = null) 
 
   if (result.sfxId) AudioManager.playSfx(result.sfxId);
 
+  if (result.minigameStarted) {
+    renderScreen();
+    return;
+  }
+
   if (result.locationStop?.locationId) {
     enterExpeditionLocation(expedition, result.locationStop.locationId);
     return;
   }
 
-  if (!result.combatStarted && !result.dialogueStarted) {
+  if (!result.combatStarted && !result.dialogueStarted && !result.minigameCompleted) {
     queueEncounterRewardReveal(expedition, "encounter", rewardStartIndex);
   }
   if (triggerExpeditionDialogue(expedition, "encounterOutcome")) {
@@ -7135,6 +7410,8 @@ function gameLoop(timestamp) {
       ReplayController.update(deltaSeconds);
     } else if (game.expedition?.combat) {
       updateCombat(deltaSeconds);
+    } else if (game.minigameSession?.expedition === game.expedition) {
+      updateFishing(deltaSeconds);
     } else {
       updateExpedition(deltaSeconds);
     }

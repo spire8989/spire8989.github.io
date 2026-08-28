@@ -768,6 +768,56 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       }
     }
   },
+  old_road_fisher: {
+    id: "old_road_fisher",
+    title: "The Fisher at the Old Road",
+    description: "A weathered fisher sits beside the road with a spare line looped around one hand. The stream is close enough to hear.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road"],
+    directions: ["outbound"],
+    weight: 2,
+    minimumDistance: 115,
+    maximumDistance: 180,
+    tags: ["water", "knowledge", "fishing", "non-milestone"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The fisher watches the water and offers to teach the company how to feel a bite before it is too late.",
+        choices: [
+          {
+            id: "offer_honey",
+            label: "Offer Honey for the Lesson",
+            requirements: [{ type: "availableExpeditionItem", itemId: "honey", quantity: 1, unavailable: "locked", lockedLabel: "Requires Honey" }],
+            costs: [{ type: "consumeExpeditionItem", itemId: "honey", quantity: 1 }],
+            outcomes: [{ type: "startMinigame", minigameId: "fishing_teacher_tutorial", completionEffects: [{ type: "learnKnowledge", knowledgeId: "fishing" }] }],
+            endEncounter: true,
+          },
+          {
+            id: "show_hunting_supplies",
+            label: "Show Your Hunting Supplies",
+            requirements: [{ type: "carriedItem", itemId: "hunting_supplies", quantity: 1, unavailable: "locked", lockedLabel: "Requires Hunting Supplies" }],
+            outcomes: [{ type: "startMinigame", minigameId: "fishing_teacher_tutorial", completionEffects: [{ type: "learnKnowledge", knowledgeId: "fishing" }] }],
+            endEncounter: true,
+          },
+          {
+            id: "ask_with_woodcraft",
+            label: "Ask with Woodcraft",
+            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            outcomes: [{ type: "startMinigame", minigameId: "fishing_teacher_tutorial", completionEffects: [{ type: "learnKnowledge", knowledgeId: "fishing" }] }],
+            endEncounter: true,
+          },
+          {
+            id: "pass_by_fisher",
+            label: "Thank the Fisher and Continue",
+            resultText: "The fisher returns to the stream as the company follows the old road.",
+            endEncounter: true,
+          },
+        ],
+      },
+    },
+    visualAssetId: "encounter_woodland_stream",
+  },
   woodland_stream: {
     id: "woodland_stream",
     title: "Woodland Stream",
@@ -785,6 +835,19 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       start: {
         text: "The current is swift enough to make a careless crossing dangerous.",
         choices: [
+          {
+            id: "fish_the_stream",
+            label: "Fish the Stream",
+            requirements: [
+              { type: "knowledge", knowledgeId: "fishing", unavailable: "locked", lockedLabel: "Requires Fishing" },
+              { type: "notEncounterFlag", flag: "fishing_used", unavailable: "locked", lockedLabel: "Already Fished Here" },
+            ],
+            outcomes: [{
+              type: "startMinigame",
+              minigameId: "woodland_stream_fishing",
+              markEncounterFlag: "fishing_used",
+            }],
+          },
           {
             id: "wade_across",
             label: "Wade Across",

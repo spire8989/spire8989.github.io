@@ -591,6 +591,37 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       }
     ],
     rolls: 1
+  },
+  fishing_teacher_pool: {
+    id: "fishing_teacher_pool",
+    entries: [
+      { type: "catch", catchId: "brown_trout", weight: 80 },
+      { type: "catch", catchId: "small_trout", weight: 20 },
+    ],
+  },
+  fishing_woodland_default: {
+    id: "fishing_woodland_default",
+    entries: [
+      { type: "catch", catchId: "brown_trout", weight: 55 },
+      { type: "catch", catchId: "small_trout", weight: 30 },
+      { type: "item", itemId: "old_coin", minimum: 2, maximum: 3, weight: 15 },
+    ],
+  },
+  fishing_woodland_reeds: {
+    id: "fishing_woodland_reeds",
+    entries: [
+      { type: "catch", catchId: "small_trout", weight: 58 },
+      { type: "catch", catchId: "brown_trout", weight: 32 },
+      { type: "item", itemId: "old_coin", minimum: 2, maximum: 3, weight: 10 },
+    ],
+  },
+  fishing_woodland_deep_pool: {
+    id: "fishing_woodland_deep_pool",
+    entries: [
+      { type: "catch", catchId: "large_pike", weight: 38 },
+      { type: "catch", catchId: "brown_trout", weight: 42 },
+      { type: "item", itemId: "old_coin", minimum: 2, maximum: 3, weight: 20 },
+    ],
   }
 });
 
