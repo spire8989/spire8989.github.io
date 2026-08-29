@@ -512,6 +512,22 @@ function appendEncounterOutcome(active, resolved) {
   active.rewards.push(...(resolved.rewards ?? []));
 }
 
+function appendMinigameEncounterOutcome(active, result = {}, resolution = {}, context = {}) {
+  // Minigame `messages` and `rewards` are presentation and ownership data by
+  // default. A future minigame can opt into encounter accumulation with the
+  // explicit encounter fields, or with persistToEncounter for its whole result.
+  const persistToEncounter = resolution.persistToEncounter === true;
+  const encounterMessages = Array.isArray(result.encounterMessages)
+    ? result.encounterMessages
+    : persistToEncounter ? result.messages ?? [] : [];
+  const encounterRewards = Array.isArray(result.encounterRewards)
+    ? result.encounterRewards
+    : persistToEncounter ? result.rewards ?? [] : [];
+  active.outcomeMessages.push(...encounterMessages);
+  active.rewards ??= [];
+  active.rewards.push(...encounterRewards.map((reward) => annotateEncounterReward(reward, context)));
+}
+
 function annotateEncounterReward(reward, context = {}) {
   if (!reward || reward.sourceType || !["item", "material", "recipe", "gold", "catch"].includes(reward.type)) {
     return reward;
@@ -1015,9 +1031,11 @@ const EncounterManager = Object.freeze({
     const resolution = active.minigameResolution;
     delete active.minigameResolution;
     active.phase = "choice";
-    active.outcomeMessages.push(...(result.messages ?? []));
-    active.rewards ??= [];
-    active.rewards.push(...(result.rewards ?? []));
+    appendMinigameEncounterOutcome(active, result, resolution, {
+      expedition,
+      sourceEncounterId: active.encounterId,
+      sourceChoiceId: active.lastChoiceId,
+    });
     if (resolution.markEncounterFlag) {
       active.encounterFlags ??= {};
       active.encounterFlags[resolution.markEncounterFlag] = true;

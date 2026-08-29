@@ -57,8 +57,8 @@ def run():
         )
         check(
             "(() => { const d=MINIGAME_DEFINITIONS.woodland_stream_fishing;"
-            " const overlap={id:'low',x:0.73,y:0.35,radius:0.3,priority:1};"
-            " const priority=MinigameRules.fishingHotspot({...d,hotspots:[overlap,d.hotspots[1]]},0.73,0.35);"
+            " const overlap={id:'low',x:0.13,y:0.33,radius:0.3,priority:1};"
+            " const priority=MinigameRules.fishingHotspot({...d,hotspots:[overlap,d.hotspots[1]]},0.13,0.33);"
             " const fallback=MinigameRules.fishingHotspot(d,0.95,0.95);"
             " return d.attemptLimit===3 && d.timeLimitSeconds===null"
             " && priority.id==='deep_pool' && fallback.id==='default_water'; })()",
@@ -72,6 +72,8 @@ def run():
             " const fish=s.stages.start.choices.find(c=>c.id==='fish_the_stream');"
             " return d.minimumDistance===115 && d.maximumDistance===180 && d.weight===2"
             " && d.milestone!==true && teaching.length===3"
+            " && MINIGAME_DEFINITIONS.fishing_teacher_tutorial.tutorial.enabled===true"
+            " && d.encounterLayout?.arthur && d.encounterLayout?.companion1 && d.encounterLayout?.companion2"
             " && fish.requirements.some(r=>r.type==='knowledge'&&r.knowledgeId==='fishing')"
             " && fish.requirements.some(r=>r.type==='notEncounterFlag'&&r.flag==='fishing_used')"
             " && s.repeatable===true && s.maxOccurrencesPerRun===2; })()",
@@ -115,6 +117,27 @@ def run():
             "The fishing tutorial did not grant Fishing knowledge on completion",
         )
         check(
+            "(() => { const previous={player:game.player,expedition:game.expedition,screen:game.screen,session:game.minigameSession};"
+            " const p=SaveSystem.createDefaultPlayerState(); p.learnedKnowledge=[]; p.selectedCompanions=[]; p.selectedCompanion=null;"
+            " p.materials.honey=1; p.packedMaterials={honey:1}; const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:20,random:()=>0});"
+            " e.direction='outbound'; e.distance=120; e.encounterTravelDistance=120; e.currentPathId='old_forest_road'; EncounterManager.begin(e,'old_road_fisher');"
+            " game.player=p; game.expedition=e; game.screen='expedition'; const started=EncounterManager.resolveChoice(e,p,'offer_honey',{startMinigame:(id,d)=>startMinigame(e,id,d)}); renderScreen();"
+            " const stage=document.querySelector('[data-fishing-stage]'); const overlay=document.querySelector('[data-fishing-tutorial-overlay]'); const button=overlay?.querySelector('[data-action=fishing-begin-lesson]'); const buttonRect=button?.getBoundingClientRect();"
+            " const tutorialText=MINIGAME_DEFINITIONS.fishing_teacher_tutorial.tutorial.text; const initial=game.minigameSession?.state==='tutorial'"
+            " && overlay?.closest('[data-fishing-stage]')===stage && buttonRect?.width>0 && buttonRect?.top>=0 && buttonRect?.bottom<=window.innerHeight"
+            " && !document.querySelector('.fishing-panel .fishing-instructions') && !document.querySelector('.fishing-panel')?.textContent.includes(tutorialText)"
+            " && game.minigameSession?.castsRemaining===3; button?.click();"
+            " const aimStage=document.querySelector('[data-fishing-stage]'); const aimRect=aimStage?.getBoundingClientRect();"
+            " const aimed=game.minigameSession?.state==='aim' && game.minigameSession?.castsRemaining===3"
+            " && document.querySelector('.fishing-stage-hint')?.textContent==='Press and hold on the water to cast';"
+            " aimStage?.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,clientX:aimRect.left+aimRect.width*0.4,clientY:aimRect.top+aimRect.height*0.6,pointerId:41,pointerType:'touch',buttons:1}));"
+            " aimStage?.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,cancelable:true,clientX:aimRect.left+aimRect.width*0.4,clientY:aimRect.top+aimRect.height*0.6,pointerId:41,pointerType:'touch',buttons:0}));"
+            " const inputWorks=game.minigameSession?.state==='waiting' && game.minigameSession?.castsRemaining===3;"
+            " game.minigameSession=previous.session; game.expedition=previous.expedition; game.player=previous.player; game.screen=previous.screen; renderScreen();"
+            " window.__minigameDebug={...window.__minigameDebug,teacherOverlay:{started,initial,aimed,inputWorks}}; return started.minigameStarted===true && initial && aimed && inputWorks; })()",
+            "The teacher Fishing tutorial did not stay on-stage or transition into normal aim without spending a cast",
+        )
+        check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; p.selectedCompanion=null; p.packedMaterials={};"
             " const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:20,random:()=>0});"
             " const d=MINIGAME_DEFINITIONS.woodland_stream_fishing; const s=MinigameRules.createFishingSession(d);"
@@ -131,6 +154,23 @@ def run():
             " return markup.includes('2 catches') && markup.includes('Small Trout') && markup.includes('Old Silver Coins')"
             " && markup.indexOf('Old Silver Coins')<markup.indexOf('Return to the encounter'); })()",
             "Fishing summary did not count and list non-fish successful rewards",
+        )
+        check(
+            "(() => { const p=SaveSystem.createDefaultPlayerState(); p.learnedKnowledge=['fishing']; p.selectedCompanions=[]; p.selectedCompanion=null; p.packedMaterials={};"
+            " const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:30,random:()=>0}); e.direction='outbound'; e.distance=12; e.encounterTravelDistance=12; e.currentPathId='old_forest_road';"
+            " EncounterManager.begin(e,'woodland_stream'); const def=ENCOUNTER_DEFINITIONS.woodland_stream; const beforeVisual=resolveEncounterVisualState(def,e.activeEncounter); const beforeLayout=JSON.stringify(beforeVisual.layout); const beforeHidden=JSON.stringify([...beforeVisual.hiddenSlots]);"
+            " const started=EncounterManager.resolveChoice(e,p,'fish_the_stream',{startMinigame:()=>true}); const sim=Minigames.simulate('woodland_stream_fishing',{player:p,expedition:e,random:()=>0,strategyName:'aggressive'});"
+            " const catchMessages=sim.messages.filter(message=>message.includes('Caught')); const completed=EncounterManager.completeMinigame(e,p,sim,{startMinigame:()=>true});"
+            " const noCatchAccumulation=!e.activeEncounter.outcomeMessages.some(message=>catchMessages.includes(message))"
+            " && !e.activeEncounter.rewards.some(reward=>reward.type==='catch'||reward.sourceType==='minigame'); const rawFish=e.materialBag.unsecured.raw_fish;"
+            " const afterLayout=JSON.stringify(resolveEncounterVisualState(def,e.activeEncounter).layout); const crossing=EncounterManager.resolveChoice(e,p,'wade_across',{skipPresentationDelay:true});"
+            " const crossed=EncounterManager.completePendingAction(e,p,crossing.pendingToken,{skipPresentationDelay:true}); const finalMarkup=renderEncounterResultPanel(e,def,e.activeEncounter);"
+            " const afterVisual=resolveEncounterVisualState(def,e.activeEncounter); const noDuplicateCatchPresentation=!finalMarkup.includes('Caught')&&!finalMarkup.includes('Unknown reward')"
+            " && JSON.stringify(afterVisual.layout)===beforeLayout && JSON.stringify([...afterVisual.hiddenSlots])===beforeHidden"
+            " && e.activeEncounter.stageId==='start' && afterVisual.backgroundAssetId==='encounter_woodland_stream';"
+            " window.__minigameDebug={...window.__minigameDebug,ownership:{started,simMessages:sim.messages,catchMessages,completed,rawFish,noCatchAccumulation,crossing,crossed,finalMarkup}};"
+            " return started.minigameStarted===true && sim.casts.length===3 && catchMessages.length>0 && rawFish===9 && completed.resolved===true && noCatchAccumulation && afterLayout===beforeLayout && crossed.resolved===true && noDuplicateCatchPresentation; })()",
+            "Fishing catches were not kept local through stream crossing or the authored encounter layout was not restored",
         )
         check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.learnedKnowledge=['fishing'];"
@@ -197,6 +237,7 @@ def run():
             " && promptRect.top<stageRect.top+stageRect.height*0.2"
             " && getComputedStyle(prompt).backgroundColor!=='rgba(0, 0, 0, 0)'"
             " && getComputedStyle(castsPill).backgroundColor!=='rgba(0, 0, 0, 0)'"
+            " && game.minigameSession.state==='aim' && !document.querySelector('[data-fishing-tutorial-overlay]')"
             " && document.querySelector('.fishing-stage-hint')?.textContent==='Press and hold on the water to cast';"
             " if (!game.minigameSession || !stage || oldArea || hookButton || !portraitLayout) return false;"
             " const rect=stage.getBoundingClientRect();"

@@ -1,5 +1,55 @@
 # Build Log
 
+## 2026-08-28 - Fishing Encounter Integration Correction Pass
+
+### Goal
+
+Keep Fishing catch presentation inside the minigame while restoring encounter
+progression, teacher flow, and authored party presentation cleanly afterward.
+
+### Human direction
+
+- Move the teacher lesson instructions into a stage-local Fishing overlay.
+- Stop Fishing catches from becoming duplicate generic encounter rewards.
+- Preserve actual inventory, sim, replay, and knowledge effects.
+- Author and verify the Old Road Fisher party layout, then commit and push the
+  game and tool changes.
+
+### AI-assisted implementation
+
+- Added a data-driven `tutorial.enabled` flag and "tutorial" Fishing session
+  state. The teacher overlay transitions to normal aim without consuming a
+  cast, while ordinary stream Fishing still starts directly in aim.
+- Removed the default aggregation of minigame-local `messages` and `rewards`
+  from `EncounterManager.completeMinigame()`. Future minigames can explicitly
+  opt into encounter output through `encounterMessages`, `encounterRewards`, or
+  `persistToEncounter`; completion effects continue through the normal outcome
+  resolver.
+- Added an explicit Old Road Fisher encounter layout using the Woodland Stream
+  scene’s authored coordinates, facing, and scale conventions.
+- Exposed the tutorial-intro flag in GrailTools’ minigame editor and added
+  regressions for the teacher overlay, cast preservation, reward ownership,
+  stream crossing deduplication, unknown-reward absence, and layout restore.
+
+### Reported manual changes
+
+- No new artwork or binary assets were added.
+
+### Verification and resulting prototype state
+
+- Fishing browser coverage passes 12 checks, including the mobile overlay,
+  Begin Lesson transition, three-cast stream ownership, crossing result, and
+  authored layout restoration.
+- Replay coverage passes 15 assertions; encounter-path coverage passes.
+- The dedicated Content Editor minigame test passes, including tutorial flag
+  visibility and existing hotspot editing. The full editor suite still reports
+  six unrelated pre-existing fixture failures.
+- The broader simulation/campaign suites still stop at their existing
+  unrelated Pommel Strike and emergency-telemetry fixture assertions; the
+  campaign-replay and expedition-content suites likewise stop at their existing
+  cooking and Fountain Knight fixtures.
+- `git diff --check` passes for the changed repositories.
+
 ## 2026-08-27 - Expedition Inn and Combat HP Presentation Fixes
 
 ### Goal

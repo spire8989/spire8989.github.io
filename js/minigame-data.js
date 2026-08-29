@@ -79,6 +79,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
       }),
     ]),
     tutorial: Object.freeze({
+      enabled: true,
       title: "Read the Water",
       text: "Press and hold on the water to charge your cast. Release to place the bobber; watch the float and tap it when it plunges.",
       completionText: "The fisher nods. You know how to read a stream now.",

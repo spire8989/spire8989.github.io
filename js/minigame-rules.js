@@ -139,12 +139,15 @@ const MinigameRules = Object.freeze({
   landingPosition: fishingLandingPosition,
 
   createFishingSession(definition, context = {}) {
+    const tutorialIntroPending = definition.tutorial?.enabled === true
+      && context.uiSession === true;
     return {
       type: "fishing",
       minigameId: definition.id,
       definitionId: definition.id,
       contextId: context.contextId ?? null,
-      state: "aim",
+      state: tutorialIntroPending ? "tutorial" : "aim",
+      tutorialIntroPending,
       castsRemaining: definition.attemptLimit,
       casts: [],
       activeCast: null,
@@ -156,6 +159,13 @@ const MinigameRules = Object.freeze({
       messages: [],
       rewards: [],
     };
+  },
+
+  beginFishingLesson(session) {
+    if (!session || session.state !== "tutorial") return false;
+    session.tutorialIntroPending = false;
+    session.state = "aim";
+    return true;
   },
 
   beginFishingCast(session, definition, { x, power, random } = {}) {

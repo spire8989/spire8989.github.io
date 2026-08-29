@@ -255,6 +255,9 @@ function handleAction(event) {
     case "fishing-dismiss-result":
       dismissFishingResult();
       break;
+    case "fishing-begin-lesson":
+      beginFishingLesson();
+      break;
     case "fishing-return":
       returnFromFishing();
       break;
@@ -5319,6 +5322,11 @@ function fishingRewardLine(reward) {
 }
 
 function fishingResultMarkup(session) {
+  if (session.state === "tutorial") {
+    const definition = fishingDefinitionForSession(session);
+    const tutorial = definition?.tutorial ?? {};
+    return `<div class="fishing-stage-overlay" data-fishing-overlay data-fishing-tutorial-overlay role="dialog" aria-modal="true" aria-live="polite"><div class="fishing-stage-overlay-backdrop" aria-hidden="true"></div><section class="fishing-stage-result-card fishing-result-card fishing-tutorial-card"><p class="eyebrow">${assetAttribute(definition?.name ?? "First Lesson: Fishing")}</p><h2>${assetAttribute(tutorial.title ?? "Read the Water")}</h2><p>${assetAttribute(tutorial.text ?? definition?.description ?? "Learn to read the water before you cast.")}</p><button class="game-button" type="button" data-action="fishing-begin-lesson">Begin Lesson</button></section></div>`;
+  }
   if (session.state === "result" && session.lastResult) {
     const result = session.lastResult;
     const reward = result.reward ?? result.catch ?? result.rewards?.[0] ?? null;
@@ -5352,11 +5360,8 @@ function renderFishing(expedition, session) {
   const power = Math.round((session.power ?? 0) * 100);
   const aim = Math.round((session.selectedX ?? 0.5) * 100);
   const charging = session.state === "charging";
-  const teacherTutorial = definition.id === "fishing_teacher_tutorial";
-  const instructions = teacherTutorial
-    ? definition.tutorial?.text ?? definition.description
-    : definition.description;
-  const overlayVisible = ["result", "summary"].includes(session.state);
+  const teacherTutorial = definition.tutorial?.enabled === true;
+  const overlayVisible = ["tutorial", "result", "summary"].includes(session.state);
   const stageHint = session.state === "aim"
     ? "Press and hold on the water to cast"
     : session.state === "hook" ? "BITE!" : "";
@@ -5371,10 +5376,10 @@ function renderFishing(expedition, session) {
         <div class="fishing-stage-caption"><span class="fishing-casts-remaining">${session.castsRemaining} cast${session.castsRemaining === 1 ? "" : "s"} remaining</span></div>
         ${fishingResultMarkup(session)}
       </div>
-      <div class="fishing-panel ${teacherTutorial ? "is-teacher" : "is-compact"}" aria-live="polite">
-        ${teacherTutorial ? `<p class="eyebrow">${assetAttribute(definition.tutorial?.title ?? "Fishing")}</p>` : ""}
+      <div class="fishing-panel ${teacherTutorial ? "is-teacher is-compact" : "is-compact"}" aria-live="polite">
+        ${teacherTutorial ? `<p class="eyebrow">Fishing lesson</p>` : ""}
         <h1>${assetAttribute(definition.name)}</h1>
-        <p class="fishing-instructions">${assetAttribute(instructions)}</p>
+        ${teacherTutorial ? "" : `<p class="fishing-instructions">${assetAttribute(definition.description)}</p>`}
       </div>
     </section>`;
 }
@@ -5503,6 +5508,12 @@ function resolveFishingHook(hooked) {
   const session = game.minigameSession;
   if (session?.state !== "hook") return;
   resolveFishingCastResult(hooked);
+}
+
+function beginFishingLesson() {
+  const session = game.minigameSession;
+  if (!session || session.expedition !== game.expedition || session.state !== "tutorial") return;
+  if (MinigameRules.beginFishingLesson(session)) renderScreen();
 }
 
 function dismissFishingResult() {

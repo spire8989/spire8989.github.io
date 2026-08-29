@@ -13,7 +13,7 @@ const Minigames = Object.freeze({
     const definition = this.definition(minigameId);
     if (!definition || definition.type !== "fishing") return null;
     if (MinigameRules.validateDefinition(definition).length > 0) return null;
-    return MinigameRules.createFishingSession(definition, context);
+    return MinigameRules.createFishingSession(definition, { ...context, uiSession: true });
   },
 
   simulate(minigameId, context = {}) {

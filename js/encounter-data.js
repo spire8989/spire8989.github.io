@@ -817,6 +817,24 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       },
     },
     visualAssetId: "encounter_woodland_stream",
+    encounterLayout: {
+      arthur: {
+        x: 0.43359375,
+        y: 0.6809895833333334,
+        facing: "right",
+        scale: 0.75
+      },
+      companion2: {
+        x: 0.271484375,
+        y: 1,
+        facing: "right"
+      },
+      companion1: {
+        x: 0.65625,
+        y: 0.9587673611111112,
+        facing: "right"
+      }
+    },
   },
   woodland_stream: {
     id: "woodland_stream",
