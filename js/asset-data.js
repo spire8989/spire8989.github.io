@@ -293,6 +293,31 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "encounter_vanishing_trail",
     path: "assets/images/encounter/vanishing_trail2.webp",
     category: "encounter"
+  },
+  encounter_ancient_spring: {
+    id: "encounter_ancient_spring",
+    path: "assets/images/encounter/ancient_spring5.webp",
+    category: "encounter"
+  },
+  combat_the_bell_bearer_idle: {
+    id: "combat_the_bell_bearer_idle",
+    path: "assets/images/combat/bell-bearer-idle.webp",
+    category: "combat"
+  },
+  combat_the_bell_bearer_attack: {
+    id: "combat_the_bell_bearer_attack",
+    path: "assets/images/combat/bell-bearer-punch.webp",
+    category: "combat"
+  },
+  combat_briar_knight_idle: {
+    id: "combat_briar_knight_idle",
+    path: "assets/images/combat/briarknight-idle.webp",
+    category: "combat"
+  },
+  combat_briar_knight_attack: {
+    id: "combat_briar_knight_attack",
+    path: "assets/images/combat/briarknight-attack.webp",
+    category: "combat"
   }
 });
 

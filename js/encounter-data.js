@@ -5764,14 +5764,34 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "gather_spring_growth",
             label: "Gather the Spring Growth with Woodcraft",
-            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
+            requirements: [
+              {
+                type: "knowledge",
+                knowledgeId: "woodcraft",
+                unavailable: "locked",
+                lockedLabel: "Requires Woodcraft"
+              }
+            ],
             outcomes: [
-              { type: "gainUnsecuredItem", itemId: "fresh_herbs", quantity: 1 },
-              { type: "gainUnsecuredItem", itemId: "wild_berries", quantity: 1 },
+              {
+                type: "gainUnsecuredItem",
+                itemId: "fresh_herbs",
+                quantity: 1
+              },
+              {
+                type: "gainUnsecuredItem",
+                itemId: "wild_berries",
+                quantity: 1
+              },
               {
                 type: "randomChance",
                 chance: 0.1,
-                effects: [{ type: "rollLootTable", tableId: "rare_herb_find" }]
+                effects: [
+                  {
+                    type: "rollLootTable",
+                    tableId: "rare_herb_find"
+                  }
+                ]
               }
             ],
             resultText: "Arthur gathers the clean herbs and berries growing beside the spring, leaving the water undisturbed.",
@@ -5816,7 +5836,28 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
-    }
+    },
+    visualAssetId: "encounter_ancient_spring",
+    encounterLayout: {
+      arthur: {
+        x: 0.13945317268371582,
+        y: 0.47500016954210067,
+        scale: 0.75,
+        facing: "right"
+      },
+      companion1: {
+        x: 0.041015625,
+        y: 0.6805554495917426,
+        scale: 0.9,
+        facing: "right"
+      },
+      companion2: {
+        x: 0.337890625,
+        y: 0.9777777989705404,
+        scale: 0.9
+      }
+    },
+    hiddenSlots: ["companion2"]
   },
   too_perfect_grove: {
     id: "too_perfect_grove",

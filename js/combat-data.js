@@ -426,7 +426,7 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   }),
   leper_knight: {
     id: "leper_knight",
-    name: "Leper Knight",
+    name: "The Bell-Bearer",
     maxHp: 48,
     speed: 11,
     defense: 2,
@@ -436,7 +436,21 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         rolls: 1,
         tableId: "leper_knight_loot"
       }
-    ]
+    ],
+    visuals: {
+      idle: {
+        assetId: "combat_the_bell_bearer_idle",
+        frameCount: 24,
+        columns: 5,
+        fps: 20
+      },
+      attack: {
+        assetId: "combat_the_bell_bearer_attack",
+        frameCount: 25,
+        columns: 5,
+        fps: 16
+      }
+    }
   },
   morgans_huntsman: Object.freeze({
     id: "morgans_huntsman",
@@ -468,7 +482,23 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         rolls: 1,
         chance: 0.75
       }
-    ]
+    ],
+    visuals: {
+      idle: {
+        assetId: "combat_briar_knight_idle",
+        frameCount: 22,
+        columns: 5,
+        fps: 20
+      },
+      attack: {
+        assetId: "combat_briar_knight_attack",
+        frameCount: 25,
+        columns: 5,
+        scale: 1.5,
+        fps: 16
+      }
+    },
+    combatVisualScale: 1.5
   },
   black_hound_of_the_hunt: Object.freeze({
     id: "black_hound_of_the_hunt",
@@ -654,14 +684,17 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "sprained_ankle",
     injuryChance: 0.2,
   }),
-  leper_blade: Object.freeze({
+  leper_blade: {
     id: "leper_blade",
-    name: "Blunted Knight's Blade",
-    damage: Object.freeze({ minimum: 5, maximum: 8 }),
+    name: "Diseased Punch",
+    damage: {
+      minimum: 5,
+      maximum: 8
+    },
     target: "arthur",
-    injuryId: "deep_cut",
-    injuryChance: 0.1,
-  }),
+    injuryId: "poisoned",
+    injuryChance: 0.1
+  },
   leper_cough: Object.freeze({
     id: "leper_cough",
     name: "Sickening Cough",
