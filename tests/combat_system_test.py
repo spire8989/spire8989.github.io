@@ -122,6 +122,10 @@ def run() -> None:
             "Enemy actions did not resolve through the shared effect path",
         )
         check(
+            "(() => { const enemy=COMBAT_ENEMY_DEFINITIONS.wild_boar; const action=COMBAT_ENEMY_ACTION_DEFINITIONS.wolf_bite; const priorAnimations=enemy.visuals.animations; const hadAnimation=Object.prototype.hasOwnProperty.call(enemy.visuals,'animations'); const priorId=action.animationId; try { enemy.visuals.animations={bell_ring:{...enemy.visuals.attack,impactFrame:7}}; action.animationId='bell_ring'; const valid=resolveCombatActionVisualSlot({side:'enemy',definitionId:'wild_boar'},{action:'wolf_bite'})==='bell_ring'; action.animationId='missing_animation'; const invalid=resolveCombatActionVisualSlot({side:'enemy',definitionId:'wild_boar'},{action:'wolf_bite'})==='attack'; delete action.animationId; const missing=resolveCombatActionVisualSlot({side:'enemy',definitionId:'wild_boar'},{action:'wolf_bite'})==='attack'; return valid&&invalid&&missing; } finally { if(hadAnimation) enemy.visuals.animations=priorAnimations; else delete enemy.visuals.animations; if(priorId===undefined) delete action.animationId; else action.animationId=priorId; } })()",
+            "Enemy action animation IDs did not select valid named animations or fall back to Attack",
+        )
+        check(
             "(() => { const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; p.equippedItems.weapon='thorn_of_the_dolorous_vale'; p.equippedItems.relic='reliquary_of_saint_lazarus'; const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:5,random:()=>0}); const c=CombatSystem.create(e,'wild_boar',{random:()=>0}); c.status='awaitingAction'; c.activeActorId='arthur'; CombatSystem.chooseAction(c,e,'attack',c.enemies[0].id); return c.events.filter(event=>event.type==='equipment-trigger'&&event.trigger==='onHit'&&event.applied).length===2&&c.enemies[0].statuses.bleeding&&c.enemies[0].statuses.poisoned; })()",
             "Equipment on-hit passives did not survive migration",
         )

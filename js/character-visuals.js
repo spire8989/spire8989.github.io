@@ -17,12 +17,18 @@ function characterVisualDefinition(definition) {
   return visuals && typeof visuals === "object" && !Array.isArray(visuals) ? visuals : null;
 }
 
+function characterVisualForSlot(definition, slot) {
+  const visuals = characterVisualDefinition(definition);
+  if (!visuals || !slot) return null;
+  return CHARACTER_VISUAL_SLOTS.includes(slot) ? visuals[slot] : visuals.animations?.[slot];
+}
+
 function characterVisualAssetIsUsable(assetId) {
   return typeof AssetCatalog !== "undefined" && Boolean(assetId) && Boolean(AssetCatalog.imagePath(assetId));
 }
 
 function characterVisualSlotIsUsable(definition, slot) {
-  const visual = characterVisualDefinition(definition)?.[slot];
+  const visual = characterVisualForSlot(definition, slot);
   return Boolean(visual && typeof visual === "object" && characterVisualAssetIsUsable(visual.assetId));
 }
 
@@ -59,7 +65,7 @@ function loadCharacterVisualImage(assetId) {
 }
 
 function preloadCharacterVisualSlot(definition, slot) {
-  const visual = characterVisualDefinition(definition)?.[slot];
+  const visual = characterVisualForSlot(definition, slot);
   if (!visual || typeof visual !== "object" || !characterVisualAssetIsUsable(visual.assetId)) {
     return Promise.resolve(null);
   }
@@ -88,7 +94,7 @@ function characterVisualCandidates(definition, requestedSlot = "idle") {
   const visuals = characterVisualDefinition(definition);
   const addSlot = (slot) => {
     if (!slot || candidates.some((candidate) => candidate.slot === slot)) return;
-    const visual = visuals?.[slot];
+    const visual = characterVisualForSlot(definition, slot);
     if (visual && typeof visual === "object" && typeof visual.assetId === "string" && visual.assetId) candidates.push({ slot, visual });
   };
   addSlot(requestedSlot);
@@ -129,7 +135,7 @@ function characterVisualConfig(definition, requestedSlot, options = {}) {
   const columnsValue = Number(visual.columns);
   const columns = Number.isInteger(columnsValue) && columnsValue > 0 ? Math.min(columnsValue, frameCount) : frameCount;
   const fpsValue = Number(visual.fps);
-  const fps = frameCount > 1 ? (Number.isFinite(fpsValue) && fpsValue > 0 ? fpsValue : CHARACTER_VISUAL_DEFAULT_FPS[requestedSlot] ?? 8) : 0;
+  const fps = frameCount > 1 ? (Number.isFinite(fpsValue) && fpsValue > 0 ? fpsValue : CHARACTER_VISUAL_DEFAULT_FPS[requestedSlot] ?? 12) : 0;
   const rows = Math.max(1, Math.ceil(frameCount / columns));
   const visualScale = Math.min(3, characterVisualNumber(definition?.visualScale, 1, 0.25));
   const combatVisualScale = Math.min(3, characterVisualNumber(definition?.combatVisualScale, visualScale, 0.25));

@@ -2745,6 +2745,21 @@ function renderCombatVisual(combatant, fallback, alt) {
   );
 }
 
+function resolveCombatActionVisualSlot(combatant, event) {
+  const definition = characterDefinitionForCombatant(combatant);
+  const action = combatant?.side === "enemy" && typeof COMBAT_ENEMY_ACTION_DEFINITIONS !== "undefined"
+    ? COMBAT_ENEMY_ACTION_DEFINITIONS[event?.action]
+    : null;
+  const animationId = typeof action?.animationId === "string" ? action.animationId.trim() : "";
+  return animationId && characterVisualSlotIsUsable(definition, animationId) ? animationId : "attack";
+}
+
+function enemyCombatVisualSlots(combatant) {
+  const actionIds = Array.isArray(combatant?.actionPattern) ? combatant.actionPattern : [];
+  const animationIds = actionIds.map((actionId) => COMBAT_ENEMY_ACTION_DEFINITIONS[actionId]?.animationId);
+  return ["attack", ...animationIds.filter((animationId) => typeof animationId === "string" && animationId.trim())];
+}
+
 function combatActionAnimationEvents(combat, events = []) {
   return events.filter((event) => {
     const actor = [...(combat?.allies ?? []), ...(combat?.enemies ?? [])]
@@ -2896,6 +2911,7 @@ function pumpCombatPresentation(expedition, combat, audioManager = AudioManager)
   const actor = [...combat.allies, ...combat.enemies].find((combatant) => combatant.id === event.actor);
   const actorElement = combatPresentationCombatantElement(event.actor);
   const definition = actor ? characterDefinitionForCombatant(actor) : null;
+  const visualSlot = actor?.side === "enemy" ? resolveCombatActionVisualSlot(actor, event) : "attack";
   const finish = () => {
     if (active.finished || controller.active !== active) return;
     active.finished = true;
@@ -2909,12 +2925,12 @@ function pumpCombatPresentation(expedition, combat, audioManager = AudioManager)
       refreshCombat(expedition, combat);
     }
   };
-  if (!actorElement || !definition || !characterVisualSlotIsUsable(definition, "attack")) {
+  if (!actorElement || !definition || !characterVisualSlotIsUsable(definition, visualSlot)) {
     presentCombatImpact(expedition, combat, event, presentationVersion, audioManager);
     finish();
     return;
   }
-  const started = playCharacterVisualAction(actorElement, "attack", {
+  const started = playCharacterVisualAction(actorElement, visualSlot, {
     mirror: actor.side === "enemy",
     onImpact: () => presentCombatImpact(expedition, combat, event, presentationVersion, audioManager),
     onComplete: finish,
@@ -6400,7 +6416,7 @@ function startCombat(expedition, combatId, options = {}) {
     [...combat.allies, ...combat.enemies].forEach((combatant) => {
       preloadCharacterVisuals(
         characterDefinitionForCombatant(combatant),
-        combatant.side === "enemy" ? ["attack"] : CHARACTER_VISUAL_SLOTS,
+        combatant.side === "enemy" ? enemyCombatVisualSlots(combatant) : CHARACTER_VISUAL_SLOTS,
       );
     });
     if (game.expedition === expedition && game.screen === "expedition") renderScreen();

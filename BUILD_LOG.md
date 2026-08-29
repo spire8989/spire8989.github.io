@@ -1,5 +1,32 @@
 # Build Log
 
+## 2026-08-29 - Named Enemy Attack Animations
+
+### Goal
+
+Allow reusable enemy actions to select optional named enemy sprite-sheet animations.
+
+### AI-assisted implementation
+
+- Added backward-compatible `visuals.animations` entries and optional action
+  `animationId` support in the game and Content Editor.
+- Reused the existing sprite-sheet playback, impact timing, transforms, and
+  Idle return; missing or invalid IDs fall back to Attack.
+- Added editor controls, validation, and focused runtime/editor round-trip
+  regressions.
+
+### Reported manual changes
+
+- No content migration is required; existing enemies and actions remain valid
+  and continue using Attack.
+
+### Verification and resulting prototype state
+
+- The new runtime regression passed within `python tests/combat_system_test.py`;
+  the suite later reached an unrelated existing Pommel Strike assertion.
+- The three targeted Content Editor tests passed individually.
+- `git diff --check` passes for both repositories.
+
 ## 2026-08-29 - Loot Result Text Regression Fix
 
 ### Goal
