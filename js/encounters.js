@@ -255,6 +255,9 @@ const EncounterOutcomes = Object.freeze({
         rewards = lootRewards
           .filter((reward) => reward.type === "recipe" || Number(reward.quantity) > 0)
           .map((reward) => ({ ...reward, unsecured: true }));
+        resultText = lootRewards.length > 0
+          ? (effect.resultText ?? "")
+          : (effect.elseResultText ?? "");
         break;
       }
       case "learnRecipe": {

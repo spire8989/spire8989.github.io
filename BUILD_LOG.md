@@ -1,5 +1,22 @@
 # Build Log
 
+## 2026-08-29 - Loot Result Text Regression Fix
+
+### Goal
+
+Keep failed encounter loot chances from displaying success text.
+
+### AI-assisted implementation
+
+- Updated `rollLootTable` resolution to use `elseResultText` when the loot
+  source produces no rewards, while preserving its existing reward behavior.
+- Added a focused deterministic browser regression for a failed loot chance.
+
+### Verification and resulting prototype state
+
+- `python tests/loot_result_text_test.py` passes.
+- `git diff --check` passes.
+
 ## 2026-08-29 - Cross-Project Polish and Bug Pass
 
 ### Goal
