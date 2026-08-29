@@ -121,13 +121,27 @@ def run() -> None:
               const features = counts.filter === 1 && counts.oscillator === 2;
               probe.stopMusic();
               const stopped = probe.status().music === 'stopped' && counts.stopped >= 2;
+              probe.setMusicVolume(0.8);
+              probe.duckMusic({ multiplier: 0.5, attackMs: 0, holdMs: 1000, releaseMs: 0 });
+              const duckedGain = probe.musicOutput.gain.value === 0.4;
+              probe.setMusicVolume(0.4);
+              const sliderPreserved = probe.musicOutput.gain.value === 0.2;
+              probe.clearMusicDuck();
+              const restoredGain = probe.musicOutput.gain.value === 0.4;
               AudioManager.unlock();
               AudioManager.setMusic('camelot_twilight');
               await new Promise(resolve => setTimeout(resolve, 0));
               const sameTrack = AudioManager.setMusic('camelot_twilight') === false;
               const musicStarted = AudioManager.currentMusicId() === 'camelot_twilight';
               const sfxStarted = AudioManager.playSfx('pickup_confirm') === true;
-              return { features, stopped, sameTrack, musicStarted, sfxStarted };
+              const confirmDoesNotDuck = AudioManager.playAction('continue-journey') === true
+                && AudioManager.musicDucking() === false;
+              const gameplayDucks = AudioManager.playSfx('attack_impact', { duckMusic: true }) === true
+                && AudioManager.musicDucking() === true;
+              AudioManager.setMuted(true);
+              const muteClearsDucking = AudioManager.musicDucking() === false;
+              AudioManager.setMuted(false);
+              return { features, stopped, duckedGain, sliderPreserved, restoredGain, sameTrack, musicStarted, sfxStarted, confirmDoesNotDuck, gameplayDucks, muteClearsDucking };
             })()
         """)
         if not all(runtime_result.values()):
@@ -155,8 +169,17 @@ def run() -> None:
             "const rest=resolveCurrentMusicTrackId()==='rest_lullaby';game.restAction=null;"
             "const contextual=resolveCurrentMusicTrackId()!=='rest_lullaby';"
             "game.screen=oldScreen;game.activeDestinationId=oldDestination;game.restAction=oldRest;renderScreen();"
-            "return defaults.restMusicTrackId==='rest_lullaby'&&combat.playerAttackUseSfxId==='attack_swing'&&combat.playerAttackImpactSfxId==='attack_impact'&&combat.enemyAttackUseSfxId===null&&combat.enemyAttackImpactSfxId==='attack_impact'&&semantic&&hierarchy&&started&&active&&stopped&&rest&&contextual; })()",
+            "return defaults.restMusicTrackId==='rest_lullaby'&&combat.playerAttackUseSfxId==='attack_swing'&&combat.playerAttackImpactSfxId==='attack_impact'&&combat.enemyAttackUseSfxId==='attack_swing'&&combat.enemyAttackImpactSfxId==='attack_impact'&&semantic&&hierarchy&&started&&active&&stopped&&rest&&contextual; })()",
             "Global audio defaults, crafting hierarchy, loop lifecycle, or rest override is not stable",
+        )
+        check(
+            "(() => { const expedition={expeditionId:'old_forest_road',status:'active',travelState:'traveling',activeEncounter:{encounterId:'woodland_stream'}};"
+            "const oldSession=game.minigameSession; game.minigameSession={expedition,definitionId:'woodland_stream_fishing'};"
+            "const minigame=resolveExpeditionMusicTrackId(expedition); game.minigameSession=null; expedition.combat={id:'wild_boar'};"
+            "const combat=resolveExpeditionMusicTrackId(expedition); expedition.combat=null; const encounter=resolveExpeditionMusicTrackId(expedition);"
+            "expedition.activeEncounter=null; const travel=resolveExpeditionMusicTrackId(expedition); game.minigameSession=oldSession;"
+            "return minigame==='fishing_woodland_stream_fairfolk'&&combat==='combat_old_forest_battle'&&encounter==='fishing_woodland_stream_fairfolk'&&travel==='wisps_of_the_forest'; })()",
+            "Minigame, combat-definition, encounter, and expedition music precedence is not stable",
         )
 
         check(
@@ -218,7 +241,7 @@ def run() -> None:
             "const special={actor:'arthur',action:'ability',target:'arthur',healingAmount:3,sequence:3};const specialCalls=[];const specialFake={playSfx:id=>{specialCalls.push('sfx:'+id);return true;},playSemantic:role=>{specialCalls.push('semantic:'+role);return true;}};"
             "playCombatActionStartAudio([special],c,specialFake);const specialStart=specialCalls.length===0;const specialController=combatPresentationController(c);specialController.active={event:special,version:3,finished:false};presentCombatImpact(e,c,special,3,specialFake);const specialImpact=specialCalls.join('|')==='semantic:heal';"
             "const enemy={actor:'wild_boar_1',action:'boar_charge',target:'arthur',damage:4,sequence:4};const enemyCalls=[];const enemyFake={playSfx:id=>{enemyCalls.push('sfx:'+id);return true;},playSemantic:role=>{enemyCalls.push('semantic:'+role);return true;}};"
-            "playCombatActionStartAudio([enemy],c,enemyFake);const enemyStart=enemyCalls.length===0;const enemyController=combatPresentationController(c);enemyController.active={event:enemy,version:4,finished:false};presentCombatImpact(e,c,enemy,4,enemyFake);const enemyImpact=enemyCalls.join('|')==='sfx:attack_impact';"
+            "playCombatActionStartAudio([enemy],c,enemyFake);const enemyStart=enemyCalls.join('|')==='sfx:attack_swing';const enemyController=combatPresentationController(c);enemyController.active={event:enemy,version:4,finished:false};presentCombatImpact(e,c,enemy,4,enemyFake);const enemyImpact=enemyCalls.join('|')==='sfx:attack_swing|sfx:attack_impact';"
             "playCombatActionStartAudio([event],c,fake);const start=calls.join('|')==='sfx:use_probe';"
             "const controller=combatPresentationController(c);controller.active={event,version:1,finished:false};"
             "presentCombatImpact(e,c,event,1,fake);const impact=calls.join('|')==='sfx:use_probe|sfx:impact_probe|semantic:enemyDown';"

@@ -791,6 +791,7 @@ const COMBAT_DEFINITIONS = Object.freeze({
   wild_boar: Object.freeze({
     id: "wild_boar",
     enemyIds: ["wild_boar"],
+    musicTrackId: "combat_old_forest_battle",
   }),
   wolves: Object.freeze({
     id: "wolves",

@@ -2432,6 +2432,10 @@ button:active:not(:disabled) {
   animation-play-state: paused;
 }
 
+.travelers > span[hidden] {
+  display: none;
+}
+
 .travelers.is-encounter-layout {
   inset: 0;
   display: block;

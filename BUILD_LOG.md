@@ -1,5 +1,48 @@
 # Build Log
 
+## 2026-08-29 - Cross-Project Polish and Bug Pass
+
+### Goal
+
+Apply the attached polish guide across the dependency-free game and the
+separate Content Editor while preserving authored IDs, save compatibility, and
+the existing runtime boundaries.
+
+### AI-assisted implementation
+
+- Added Content Editor Duplicate hotspot support. It deep-clones the complete
+  hotspot definition, assigns a unique ID and copy name, offsets normalized
+  coordinates within bounds, selects the new hotspot, and marks the draft dirty.
+- Added optional `musicTrackId` authoring and validation for combat and
+  minigame definitions, including `Inherit contextual music` and `None` states.
+  Runtime music precedence is now minigame, combat definition, encounter,
+  expedition combat/camp/travel, then location fallback, with explicit null
+  silence preserved.
+- Added configurable music ducking under `audioDefaults.musicDucking` and a
+  bus-level AudioManager/SynthPlayer implementation that preserves the saved
+  music slider, extends holds for repeated gameplay sounds, and leaves
+  confirm/navigation/transaction audio unducked.
+- Fixed hidden encounter traveler spans being re-enabled by the flex layout
+  rule, and added generation/owner repair for travel parallax layers after
+  encounter transitions without adding parallax to encounter artwork.
+- Added focused editor and browser regressions for hotspot duplication, audio
+  fields/settings, hidden traveler slots, music precedence, ducking, and travel
+  presentation ownership.
+
+### Reported manual changes
+
+- No new binary assets or tool dependencies were added.
+
+### Verification and resulting prototype state
+
+- Synth audio browser coverage passes 12 assertions.
+- Fishing minigame browser coverage passes 13 checks.
+- Travel return/encounter stability stress passes with current-generation
+  parallax ownership checks.
+- Focused Content Editor validation/save tests and the minigame editor browser
+  test pass.
+- `git diff --check` passes for both repositories.
+
 ## 2026-08-28 - Fishing Encounter Integration Correction Pass
 
 ### Goal

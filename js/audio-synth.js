@@ -37,6 +37,14 @@
       this.sfx = null;
       this.musicRequest = 0;
       this.sfxRequest = 0;
+      this.musicDuck = {
+        active: false,
+        multiplier: 1,
+        attackMs: 0,
+        holdMs: 0,
+        releaseMs: 0,
+        timer: null,
+      };
     }
 
     async ensureContext() {
@@ -47,7 +55,7 @@
         this.master = this.context.createGain();
         this.master.gain.value = this.volume;
         this.musicOutput = this.context.createGain();
-        this.musicOutput.gain.value = this.musicVolume;
+        this.musicOutput.gain.value = this._musicGainTarget();
         this.sfxOutput = this.context.createGain();
         this.sfxOutput.gain.value = this.sfxVolume;
         this.musicOutput.connect(this.master);
@@ -56,6 +64,81 @@
       }
       if (this.context.state === "suspended") await this.context.resume();
       return this.context;
+    }
+
+    _musicGainTarget() {
+      return this.musicVolume * (this.musicDuck.active ? this.musicDuck.multiplier : 1);
+    }
+
+    _setMusicGain(target, durationMs = 0) {
+      if (!this.musicOutput || !this.context) return;
+      const gain = this.musicOutput.gain;
+      const now = this.context.currentTime;
+      const nextTarget = Math.max(0, Math.min(this.musicVolume, Number(target) || 0));
+      const duration = Math.max(0, Number(durationMs) || 0);
+
+      if (typeof gain.cancelScheduledValues === "function") gain.cancelScheduledValues(now);
+      if (duration > 0 && typeof gain.linearRampToValueAtTime === "function") {
+        if (typeof gain.cancelAndHoldAtTime === "function") gain.cancelAndHoldAtTime(now);
+        else if (typeof gain.setValueAtTime === "function") {
+          gain.setValueAtTime(Number.isFinite(gain.value) ? gain.value : nextTarget, now);
+        }
+        gain.linearRampToValueAtTime(nextTarget, now + duration / 1000);
+      } else if (typeof gain.setValueAtTime === "function") {
+        gain.setValueAtTime(nextTarget, now);
+      } else {
+        gain.value = nextTarget;
+      }
+    }
+
+    duckMusic({ multiplier = 0.62, attackMs = 60, holdMs = 180, releaseMs = 320 } = {}) {
+      const nextMultiplier = Math.max(0, Math.min(1, Number(multiplier) || 0));
+      const nextAttackMs = Math.max(0, Math.min(120000, Number(attackMs) || 0));
+      const nextHoldMs = Math.max(0, Math.min(120000, Number(holdMs) || 0));
+      const nextReleaseMs = Math.max(0, Math.min(120000, Number(releaseMs) || 0));
+      const wasActive = this.musicDuck.active;
+
+      if (this.musicDuck.timer !== null) global.clearTimeout(this.musicDuck.timer);
+      this.musicDuck = {
+        active: true,
+        multiplier: nextMultiplier,
+        attackMs: nextAttackMs,
+        holdMs: nextHoldMs,
+        releaseMs: nextReleaseMs,
+        timer: null,
+      };
+      if (!this.context) this.ensureContext().catch(() => {});
+      if (!wasActive) this._setMusicGain(this._musicGainTarget(), nextAttackMs);
+      this.musicDuck.timer = global.setTimeout(() => this._releaseMusicDuck(), nextHoldMs);
+      return true;
+    }
+
+    _releaseMusicDuck() {
+      if (this.musicDuck.timer !== null) global.clearTimeout(this.musicDuck.timer);
+      if (!this.musicDuck.active) return;
+      const releaseMs = this.musicDuck.releaseMs;
+      this.musicDuck = {
+        active: false,
+        multiplier: 1,
+        attackMs: 0,
+        holdMs: 0,
+        releaseMs: 0,
+        timer: null,
+      };
+      this._setMusicGain(this.musicVolume, releaseMs);
+    }
+
+    clearMusicDuck() {
+      if (this.musicDuck.timer !== null) global.clearTimeout(this.musicDuck.timer);
+      this.musicDuck = {
+        active: false,
+        multiplier: 1,
+        attackMs: 0,
+        holdMs: 0,
+        releaseMs: 0,
+        timer: null,
+      };
+      this._setMusicGain(this.musicVolume, 0);
     }
 
     setVolume(value) {
@@ -68,7 +151,7 @@
     setMusicVolume(value) {
       this.musicVolume = Math.max(0, Math.min(1, numberOr(value, this.musicVolume)));
       if (this.musicOutput && this.context) {
-        this.musicOutput.gain.setTargetAtTime(this.musicVolume, this.context.currentTime, 0.01);
+        this._setMusicGain(this._musicGainTarget(), 10);
       }
     }
 
@@ -84,6 +167,7 @@
         music: this.music ? (this.music.paused ? "paused" : "playing") : "stopped",
         sfx: Boolean(this.sfx),
         volume: this.volume,
+        musicDucked: Boolean(this.musicDuck.active),
       };
     }
 

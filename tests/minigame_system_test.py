@@ -65,6 +65,15 @@ def run():
             "Fishing hotspots did not use normalized coordinates, priority, and default fallback",
         )
         check(
+            "(() => { const ids=Object.keys(COMPANION_DEFINITIONS).slice(0,2);"
+            " const companions=ids.map(id=>COMPANION_DEFINITIONS[id]);"
+            " const wrapper=document.createElement('div');"
+            " wrapper.innerHTML=renderEncounterTravelers(companions,ENCOUNTER_DEFINITIONS.old_road_fisher,{visualOverride:{hiddenSlots:['arthur','companion1','companion2']}});"
+            " document.body.append(wrapper); const slots=[...wrapper.querySelectorAll('#travelers>span')];"
+            " const hidden=slots.length===3&&slots.every(slot=>slot.hidden&&getComputedStyle(slot).display==='none'); wrapper.remove(); return hidden; })()",
+            "Hidden encounter traveler slots were still displayed by the traveler flex rule",
+        )
+        check(
             "(() => { const d=ENCOUNTER_DEFINITIONS.old_road_fisher;"
             " const choices=d.stages.start.choices;"
             " const teaching=choices.filter(c=>c.outcomes?.some(e=>e.type==='startMinigame'));"

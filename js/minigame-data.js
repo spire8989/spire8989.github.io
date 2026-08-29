@@ -49,6 +49,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
     name: "First Lesson: Fishing",
     description: "Learn to read the stream and bring home something fresh for camp.",
     backgroundAssetId: "encounter_woodland_stream",
+    musicTrackId: "fishing_woodland_stream_fairfolk",
     attemptLimit: 3,
     timeLimitSeconds: null,
     castBounds: {
@@ -91,6 +92,7 @@ const MINIGAME_DEFINITIONS = Object.freeze({
     name: "Fish the Stream",
     description: "The stream is clear enough to reward a patient cast.",
     backgroundAssetId: "encounter_fish_the_stream",
+    musicTrackId: "fishing_woodland_stream_fairfolk",
     attemptLimit: 3,
     timeLimitSeconds: null,
     castBounds: {

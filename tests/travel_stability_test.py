@@ -141,6 +141,14 @@ def run():
             const layers = [...(scene?.querySelectorAll('.travel-parallax-layer') ?? [])];
             const panel = document.querySelector('#expedition-panel-host');
             const noFailedAsset = !scene?.classList.contains('asset-load-failed');
+            const currentTrack = current[0];
+            const parallaxRequired = currentTrack?.dataset.travelKind === 'travel'
+              && currentTrack.dataset.travelMotion === 'loop'
+              && Boolean(currentTrack.dataset.travelParallaxAssetId);
+            const parallaxHealthy = !parallaxRequired
+              || (layers.length === 1
+                && layers[0]._travelParallaxTrack === currentTrack
+                && Number(layers[0].dataset.travelGeneration) === Number(game.travelPresentationGeneration));
             return {
               current: current.length,
               next: next.length,
@@ -150,6 +158,7 @@ def run():
               choices: Boolean(document.querySelector('.encounter-panel .encounter-choice')),
               background: Boolean(current[0]?.querySelector('.travel-visual-asset:not([hidden])')),
               noFailedAsset,
+              parallaxHealthy,
               generation: game.travelPresentationGeneration,
               currentAsset: current[0]?.dataset.travelAssetId ?? null,
               currentKind: current[0]?.dataset.travelKind ?? null,
@@ -164,6 +173,7 @@ def run():
               && snapshot.panel
               && snapshot.background
               && snapshot.noFailedAsset
+              && (expectChoices || snapshot.parallaxHealthy)
               && (!expectChoices || snapshot.choices);
           };
           const releaseDecode = [];
@@ -256,6 +266,17 @@ def run():
               && dedicatedEncounterStable
               && exitStable
               && stable(false);
+            window.__travelStabilityDebug = {
+              result,
+              returnWasAtomic,
+              staleTravelCallbacksIgnored,
+              encounterEntryStable,
+              dedicatedEncounterStable,
+              exitStable,
+              state: state(),
+            };
+          } catch (error) {
+            window.__travelStabilityDebug = { error: String(error), state: state() };
           } finally {
             HTMLImageElement.prototype.decode = originalDecode;
             releaseAll();
@@ -266,10 +287,10 @@ def run():
             game.travelScenePresentation = originalPresentation;
             renderScreen();
           }
-          return result;
+          return `TRAVEL:${result}:${JSON.stringify(window.__travelStabilityDebug ?? {})}`;
         })()''')
-        if not result:
-            raise AssertionError("Travel return/encounter presentation invariants failed")
+        if not result or not (isinstance(result, str) and result.startswith("TRAVEL:true:")):
+            raise AssertionError(f"Travel return/encounter presentation invariants failed: {result!r}; debug={devtools.evaluate('window.__travelStabilityDebug')!r}")
         if devtools.exceptions:
             raise AssertionError(f"Browser exceptions during travel stress: {devtools.exceptions[-3:]}")
         print("Travel stability stress passed")

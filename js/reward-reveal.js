@@ -200,7 +200,7 @@ const RewardRevealSystem = (() => {
     const soundRole = model?.soundRole ?? "loot";
     if (typeof AudioManager !== "undefined") {
       const candidates = [directSfxId, discoverySfxId, uncommonSfxId, globalSfxId].filter(Boolean);
-      const played = candidates.some((sfxId) => AudioManager.playSfx(sfxId));
+      const played = candidates.some((sfxId) => AudioManager.playSfx(sfxId, { duckMusic: true }));
       if (!played) AudioManager.playSemantic(soundRole);
     }
     window.requestAnimationFrame(() => {

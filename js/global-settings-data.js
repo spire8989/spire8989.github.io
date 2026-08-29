@@ -55,6 +55,13 @@ const GLOBAL_SETTINGS = Object.freeze({
     apothecaryCraftingSfxId: "craft_potion_loop",
     restMusicTrackId: "rest_lullaby",
     uncommonItemSfxId: "item_uncommon",
+    musicDucking: {
+      enabled: true,
+      duckMultiplier: 0.62,
+      attackMs: 60,
+      holdMs: 180,
+      releaseMs: 320,
+    },
     combat: {
       playerAttackUseSfxId: "attack_swing",
       playerAttackImpactSfxId: "attack_impact",

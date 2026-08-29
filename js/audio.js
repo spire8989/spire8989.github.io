@@ -37,6 +37,32 @@ const AUDIO_GLOBAL_SFX_FIELDS = Object.freeze({
   cooking: "cookingLoopSfxId",
 });
 
+const AUDIO_DUCKING_SEMANTIC_ROLES = new Set([
+  "loot",
+  "majorLoot",
+  "encounter",
+  "hit",
+  "block",
+  "heal",
+  "status",
+  "enemyDown",
+  "allyDown",
+  "fleeSuccess",
+  "fleeFail",
+  "victory",
+  "defeat",
+  "departure",
+  "safeReturn",
+]);
+
+const AUDIO_DUCKING_DEFAULTS = Object.freeze({
+  enabled: true,
+  duckMultiplier: 0.62,
+  attackMs: 60,
+  holdMs: 180,
+  releaseMs: 320,
+});
+
 function clampAudioSetting(value, fallback) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Math.min(1, Math.max(0, numeric)) : fallback;
@@ -94,6 +120,26 @@ const AudioManager = (() => {
       : null;
   }
 
+  function musicDuckingSettings() {
+    const configured = typeof GLOBAL_SETTINGS !== "undefined"
+      ? GLOBAL_SETTINGS.audioDefaults?.musicDucking
+      : null;
+    return {
+      enabled: configured?.enabled !== false,
+      duckMultiplier: clampAudioSetting(configured?.duckMultiplier, AUDIO_DUCKING_DEFAULTS.duckMultiplier),
+      attackMs: Math.max(0, Math.min(120000, Number.isFinite(Number(configured?.attackMs)) ? Number(configured.attackMs) : AUDIO_DUCKING_DEFAULTS.attackMs)),
+      holdMs: Math.max(0, Math.min(120000, Number.isFinite(Number(configured?.holdMs)) ? Number(configured.holdMs) : AUDIO_DUCKING_DEFAULTS.holdMs)),
+      releaseMs: Math.max(0, Math.min(120000, Number.isFinite(Number(configured?.releaseMs)) ? Number(configured.releaseMs) : AUDIO_DUCKING_DEFAULTS.releaseMs)),
+    };
+  }
+
+  function requestMusicDuck() {
+    const ducking = musicDuckingSettings();
+    if (!ducking.enabled || !synthPlayer) return false;
+    synthPlayer.duckMusic(ducking);
+    return true;
+  }
+
   function sfxDefinition(id) {
     return typeof SYNTH_AUDIO_DEFINITIONS !== "undefined"
       ? SYNTH_AUDIO_DEFINITIONS.sfx?.[id] ?? null
@@ -126,11 +172,15 @@ const AudioManager = (() => {
     return true;
   }
 
-  function playSfx(id, loopChannel = null) {
+  function playSfx(id, loopChannelOrOptions = null, extraOptions = {}) {
+    const options = loopChannelOrOptions && typeof loopChannelOrOptions === "object"
+      ? { ...loopChannelOrOptions }
+      : { ...extraOptions, loopChannel: loopChannelOrOptions };
     const definition = sfxDefinition(id);
     if (!definition || !unlocked || settings.muted || settings.sfxVolume <= 0 || !synthPlayer) return false;
-    activeLoopChannel = loopChannel;
+    activeLoopChannel = options.loopChannel ?? null;
     synthPlayer.setSfxVolume(settings.sfxVolume);
+    if (options.duckMusic === true) requestMusicDuck();
     Promise.resolve(synthPlayer.playSfx(definition)).catch(() => {});
     return true;
   }
@@ -144,8 +194,9 @@ const AudioManager = (() => {
     return AUDIO_SEMANTIC_SFX_IDS[role] ?? null;
   }
 
-  function playSemantic(role) {
-    return playSfx(semanticSfxId(role));
+  function playSemantic(role, options = {}) {
+    const duckMusic = options.duckMusic ?? AUDIO_DUCKING_SEMANTIC_ROLES.has(role);
+    return playSfx(semanticSfxId(role), { ...options, duckMusic });
   }
 
   function scheduleLoop(channel) {
@@ -235,6 +286,7 @@ const AudioManager = (() => {
       stopCurrentMusic();
       pauseLoopTimers();
       synthPlayer?.stopSfx();
+      synthPlayer?.clearMusicDuck();
       activeLoopChannel = null;
     } else {
       if (desiredMusicId) setMusic(desiredMusicId);
@@ -287,6 +339,7 @@ const AudioManager = (() => {
     setMuted,
     setSfxVolume,
     setMusicVolume,
+    musicDucking: () => Boolean(synthPlayer?.status().musicDucked),
     toggleSettings: () => {
       const panel = document.querySelector("#audio-settings");
       if (!panel) return;

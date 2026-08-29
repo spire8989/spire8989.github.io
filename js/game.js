@@ -691,6 +691,17 @@ function assertTravelPresentationInvariant() {
     && currentTracks[0].dataset.travelAssetId !== state.activeAssetId) {
     problems.push("current-asset-mismatch");
   }
+  const currentParallaxTile = currentTracks[0]?.querySelector(".travel-visual-asset[data-travel-copy='primary']");
+  const currentParallaxAsset = travelParallaxAssetForTile(currentTracks[0], currentParallaxTile);
+  const currentParallaxLayer = currentTracks[0]?._travelParallaxLayer;
+  if (stableCurrent && currentParallaxTile && isTravelPanorama(currentParallaxTile)
+    && normalizeTravelMotion(currentTracks[0].dataset.travelMotion) === "loop"
+    && currentParallaxAsset
+    && (!currentParallaxLayer?.isConnected
+      || currentParallaxLayer._travelParallaxTrack !== currentTracks[0]
+      || travelPresentationNodeGeneration(currentParallaxLayer) !== currentTravelPresentationGeneration())) {
+    problems.push("missing-current-parallax");
+  }
   if (problems.length) {
     console.warn("[travel-presentation] invariant violation", {
       problems,
@@ -947,6 +958,54 @@ function ensureTravelParallaxForeground(image, panorama, motion) {
   scene.append(layer);
   track._travelParallaxLayer = layer;
   syncTravelParallaxLayer(track);
+}
+
+function repairActiveTravelParallaxForeground(scene, expedition, activeEncounter) {
+  const generation = currentTravelPresentationGeneration();
+  const current = currentTravelTrack();
+  const layers = [...(scene?.querySelectorAll(".travel-parallax-layer") ?? [])];
+  layers.forEach((layer) => {
+    const owner = layer._travelParallaxTrack;
+    const stale = owner !== current
+      || !owner?.isConnected
+      || owner.dataset.travelKind === "encounter"
+      || travelPresentationNodeGeneration(layer) !== generation;
+    if (stale) {
+      layer.remove();
+      if (owner?._travelParallaxLayer === layer) owner._travelParallaxLayer = null;
+    }
+  });
+
+  if (!current || activeEncounter || current.dataset.travelKind === "encounter") {
+    removeTravelParallaxLayer(current);
+    return;
+  }
+
+  const primaryTile = travelTileFor(current, "primary")
+    ?? current.querySelector(".travel-visual-asset[data-travel-copy]");
+  const activeTile = travelActiveTile(current, expedition) ?? primaryTile;
+  const panorama = isTravelPanorama(activeTile);
+  const motion = normalizeTravelMotion(current.dataset.travelMotion ?? travelMotionForImage(activeTile));
+  const hasParallaxAsset = [...(current.querySelectorAll(".travel-visual-asset[data-travel-copy]") ?? [])]
+    .some((tile) => Boolean(travelParallaxAssetForTile(current, tile)));
+  if (!activeTile || !panorama || motion !== "loop" || !hasParallaxAsset) {
+    removeTravelParallaxLayer(current);
+    return;
+  }
+
+  const layer = current._travelParallaxLayer;
+  if (layer && (!layer.isConnected
+    || layer._travelParallaxTrack !== current
+    || travelPresentationNodeGeneration(layer) !== generation)) {
+    removeTravelParallaxLayer(current);
+  }
+  ensureTravelParallaxForeground(activeTile, panorama, motion);
+  const repairedLayer = current._travelParallaxLayer;
+  if (repairedLayer?.isConnected) {
+    repairedLayer._travelParallaxTrack = current;
+    markTravelPresentationNode(repairedLayer, generation);
+    syncTravelParallaxLayer(current);
+  }
 }
 
 function resolveTravelSeamForegroundAssetId(expedition = game.expedition) {
@@ -2966,6 +3025,12 @@ function markTravelTransitionFailed(image) {
 function resolveExpeditionMusicTrackId(expedition = game.expedition) {
   if (!expedition || expedition.status !== "active") return null;
   const definition = expeditionDefinition(expedition);
+  const minigameDefinition = game.minigameSession?.expedition === expedition
+    ? MINIGAME_DEFINITIONS[game.minigameSession.definitionId]
+    : null;
+  const combatDefinition = expedition.combat
+    ? COMBAT_DEFINITIONS[expedition.combat.id]
+    : null;
   const activeEvent = expedition.activeEncounter
     ? EncounterManager.definitionFor(expedition)
     : null;
@@ -2973,6 +3038,10 @@ function resolveExpeditionMusicTrackId(expedition = game.expedition) {
     if (!owner || !Object.prototype.hasOwnProperty.call(owner, field)) return undefined;
     return typeof owner[field] === "string" && owner[field] ? owner[field] : null;
   };
+  const minigameTrack = authoredTrack(minigameDefinition, "musicTrackId");
+  if (minigameTrack !== undefined) return minigameTrack;
+  const combatDefinitionTrack = authoredTrack(combatDefinition, "musicTrackId");
+  if (combatDefinitionTrack !== undefined) return combatDefinitionTrack;
   const encounterTrack = authoredTrack(activeEvent, "musicTrackId");
   if (encounterTrack !== undefined) return encounterTrack;
   if (expedition.combat) {
@@ -3025,8 +3094,8 @@ function syncAudioForCurrentContext() {
 function playEncounterAudio(encounter) {
   const active = game.expedition?.activeEncounter;
   const stageSfxId = encounter?.stages?.[active?.stageId]?.sfxId;
-  if (stageSfxId && AudioManager.playSfx(stageSfxId)) return;
-  if (encounter?.stingSfxId && AudioManager.playSfx(encounter.stingSfxId)) return;
+  if (stageSfxId && AudioManager.playSfx(stageSfxId, { duckMusic: true })) return;
+  if (encounter?.stingSfxId && AudioManager.playSfx(encounter.stingSfxId, { duckMusic: true })) return;
   AudioManager.playSemantic("encounter");
 }
 
@@ -5399,6 +5468,7 @@ function startMinigame(expedition, minigameId, definition) {
   };
   game.dialogueSession = null;
   game.screen = "expedition";
+  syncAudioForCurrentContext();
   return true;
 }
 
@@ -5541,6 +5611,7 @@ function returnFromFishing() {
   );
   if (!completed.resolved) return;
   game.minigameSession = null;
+  syncAudioForCurrentContext();
   savePlayer();
   finishEncounterResolution(completed, expedition, session.rewardStartIndex);
 }
@@ -6288,7 +6359,7 @@ function finishEncounterResolution(result, expedition, rewardStartIndex = null) 
     return;
   }
 
-  if (result.sfxId) AudioManager.playSfx(result.sfxId);
+  if (result.sfxId) AudioManager.playSfx(result.sfxId, { duckMusic: true });
 
   if (result.minigameStarted) {
     renderScreen();
@@ -6335,7 +6406,8 @@ function startCombat(expedition, combatId, options = {}) {
     if (game.expedition === expedition && game.screen === "expedition") renderScreen();
   });
   const combatStartSfxId = expeditionDefinition(expedition).combatStartSfxId;
-  if (combatStartSfxId) AudioManager.playSfx(combatStartSfxId);
+  if (combatStartSfxId) AudioManager.playSfx(combatStartSfxId, { duckMusic: true });
+  syncAudioForCurrentContext();
   return true;
 }
 
@@ -6357,7 +6429,7 @@ function combatAudioDefault(fieldName) {
 }
 
 function playCombatSfx(audioManager, id) {
-  return Boolean(id && audioManager.playSfx(id));
+  return Boolean(id && audioManager.playSfx(id, { duckMusic: true }));
 }
 
 function combatEventActor(combat, event) {
@@ -6411,7 +6483,7 @@ function playCombatActionStartAudio(actionEvents = [], combat = null, audioManag
 }
 
 function playCombatPresentationImpactAudio(event, combat = null, audioManager = AudioManager) {
-  if (event?.impactSfxId && audioManager.playSfx(event.impactSfxId)) return;
+  if (event?.impactSfxId && audioManager.playSfx(event.impactSfxId, { duckMusic: true })) return;
   if (Number(event?.damagePrevented) > 0) {
     playCombatSfxOrSemantic(audioManager, combatAudioDefault("blockSfxId"), "block");
   } else if (Number(event?.damage) > 0) {
@@ -6663,7 +6735,7 @@ function finishCombatResolution(expedition) {
     startDialogue: (dialogueId) => startEncounterDialogue(expedition, dialogueId),
   });
   if (expedition.status === "active") {
-    if (completed.sfxId) AudioManager.playSfx(completed.sfxId);
+    if (completed.sfxId) AudioManager.playSfx(completed.sfxId, { duckMusic: true });
     if (!completed.combatStarted && !completed.dialogueStarted) {
       queueEncounterRewardReveal(expedition, "combat");
     }
@@ -7235,10 +7307,12 @@ function syncTravelPresentation(expedition = game.expedition) {
   }[expedition.paceId] ?? "16s");
   scene.style.setProperty("--travel-offset", `${expedition.sceneOffset % 160}px`);
   if (preserveTravelDirectionPosition(scene, returning)) {
+    repairActiveTravelParallaxForeground(scene, expedition, activeEncounter);
     assertTravelPresentationInvariant();
     return;
   }
   syncTravelVisual(expedition, activeEncounter);
+  repairActiveTravelParallaxForeground(scene, expedition, activeEncounter);
   syncTravelSeamForegroundPresentation(scene, expedition, activeEncounter);
   syncTravelParallaxLayer(currentTravelTrack());
   advancePendingTravelScene(expedition, scene, activeEncounter);
