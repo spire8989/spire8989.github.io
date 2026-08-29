@@ -268,6 +268,11 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "town_hidden_forest_village",
     path: "assets/images/town/Village2.webp",
     category: "town"
+  },
+  encounter_fish_the_stream: {
+    id: "encounter_fish_the_stream",
+    path: "assets/images/encounter/woodland_stream_fishing5.webp",
+    category: "encounter"
   }
 });
 
