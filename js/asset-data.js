@@ -273,6 +273,11 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "encounter_fish_the_stream",
     path: "assets/images/encounter/woodland_stream_fishing5.webp",
     category: "encounter"
+  },
+  encounter_a_horse_in_the_bracken: {
+    id: "encounter_a_horse_in_the_bracken",
+    path: "assets/images/encounter/llamei_2.webp",
+    category: "encounter"
   }
 });
 

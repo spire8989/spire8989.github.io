@@ -535,12 +535,16 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     damage: Object.freeze({ minimum: 9, maximum: 13 }),
     target: "arthur",
   }),
-  wolf_bite: Object.freeze({
+  wolf_bite: {
     id: "wolf_bite",
     name: "Bite",
-    damage: Object.freeze({ minimum: 3, maximum: 6 }),
+    damage: {
+      minimum: 3,
+      maximum: 6
+    },
     target: "arthur",
-  }),
+    impactSfxId: "wolf_bite_1"
+  },
   wolf_lunge: Object.freeze({
     id: "wolf_lunge",
     name: "Lunge",

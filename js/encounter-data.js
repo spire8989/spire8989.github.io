@@ -168,7 +168,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
-    }
+    },
+    musicTrackId: "combat_briar_knight_thornwake"
   },
   verdant_altar: {
     id: "verdant_altar",
@@ -262,7 +263,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
-    }
+    },
+    musicTrackId: "combat_verdant_warden"
   },
   green_chapel_beyond: {
     id: "green_chapel_beyond",
@@ -857,14 +859,26 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             id: "fish_the_stream",
             label: "Fish the Stream",
             requirements: [
-              { type: "knowledge", knowledgeId: "fishing", unavailable: "locked", lockedLabel: "Requires Fishing" },
-              { type: "notEncounterFlag", flag: "fishing_used", unavailable: "locked", lockedLabel: "Already Fished Here" },
+              {
+                type: "knowledge",
+                knowledgeId: "fishing",
+                unavailable: "locked",
+                lockedLabel: "Requires Fishing"
+              },
+              {
+                type: "notEncounterFlag",
+                flag: "fishing_used",
+                unavailable: "locked",
+                lockedLabel: "Already Fished Here"
+              }
             ],
-            outcomes: [{
-              type: "startMinigame",
-              minigameId: "woodland_stream_fishing",
-              markEncounterFlag: "fishing_used",
-            }],
+            outcomes: [
+              {
+                type: "startMinigame",
+                minigameId: "woodland_stream_fishing",
+                markEncounterFlag: "fishing_used"
+              }
+            ]
           },
           {
             id: "wade_across",
@@ -943,10 +957,23 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "read_current",
             label: "Read the Current with Woodcraft",
-            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
-            outcomes: [{ type: "setRunFlag", flag: "stream_crossing_read", value: true }],
+            requirements: [
+              {
+                type: "knowledge",
+                knowledgeId: "woodcraft",
+                unavailable: "locked",
+                lockedLabel: "Requires Woodcraft"
+              }
+            ],
+            outcomes: [
+              {
+                type: "setRunFlag",
+                flag: "stream_crossing_read",
+                value: true
+              }
+            ],
             resultText: "Woodcraft finds a shallow crossing upstream. The company reaches the far bank without spending supplies or risking the current.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "better_crossing",
@@ -986,7 +1013,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         y: 0.9587673611111112,
         facing: "right"
       }
-    }
+    },
+    musicTrackId: "fishing_woodland_stream_fairfolk"
   },
   woodland_foraging: {
     id: "woodland_foraging",
@@ -2793,7 +2821,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
-    }
+    },
+    musicTrackId: "combat_bandit_leader_highwayman"
   },
   ruined_wayside_shrine: {
     id: "ruined_wayside_shrine",
@@ -3174,7 +3203,25 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           }
         ]
       }
-    }
+    },
+    visualAssetId: "encounter_a_horse_in_the_bracken",
+    encounterLayout: {
+      arthur: {
+        x: 0.314453125,
+        y: 0.9123264418707954,
+        facing: "right"
+      },
+      companion1: {
+        x: 0.6722656488418579,
+        y: 0.9512152671813965,
+        facing: "left"
+      },
+      companion2: {
+        x: 0.830078125,
+        y: 0.9345488548278809
+      }
+    },
+    hiddenSlots: ["companion2", "companion1", "arthur"]
   },
   barenton_rumors: {
     id: "barenton_rumors",
