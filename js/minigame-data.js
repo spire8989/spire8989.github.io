@@ -43,49 +43,90 @@ const FISHING_DEFAULT_WATER = Object.freeze({
 });
 
 const MINIGAME_DEFINITIONS = Object.freeze({
-  fishing_teacher_tutorial: Object.freeze({
+  fishing_teacher_tutorial: {
     id: "fishing_teacher_tutorial",
     type: "fishing",
     name: "First Lesson: Fishing",
     description: "Learn to read the stream and bring home something fresh for camp.",
-    backgroundAssetId: "encounter_woodland_stream",
+    backgroundAssetId: "encounter_first_lesson_fishing",
     musicTrackId: "fishing_woodland_stream_fairfolk",
     attemptLimit: 3,
     timeLimitSeconds: null,
     castBounds: {
-      minX: 0.08, maxX: 0.92, nearWaterY: 0.58, farWaterY: 0.29,
+      minX: 0.08,
+      maxX: 0.92,
+      nearWaterY: 0.58,
+      farWaterY: 0.29
     },
-    defaultWater: Object.freeze({
+    defaultWater: {
       biteChance: 0.72,
       biteDelayMin: 0.75,
       biteDelayMax: 1.45,
       hookWindowMs: 1600,
       hookSuccessChance: 0.84,
-      lootTableId: "fishing_teacher_pool",
-    }),
-    hotspots: Object.freeze([
-      Object.freeze({
+      lootTableId: "fishing_teacher_pool"
+    },
+    hotspots: [
+      {
         id: "quiet_reeds",
         name: "Quiet Reeds",
-        x: 0.31, y: 0.41, radius: 0.13, priority: 2,
-        biteChance: 0.8, biteDelayMin: 0.65, biteDelayMax: 1.2, hookWindowMs: 1500,
-        lootTableId: "fishing_teacher_pool",
-      }),
-      Object.freeze({
+        x: 0.7719354444934475,
+        y: 0.42720433717132894,
+        radius: 0.13,
+        priority: 2,
+        biteChance: 0.8,
+        biteDelayMin: 0.65,
+        biteDelayMax: 1.2,
+        hookWindowMs: 1500,
+        lootTableId: "fishing_teacher_pool"
+      },
+      {
         id: "sunlit_ripple",
         name: "Sunlit Ripple",
-        x: 0.68, y: 0.34, radius: 0.11, priority: 1,
-        biteChance: 0.68, biteDelayMin: 0.8, biteDelayMax: 1.5, hookWindowMs: 1450,
-        lootTableId: "fishing_teacher_pool",
-      }),
-    ]),
-    tutorial: Object.freeze({
+        x: 0.2751613493888609,
+        y: 0.3919354838709677,
+        radius: 0.19218870753219408,
+        priority: 1,
+        biteChance: 0.68,
+        biteDelayMin: 0.8,
+        biteDelayMax: 1.5,
+        hookWindowMs: 1450,
+        lootTableId: "fishing_teacher_pool"
+      },
+      {
+        id: "sunlit_ripple_2",
+        name: "Sunlit Ripple 3",
+        x: 0.30483870967741933,
+        y: 0.6413978494623656,
+        radius: 0.19218870753219408,
+        priority: 1,
+        biteChance: 0.68,
+        biteDelayMin: 0.8,
+        biteDelayMax: 1.5,
+        hookWindowMs: 1450,
+        lootTableId: "fishing_teacher_pool"
+      },
+      {
+        id: "sunlit_ripple_3",
+        name: "Sunlit Ripple 2 Copy",
+        x: 0.6841935680758569,
+        y: 0.6611827891360047,
+        radius: 0.19218870753219408,
+        priority: 1,
+        biteChance: 0.68,
+        biteDelayMin: 0.8,
+        biteDelayMax: 1.5,
+        hookWindowMs: 1450,
+        lootTableId: "fishing_teacher_pool"
+      }
+    ],
+    tutorial: {
       enabled: true,
       title: "Read the Water",
       text: "Press and hold on the water to charge your cast. Release to place the bobber; watch the float and tap it when it plunges.",
-      completionText: "The fisher nods. You know how to read a stream now.",
-    }),
-  }),
+      completionText: "The fisher nods. You know how to read a stream now."
+    }
+  },
   woodland_stream_fishing: {
     id: "woodland_stream_fishing",
     type: "fishing",
@@ -113,8 +154,8 @@ const MINIGAME_DEFINITIONS = Object.freeze({
       {
         id: "reed_shadow",
         name: "Reed Shadow",
-        x: 0.4338709677419355,
-        y: 0.749516132313718,
+        x: 0.3383870770854335,
+        y: 0.7343010851131972,
         radius: 0.23790085723460794,
         priority: 2,
         biteChance: 0.68,
@@ -122,6 +163,19 @@ const MINIGAME_DEFINITIONS = Object.freeze({
         biteDelayMax: 1.55,
         hookWindowMs: 1450,
         lootTableId: "fishing_woodland_reeds"
+      },
+      {
+        id: "rocks_center",
+        name: "Rocks Center",
+        x: 0.6583871164629537,
+        y: 0.436666738858787,
+        radius: 0.2283060797060715,
+        priority: 2,
+        biteChance: 0.68,
+        biteDelayMin: 0.7,
+        biteDelayMax: 1.55,
+        hookWindowMs: 1450,
+        lootTableId: "fishing_woodland_default"
       },
       {
         id: "deep_pool",

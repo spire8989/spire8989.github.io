@@ -801,10 +801,11 @@ const COMBAT_DEFINITIONS = Object.freeze({
     id: "bandit_ambush",
     enemyIds: ["bandit", "bandit"],
   }),
-  bandit_leader: Object.freeze({
+  bandit_leader: {
     id: "bandit_leader",
     enemyIds: ["bandit_leader"],
-  }),
+    musicTrackId: "combat_bandit_leader_highwayman"
+  },
   summoned_guardian: Object.freeze({
     id: "summoned_guardian",
     enemyIds: ["summoned_guardian"],
@@ -833,10 +834,11 @@ const COMBAT_DEFINITIONS = Object.freeze({
     id: "morgans_huntsmen",
     enemyIds: ["morgans_huntsman", "morgans_huntsman"],
   }),
-  briar_knight: Object.freeze({
+  briar_knight: {
     id: "briar_knight",
     enemyIds: ["briar_knight"],
-  }),
+    musicTrackId: "combat_briar_knight_thornwake"
+  },
   black_hound_of_the_hunt: Object.freeze({
     id: "black_hound_of_the_hunt",
     enemyIds: ["black_hound_of_the_hunt"],

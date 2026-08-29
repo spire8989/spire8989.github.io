@@ -169,7 +169,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     },
-    musicTrackId: "combat_briar_knight_thornwake"
+    musicTrackId: null
   },
   verdant_altar: {
     id: "verdant_altar",
@@ -406,7 +406,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               {
                 type: "randomChance",
                 chance: 0.18,
-                effects: [{ type: "gainUnsecuredItem", itemId: "honey", quantity: 1 }]
+                effects: [
+                  {
+                    type: "gainUnsecuredItem",
+                    itemId: "honey",
+                    quantity: 1
+                  }
+                ]
               }
             ],
             resultText: "The search turns up a small cache worth carrying home. Everything remains unsecured until a safe return.",
@@ -442,7 +448,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     encounterLayout: {
       arthur: {
         x: 0.203125,
-        y: 0.7573784722222222
+        y: 0.7573784722222222,
+        scale: 0.9
       },
       companion1: {
         x: 0.6484375,
@@ -450,9 +457,9 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         facing: "left"
       },
       companion2: {
-        x: 0.412109375,
-        y: 0.6393229166666666,
-        scale: 0.75
+        x: 0.4097656011581421,
+        y: 0.6027777459886339,
+        scale: 0.6
       }
     }
   },
@@ -1271,15 +1278,27 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             pendingAction: {
               text: "Arthur follows the broken branches deeper into the woods..."
             },
-            endEncounter: true
+            endEncounter: true,
+            visualOverride: {
+              backgroundAssetId: "encounter_vanishing_trail",
+              hiddenSlots: ["arthur", "companion1", "companion2"]
+            }
           },
           {
             id: "return_to_road",
             label: "Return to the Road",
             resultText: "With the trail gone, Arthur and Kay return to the road.",
-            endEncounter: true
+            endEncounter: true,
+            visualOverride: {
+              backgroundAssetId: "encounter_vanishing_trail",
+              hiddenSlots: ["arthur", "companion1", "companion2"]
+            }
           }
-        ]
+        ],
+        visualOverride: {
+          backgroundAssetId: "encounter_vanishing_trail",
+          hiddenSlots: ["arthur", "companion1", "companion2"]
+        }
       }
     },
     visualAssetId: "encounter_abandoned_cart",
@@ -1287,7 +1306,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       arthur: {
         x: 0.595703125,
         y: 0.7747395833333334,
-        facing: "left"
+        facing: "left",
+        scale: 0.9
       },
       companion1: {
         x: 0.873046875,
@@ -2822,7 +2842,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     },
-    musicTrackId: "combat_bandit_leader_highwayman"
+    musicTrackId: null
   },
   ruined_wayside_shrine: {
     id: "ruined_wayside_shrine",
@@ -5860,6 +5880,24 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true
           }
         ]
+      }
+    },
+    visualAssetId: "encounter_a_welcoming_grove",
+    encounterLayout: {
+      arthur: {
+        x: 0.337890625,
+        y: 0.9555555449591743,
+        facing: "right"
+      },
+      companion2: {
+        x: 0.15507817268371582,
+        y: 0.9722222752041287,
+        facing: "right"
+      },
+      companion1: {
+        x: 0.7503906488418579,
+        y: 0.9638889100816515,
+        facing: "left"
       }
     }
   },

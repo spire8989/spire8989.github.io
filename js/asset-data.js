@@ -278,6 +278,21 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "encounter_a_horse_in_the_bracken",
     path: "assets/images/encounter/llamei_2.webp",
     category: "encounter"
+  },
+  encounter_first_lesson_fishing: {
+    id: "encounter_first_lesson_fishing",
+    path: "assets/images/encounter/fishing-pond-6.webp",
+    category: "encounter"
+  },
+  encounter_a_welcoming_grove: {
+    id: "encounter_a_welcoming_grove",
+    path: "assets/images/encounter/grove1.webp",
+    category: "encounter"
+  },
+  encounter_vanishing_trail: {
+    id: "encounter_vanishing_trail",
+    path: "assets/images/encounter/vanishing_trail2.webp",
+    category: "encounter"
   }
 });
 
