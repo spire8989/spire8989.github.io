@@ -982,27 +982,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true
           },
           {
-            id: "read_current",
-            label: "Read the Current with Woodcraft",
-            requirements: [
-              {
-                type: "knowledge",
-                knowledgeId: "woodcraft",
-                unavailable: "locked",
-                lockedLabel: "Requires Woodcraft"
-              }
-            ],
-            outcomes: [
-              {
-                type: "setRunFlag",
-                flag: "stream_crossing_read",
-                value: true
-              }
-            ],
-            resultText: "Woodcraft finds a shallow crossing upstream. The company reaches the far bank without spending supplies or risking the current.",
-            endEncounter: true
-          },
-          {
             id: "better_crossing",
             label: "Search for a Better Crossing",
             costs: [
@@ -1525,7 +1504,10 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             nextStage: "hart_flees",
             resultText: "Arthur reaches toward the animal. The hart bounds away, leaving the shard behind in the moss."
           }
-        ]
+        ],
+        visualOverride: {
+          hiddenSlots: ["companion2"]
+        }
       },
       hart_flees: {
         resultStage: true,
@@ -6134,6 +6116,27 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     },
-    maxOccurrencesPerRun: 1
+    maxOccurrencesPerRun: 1,
+    visualAssetId: "encounter_the_bell_bearer",
+    encounterLayout: {
+      companion2: {
+        x: 0.173828125,
+        y: 0.6916666560702853,
+        layer: 0
+      },
+      arthur: {
+        x: 0.2816406488418579,
+        y: 0.9333333439297147,
+        layer: 1,
+        scale: 1.75
+      },
+      companion1: {
+        x: 0.1363281011581421,
+        y: 0.9277779791090224,
+        scale: 1.5,
+        layer: 1
+      }
+    },
+    hiddenSlots: ["companion1", "companion2", "arthur"]
   }
 });

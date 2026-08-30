@@ -2782,148 +2782,6 @@ const SYNTH_AUDIO_DEFINITIONS = Object.freeze({
     }
   },
   "sfx": {
-    pickup_confirm: {
-      id: "pickup_confirm",
-      name: "Basic Confirm",
-      duration: 0.09,
-      layers: [
-        {
-          wave: "square",
-          startHz: 660,
-          endHz: 690,
-          gain: 0.055,
-          attack: 0.002,
-          release: 0.035,
-          duration: 0.055,
-          filter: {
-            frequency: 2200,
-            q: 0.5
-          }
-        },
-        {
-          wave: "sine",
-          startHz: 990,
-          endHz: 990,
-          gain: 0.035,
-          attack: 0.002,
-          release: 0.025,
-          start: 0.035,
-          duration: 0.045
-        }
-      ]
-    },
-    cooking_loop: {
-      id: "cooking_loop",
-      name: "Cooking Loop",
-      duration: 1.4,
-      layers: [
-        {
-          wave: "noise",
-          gain: 0.022,
-          attack: 0.02,
-          release: 0.18,
-          start: 0.05,
-          duration: 0.3,
-          filter: {
-            frequency: 1150,
-            q: 0.7
-          }
-        },
-        {
-          wave: "noise",
-          gain: 0.018,
-          attack: 0.02,
-          release: 0.16,
-          start: 0.48,
-          duration: 0.24,
-          filter: {
-            frequency: 1450,
-            q: 0.8
-          }
-        },
-        {
-          wave: "noise",
-          gain: 0.024,
-          attack: 0.015,
-          release: 0.2,
-          start: 0.92,
-          duration: 0.32,
-          filter: {
-            frequency: 1000,
-            q: 0.65
-          }
-        },
-        {
-          wave: "sine",
-          startHz: 310,
-          endHz: 220,
-          gain: 0.018,
-          attack: 0.01,
-          release: 0.08,
-          start: 0.7,
-          duration: 0.12
-        }
-      ]
-    },
-    craft_blacksmith_loop: {
-      id: "craft_blacksmith_loop",
-      name: "Blacksmith Crafting Loop",
-      duration: 1.35,
-      layers: [
-        {
-          wave: "sine",
-          startHz: 1180,
-          endHz: 920,
-          gain: 0.055,
-          attack: 0.001,
-          release: 0.12,
-          start: 0.08,
-          duration: 0.15
-        },
-        {
-          wave: "sine",
-          startHz: 1620,
-          endHz: 1050,
-          gain: 0.035,
-          attack: 0.001,
-          release: 0.09,
-          start: 0.08,
-          duration: 0.12
-        },
-        {
-          wave: "noise",
-          gain: 0.035,
-          attack: 0.001,
-          release: 0.055,
-          start: 0.08,
-          duration: 0.07,
-          filter: {
-            frequency: 1900,
-            q: 1.2
-          }
-        },
-        {
-          wave: "sine",
-          startHz: 980,
-          endHz: 760,
-          gain: 0.05,
-          attack: 0.001,
-          release: 0.11,
-          start: 0.7,
-          duration: 0.14
-        },
-        {
-          wave: "sine",
-          startHz: 1450,
-          endHz: 980,
-          gain: 0.03,
-          attack: 0.001,
-          release: 0.08,
-          start: 0.7,
-          duration: 0.1
-        }
-      ]
-    },
     craft_potion_loop: {
       id: "craft_potion_loop",
       name: "Potion Making Loop",
@@ -3332,6 +3190,487 @@ const SYNTH_AUDIO_DEFINITIONS = Object.freeze({
           filter: {
             frequency: 1350,
             q: 1
+          }
+        }
+      ]
+    },
+    pickup_confirm: {
+      id: "pickup_confirm",
+      name: "Basic Confirm",
+      duration: 0.09,
+      layers: [
+        {
+          wave: "square",
+          startHz: 660,
+          endHz: 690,
+          gain: 0.055,
+          attack: 0.002,
+          release: 0.035,
+          duration: 0.055,
+          filter: {
+            frequency: 2200,
+            q: 0.5
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 990,
+          endHz: 990,
+          gain: 0.035,
+          attack: 0.002,
+          release: 0.025,
+          start: 0.035,
+          duration: 0.045
+        }
+      ]
+    },
+    bell_bearer_toll: {
+      id: "bell_bearer_toll",
+      name: "Bell-Bearer Toll",
+      duration: 0.75,
+      layers: [
+        {
+          wave: "sine",
+          startHz: 220,
+          endHz: 205,
+          gain: 0.07,
+          attack: 0.002,
+          release: 0.55,
+          duration: 0.72
+        },
+        {
+          wave: "triangle",
+          startHz: 438,
+          endHz: 420,
+          gain: 0.045,
+          attack: 0.002,
+          release: 0.42,
+          duration: 0.58,
+          filter: {
+            frequency: 1400,
+            q: 1.1
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 655,
+          endHz: 620,
+          gain: 0.028,
+          attack: 0.002,
+          release: 0.32,
+          duration: 0.45
+        },
+        {
+          wave: "noise",
+          gain: 0.018,
+          attack: 0.001,
+          release: 0.07,
+          duration: 0.09,
+          filter: {
+            frequency: 1800,
+            q: 1.5
+          }
+        }
+      ]
+    },
+    bell_bearer_poison_hit: {
+      id: "bell_bearer_poison_hit",
+      name: "Bell-Bearer Poison Hit",
+      duration: 0.32,
+      layers: [
+        {
+          wave: "sawtooth",
+          startHz: 240,
+          endHz: 95,
+          gain: 0.05,
+          attack: 0.001,
+          release: 0.11,
+          duration: 0.14,
+          filter: {
+            frequency: 900,
+            q: 1
+          }
+        },
+        {
+          wave: "noise",
+          gain: 0.045,
+          attack: 0.001,
+          release: 0.09,
+          duration: 0.12,
+          filter: {
+            frequency: 1250,
+            q: 1.2
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 175,
+          endHz: 135,
+          gain: 0.035,
+          attack: 0.005,
+          release: 0.19,
+          start: 0.07,
+          duration: 0.22
+        },
+        {
+          wave: "triangle",
+          startHz: 520,
+          endHz: 365,
+          gain: 0.024,
+          attack: 0.004,
+          release: 0.14,
+          start: 0.09,
+          duration: 0.18,
+          filter: {
+            frequency: 1100,
+            q: 1.4
+          }
+        }
+      ]
+    },
+    cooking_loop: {
+      id: "cooking_loop",
+      name: "Cooking Loop",
+      duration: 1.4,
+      layers: [
+        {
+          wave: "noise",
+          gain: 0.022,
+          attack: 0.02,
+          release: 0.18,
+          start: 0.05,
+          duration: 0.3,
+          filter: {
+            frequency: 1150,
+            q: 0.7
+          }
+        },
+        {
+          wave: "noise",
+          gain: 0.018,
+          attack: 0.02,
+          release: 0.16,
+          start: 0.48,
+          duration: 0.24,
+          filter: {
+            frequency: 1450,
+            q: 0.8
+          }
+        },
+        {
+          wave: "noise",
+          gain: 0.024,
+          attack: 0.015,
+          release: 0.2,
+          start: 0.92,
+          duration: 0.32,
+          filter: {
+            frequency: 1000,
+            q: 0.65
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 310,
+          endHz: 220,
+          gain: 0.018,
+          attack: 0.01,
+          release: 0.08,
+          start: 0.7,
+          duration: 0.12
+        }
+      ]
+    },
+    thorn_surge_use: {
+      id: "thorn_surge_use",
+      name: "Thorn Surge Use",
+      duration: 0.34,
+      layers: [
+        {
+          wave: "noise",
+          gain: 0.05,
+          attack: 0.002,
+          release: 0.14,
+          duration: 0.22,
+          filter: {
+            frequency: 1250,
+            q: 1.1
+          }
+        },
+        {
+          wave: "square",
+          startHz: 180,
+          endHz: 520,
+          gain: 0.038,
+          attack: 0.002,
+          release: 0.1,
+          start: 0.02,
+          duration: 0.18,
+          filter: {
+            frequency: 1050,
+            q: 0.9
+          }
+        },
+        {
+          wave: "sawtooth",
+          startHz: 520,
+          endHz: 960,
+          gain: 0.028,
+          attack: 0.002,
+          release: 0.09,
+          start: 0.12,
+          duration: 0.14,
+          filter: {
+            frequency: 1700,
+            q: 1.3
+          }
+        }
+      ]
+    },
+    thorn_surge_impact: {
+      id: "thorn_surge_impact",
+      name: "Thorn Surge Impact",
+      duration: 0.24,
+      layers: [
+        {
+          wave: "noise",
+          gain: 0.065,
+          attack: 0.001,
+          release: 0.07,
+          duration: 0.1,
+          filter: {
+            frequency: 2200,
+            q: 1.5
+          }
+        },
+        {
+          wave: "sawtooth",
+          startHz: 330,
+          endHz: 120,
+          gain: 0.046,
+          attack: 0.001,
+          release: 0.08,
+          duration: 0.11,
+          filter: {
+            frequency: 1000,
+            q: 1
+          }
+        },
+        {
+          wave: "triangle",
+          startHz: 760,
+          endHz: 430,
+          gain: 0.026,
+          attack: 0.002,
+          release: 0.1,
+          start: 0.045,
+          duration: 0.14,
+          filter: {
+            frequency: 1450,
+            q: 1.1
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 1450,
+          endHz: 900,
+          gain: 0.015,
+          attack: 0.001,
+          release: 0.06,
+          start: 0.08,
+          duration: 0.08
+        }
+      ]
+    },
+    craft_blacksmith_loop: {
+      id: "craft_blacksmith_loop",
+      name: "Blacksmith Crafting Loop",
+      duration: 1.35,
+      layers: [
+        {
+          wave: "sine",
+          startHz: 1180,
+          endHz: 920,
+          gain: 0.055,
+          attack: 0.001,
+          release: 0.12,
+          start: 0.08,
+          duration: 0.15
+        },
+        {
+          wave: "sine",
+          startHz: 1620,
+          endHz: 1050,
+          gain: 0.035,
+          attack: 0.001,
+          release: 0.09,
+          start: 0.08,
+          duration: 0.12
+        },
+        {
+          wave: "noise",
+          gain: 0.035,
+          attack: 0.001,
+          release: 0.055,
+          start: 0.08,
+          duration: 0.07,
+          filter: {
+            frequency: 1900,
+            q: 1.2
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 980,
+          endHz: 760,
+          gain: 0.05,
+          attack: 0.001,
+          release: 0.11,
+          start: 0.7,
+          duration: 0.14
+        },
+        {
+          wave: "sine",
+          startHz: 1450,
+          endHz: 980,
+          gain: 0.03,
+          attack: 0.001,
+          release: 0.08,
+          start: 0.7,
+          duration: 0.1
+        }
+      ]
+    },
+    verdant_roar_impact: {
+      id: "verdant_roar_impact",
+      name: "Verdant Roar Impact",
+      duration: 0.3,
+      layers: [
+        {
+          wave: "noise",
+          gain: 0.055,
+          attack: 0.001,
+          release: 0.11,
+          duration: 0.15,
+          filter: {
+            frequency: 1200,
+            q: 1.35
+          }
+        },
+        {
+          wave: "sawtooth",
+          startHz: 310,
+          endHz: 95,
+          gain: 0.043,
+          attack: 0.001,
+          release: 0.12,
+          duration: 0.15,
+          filter: {
+            frequency: 900,
+            q: 1
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 155,
+          endHz: 110,
+          gain: 0.04,
+          attack: 0.004,
+          release: 0.2,
+          start: 0.05,
+          duration: 0.24
+        },
+        {
+          wave: "triangle",
+          startHz: 820,
+          endHz: 470,
+          gain: 0.024,
+          attack: 0.002,
+          release: 0.14,
+          start: 0.06,
+          duration: 0.18,
+          filter: {
+            frequency: 1400,
+            q: 1.2
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 1120,
+          endHz: 720,
+          gain: 0.012,
+          attack: 0.002,
+          release: 0.1,
+          start: 0.1,
+          duration: 0.12
+        }
+      ]
+    },
+    verdant_roar_use: {
+      id: "verdant_roar_use",
+      name: "Verdant Roar Use",
+      duration: 0.58,
+      layers: [
+        {
+          wave: "square",
+          startHz: 135,
+          endHz: 88,
+          gain: 0.045,
+          attack: 0.008,
+          release: 0.24,
+          duration: 0.36,
+          filter: {
+            frequency: 720,
+            q: 1.1
+          }
+        },
+        {
+          wave: "sawtooth",
+          startHz: 190,
+          endHz: 120,
+          gain: 0.035,
+          attack: 0.012,
+          release: 0.26,
+          duration: 0.4,
+          filter: {
+            frequency: 980,
+            q: 1.25
+          }
+        },
+        {
+          wave: "sine",
+          startHz: 280,
+          endHz: 620,
+          gain: 0.028,
+          attack: 0.025,
+          release: 0.22,
+          start: 0.12,
+          duration: 0.34
+        },
+        {
+          wave: "triangle",
+          startHz: 470,
+          endHz: 760,
+          gain: 0.02,
+          attack: 0.02,
+          release: 0.18,
+          start: 0.18,
+          duration: 0.28,
+          filter: {
+            frequency: 1500,
+            q: 1
+          }
+        },
+        {
+          wave: "noise",
+          gain: 0.02,
+          attack: 0.01,
+          release: 0.2,
+          start: 0.08,
+          duration: 0.32,
+          filter: {
+            frequency: 1100,
+            q: 1.2
           }
         }
       ]

@@ -618,7 +618,8 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
           assetId: "combat_bell_bearer_ringbell",
           frameCount: 25,
           columns: 5,
-          fps: 16
+          fps: 16,
+          impactFrame: 15
         }
       }
     }
@@ -817,7 +818,9 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "bruised_ribs",
     injuryChance: 0.16,
     animationId: "thorn_surge",
-    targetMode: "allAllies"
+    targetMode: "allAllies",
+    useSfxId: "thorn_surge_use",
+    impactSfxId: "thorn_surge_impact"
   },
   hound_bite: Object.freeze({
     id: "hound_bite",
@@ -890,14 +893,20 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "deep_cut",
     injuryChance: 0.24,
   }),
-  thorn_hart_roar: Object.freeze({
+  thorn_hart_roar: {
     id: "thorn_hart_roar",
     name: "Verdant Roar",
-    damage: Object.freeze({ minimum: 6, maximum: 10 }),
+    damage: {
+      minimum: 6,
+      maximum: 10
+    },
     target: "arthur",
     statusId: "bleeding",
     statusChance: 0.65,
-  }),
+    targetMode: "allAllies",
+    useSfxId: "verdant_roar_use",
+    impactSfxId: "verdant_roar_impact"
+  },
   leper_bell: {
     id: "leper_bell",
     damage: {
@@ -908,7 +917,10 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "poisoned",
     injuryChance: 0.18,
     name: "The Bell Tolls",
-    animationId: "ring_bell"
+    animationId: "ring_bell",
+    targetMode: "allAllies",
+    useSfxId: "bell_bearer_toll",
+    impactSfxId: "bell_bearer_poison_hit"
   }
 });
 

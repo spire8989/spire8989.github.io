@@ -378,6 +378,11 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "encounter_the_verdant_altar",
     path: "assets/images/encounter/verdant_altar_2.webp",
     category: "encounter"
+  },
+  encounter_the_bell_bearer: {
+    id: "encounter_the_bell_bearer",
+    path: "assets/images/encounter/Bell-Bearer-4.webp",
+    category: "encounter"
   }
 });
 
