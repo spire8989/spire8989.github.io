@@ -3202,6 +3202,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "approach_horse",
             label: "Approach the Horse",
+            requirements: [
+              {
+                type: "emptyCompanionSlot",
+                lockedLabel: "Requires an empty companion slot"
+              }
+            ],
             outcomes: [
               {
                 type: "unlockCompanion",

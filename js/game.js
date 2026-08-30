@@ -622,6 +622,7 @@ function bumpTravelPresentationGeneration(expedition = game.expedition, reason =
       : null;
     state.transition = null;
     state.sceneAssetLoad = null;
+    state.encounterAssetLoad = null;
     state.failedAssetId = null;
   }
   document.querySelector("#travel-transition-art")?.classList.remove("is-active");
@@ -1636,6 +1637,7 @@ function travelScenePresentationFor(expedition = game.expedition) {
       pending: null,
       transition: null,
       sceneAssetLoad: null,
+      encounterAssetLoad: null,
       failedAssetId: null,
     };
   } else if (current.generation !== currentTravelPresentationGeneration()) {
@@ -1643,6 +1645,7 @@ function travelScenePresentationFor(expedition = game.expedition) {
     current.pending = null;
     current.transition = null;
     current.sceneAssetLoad = null;
+    current.encounterAssetLoad = null;
   }
   return game.travelScenePresentation;
 }
@@ -2747,16 +2750,30 @@ function renderCombatVisual(combatant, fallback, alt) {
 
 function resolveCombatActionVisualSlot(combatant, event) {
   const definition = characterDefinitionForCombatant(combatant);
-  const action = combatant?.side === "enemy" && typeof COMBAT_ENEMY_ACTION_DEFINITIONS !== "undefined"
-    ? COMBAT_ENEMY_ACTION_DEFINITIONS[event?.action]
-    : null;
-  const animationId = typeof action?.animationId === "string" ? action.animationId.trim() : "";
+  const animationId = combatant?.side === "enemy"
+    ? enemyAnimationSlotForAction(combatant, event?.action)
+    : "";
   return animationId && characterVisualSlotIsUsable(definition, animationId) ? animationId : "attack";
+}
+
+function enemyAnimationSlotForAction(combatant, actionId) {
+  const definitionId = combatant?.definitionId || combatant?.id?.replace(/_\d+$/, "");
+  const enemy = typeof COMBAT_ENEMY_DEFINITIONS !== "undefined"
+    ? COMBAT_ENEMY_DEFINITIONS[definitionId]
+    : null;
+  const mapping = enemy?.actionAnimations;
+  if (mapping && Object.prototype.hasOwnProperty.call(mapping, actionId)) {
+    return typeof mapping[actionId] === "string" ? mapping[actionId].trim() : "";
+  }
+  const action = typeof COMBAT_ENEMY_ACTION_DEFINITIONS !== "undefined"
+    ? COMBAT_ENEMY_ACTION_DEFINITIONS[actionId]
+    : null;
+  return typeof action?.animationId === "string" ? action.animationId.trim() : "";
 }
 
 function enemyCombatVisualSlots(combatant) {
   const actionIds = Array.isArray(combatant?.actionPattern) ? combatant.actionPattern : [];
-  const animationIds = actionIds.map((actionId) => COMBAT_ENEMY_ACTION_DEFINITIONS[actionId]?.animationId);
+  const animationIds = actionIds.map((actionId) => enemyAnimationSlotForAction(combatant, actionId));
   return ["attack", ...animationIds.filter((animationId) => typeof animationId === "string" && animationId.trim())];
 }
 
@@ -4885,6 +4902,37 @@ function applyEncounterPartyLayout(encounter, activeEncounter = null, livePartyL
   });
 }
 
+function ensureEncounterPresentationAsset(expedition, encounter) {
+  if (!expedition || !encounter) return true;
+  const backgroundAssetId = resolveEncounterVisualState(encounter, expedition.activeEncounter).backgroundAssetId;
+  if (!backgroundAssetId
+    || travelSceneAssetReady(backgroundAssetId)
+    || travelSceneAssetFailed(backgroundAssetId)) return true;
+  const state = travelScenePresentationFor(expedition);
+  if (!state) return true;
+  const key = `encounter:${backgroundAssetId}`;
+  if (state.encounterAssetLoad?.key === key) return false;
+  const request = {
+    key,
+    generation: state.generation ?? currentTravelPresentationGeneration(),
+    expedition,
+    assetId: backgroundAssetId,
+    promise: null,
+  };
+  const token = travelPresentationToken(expedition, request.generation);
+  request.promise = preloadTravelSceneAsset(backgroundAssetId).then(() => {
+    if (state.encounterAssetLoad !== request
+      || !isCurrentTravelPresentation(token)
+      || game.expedition !== expedition
+      || !expedition.activeEncounter) return false;
+    state.encounterAssetLoad = null;
+    renderScreen();
+    return true;
+  });
+  state.encounterAssetLoad = request;
+  return false;
+}
+
 function renderExpedition() {
   const expedition = game.expedition;
   if (game.minigameSession?.expedition === expedition) {
@@ -4945,7 +4993,18 @@ function renderExpedition() {
     renderCamp(expedition);
     return;
   }
-  const travelPresentation = resolveExpeditionTravelPresentation(expedition, activeEncounter);
+  if (!preserveLiveTravelScene) {
+    bumpTravelPresentationGeneration(expedition, "full-expedition-scene-rebuild");
+  }
+  const presentationState = travelScenePresentationFor(expedition);
+  if (presentationState) presentationState.activeEncounterId = nextEncounterId;
+  const encounterPresentationReady = ensureEncounterPresentationAsset(expedition, activeEncounter);
+  const presentationEncounter = encounterPresentationReady ? activeEncounter : null;
+  if (!encounterPresentationReady && preserveLiveTravelScene) {
+    syncTravelPresentation(expedition);
+    return;
+  }
+  const travelPresentation = resolveExpeditionTravelPresentation(expedition, presentationEncounter);
   const travelBaseReady = !travelPresentation.assetId || travelSceneAssetReady(travelPresentation.assetId);
   const travelVisualSnapshot = !preserveLiveTravelScene
     && game.travelVisualState?.expedition === expedition
@@ -4955,15 +5014,9 @@ function renderExpedition() {
   const loadoutEntries = Object.values(expedition.selectedEquipment)
     .map((itemId) => ({ itemId, quantity: 1 }))
     .filter(({ itemId }) => ITEM_DEFINITIONS[itemId]);
-  const expeditionPanelMarkup = activeEncounter
-    ? renderEncounterPanel(expedition, activeEncounter)
+  const expeditionPanelMarkup = presentationEncounter
+    ? renderEncounterPanel(expedition, presentationEncounter)
     : `${renderTravelPanel(expedition, companions, loadoutEntries)}${renderExpeditionActionBar(expedition)}`;
-
-  if (!preserveLiveTravelScene) {
-    bumpTravelPresentationGeneration(expedition, "full-expedition-scene-rebuild");
-  }
-  const presentationState = travelScenePresentationFor(expedition);
-  if (presentationState) presentationState.activeEncounterId = nextEncounterId;
 
   if (preserveLiveTravelScene) {
     const expeditionScreen = existingTravelScene.closest(".expedition-screen");
@@ -4983,7 +5036,7 @@ function renderExpedition() {
         expeditionScreen.insertAdjacentHTML("beforeend", renderDialogueOverlay(game.dialogueSession));
       }
       initializeCharacterSprites(expeditionScreen);
-      applyEncounterPartyLayout(activeEncounter, expedition.activeEncounter, game.travelPartyVisualState);
+      applyEncounterPartyLayout(presentationEncounter, presentationEncounter ? expedition.activeEncounter : null, game.travelPartyVisualState);
       game.travelVisualState = null;
       updateTravelHud();
       return;
@@ -4992,15 +5045,15 @@ function renderExpedition() {
 
   ui.screenRoot.innerHTML = `
     <section class="screen expedition-screen" aria-label="Brocéliande expedition">
-      <div data-asset-frame="travel" data-travel-generation="${currentTravelPresentationGeneration()}" class="visual-frame travel-scene ${activeEncounter ? "is-paused" : ""}${travelBaseReady ? " asset-image-active" : ""}" id="travel-scene">
-        ${renderTravelVisualAsset(travelPresentation.assetId, activeEncounter?.title ?? expeditionDefinition(expedition).name, travelPresentation.motion, travelPresentation.sceneKey, travelPresentation.kind ?? (activeEncounter ? "encounter" : "travel"), travelPresentation.showSeamForegroundBetweenLoops, travelVisualSnapshot, travelPresentation.travelParallaxAssetId)}
+      <div data-asset-frame="travel" data-travel-generation="${currentTravelPresentationGeneration()}" class="visual-frame travel-scene ${presentationEncounter ? "is-paused" : ""}${travelBaseReady ? " asset-image-active" : ""}" id="travel-scene">
+        ${renderTravelVisualAsset(travelPresentation.assetId, presentationEncounter?.title ?? expeditionDefinition(expedition).name, travelPresentation.motion, travelPresentation.sceneKey, travelPresentation.kind ?? (presentationEncounter ? "encounter" : "travel"), travelPresentation.showSeamForegroundBetweenLoops, travelVisualSnapshot, travelPresentation.travelParallaxAssetId)}
         <div class="moon" aria-hidden="true"></div>
         <div class="forest forest-far" aria-hidden="true"></div>
         <div class="forest forest-near" aria-hidden="true"></div>
-        ${renderEncounterTravelers(companions, activeEncounter, expedition.activeEncounter, game.travelPartyVisualState)}
+        ${renderEncounterTravelers(companions, presentationEncounter, presentationEncounter ? expedition.activeEncounter : null, game.travelPartyVisualState)}
         <div class="ground" aria-hidden="true"></div>
         ${renderTravelTransitionAsset(expedition)}
-        <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, activeEncounter)}</div>
+        <div class="direction-banner" id="direction-banner">${travelBannerText(expedition, presentationEncounter)}</div>
         ${expedition.travelState === "departure" ? renderExpeditionDepartureBanner(expedition) : ""}
       </div>
       <div id="expedition-panel-host">${expeditionPanelMarkup}</div>

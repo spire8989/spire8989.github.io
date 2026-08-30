@@ -32,6 +32,8 @@ const EncounterRequirements = Object.freeze({
       case "companion":
         return Boolean(expedition)
           && (expedition.selectedCompanions ?? [expedition.selectedCompanion]).includes(requirement.companionId);
+      case "emptyCompanionSlot":
+        return Boolean(expedition) && selectedCompanionIds(expedition).length < 2;
       case "unlockedCompanion":
         return player?.unlockedCompanions?.includes(requirement.companionId) === true;
       case "notUnlockedCompanion":
@@ -338,12 +340,38 @@ const EncounterOutcomes = Object.freeze({
         messages = effect.message ? [effect.message] : [];
         break;
       case "unlockCompanion":
-        if (COMPANION_DEFINITIONS[effect.companionId]
-          && !player.unlockedCompanions.includes(effect.companionId)) {
-          player.unlockedCompanions.push(effect.companionId);
-          messages = [
-            `${COMPANION_DEFINITIONS[effect.companionId].name} is now available as a companion.`,
-          ];
+        {
+          const companion = COMPANION_DEFINITIONS[effect.companionId];
+          if (!companion) break;
+          player.unlockedCompanions ??= [];
+          const newlyUnlocked = !player.unlockedCompanions.includes(effect.companionId);
+          if (newlyUnlocked) player.unlockedCompanions.push(effect.companionId);
+
+          const selected = selectedCompanionIds(expedition).slice(0, 2);
+          const alreadySelected = selected.includes(effect.companionId);
+          if (expedition) {
+            expedition.selectedCompanions = selected;
+            expedition.selectedCompanion = selected[0] ?? null;
+          }
+          if (expedition && !alreadySelected && selected.length < 2) {
+            selected.push(effect.companionId);
+            expedition.selectedCompanions = selected;
+            expedition.selectedCompanion = selected[0] ?? null;
+            expedition.provisionCapacity = ExpeditionRules.partyProvisionCapacity(
+              selected,
+              expedition.expeditionId,
+            );
+            expedition.provisionConsumptionMultiplier = ExpeditionRules.partyProvisionConsumptionMultiplier(selected);
+            expedition.travelSpeedMultiplier = ExpeditionRules.partyTravelSpeedMultiplier(selected);
+            expedition.companionCombatHp ??= {};
+            expedition.companionCombatHp[effect.companionId] = InjuryRules.effectiveMaxHealth(
+              expedition,
+              effect.companionId,
+            );
+            messages = [`${companion.name} joined the active expedition.`];
+          } else if (newlyUnlocked) {
+            messages = [`${companion.name} is now available as a companion.`];
+          }
         }
         break;
       case "gainUniqueUnsecuredItem": {

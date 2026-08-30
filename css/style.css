@@ -3789,7 +3789,7 @@ button.combatant {
   position: relative;
   z-index: 2;
   min-width: 0;
-  width: 7.6rem;
+  width: min(12rem, 100%);
   max-width: none;
   justify-self: center;
   margin-inline: auto;
@@ -3819,10 +3819,8 @@ button.combatant {
   margin-bottom: 0.12rem;
 }
 
-.combatant strong,
 .combatant .combat-hp-label,
 .combatant .combat-resource-heading span,
-.combatant .combat-intent,
 .combatant .combatant-statuses {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3831,6 +3829,9 @@ button.combatant {
 
 .combatant-heading strong {
   min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-overflow: clip;
 }
 
 .combatant-heading .combat-hp-label {
@@ -3859,6 +3860,8 @@ button.combatant {
   font-weight: 900;
   letter-spacing: 0.1em;
   line-height: 0.92;
+  overflow-wrap: anywhere;
+  white-space: normal;
   text-align: center;
   text-transform: uppercase;
 }

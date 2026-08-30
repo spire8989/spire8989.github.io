@@ -1,5 +1,41 @@
 # Build Log
 
+## 2026-08-29 - Recruitment, Encounter, and Combat Polish
+
+### Goal
+
+Make the next focused gameplay/editor pass support live companion recruitment,
+readable enemy HUDs, encounter background readiness, enemy-local attack
+animations, and enemy party-wide actions.
+
+### AI-assisted implementation
+
+- Added the reusable `emptyCompanionSlot` requirement and updated Llamrei's
+  recruitment choice to require it. Successful recruitment now joins the
+  active expedition immediately, initializes full effective combat HP, and
+  refreshes party-derived expedition modifiers without allowing overfill.
+- Delayed encounter panel/layout presentation until the selected encounter
+  background is actually ready, with generation-safe failure fallback.
+- Widened combat HUDs and allowed enemy names/intents to wrap when needed.
+- Added enemy-local `actionAnimations` authoring to the Content Editor and
+  runtime preload/selection, while preserving legacy Enemy Action animation
+  fields as a fallback.
+- Added optional enemy `targetMode` authoring with `singleAlly` compatibility
+  and `allAllies` resolution through the existing multi-target effects path.
+- Added focused game and Content Editor regressions for these data paths,
+  including source round trips and validation warnings.
+
+### Reported manual changes
+
+- No content migration is required. Existing enemy actions without
+  `targetMode` or enemy-local animation mappings retain their current behavior.
+
+### Verification and resulting prototype state
+
+- `python tests/polish_pass_test.py` passes 4 focused browser assertions.
+- The focused Content Editor round-trip/validation test passes.
+- `git diff --check` passes for both repositories.
+
 ## 2026-08-29 - Named Enemy Attack Animations
 
 ### Goal

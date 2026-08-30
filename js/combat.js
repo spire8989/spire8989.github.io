@@ -506,39 +506,58 @@ function resolveEnemyAction(state, expedition, enemy) {
   if (!isLivingCombatant(enemy)) return;
   const action = COMBAT_ENEMY_ACTION_DEFINITIONS[enemy.intentId];
   const ability = normalizeEnemyAction(action);
-  let target = chooseEnemyTarget(state, action);
-  const selectedTargetId = target?.id ?? null;
-  const interceder = state.allies.find((ally) => ally.interceding && isLivingCombatant(ally) && target?.id === "arthur");
-  if (interceder) {
-    interceder.interceding = false;
-    addCombatLog(state, `${interceder.name} takes ${action.name} meant for Arthur.`);
-    target = interceder;
+  let targets = [];
+  let selectedTargetId = null;
+  let redirectedByIntercede = false;
+  if (ability.targetMode === "allAllies") {
+    // Enemy actions use "ally" for the player's active party, while the
+    // central resolver interprets modes from the source combatant's side.
+    targets = CombatTargetResolver.resolve(state, { side: "ally" }, "allAllies").targets;
+  } else {
+    let target = chooseEnemyTarget(state, action);
+    selectedTargetId = target?.id ?? null;
+    const interceder = state.allies.find((ally) => ally.interceding
+      && isLivingCombatant(ally)
+      && target?.id === "arthur");
+    if (interceder) {
+      interceder.interceding = false;
+      addCombatLog(state, `${interceder.name} takes ${action?.name ?? "Attack"} meant for Arthur.`);
+      target = interceder;
+      redirectedByIntercede = true;
+    }
+    if (target) targets = [target];
   }
-  if (target) {
-    resolveCombatAbility(state, expedition, enemy, ability, [target], {
-      action: action.id, damageRange: action.damage, selectedTargetId,
-      redirectedByIntercede: target.id !== selectedTargetId,
+  if (targets.length > 0) {
+    resolveCombatAbility(state, expedition, enemy, ability, targets, {
+      action: action?.id ?? ability.id, damageRange: action?.damage, selectedTargetId,
+      redirectedByIntercede,
     });
     const event = [...state.events].reverse().find((entry) => (
-      entry.actor === enemy.id && entry.action === action.id
+      entry.actor === enemy.id && entry.action === (action?.id ?? ability.id)
     ));
-    if (event && event.actor === enemy.id && event.action === action.id) {
-      event.selectedTarget = selectedTargetId; event.target = target.id; event.redirectedByIntercede = target.id !== selectedTargetId;
+    if (event && ability.targetMode !== "allAllies") {
+      event.selectedTarget = selectedTargetId;
+      event.target = targets[0].id;
+      event.redirectedByIntercede = redirectedByIntercede;
     }
-    addCombatLog(state, `${enemy.name} uses ${action.name} on ${target.name} for ${event?.damage ?? 0} damage.`);
-    if (!isLivingCombatant(target)) addCombatLog(state, `${target.name} is incapacitated.`);
+    const targetNames = targets.map((target) => target.name).join(", ");
+    addCombatLog(state, `${enemy.name} uses ${action?.name ?? "Attack"} on ${targetNames} for ${event?.damage ?? 0} damage.`);
+    targets.filter((target) => !isLivingCombatant(target)).forEach((target) => {
+      addCombatLog(state, `${target.name} is incapacitated.`);
+    });
   }
   enemy.gauge = 0; enemy.intentId = nextEnemyIntent(enemy);
-  CombatEventSystem.dispatch(state, "turnEnd", { sourceCombatant: enemy, targetCombatant: enemy, abilityId: action?.id ?? null });
+  CombatEventSystem.dispatch(state, "turnEnd", { sourceCombatant: enemy, targetCombatant: enemy, abilityId: action?.id ?? ability.id ?? null });
   if (state.allies.find((ally) => ally.id === "arthur")?.hp <= 0) finishCombat(state, "defeat");
   else if (state.status === "running") addCombatLog(state, `${enemy.name} prepares ${enemyIntentName(enemy)}.`);
   syncCombatHealth(state, expedition);
 }
 
 function normalizeEnemyAction(action) {
-  if (!action) return { id: "enemy_attack", name: "Attack", targetMode: "singleEnemy", effects: [] };
+  const targetMode = action?.targetMode === "allAllies" ? "allAllies" : "singleAlly";
+  if (!action) return { id: "enemy_attack", name: "Attack", targetMode, effects: [] };
   return {
-    ...action, kind: "active", targetMode: "singleEnemy", tags: ["enemy", "martial"],
+    ...action, kind: "active", targetMode, tags: ["enemy", "martial"],
     effects: [
       { type: "weaponDamage", range: action.damage },
       ...(action.injuryId ? [{ type: "applyInjury", injuryId: action.injuryId, chance: action.injuryChance }] : []),
