@@ -67,6 +67,7 @@ def run():
             " const csv=SimulationTelemetry.toCsv({results:[run]});"
             " const p=SaveSystem.createDefaultPlayerState(); p.selectedCompanions=[]; p.selectedCompanion=null;"
             " p.provisions=2; p.materials={...p.materials,raw_fish:1};"
+            " p.learnedRecipes=[...p.learnedRecipes,'cooked_fish'];"
             " const cooking=applyBetweenExpeditionPolicy(p,CampaignRules.createShopStocks(),"
             " BetweenExpeditionPolicies['conservative-sustainer'],100,false,'cautious',()=>0.5);"
             " const campaign=CampaignSimulationRunner.run({seed:'fishing-campaign-telemetry',expeditions:1,"
@@ -88,6 +89,10 @@ def run():
             " &&cooking.innIngredientsConsumedById.raw_fish===1&&cooking.innCookingProvisionsGained===4;"
             " window.__simulationAutomationDebug={run:{outcome:run.outcome,steps:run.stepCount,sessions:run.fishingSessions,casts:run.fishingCasts,hotspotCasts:run.hotspotCasts,nonHotspotCasts:run.nonHotspotCasts,fishCaught:run.fishCaught,actualFishCaught:run.actualFishCaught,fishRewardsByItemId:run.fishRewardsByItemId,rawFish:run.rawFishGained,cooked:run.cookedFishRecipeUses,fishProvisions:run.provisionsGainedFromFish},csvFields:fields.map(field=>[field,csv.includes(field)]),determinism:{matches:determinism.matches,firstMismatch:determinism.firstMismatch},cooking}; return ok; })()",
             "Fishing replay or fish cooking did not complete through the normal simulation flow",
+        )
+        check(
+            "(() => { const base=SaveSystem.createDefaultPlayerState(); const ingredients={fresh_herbs:2,raw_meat:1,raw_fish:2,mushrooms:1,wild_berries:1}; const make=(learned,owned=ingredients)=>{ const player={...base,provisions:0,currentGold:0,learnedRecipes:[...learned],ownedItems:{...base.ownedItems,...owned}}; return {player,result:cookAtInn(player,'normal',()=>0.5,[],{targetProvisions:20})}; }; const learned=make(['royal_feast']); const unknown=make([]); const missing=make(['royal_feast'],{...ingredients,raw_fish:1}); const campaign=CampaignSimulationRunner.run({seed:'royal-feast-telemetry',expeditions:1,strategy:'normal',turnaroundDistance:100,startingState:{provisions:0,currentGold:1000,learnedRecipes:['royal_feast'],ownedItems:ingredients}}); const summary=CampaignSimulationTelemetry.aggregate({results:[campaign]}); const ids=campaignFoodRecipeIds(); return ids.includes('royal_feast')&&learned.result.actions.some(action=>action.recipeId==='royal_feast')&&unknown.result.actions.every(action=>action.recipeId!=='royal_feast')&&missing.result.actions.every(action=>action.recipeId!=='royal_feast')&&campaign.foodRecipeLearnedById.royal_feast===true&&campaign.foodRecipeUsedById.royal_feast===true&&summary.foodRecipeLearningRateById.royal_feast===1&&summary.foodRecipeUsageRateById.royal_feast===1&&summary.recipesUsedById.royal_feast===1&&summary.cookingProvisionsGainedByRecipe.royal_feast===20; })()",
+            "Campaign cooking did not discover, gate, use, or report the authored Royal Feast recipe",
         )
         check(
             "(() => { const base=SaveSystem.createDefaultPlayerState();"

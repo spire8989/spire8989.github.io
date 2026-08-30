@@ -6054,3 +6054,23 @@ No content migration is required. Existing saved packed materials remain valid a
 ### Verification and resulting prototype state
 
 The focused Content Editor load/save and validation tests pass, and a dedicated browser smoke check passes for authored capacity, bag creation/rejection, normal expedition creation, simulation telemetry, legacy fallback, and provision parity. The broader simulation browser suite reaches the same new assertions, then stops at an existing unrelated Pommel Strike combat fixture failure. `git diff --check` passes.
+
+## 2026-08-30 - Data-Driven Campaign Food Recipes
+
+### Goal
+
+Make campaign simulation food cooking and recipe telemetry follow authored provision-producing campfire recipes automatically.
+
+### AI-assisted implementation
+
+- Replaced the hardcoded campaign food recipe ID list with a definition-derived campfire/provision-output predicate.
+- Restricted campaign cooking to recipes present in the player's learned recipe list, while preserving the existing strategy scoring and special `cooked_fish` telemetry.
+- Added focused Royal Feast coverage for automatic discovery, learned/unknown gating, ingredient sufficiency, campaign usage, and provision-yield telemetry.
+
+### Manual changes
+
+No recipe balance, ingredient, output, or Content Editor changes were made.
+
+### Verification and resulting prototype state
+
+The focused simulation automation browser suite passes 4 checks, including existing cooked-fish behavior and authored Royal Feast cooking/telemetry. `git diff --check` passes.

@@ -40,14 +40,19 @@ const CAMPAIGN_COMPLETION_OBJECTIVE_DEFINITIONS = Object.freeze({
   }),
 });
 
-const CAMPAIGN_FOOD_RECIPE_IDS = Object.freeze([
-  "roasted_meat",
-  "foraged_meal",
-  "hunters_stew",
-  "honeyed_berries",
-  "forestwarden_stew",
-  "honeyed_forest_preserves",
-]);
+function campaignFoodRecipeDefinitions(recipeDefinitions = RECIPE_DEFINITIONS) {
+  return Object.values(recipeDefinitions ?? {})
+    .filter((recipe) => typeof recipe?.id === "string" && recipe.id
+      && recipe.craftingProvider === "campfire"
+      && Number(recipe.output?.provisions) > 0)
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)));
+}
+
+function campaignFoodRecipeIds(recipeDefinitions = RECIPE_DEFINITIONS) {
+  return campaignFoodRecipeDefinitions(recipeDefinitions)
+    .map((recipe) => recipe.id)
+    .filter((recipeId) => typeof recipeId === "string" && recipeId);
+}
 
 function resolveProgressionEncounterDistance(encounterId) {
   const encounter = ENCOUNTER_DEFINITIONS[encounterId];
@@ -3400,6 +3405,8 @@ function cookAtInn(
 ) {
   const actions = [];
   const ingredientsConsumedById = {};
+  const recipeDefinitions = options.recipeDefinitions ?? RECIPE_DEFINITIONS;
+  const learnedRecipes = new Set(player.learnedRecipes ?? []);
   const targetProvisions = Number.isFinite(Number(options.targetProvisions))
     ? Math.max(0, Number(options.targetProvisions)) : Number.POSITIVE_INFINITY;
   const roll = () => Math.min(1 - Number.EPSILON, Math.max(0, Number(random()) || 0));
@@ -3407,12 +3414,16 @@ function cookAtInn(
   let iterations = 0;
   while (player.provisions < targetProvisions && iterations < 8) {
     iterations += 1;
-    const candidates = CraftingRules.knownRecipesForProvider(player, "campfire")
+    const candidates = campaignFoodRecipeDefinitions(recipeDefinitions)
+      .filter((recipe) => learnedRecipes.has(recipe.id))
       .map((recipe) => ({
         recipe,
-        quote: CraftingRules.quote(player, recipe.id, "campfire", { context: "inn" }),
+        quote: CraftingRules.quote(player, recipe.id, "campfire", {
+          context: "inn",
+          recipeDefinitions,
+        }),
       }))
-      .filter((candidate) => candidate.quote.available && Number(candidate.recipe.output?.provisions) > 0)
+      .filter((candidate) => candidate.quote.available)
       .filter((candidate) => !campaignRecipeConsumesProtectedIngredients(
         candidate.recipe, protectedIngredients, player,
       ));
@@ -3426,7 +3437,10 @@ function cookAtInn(
       .sort((left, right) => right.score - left.score || left.recipe.id.localeCompare(right.recipe.id));
     const candidate = strategyName === "random"
       ? selected[Math.floor(roll() * selected.length)] : selected[0];
-    const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", { context: "inn" });
+    const result = CraftingRules.craft(player, candidate.recipe.id, "campfire", {
+      context: "inn",
+      recipeDefinitions,
+    });
     if (!result.applied) break;
     const consumed = {
       ...(result.materialsConsumed ?? {}),
@@ -4803,10 +4817,11 @@ function finalizeCampaignTelemetry(
       cookingProvisionsGainedByRecipe[action.recipeId] ?? 0
     ) + (Number(action.provisionsGained) || 0);
   }));
-  const foodRecipeLearnedById = Object.fromEntries(CAMPAIGN_FOOD_RECIPE_IDS.map((recipeId) => [
+  const foodRecipeIds = campaignFoodRecipeIds();
+  const foodRecipeLearnedById = Object.fromEntries(foodRecipeIds.map((recipeId) => [
     recipeId, Boolean(endingState.learnedRecipes?.includes(recipeId)),
   ]));
-  const foodRecipeUsedById = Object.fromEntries(CAMPAIGN_FOOD_RECIPE_IDS.map((recipeId) => [
+  const foodRecipeUsedById = Object.fromEntries(foodRecipeIds.map((recipeId) => [
     recipeId, (recipesUsedById[recipeId] ?? 0) > 0,
   ]));
   const injuriesGained = expeditions.flatMap((entry) => entry.injuriesGained ?? []);
@@ -5380,7 +5395,7 @@ function summarizeCampaigns(results) {
     });
     return merged;
   }, {});
-  const recipeRate = (field) => Object.fromEntries(CAMPAIGN_FOOD_RECIPE_IDS.map((recipeId) => [
+  const recipeRate = (field) => Object.fromEntries(campaignFoodRecipeIds().map((recipeId) => [
     recipeId,
     results.length
       ? results.filter((campaign) => campaign[field]?.[recipeId] === true).length / results.length
