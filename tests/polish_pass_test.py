@@ -53,6 +53,10 @@ def run() -> None:
             "Enemy-local animation mappings did not select valid visuals or fall back to Attack",
         )
         check(
+            "isExpeditionScreenDialogue({context:{type:'encounter'}})&&isExpeditionScreenDialogue({context:{type:'expedition'}})&&!isExpeditionScreenDialogue({context:{type:'destination'}})&&resolveDialogueSpeaker('bell_bearer')?.name==='The Bell-Bearer'",
+            "Encounter dialogue was not rendered on the expedition screen or its speaker resolved incorrectly",
+        )
+        check(
             "(async () => { const originalExpedition=game.expedition; const originalScreen=game.screen; const encounter=ENCOUNTER_DEFINITIONS.llamrei_discovery; const assetId=encounter.visualAssetId; const originalPreload=preloadTravelSceneAsset; const originalReady=travelSceneAssetReady; const originalFailed=travelSceneAssetFailed; let release=null; let ready=false; let pending=null; try { travelSceneAssetReady=id=>id===assetId?ready:originalReady(id); travelSceneAssetFailed=id=>id===assetId?false:originalFailed(id); preloadTravelSceneAsset=id=>id===assetId?(pending||(pending=new Promise(resolve=>{release=()=>{ready=true;resolve(null);};}))):originalPreload(id); const p=SaveSystem.createDefaultPlayerState(); const e=ExpeditionRules.createExpedition(p,{companions:[],provisions:5,random:()=>0}); e.status='active'; e.activeEncounter={encounterId:'llamrei_discovery',stageId:'start'}; game.expedition=e; game.screen='expedition'; renderExpedition(); const held=Boolean(e.activeEncounter&&game.travelScenePresentation?.encounterAssetLoad&&!document.querySelector('.encounter-panel')); if(!release) return false; release(); await new Promise(resolve=>setTimeout(resolve,0)); return held&&Boolean(document.querySelector('.encounter-panel')); } finally { preloadTravelSceneAsset=originalPreload; travelSceneAssetReady=originalReady; travelSceneAssetFailed=originalFailed; game.expedition=originalExpedition; game.screen=originalScreen; renderScreen(); } })()",
             "Encounter layout switched before its background asset was ready",
         )

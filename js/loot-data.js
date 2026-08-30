@@ -491,8 +491,8 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "gold", minimum: 24, maximum: 42, weight: 5 }),
     ]),
   }),
-  leper_knight_loot: {
-    id: "leper_knight_loot",
+  bell_bearer_loot: {
+    id: "bell_bearer_loot",
     entries: [
       {
         type: "gold",

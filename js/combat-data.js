@@ -597,7 +597,7 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     lootSources: [
       {
         rolls: 1,
-        tableId: "leper_knight_loot"
+        tableId: "bell_bearer_loot"
       }
     ],
     visuals: {

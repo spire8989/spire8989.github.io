@@ -1,5 +1,32 @@
 # Build Log
 
+## 2026-08-30 - Encounter Dialogue and Bell-Bearer Naming Fix
+
+### Goal
+
+Keep encounter-launched dialogue visible on the expedition screen and make
+Bell-Bearer the canonical content ID.
+
+### AI-assisted implementation
+
+- Rendered both encounter and expedition dialogue sessions through the shared
+  expedition-screen overlay helper.
+- Renamed the remaining legacy content references to `bell_bearer`,
+  including dialogue, encounter flags, loot, runtime metadata, and focused
+  tests.
+- Added a focused regression assertion for encounter dialogue contexts and the
+  Bell-Bearer speaker display name.
+
+### Reported manual changes
+
+- No migration is required for authored content; the old identifier is no
+  longer used by the game content.
+
+### Verification and resulting prototype state
+
+- The focused polish browser test passes.
+- `git diff --check` passes.
+
 ## 2026-08-29 - Recruitment, Encounter, and Combat Polish
 
 ### Goal

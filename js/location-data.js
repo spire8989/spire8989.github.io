@@ -156,7 +156,7 @@ const NPC_DEFINITIONS = Object.freeze({
     description: "A diseased, half-ruined knight who wanders beneath the forest boughs with a heavy iron bell hanging from his gear",
     dialogue: [],
     rumors: [],
-    dialogueSequenceId: "leper_knight_dialogue",
+    dialogueSequenceId: "bell_bearer_dialogue",
     locationIds: []
   }
 });

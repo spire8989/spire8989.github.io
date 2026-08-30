@@ -71,8 +71,8 @@ const DIALOGUE_DEFINITIONS = Object.freeze({
       }),
     }),
   }),
-  leper_knight_dialogue: {
-    id: "leper_knight_dialogue",
+  bell_bearer_dialogue: {
+    id: "bell_bearer_dialogue",
     start: "warning",
     nodes: {
       warning: {
@@ -87,7 +87,7 @@ const DIALOGUE_DEFINITIONS = Object.freeze({
             effects: [
               {
                 type: "setCampaignFlag",
-                flag: "leper_knight_heard",
+                flag: "bell_bearer_heard",
                 value: true
               },
               {
@@ -103,7 +103,7 @@ const DIALOGUE_DEFINITIONS = Object.freeze({
             effects: [
               {
                 type: "setCampaignFlag",
-                flag: "leper_knight_respected",
+                flag: "bell_bearer_respected",
                 value: true
               }
             ]

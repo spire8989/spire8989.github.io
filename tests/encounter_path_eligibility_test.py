@@ -51,11 +51,11 @@ def run() -> None:
           const trailOnly = EncounterManager.isEligibleDefinition(ENCOUNTER_DEFINITIONS.beneath_the_roots, trail, player);
           const oldExcludesTrail = EncounterManager.isEligibleDefinition(ENCOUNTER_DEFINITIONS.beneath_the_roots, old, player);
           const legacyUsesPath = EncounterManager.isEligibleDefinition(legacy, old, player);
-          const leperOnOld = EncounterManager.isEligibleDefinition(ENCOUNTER_DEFINITIONS.leper_knight, oldDeep, player);
-          const leperOnFountain = EncounterManager.isEligibleDefinition(ENCOUNTER_DEFINITIONS.leper_knight, fountain, player);
+          const bellBearerOnOld = EncounterManager.isEligibleDefinition(ENCOUNTER_DEFINITIONS.bell_bearer, oldDeep, player);
+          const bellBearerOnFountain = EncounterManager.isEligibleDefinition(ENCOUNTER_DEFINITIONS.bell_bearer, fountain, player);
           return oldEncounter && trailOnly && !oldExcludesTrail && legacyUsesPath
-            && ENCOUNTER_DEFINITIONS.leper_knight.pathIds.join(',') === 'old_forest_road,fountain_of_barenton'
-            && leperOnOld && leperOnFountain;
+            && ENCOUNTER_DEFINITIONS.bell_bearer.pathIds.join(',') === 'old_forest_road,fountain_of_barenton'
+            && bellBearerOnOld && bellBearerOnFountain;
         })()"""
         if not devtools.evaluate(expression):
             raise AssertionError("Path-based encounter eligibility regression failed")

@@ -6061,7 +6061,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
               },
               {
                 type: "setRunFlag",
-                flag: "leperKnightAided",
+                flag: "bellBearerAided",
                 value: true
               },
               {
@@ -6091,7 +6091,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             outcomes: [
               {
                 type: "startDialogue",
-                dialogueId: "leper_knight_dialogue"
+                dialogueId: "bell_bearer_dialogue"
               }
             ],
             resultText: "Arthur speaks without stepping closer.",
@@ -6114,7 +6114,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
                   outcomes: [
                     {
                       type: "setRunFlag",
-                      flag: "leperKnightDefeated",
+                      flag: "bellBearerDefeated",
                       value: true
                     },
                     {

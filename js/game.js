@@ -4001,6 +4001,10 @@ function dialogueRuntimeContext(session = game.dialogueSession) {
   };
 }
 
+function isExpeditionScreenDialogue(session = game.dialogueSession) {
+  return ["encounter", "expedition"].includes(session?.context?.type);
+}
+
 function applyDialogueResult(result, returnContext = null) {
   (result.toasts ?? []).forEach((toast) => showToast({
     title: toast.title ?? "Story Updated",
@@ -5032,7 +5036,7 @@ function renderExpedition() {
       expeditionScreen.append(panelHost);
       panelHost.innerHTML = expeditionPanelMarkup;
       expeditionScreen.querySelector(".dialogue-overlay")?.remove();
-      if (game.dialogueSession?.context?.type === "expedition") {
+      if (isExpeditionScreenDialogue()) {
         expeditionScreen.insertAdjacentHTML("beforeend", renderDialogueOverlay(game.dialogueSession));
       }
       initializeCharacterSprites(expeditionScreen);
@@ -5057,7 +5061,7 @@ function renderExpedition() {
         ${expedition.travelState === "departure" ? renderExpeditionDepartureBanner(expedition) : ""}
       </div>
       <div id="expedition-panel-host">${expeditionPanelMarkup}</div>
-      ${game.dialogueSession?.context?.type === "expedition" ? renderDialogueOverlay(game.dialogueSession) : ""}
+      ${isExpeditionScreenDialogue() ? renderDialogueOverlay(game.dialogueSession) : ""}
     </section>`;
   markTravelPresentationNode(document.querySelector("#travel-scene"));
   markTravelPresentationNode(document.querySelector("#travel-art"));
@@ -5832,7 +5836,7 @@ const COMBAT_HUMANOID_ENEMY_IDS = new Set([
   "summoned_guardian",
   "fountain_knight",
   "false_knight",
-  "leper_knight",
+  "bell_bearer",
   "morgans_huntsman",
   "briar_knight",
   "bound_warden",
