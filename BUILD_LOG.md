@@ -6104,6 +6104,36 @@ canonical starter/always-known/learned recipe eligibility, Royal Feast gating
 and telemetry, existing fish cooking, and deterministic campaign replay.
 `git diff --check` passes.
 
+## 2026-08-30 - Campaign Failure Recovery Simulation
+
+### Goal
+
+Model Arthur death and provision exhaustion as recoverable expedition failures
+when the live game can return the player to town.
+
+### AI-assisted implementation
+
+- Removed campaign-terminal handling for Arthur death and provision exhaustion;
+  existing settlement now clears temporary expedition losses while preserving
+  persistent player state, and the next iteration uses ordinary Inn/restocking
+  rules.
+- Added campaign death telemetry for death incidence, deaths per campaign,
+  completion after death, and deathless completion, while retaining per-
+  expedition failure visibility.
+- Linked compact failed-expedition records to the next town/recovery actions and
+  next expedition state when recovery continues.
+
+### Manual changes
+
+No combat, encounter, economy, provision, or strategy balance changes were made.
+
+### Verification and resulting prototype state
+
+The focused campaign checks cover death recovery, persistent equipment, Inn
+healing, provision-exhaustion recovery/restocking, telemetry, compact export,
+and continuation. They pass before the existing unrelated bandage-packing
+fixture failure later in the broader campaign suite. `git diff --check` passes.
+
 ## 2026-08-30 - Authored Companion Capacity Bonuses
 
 ### Goal

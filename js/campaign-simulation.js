@@ -295,10 +295,6 @@ const CampaignSimulationRunner = Object.freeze({
         break;
       }
 
-      if (HealingRules.arthurHealth(player) <= 0) {
-        stopReason = "arthur-died";
-        break;
-      }
       const decision = applyBetweenExpeditionPolicy(
         player, shopStocks, policy, plannedTargetDistance, config.healingEnabled, config.strategy,
         preparationRandom.random,
@@ -953,14 +949,9 @@ const CampaignSimulationRunner = Object.freeze({
         }
       }
 
-      if (!run.returnedSafely && run.finalArthurHealth <= 0) {
-        stopReason = "arthur-died";
-        break;
-      }
-      if (expeditionHardFailureReason) {
-        stopReason = expeditionHardFailureReason;
-        break;
-      }
+      // Arthur death and provision exhaustion are expedition failures. The live
+      // game settles them back to town, so the next loop iteration owns normal
+      // healing/restocking instead of ending the campaign here.
       if (run.failureReason?.includes("Maximum simulation step count")
         || run.failureReason?.includes("exceeded")) {
         stopReason = "simulation-safety-limit";
@@ -1070,7 +1061,9 @@ const CampaignSimulationTelemetry = Object.freeze({
       "prerequisiteRunCount", "prerequisiteRunsByRoute", "progressionDeferredCount",
       "progressionDeferralsByRoute", "objectiveDistanceFloorViolations",
       "currentContentCompleted", "finalProgressionStage", "expeditionsAttempted",
-      "expeditionsReturned", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
+      "expeditionsReturned", "expeditionsFailed", "totalArthurDeaths", "campaignsWithDeathRate",
+      "averageDeathsPerCampaign", "completionRateAfterDeath", "deathlessCompletionRate",
+      "averageDeathsAmongCompletedCampaigns", "stopReason", "stopCategory", "hardFailure", "hardFailureReason",
       "strategyConstraintCount", "strategyConstraintTypes", "startingGold", "endingGold", "endingArthurHealth",
       "averageDesiredExpeditionDistance", "averageActualExpeditionDistance", "targetDistanceReductionFrequency",
       "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
@@ -1464,6 +1457,20 @@ function compactCampaignSummary(campaign, expeditions) {
   };
 }
 
+function campaignExpeditionArthurDied(entry) {
+  return !entry?.success && (
+    entry.hardFailureReason === "arthur-died"
+      || Number(entry.endingHealth ?? entry.expeditionTelemetry?.finalArthurHealth) <= 0
+  );
+}
+
+function campaignExpeditionResourceFailed(entry) {
+  return !entry?.success && (
+    entry.hardFailureReason === "expedition-resource-exhaustion"
+      || Boolean(entry.provisionExhaustionFailure)
+  );
+}
+
 function compactExpedition(entry, campaign) {
   const run = entry.expeditionTelemetry ?? {};
   const replay = run.replay ?? entry.replay ?? {};
@@ -1508,8 +1515,12 @@ function compactExpedition(entry, campaign) {
   spendingByCategory.total = Object.values(spendingByCategory)
     .reduce((sum, value) => sum + value, 0);
   const finalArthurHealth = Number(run.finalArthurHealth ?? entry.endingHealth) || 0;
-  const arthurDied = finalArthurHealth <= 0;
   const returnedSuccessfully = Boolean(entry.success ?? run.returnedSafely);
+  const arthurDied = campaignExpeditionArthurDied(entry);
+  const resourceFailure = campaignExpeditionResourceFailed(entry);
+  const nextEntry = (campaign.expeditions ?? []).find((candidate) => (
+    Number(candidate.expeditionNumber) === Number(entry.expeditionNumber) + 1
+  ));
   const companionIncapacitations = activeParty.filter((characterId) => (
     characterId !== "arthur" && (Number(endingHealthByCharacter[characterId]) || 0) <= 0
   ));
@@ -1772,6 +1783,12 @@ function compactExpedition(entry, campaign) {
       combatsStartedBelow25Percent: Number(entry.combatsStartedBelow25Percent) || 0,
       returnedWhileInjured: Boolean(entry.returnedWhileInjured),
     },
+    recovery: (arthurDied || resourceFailure) ? {
+      continued: Boolean(nextEntry),
+      nextExpeditionNumber: nextEntry?.expeditionNumber ?? null,
+      townActions: compactClone(nextEntry?.townActions ?? []),
+      nextStateBefore: compactCampaignState(nextEntry?.stateBefore),
+    } : undefined,
   };
 }
 
@@ -4869,6 +4886,8 @@ function finalizeCampaignTelemetry(
   const netGold = endingState.gold - startingState.gold;
   const successful = expeditions.filter((entry) => entry.success);
   const failed = expeditions.filter((entry) => !entry.success);
+  const arthurDeathEntries = expeditions.filter(campaignExpeditionArthurDied);
+  const resourceFailureEntries = expeditions.filter(campaignExpeditionResourceFailed);
   const startingHealthValues = expeditions.map((entry) => entry.startingHealth);
   const endingHealthValues = expeditions.map((entry) => entry.endingHealth);
   const maxHealth = startingState.arthurMaxHealth;
@@ -5061,6 +5080,11 @@ function finalizeCampaignTelemetry(
     expeditionsAttempted: expeditions.length,
     expeditionsReturned: successful.length,
     expeditionsFailed: failed.length,
+    totalArthurDeaths: arthurDeathEntries.length,
+    experiencedArthurDeath: arthurDeathEntries.length > 0,
+    completedAfterDeath: arthurDeathEntries.length > 0 && campaignCompleted,
+    deathlessCompletion: arthurDeathEntries.length === 0 && campaignCompleted,
+    totalExpeditionResourceFailures: resourceFailureEntries.length,
     stopReason,
     stopCategory,
     hardFailure: stopCategory === "hard-failure",
@@ -5337,7 +5361,7 @@ function finalizeCampaignTelemetry(
     breakEvenExpeditionRate: expeditions.length
       ? expeditions.filter((entry) => entry.netGold >= 0).length / expeditions.length : 0,
     successfulExpeditionsBeforeInsolvency: stopReason === "cannot-support-any-expedition" ? successful.length : null,
-    expeditionsUntilHealthUnsustainable: stopReason === "arthur-died" ? expeditions.length : null,
+    expeditionsUntilHealthUnsustainable: null,
     averageCostPerHealthRestored: totals((entry) => entry.healingBefore.totalHealingAmount) > 0
       ? totalHealingCost / totals((entry) => entry.healingBefore.totalHealingAmount) : 0,
     profitAfterHealingAndRestocking: netCampaignWealth,
@@ -5412,6 +5436,11 @@ function summarizeCampaigns(results) {
   const cookingIngredientShortagesByRecipe = mergeCampaignMaps("cookingIngredientShortagesByRecipe");
   const fishRewardsByItemId = mergeCampaignMaps("fishRewardsByItemId");
   const materialsDiscardedDueToPriority = mergeCampaignMaps("materialsDiscardedDueToPriority");
+  const campaignsWithDeath = results.filter((campaign) => (campaign.totalArthurDeaths ?? 0) > 0);
+  const completedCampaigns = results.filter((campaign) => campaign.completedPlan);
+  const totalArthurDeaths = results.reduce(
+    (sum, campaign) => sum + (Number(campaign.totalArthurDeaths) || 0), 0,
+  );
   const routeAttempts = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId, results.flatMap((campaign) => campaign.expeditions
       .filter((entry) => !entry.isSupplyRun && !entry.isPrerequisiteRun
@@ -5454,21 +5483,17 @@ function summarizeCampaigns(results) {
   };
   const deathsByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId,
-    routeAttempts[routeId].filter((entry) => entry.hardFailureReason === "arthur-died"
-      || (!entry.success && Number(entry.endingHealth) <= 0)).length,
+    routeAttempts[routeId].filter(campaignExpeditionArthurDied).length,
   ]));
   const resourceFailuresByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId,
-    routeAttempts[routeId].filter((entry) => entry.hardFailureReason === "expedition-resource-exhaustion"
-      || Boolean(entry.provisionExhaustionFailure)).length,
+    routeAttempts[routeId].filter(campaignExpeditionResourceFailed).length,
   ]));
   const otherFailuresByRoute = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId,
     routeAttempts[routeId].filter((entry) => {
-      const death = entry.hardFailureReason === "arthur-died"
-        || (!entry.success && Number(entry.endingHealth) <= 0);
-      const resource = entry.hardFailureReason === "expedition-resource-exhaustion"
-        || Boolean(entry.provisionExhaustionFailure);
+      const death = campaignExpeditionArthurDied(entry);
+      const resource = campaignExpeditionResourceFailed(entry);
       return !entry.routeAttemptCompleted && !death && !resource;
     }).length,
   ]));
@@ -5493,7 +5518,18 @@ function summarizeCampaigns(results) {
     flaskSecuredRate: results.length ? oldForestFlaskCompletions / results.length : 0,
     averageExpeditionsSurvived: averageField("expeditionsAttempted"),
     medianExpeditionsSurvived: campaignMedian(results.map((entry) => entry.expeditionsAttempted)),
-    deathRate: results.length ? results.filter((entry) => entry.stopReason === "arthur-died").length / results.length : 0,
+    deathRate: expeditions.length ? totalArthurDeaths / expeditions.length : 0,
+    expeditionDeathRate: expeditions.length ? totalArthurDeaths / expeditions.length : 0,
+    campaignsWithDeathRate: results.length ? campaignsWithDeath.length / results.length : 0,
+    averageDeathsPerCampaign: results.length ? totalArthurDeaths / results.length : 0,
+    totalArthurDeaths,
+    completionRateAfterDeath: campaignsWithDeath.length
+      ? campaignsWithDeath.filter((campaign) => campaign.completedPlan).length / campaignsWithDeath.length : 0,
+    deathlessCompletionRate: results.length
+      ? completedCampaigns.filter((campaign) => (campaign.totalArthurDeaths ?? 0) === 0).length / results.length : 0,
+    averageDeathsAmongCompletedCampaigns: completedCampaigns.length
+      ? completedCampaigns.reduce((sum, campaign) => sum + (Number(campaign.totalArthurDeaths) || 0), 0)
+        / completedCampaigns.length : 0,
     insolvencyRate: results.length ? results.filter((entry) => entry.stopReason === "cannot-support-any-expedition").length / results.length : 0,
     resourceExhaustionRate: results.length
       ? results.filter((entry) => entry.stopReason === "expedition-resource-exhaustion").length / results.length : 0,
