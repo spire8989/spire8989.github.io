@@ -3406,7 +3406,6 @@ function cookAtInn(
   const actions = [];
   const ingredientsConsumedById = {};
   const recipeDefinitions = options.recipeDefinitions ?? RECIPE_DEFINITIONS;
-  const learnedRecipes = new Set(player.learnedRecipes ?? []);
   const targetProvisions = Number.isFinite(Number(options.targetProvisions))
     ? Math.max(0, Number(options.targetProvisions)) : Number.POSITIVE_INFINITY;
   const roll = () => Math.min(1 - Number.EPSILON, Math.max(0, Number(random()) || 0));
@@ -3414,8 +3413,9 @@ function cookAtInn(
   let iterations = 0;
   while (player.provisions < targetProvisions && iterations < 8) {
     iterations += 1;
-    const candidates = campaignFoodRecipeDefinitions(recipeDefinitions)
-      .filter((recipe) => learnedRecipes.has(recipe.id))
+    const candidates = CraftingRules
+      .knownRecipesForProvider(player, "campfire", recipeDefinitions)
+      .filter((recipe) => Number(recipe.output?.provisions) > 0)
       .map((recipe) => ({
         recipe,
         quote: CraftingRules.quote(player, recipe.id, "campfire", {
@@ -4818,8 +4818,13 @@ function finalizeCampaignTelemetry(
     ) + (Number(action.provisionsGained) || 0);
   }));
   const foodRecipeIds = campaignFoodRecipeIds();
+  const knownFoodRecipeIds = new Set(
+    CraftingRules.knownRecipesForProvider(endingState, "campfire", RECIPE_DEFINITIONS)
+      .filter((recipe) => Number(recipe.output?.provisions) > 0)
+      .map((recipe) => recipe.id),
+  );
   const foodRecipeLearnedById = Object.fromEntries(foodRecipeIds.map((recipeId) => [
-    recipeId, Boolean(endingState.learnedRecipes?.includes(recipeId)),
+    recipeId, knownFoodRecipeIds.has(recipeId),
   ]));
   const foodRecipeUsedById = Object.fromEntries(foodRecipeIds.map((recipeId) => [
     recipeId, (recipesUsedById[recipeId] ?? 0) > 0,

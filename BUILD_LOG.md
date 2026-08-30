@@ -6074,3 +6074,32 @@ No recipe balance, ingredient, output, or Content Editor changes were made.
 ### Verification and resulting prototype state
 
 The focused simulation automation browser suite passes 4 checks, including existing cooked-fish behavior and authored Royal Feast cooking/telemetry. `git diff --check` passes.
+
+## 2026-08-30 - Restore Canonical Campaign Recipe Knowledge
+
+### Goal
+
+Fix campaign inn cooking and food-recipe telemetry so starter and always-known
+campfire recipes retain the same knowledge semantics as the live crafting system.
+
+### AI-assisted implementation
+
+- Routed `cookAtInn()` candidate selection through
+  `CraftingRules.knownRecipesForProvider()` while retaining data-driven
+  provision-recipe discovery and injected recipe definitions.
+- Applied the same canonical knowledge helper to `foodRecipeLearnedById`, so
+  starter and always-known recipes report as known without duplicating rules.
+- Kept Royal Feast compatible with either authored starter status while focused
+  coverage verifies non-starter unknown/learned behavior, authored ingredients,
+  telemetry, and determinism.
+
+### Manual changes
+
+No recipe balance, ingredient, output, or simulation strategy changes were made.
+
+### Verification and resulting prototype state
+
+The focused simulation automation browser suite passes 4 checks, including
+canonical starter/always-known/learned recipe eligibility, Royal Feast gating
+and telemetry, existing fish cooking, and deterministic campaign replay.
+`git diff --check` passes.
