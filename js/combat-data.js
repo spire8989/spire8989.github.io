@@ -585,7 +585,7 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     },
     combatVisualScale: 2
   },
-  thorn_crowned_hart: Object.freeze({
+  thorn_crowned_hart: {
     id: "thorn_crowned_hart",
     name: "Thorn-Crowned Hart",
     maxHp: 104,
@@ -593,7 +593,31 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 4,
     actionPattern: ["thorn_hart_charge", "thorn_hart_briar_rend", "thorn_hart_roar", "thorn_hart_charge"],
     tags: ["verdant", "enchanted", "stag", "boss"],
-  }),
+    visuals: {
+      idle: {
+        assetId: "combat_thorn_crowned_hart_idle",
+        frameCount: 23,
+        columns: 5,
+        fps: 20
+      },
+      attack: {
+        assetId: "combat_thorn_crowned_hart_attack",
+        frameCount: 25,
+        columns: 5,
+        fps: 16
+      },
+      animations: {
+        verdant_roar: {
+          assetId: "combat_thorn_crowned_hart_verdant_roar",
+          frameCount: 25,
+          columns: 5
+        }
+      }
+    },
+    actionAnimations: {
+      thorn_hart_roar: "verdant_roar"
+    }
+  },
 });
 
 const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({

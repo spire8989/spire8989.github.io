@@ -348,6 +348,21 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "encounter_ruined_wayside_shrine",
     path: "assets/images/encounter/wayside_shrine.webp",
     category: "encounter"
+  },
+  combat_thorn_crowned_hart_idle: {
+    id: "combat_thorn_crowned_hart_idle",
+    path: "assets/images/combat/thorn-crowned-idle.webp",
+    category: "combat"
+  },
+  combat_thorn_crowned_hart_attack: {
+    id: "combat_thorn_crowned_hart_attack",
+    path: "assets/images/combat/thorn-crowned-lunge.webp",
+    category: "combat"
+  },
+  combat_thorn_crowned_hart_verdant_roar: {
+    id: "combat_thorn_crowned_hart_verdant_roar",
+    path: "assets/images/combat/thorn-crowned-roar.webp",
+    category: "combat"
   }
 });
 
