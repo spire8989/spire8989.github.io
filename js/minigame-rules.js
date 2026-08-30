@@ -262,28 +262,34 @@ const MinigameRules = Object.freeze({
     const events = [{ type: "minigame-start", minigameId: definition.id }];
     while (session.castsRemaining > 0) {
       const hotspots = definition.hotspots ?? [];
+      const bounds = fishingCastBounds(definition);
+      const hotspotPower = (hotspot) => minigameClamp(
+        (hotspot.y - bounds.nearWaterY) / (bounds.farWaterY - bounds.nearWaterY), 0, 1,
+      );
+      const targetableHotspots = hotspots.filter((hotspot) => {
+        const landing = fishingLandingPosition(definition, hotspot.x, hotspotPower(hotspot));
+        return fishingHotspot(definition, landing.x, landing.y).id === hotspot.id;
+      });
+      const candidateHotspots = targetableHotspots.length > 0 ? targetableHotspots : hotspots;
       let target = null;
-      if (hotspots.length > 0) {
+      if (candidateHotspots.length > 0) {
         if (strategyName === "random" || strategyName === "normal") {
-          target = hotspots[Math.floor(minigameRandom(random) * hotspots.length)];
+          target = candidateHotspots[Math.floor(minigameRandom(random) * candidateHotspots.length)];
         } else if (strategyName === "cautious") {
-          target = hotspots.slice().sort((left, right) => (
+          target = candidateHotspots.slice().sort((left, right) => (
             Number(right.biteChance ?? definition.defaultWater.biteChance)
               - Number(left.biteChance ?? definition.defaultWater.biteChance)
             || Number(right.priority ?? 0) - Number(left.priority ?? 0)
           ))[0];
         } else {
-          target = hotspots.slice().sort((left, right) => (
+          target = candidateHotspots.slice().sort((left, right) => (
             Number(right.priority ?? 0) - Number(left.priority ?? 0)
             || Number(right.biteChance ?? 0) - Number(left.biteChance ?? 0)
           ))[0];
         }
       }
       const aimX = target?.x ?? 0.5;
-      const power = target
-        ? minigameClamp((target.y - fishingCastBounds(definition).nearWaterY)
-          / (fishingCastBounds(definition).farWaterY - fishingCastBounds(definition).nearWaterY), 0, 1)
-        : 0.5;
+      const power = target ? hotspotPower(target) : 0.5;
       const cast = this.beginFishingCast(session, definition, { x: aimX, power, random });
       if (!cast) break;
       events.push({

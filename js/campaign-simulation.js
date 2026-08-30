@@ -722,8 +722,15 @@ const CampaignSimulationRunner = Object.freeze({
         fishingCasts: run.fishingCasts,
         fishingHooks: run.fishingHooks,
         fishingMisses: run.fishingMisses,
+        hotspotCasts: run.hotspotCasts,
+        nonHotspotCasts: run.nonHotspotCasts,
         fishCaught: run.fishCaught,
+        actualFishCaught: run.actualFishCaught,
+        fishRewardsByItemId: run.fishRewardsByItemId,
         rawFishGained: run.rawFishGained,
+        cookedFishRecipeUses: (run.cookedFishRecipeUses ?? 0) + (decision.cookedFishRecipeUses ?? 0),
+        provisionsGainedFromFish: (run.provisionsGainedFromFish ?? 0)
+          + (decision.provisionsGainedFromFish ?? 0),
         fishingLoot: run.fishingLoot,
         fishingKnowledgeLearned: run.fishingKnowledgeLearned,
         innCookingActions: decision.innCookingActions,
@@ -1064,7 +1071,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "totalEmergencyProvisionTurnarounds", "emergencyProvisionTurnaroundRate",
       "totalLowHpHealingTriggers", "totalCriticalArthurHealingTriggers",
       "totalBriefRests", "totalCampRests", "totalCampEvents", "totalCookingActions", "totalCookingProvisionsGained",
-      "totalFishingSessions", "totalFishingCasts", "totalFishingHooks", "totalFishingMisses", "totalFishCaught", "totalRawFishGained", "fishingLoot", "totalFishingKnowledgeLearned",
+      "totalFishingSessions", "totalFishingCasts", "totalFishingHooks", "totalFishingMisses", "totalHotspotCasts", "totalNonHotspotCasts", "totalFishCaught", "totalActualFishCaught", "fishRewardsByItemId", "totalRawFishGained", "totalCookedFishRecipeUses", "totalProvisionsGainedFromFish", "fishingLoot", "totalFishingKnowledgeLearned",
       "totalInnCookingActions", "totalInnCookingProvisionsGained", "innIngredientsConsumedById",
       "totalBanditAmbushEncounters", "totalBanditAmbushVictories", "totalBanditLeaderEncounters", "totalBanditLeaderVictories",
       "totalBanditLeaderEligibilityTriggered", "totalBanditGoldRecovered", "totalBanditLootValueRecovered",
@@ -1168,7 +1175,7 @@ const CampaignSimulationTelemetry = Object.freeze({
       "naturalRecoveriesByType", "infectionOccurrences", "deepCutsStabilized", "averageRecoveryDistanceByType",
       "activeInjuriesAtEnd", "exhaustionOccurrences",
       "cookingActionCount", "cookingProvisionsGained", "innCookingActions", "innCookingProvisionsGained", "innIngredientsConsumedById",
-      "fishingSessions", "fishingCasts", "fishingHooks", "fishingMisses", "fishCaught", "rawFishGained", "fishingLoot", "fishingKnowledgeLearned",
+      "fishingSessions", "fishingCasts", "fishingHooks", "fishingMisses", "hotspotCasts", "nonHotspotCasts", "fishCaught", "actualFishCaught", "fishRewardsByItemId", "rawFishGained", "cookedFishRecipeUses", "provisionsGainedFromFish", "fishingLoot", "fishingKnowledgeLearned",
       "campEvents", "recipesCooked", "ingredientsConsumedById", "craftingActions", "equipmentCraftingActions", "equipmentChanges", "equipmentPurchases",
       "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered", "banditLeaderEncounters", "banditLeaderVictories",
       "banditGoldRecovered", "banditLootValueRecovered",
@@ -2675,7 +2682,10 @@ function applyBetweenExpeditionPolicy(
       targetDistance,
       campaignGoal: planningOptions.campaignGoal,
     })
-    : { actions: [], provisionsGained: 0, ingredientsConsumedById: {} };
+    : {
+      actions: [], provisionsGained: 0, ingredientsConsumedById: {},
+      cookedFishRecipeUses: 0, provisionsGainedFromFish: 0,
+    };
   travelSettings = campaignDepartureSettings(planningStrategy, {
     provisions: player.provisions,
     capacity,
@@ -3147,6 +3157,8 @@ function applyBetweenExpeditionPolicy(
     innCookingActions: innCooking.actions,
     innCookingProvisionsGained: innCooking.provisionsGained,
     innIngredientsConsumedById: innCooking.ingredientsConsumedById,
+    cookedFishRecipeUses: innCooking.cookedFishRecipeUses,
+    provisionsGainedFromFish: innCooking.provisionsGainedFromFish,
     equipmentChanges,
     equipmentCraftingActions,
     equipmentPurchases,
@@ -3434,10 +3446,15 @@ function cookAtInn(
     actions.push(action);
     townActions.push({ type: "cook-recipe", ...deepCampaignClone(action) });
   }
+  const cookedFishActions = actions.filter((action) => action.recipeId === "cooked_fish");
   return {
     actions,
     provisionsGained: actions.reduce((sum, action) => sum + (Number(action.provisionsGained) || 0), 0),
     ingredientsConsumedById,
+    cookedFishRecipeUses: cookedFishActions.length,
+    provisionsGainedFromFish: cookedFishActions.reduce(
+      (sum, action) => sum + (Number(action.provisionsGained) || 0), 0,
+    ),
   };
 }
 
@@ -3977,7 +3994,8 @@ function assessOldForestProgressionGoal(player, campaignState = {}) {
       || (Number(player?.provisions) < 30 && !canReachKnownVillageResupply)
       || healthRatio < 0.8,
     supplyRunReason: "prepare-final-healing-and-provisions",
-    travelSettings: strategy === "aggressive" ? { paceId: "normal", rationId: "normal" } : null,
+    travelSettings: ["cautious", "aggressive"].includes(strategy)
+      ? { paceId: "normal", rationId: "normal" } : null,
   });
 }
 
@@ -4774,6 +4792,7 @@ function finalizeCampaignTelemetry(
     expeditions, "cookingIngredientShortagesByRecipe",
   );
   const fishingLoot = campaignCombatTotals(expeditions, "fishingLoot");
+  const fishRewardsByItemId = campaignCombatTotals(expeditions, "fishRewardsByItemId");
   const materialsDiscardedDueToPriority = campaignCombatTotals(
     expeditions, "materialsDiscardedDueToPriority",
   );
@@ -5169,8 +5188,14 @@ function finalizeCampaignTelemetry(
     totalFishingCasts: totals((entry) => entry.fishingCasts),
     totalFishingHooks: totals((entry) => entry.fishingHooks),
     totalFishingMisses: totals((entry) => entry.fishingMisses),
+    totalHotspotCasts: totals((entry) => entry.hotspotCasts),
+    totalNonHotspotCasts: totals((entry) => entry.nonHotspotCasts),
     totalFishCaught: totals((entry) => entry.fishCaught),
+    totalActualFishCaught: totals((entry) => entry.actualFishCaught),
+    fishRewardsByItemId,
     totalRawFishGained: totals((entry) => entry.rawFishGained),
+    totalCookedFishRecipeUses: totals((entry) => entry.cookedFishRecipeUses),
+    totalProvisionsGainedFromFish: totals((entry) => entry.provisionsGainedFromFish),
     fishingLoot,
     totalFishingKnowledgeLearned: totals((entry) => entry.fishingKnowledgeLearned),
     totalInnCookingActions: totals((entry) => (entry.innCookingActions ?? []).length),
@@ -5364,6 +5389,7 @@ function summarizeCampaigns(results) {
   const recipesUsedById = mergeCampaignMaps("recipesUsedById");
   const cookingProvisionsGainedByRecipe = mergeCampaignMaps("cookingProvisionsGainedByRecipe");
   const cookingIngredientShortagesByRecipe = mergeCampaignMaps("cookingIngredientShortagesByRecipe");
+  const fishRewardsByItemId = mergeCampaignMaps("fishRewardsByItemId");
   const materialsDiscardedDueToPriority = mergeCampaignMaps("materialsDiscardedDueToPriority");
   const routeAttempts = Object.fromEntries(CAMPAIGN_PROGRESSION_ROUTES.map((routeId) => [
     routeId, results.flatMap((campaign) => campaign.expeditions
@@ -5488,8 +5514,14 @@ function summarizeCampaigns(results) {
     averageFishingCasts: averageField("totalFishingCasts"),
     averageFishingHooks: averageField("totalFishingHooks"),
     averageFishingMisses: averageField("totalFishingMisses"),
+    averageHotspotCasts: averageField("totalHotspotCasts"),
+    averageNonHotspotCasts: averageField("totalNonHotspotCasts"),
     averageFishCaught: averageField("totalFishCaught"),
+    averageActualFishCaught: averageField("totalActualFishCaught"),
+    fishRewardsByItemId,
     averageRawFishGained: averageField("totalRawFishGained"),
+    averageCookedFishRecipeUses: averageField("totalCookedFishRecipeUses"),
+    averageProvisionsGainedFromFish: averageField("totalProvisionsGainedFromFish"),
     fishingLoot: campaignCombatTotals(
       results.flatMap((campaign) => campaign.expeditions ?? []), "fishingLoot",
     ),

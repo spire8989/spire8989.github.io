@@ -278,6 +278,7 @@ const MaterialRules = Object.freeze({
 function materialPriorityForSimulation(materialId) {
   return {
     raw_meat: 50,
+    raw_fish: 60,
     wild_berries: 70,
     fresh_herbs: 75,
     mushrooms: 80,

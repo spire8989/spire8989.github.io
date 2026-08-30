@@ -544,9 +544,15 @@ const SimulationTelemetry = Object.freeze({
       fishingCasts: run.fishingCasts,
       fishingHooks: run.fishingHooks,
       fishingMisses: run.fishingMisses,
+      hotspotCasts: run.hotspotCasts,
+      nonHotspotCasts: run.nonHotspotCasts,
       fishCaught: run.fishCaught,
+      actualFishCaught: run.actualFishCaught,
+      fishRewardsByItemId: sortedTelemetryMap(run.fishRewardsByItemId),
       rawFishGained: run.rawFishGained,
-      fishingLoot: run.fishingLoot,
+      cookedFishRecipeUses: run.cookedFishRecipeUses,
+      provisionsGainedFromFish: run.provisionsGainedFromFish,
+      fishingLoot: sortedTelemetryMap(run.fishingLoot),
       fishingKnowledgeLearned: run.fishingKnowledgeLearned,
       cookingActionCount: run.cookingActionCount,
       cookingProvisionsGained: run.cookingProvisionsGained,
@@ -664,7 +670,7 @@ const SimulationTelemetry = Object.freeze({
       "villageProvisionStockBefore", "villageProvisionStockAfter", "provisionsBeforeVillagePurchase",
       "provisionsAfterVillagePurchase", "villageProvisionPurchaseReason", "locationServiceActions",
       "briefRestCount", "campRestCount", "campEventCount", "cookingActionCount", "cookingProvisionsGained",
-      "fishingSessions", "fishingCasts", "fishingHooks", "fishingMisses", "fishCaught", "rawFishGained", "fishingLoot", "fishingKnowledgeLearned",
+      "fishingSessions", "fishingCasts", "fishingHooks", "fishingMisses", "hotspotCasts", "nonHotspotCasts", "fishCaught", "actualFishCaught", "fishRewardsByItemId", "rawFishGained", "cookedFishRecipeUses", "provisionsGainedFromFish", "fishingLoot", "fishingKnowledgeLearned",
       "banditAmbushEncounters", "banditAmbushVictories", "banditLeaderEligibilityTriggered",
       "banditLeaderEncounters", "banditLeaderVictories", "banditGoldRecovered", "banditLootValueRecovered",
       "safePositiveChoicesAvailable", "safePositiveChoicesSelected", "riskyChoicesSelected", "unknownChoicesSelected",
@@ -1729,6 +1735,10 @@ function cookAtCamp(expedition, player, strategyName, telemetry, campaignGoal = 
     distance: rounded(expedition.distance),
   };
   telemetry.recipesCooked.push(cooked);
+  if (cooked.recipeId === "cooked_fish") {
+    telemetry.cookedFishRecipeUses += 1;
+    telemetry.provisionsGainedFromFish += cooked.provisionsGained;
+  }
   Object.entries(cooked.ingredientsConsumed).forEach(([itemId, quantity]) => {
     telemetry.ingredientsConsumedById[itemId] = (telemetry.ingredientsConsumedById[itemId] ?? 0) + quantity;
   });
@@ -1799,6 +1809,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
   if (active.phase === "pending") {
     const result = EncounterManager.completePendingAction(expedition, player, active.pendingToken, {
       failExpedition: fail,
+      random,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
       startMinigame: () => true,
     });
@@ -1869,6 +1880,7 @@ function resolveEncounterInstantly(expedition, player, strategy, random, telemet
     });
     const result = EncounterManager.resolveChoice(expedition, player, choice.id, {
       failExpedition: fail,
+      random,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
       startDialogue: () => true,
       startMinigame: () => true,
@@ -1956,7 +1968,7 @@ function resolveMinigameInstantly(expedition, player, strategy, random, telemetr
   const result = Minigames.simulate(definition.id, {
     expedition,
     player,
-    random,
+    random: random.random,
     strategyName: strategy.name,
     contextId: active.encounterId,
   });
@@ -1974,12 +1986,23 @@ function resolveMinigameInstantly(expedition, player, strategy, random, telemetr
   telemetry.fishingCasts += result.casts.length;
   telemetry.fishingHooks += result.casts.filter((cast) => cast.hooked).length;
   telemetry.fishingMisses += result.casts.filter((cast) => cast.missed).length;
+  telemetry.hotspotCasts += result.casts.filter((cast) => cast.hotspotId !== "default_water").length;
+  telemetry.nonHotspotCasts += result.casts.filter((cast) => cast.hotspotId === "default_water").length;
   result.casts.forEach((cast) => {
     const reward = cast.reward ?? cast.catch;
     if (!reward) return;
     const quantity = Number(reward.quantity) || 0;
     if (cast.catch) {
-      telemetry.fishCaught += 1;
+      if (quantity > 0) {
+        telemetry.fishCaught += 1;
+        telemetry.actualFishCaught += 1;
+        const rewardItemId = cast.catch.rewardItemId;
+        if (rewardItemId) {
+          telemetry.fishRewardsByItemId[rewardItemId] = (
+            telemetry.fishRewardsByItemId[rewardItemId] ?? 0
+          ) + quantity;
+        }
+      }
       telemetry.fishingLoot[cast.catch.catchId] = (telemetry.fishingLoot[cast.catch.catchId] ?? 0)
         + quantity;
       if (cast.catch.rewardItemId === "raw_fish") telemetry.rawFishGained += quantity;
@@ -2009,6 +2032,7 @@ function resolveMinigameInstantly(expedition, player, strategy, random, telemetr
   }));
   const completed = EncounterManager.completeMinigame(expedition, player, result, {
     failExpedition: fail,
+    random,
     startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
     startDialogue: () => true,
     startMinigame: () => true,
@@ -2094,6 +2118,7 @@ function resolveDialogueInstantly(expedition, player, strategy, random, telemetr
     finalResult,
     {
       failExpedition: fail,
+      random,
       startCombat: (combatId) => startSimulationCombat(expedition, combatId, history, telemetry),
       startDialogue: () => true,
       startMinigame: () => true,
@@ -2254,6 +2279,7 @@ function resolveCombatInstantly(expedition, player, strategy, random, telemetry,
   EncounterManager.completeCombat(expedition, player, combat.result, {
     combat,
     failExpedition: fail,
+    random,
     startDialogue: () => true,
   });
 }
@@ -2299,8 +2325,14 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     fishingCasts: 0,
     fishingHooks: 0,
     fishingMisses: 0,
+    hotspotCasts: 0,
+    nonHotspotCasts: 0,
     fishCaught: 0,
+    actualFishCaught: 0,
+    fishRewardsByItemId: {},
     rawFishGained: 0,
+    cookedFishRecipeUses: 0,
+    provisionsGainedFromFish: 0,
     fishingLoot: {},
     fishingKnowledgeLearned: 0,
     dialogues: [],
@@ -2594,9 +2626,15 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     fishingCasts: telemetry.fishingCasts,
     fishingHooks: telemetry.fishingHooks,
     fishingMisses: telemetry.fishingMisses,
+    hotspotCasts: telemetry.hotspotCasts,
+    nonHotspotCasts: telemetry.nonHotspotCasts,
     fishCaught: telemetry.fishCaught,
+    actualFishCaught: telemetry.actualFishCaught,
+    fishRewardsByItemId: sortedTelemetryMap(telemetry.fishRewardsByItemId),
     rawFishGained: telemetry.rawFishGained,
-    fishingLoot: deepClone(telemetry.fishingLoot),
+    cookedFishRecipeUses: telemetry.cookedFishRecipeUses,
+    provisionsGainedFromFish: telemetry.provisionsGainedFromFish,
+    fishingLoot: sortedTelemetryMap(telemetry.fishingLoot),
     fishingKnowledgeLearned: telemetry.fishingKnowledgeLearned,
     cookingActionCount: telemetry.recipesCooked.length,
     cookingProvisionsGained: rounded(telemetry.recipesCooked.reduce(
@@ -2758,6 +2796,12 @@ function firstDifference(left, right, path = "$") {
     if (mismatch) return mismatch;
   }
   return null;
+}
+
+function sortedTelemetryMap(value) {
+  return Object.fromEntries(Object.entries(value ?? {}).sort(([left], [right]) => (
+    left.localeCompare(right)
+  )));
 }
 
 function diffObject(before, after) {
@@ -2972,8 +3016,19 @@ function summarizeRuns(results) {
     fishingCasts: results.reduce((sum, run) => sum + (Number(run.fishingCasts) || 0), 0),
     fishingHooks: results.reduce((sum, run) => sum + (Number(run.fishingHooks) || 0), 0),
     fishingMisses: results.reduce((sum, run) => sum + (Number(run.fishingMisses) || 0), 0),
+    hotspotCasts: results.reduce((sum, run) => sum + (Number(run.hotspotCasts) || 0), 0),
+    nonHotspotCasts: results.reduce((sum, run) => sum + (Number(run.nonHotspotCasts) || 0), 0),
     fishCaught: results.reduce((sum, run) => sum + (Number(run.fishCaught) || 0), 0),
+    actualFishCaught: results.reduce((sum, run) => sum + (Number(run.actualFishCaught) || 0), 0),
+    fishRewardsByItemId: results.reduce((rewards, run) => {
+      Object.entries(run.fishRewardsByItemId ?? {}).forEach(([itemId, quantity]) => {
+        rewards[itemId] = (rewards[itemId] ?? 0) + (Number(quantity) || 0);
+      });
+      return rewards;
+    }, {}),
     rawFishGained: results.reduce((sum, run) => sum + (Number(run.rawFishGained) || 0), 0),
+    cookedFishRecipeUses: results.reduce((sum, run) => sum + (Number(run.cookedFishRecipeUses) || 0), 0),
+    provisionsGainedFromFish: results.reduce((sum, run) => sum + (Number(run.provisionsGainedFromFish) || 0), 0),
     fishingLoot: results.reduce((loot, run) => {
       Object.entries(run.fishingLoot ?? {}).forEach(([catchId, quantity]) => {
         loot[catchId] = (loot[catchId] ?? 0) + (Number(quantity) || 0);

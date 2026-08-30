@@ -6014,3 +6014,23 @@ The attached final cleanup guide supplied the stage-overlay, HUD-slot, prompt-ba
 ### Verification and resulting prototype state
 
 The focused Fishing browser suite passes 10 checks on a 390x844 viewport, including catch/miss/summary overlays, fixed stage dimensions, result deduplication, input blocking, prompt/gauge state changes, backed HUD elements, and viewport-visible controls. Replay smoke tests pass 15 assertions, asset/audio checks pass 5 assertions, and `git diff --check` passes. The Tools repository remains clean because this pass required no editor changes.
+
+## 2026-08-30 - Simulation Automation Polish
+
+### Goal
+
+Make seeded simulation fishing use real hotspot/reward behavior, convert available fish into provisions through the existing cooking flow, and let cautious progression schedule the mandatory 200-league Verdant Warden attempt when its goal-specific travel profile makes that attempt feasible.
+
+### AI-assisted implementation
+
+- Passed the seeded simulation RNG function into Fishing so hotspot casts, hook outcomes, and raw-fish rewards no longer fall back to `Math.random()`.
+- Made bot targeting choose physically valid authored hotspots, protected raw fish in simulation material-capacity prioritization, and added fish-specific single-run/campaign telemetry for hotspot casts, actual fish rewards, cooked-fish uses, and provisions gained from fish.
+- Preserved ordinary cautious pace/ration behavior while allowing only the final `defeat-verdant-warden` goal to use normal pace and normal rationing, matching the existing aggressive deep-goal behavior.
+
+### Manual changes
+
+The attached simulation guide supplied the focused fishing automation and cautious progression requirements. No authored content migration, economy rebalance, recipe change, combat change, or new dependency was introduced.
+
+### Verification and resulting prototype state
+
+The focused browser regression suite passes 3 checks covering hotspot targeting and raw-fish inventory, seeded replay determinism and telemetry/CSV output, real cooked-fish preparation, cautious final-goal scheduling/prerequisites, ordinary cautious settings, and aggressive scheduling. `git diff --check` passes.
