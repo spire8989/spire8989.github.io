@@ -93,17 +93,6 @@ const NPC_DEFINITIONS = Object.freeze({
     dialogueSequenceId: "hidden_village_druid_dialogue",
     locationIds: ["hidden_forest_village"],
   },
-  leper_knight: {
-    id: "leper_knight",
-    portraitAssetId: null,
-    name: "Leper Knight",
-    role: "Wounded knight of the forest road",
-    description: "A scarred knight who offers hard-won warnings without asking for pity.",
-    dialogue: [],
-    rumors: [],
-    dialogueSequenceId: "leper_knight_dialogue",
-    locationIds: [],
-  },
   charcoal_burner: {
     id: "charcoal_burner",
     portraitAssetId: null,
@@ -159,6 +148,17 @@ const NPC_DEFINITIONS = Object.freeze({
     dialogueSequenceId: "familiar_voice_dialogue",
     locationIds: [],
   },
+  bell_bearer: {
+    id: "bell_bearer",
+    portraitAssetId: null,
+    name: "The Bell-Bearer",
+    role: "Wounded knight of the forest road",
+    description: "A diseased, half-ruined knight who wanders beneath the forest boughs with a heavy iron bell hanging from his gear",
+    dialogue: [],
+    rumors: [],
+    dialogueSequenceId: "leper_knight_dialogue",
+    locationIds: []
+  }
 });
 
 const SHOP_DEFINITIONS = Object.freeze({

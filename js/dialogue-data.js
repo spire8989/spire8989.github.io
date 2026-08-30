@@ -71,26 +71,52 @@ const DIALOGUE_DEFINITIONS = Object.freeze({
       }),
     }),
   }),
-  leper_knight_dialogue: Object.freeze({
+  leper_knight_dialogue: {
     id: "leper_knight_dialogue",
     start: "warning",
-    nodes: Object.freeze({
-      warning: Object.freeze({
-        speakerId: "leper_knight",
+    nodes: {
+      warning: {
+        speakerId: "bell_bearer",
         portraitKey: "placeholder",
         text: "Do not call me cursed. Call me tired, wounded, or foolish if you must. Those names still leave a man somewhere to stand.",
         choices: [
-          { id: "listen_to_warning", label: "Listen", next: "parting", effects: [{ type: "setCampaignFlag", flag: "leper_knight_heard", value: true }, { type: "learnKnowledge", knowledgeId: "woodcraft" }] },
-          { id: "thank_knight", label: "Thank Him", next: "parting", effects: [{ type: "setCampaignFlag", flag: "leper_knight_respected", value: true }] },
-        ],
-      }),
-      parting: Object.freeze({
-        speakerId: "leper_knight",
+          {
+            id: "listen_to_warning",
+            label: "Listen",
+            next: "parting",
+            effects: [
+              {
+                type: "setCampaignFlag",
+                flag: "leper_knight_heard",
+                value: true
+              },
+              {
+                type: "learnKnowledge",
+                knowledgeId: "woodcraft"
+              }
+            ]
+          },
+          {
+            id: "thank_knight",
+            label: "Thank Him",
+            next: "parting",
+            effects: [
+              {
+                type: "setCampaignFlag",
+                flag: "leper_knight_respected",
+                value: true
+              }
+            ]
+          }
+        ]
+      },
+      parting: {
+        speakerId: "bell_bearer",
         portraitKey: "placeholder",
-        text: "The true spring is not the first water a thirsty man finds. Remember that, and perhaps the forest will let you pass.",
-      }),
-    }),
-  }),
+        text: "The true spring is not the first water a thirsty man finds. Remember that, and perhaps the forest will let you pass."
+      }
+    }
+  },
   charcoal_burner_dialogue: Object.freeze({
     id: "charcoal_burner_dialogue",
     start: "directions",
