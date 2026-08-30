@@ -318,6 +318,36 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "combat_briar_knight_attack",
     path: "assets/images/combat/briarknight-attack.webp",
     category: "combat"
+  },
+  combat_briar_knight_thornsurge: {
+    id: "combat_briar_knight_thornsurge",
+    path: "assets/images/combat/briarknight-thornsurge.webp",
+    category: "combat"
+  },
+  combat_verdant_warden_idle: {
+    id: "combat_verdant_warden_idle",
+    path: "assets/images/combat/verdantwarden-idle.webp",
+    category: "combat"
+  },
+  combat_verdant_warden_attack: {
+    id: "combat_verdant_warden_attack",
+    path: "assets/images/combat/verdantwarden-punch.webp",
+    category: "combat"
+  },
+  combat_verdant_warden_powerup: {
+    id: "combat_verdant_warden_powerup",
+    path: "assets/images/combat/verdantwarden-powerup.webp",
+    category: "combat"
+  },
+  combat_bell_bearer_ringbell: {
+    id: "combat_bell_bearer_ringbell",
+    path: "assets/images/combat/bell-bearer-ringbell.webp",
+    category: "combat"
+  },
+  encounter_ruined_wayside_shrine: {
+    id: "encounter_ruined_wayside_shrine",
+    path: "assets/images/encounter/wayside_shrine.webp",
+    category: "encounter"
   }
 });
 

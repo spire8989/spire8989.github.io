@@ -2472,11 +2472,13 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     encounterLayout: {
       arthur: {
         x: 0.302734375,
-        y: 0.7330729166666666
+        y: 0.7330729166666666,
+        scale: 0.9
       },
       companion2: {
         x: 0.126953125,
-        y: 0.8407118055555556
+        y: 0.8407118055555556,
+        scale: 0.95
       },
       companion1: {
         x: 0.5234375,
@@ -2916,6 +2918,24 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
             endEncounter: true
           }
         ]
+      }
+    },
+    visualAssetId: "encounter_ruined_wayside_shrine",
+    encounterLayout: {
+      arthur: {
+        x: 0.47382819652557373,
+        y: 0.8972223069932725,
+        facing: "right"
+      },
+      companion2: {
+        x: 0.10195314884185791,
+        y: 0.9888889524671767,
+        facing: "right"
+      },
+      companion1: {
+        x: 0.6925781965255737,
+        y: 0.9777779049343533,
+        facing: "left"
       }
     }
   },

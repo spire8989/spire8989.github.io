@@ -426,11 +426,11 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
   }),
   leper_knight: {
     id: "leper_knight",
-    name: "The Bell-Bearer",
+    name: "Bell-Bearer",
     maxHp: 48,
     speed: 11,
     defense: 2,
-    actionPattern: ["leper_blade", "leper_cough", "leper_blade"],
+    actionPattern: ["leper_blade", "leper_bell", "leper_blade"],
     lootSources: [
       {
         rolls: 1,
@@ -449,6 +449,14 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         frameCount: 25,
         columns: 5,
         fps: 16
+      },
+      animations: {
+        ring_bell: {
+          assetId: "combat_bell_bearer_ringbell",
+          frameCount: 25,
+          columns: 5,
+          fps: 16
+        }
       }
     }
   },
@@ -464,9 +472,8 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     id: "briar_knight",
     name: "Briar Knight",
     maxHp: 69,
-    speed: 5,
-    defense: 3,
-    actionPattern: ["briar_cut", "briar_thrust", "briar_surge"],
+    defense: 4,
+    actionPattern: ["briar_surge", "briar_cut", "briar_thrust"],
     lootSources: [
       {
         tableId: "uncommon_materials",
@@ -486,7 +493,7 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     visuals: {
       idle: {
         assetId: "combat_briar_knight_idle",
-        frameCount: 22,
+        frameCount: 24,
         columns: 5,
         fps: 20
       },
@@ -494,11 +501,25 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         assetId: "combat_briar_knight_attack",
         frameCount: 25,
         columns: 5,
-        scale: 1.5,
-        fps: 16
+        fps: 16,
+        scale: 1.25
+      },
+      animations: {
+        thorn_surge: {
+          assetId: "combat_briar_knight_thornsurge",
+          frameCount: 22,
+          columns: 5,
+          fps: 16,
+          scale: 1.5,
+          offsetY: 10
+        }
       }
     },
-    combatVisualScale: 1.5
+    combatVisualScale: 1.25,
+    speed: 6,
+    actionAnimations: {
+      briar_surge: "thorn_surge"
+    }
   },
   black_hound_of_the_hunt: Object.freeze({
     id: "black_hound_of_the_hunt",
@@ -539,7 +560,30 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         trigger: "activation",
         suppressedByStatuses: ["bleeding", "poisoned"]
       }
-    ]
+    ],
+    visuals: {
+      idle: {
+        assetId: "combat_verdant_warden_idle",
+        frameCount: 12,
+        columns: 5,
+        fps: 16
+      },
+      attack: {
+        assetId: "combat_verdant_warden_attack",
+        frameCount: 25,
+        columns: 5,
+        fps: 16
+      },
+      animations: {
+        warden_powerup: {
+          assetId: "combat_verdant_warden_powerup",
+          frameCount: 18,
+          columns: 5,
+          fps: 16
+        }
+      }
+    },
+    combatVisualScale: 2
   },
   thorn_crowned_hart: Object.freeze({
     id: "thorn_crowned_hart",
@@ -695,14 +739,6 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "poisoned",
     injuryChance: 0.1
   },
-  leper_cough: Object.freeze({
-    id: "leper_cough",
-    name: "Sickening Cough",
-    damage: Object.freeze({ minimum: 3, maximum: 6 }),
-    target: "arthur",
-    injuryId: "poisoned",
-    injuryChance: 0.18,
-  }),
   huntsman_shot: Object.freeze({
     id: "huntsman_shot",
     name: "Enchanted Shot",
@@ -719,30 +755,41 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryId: "bruised_ribs",
     injuryChance: 0.12,
   }),
-  briar_cut: Object.freeze({
+  briar_cut: {
     id: "briar_cut",
     name: "Thorned Cut",
-    damage: Object.freeze({ minimum: 6, maximum: 9 }),
+    damage: {
+      minimum: 6,
+      maximum: 14
+    },
     target: "arthur",
     injuryId: "deep_cut",
-    injuryChance: 0.1,
-  }),
-  briar_thrust: Object.freeze({
+    injuryChance: 0.1
+  },
+  briar_thrust: {
     id: "briar_thrust",
     name: "Briar Thrust",
-    damage: Object.freeze({ minimum: 4, maximum: 8 }),
+    damage: {
+      maximum: 8,
+      minimum: 7
+    },
     target: "arthur",
     injuryId: "sprained_ankle",
-    injuryChance: 0.14,
-  }),
-  briar_surge: Object.freeze({
+    injuryChance: 0.14
+  },
+  briar_surge: {
     id: "briar_surge",
     name: "Thorn Surge",
-    damage: Object.freeze({ minimum: 3, maximum: 6 }),
+    damage: {
+      maximum: 14,
+      minimum: 4
+    },
     target: "arthur",
     injuryId: "bruised_ribs",
     injuryChance: 0.16,
-  }),
+    animationId: "thorn_surge",
+    targetMode: "allAllies"
+  },
   hound_bite: Object.freeze({
     id: "hound_bite",
     name: "Black Bite",
@@ -776,14 +823,18 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     injuryChance: 0.2,
     telegraphed: true,
   }),
-  warden_root_bind: Object.freeze({
+  warden_root_bind: {
     id: "warden_root_bind",
     name: "Root Bind",
-    damage: Object.freeze({ minimum: 8, maximum: 13 }),
+    damage: {
+      minimum: 8,
+      maximum: 13
+    },
     target: "arthur",
     statusId: "poisoned",
     statusChance: 0.55,
-  }),
+    animationId: "warden_powerup"
+  },
   warden_thorn_burst: Object.freeze({
     id: "warden_thorn_burst",
     name: "Thorn Burst",
@@ -818,6 +869,18 @@ const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
     statusId: "bleeding",
     statusChance: 0.65,
   }),
+  leper_bell: {
+    id: "leper_bell",
+    damage: {
+      minimum: 3,
+      maximum: 6
+    },
+    target: "arthur",
+    injuryId: "poisoned",
+    injuryChance: 0.18,
+    name: "The Bell Tolls",
+    animationId: "ring_bell"
+  }
 });
 
 const COMBAT_DEFINITIONS = Object.freeze({
