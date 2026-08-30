@@ -2349,10 +2349,10 @@ function createTelemetry(scenario, expedition, strategy, turnaroundPolicy, repla
     banditGoldRecovered: 0,
     banditLootValueRecovered: 0,
     startingMaterialBag: deepClone({
-      capacity: MaterialRules.capacity(),
+      capacity: MaterialRules.capacity(expedition.playerState, expedition.selectedCompanions),
       contents: MaterialRules.expeditionContents(expedition),
     }),
-    materialBagCapacity: MaterialRules.capacity(),
+    materialBagCapacity: MaterialRules.capacity(expedition.playerState, expedition.selectedCompanions),
     startingProvisions: expedition.committedProvisions,
     originalTargetDistance,
     departurePassiveFoodEstimate,
@@ -2554,9 +2554,9 @@ function finalizeTelemetry(telemetry, scenario, expedition, player, startingStoc
     goldGained: returned ? expedition.goldCarried + returnRewardContents.gold : 0,
     materialsRecovered,
     startingMaterialBag: telemetry.startingMaterialBag,
-    materialBagCapacity: MaterialRules.capacity(),
+    materialBagCapacity: MaterialRules.capacity(expedition.playerState, expedition.selectedCompanions),
     materialBagAtEnd: deepClone({
-      capacity: MaterialRules.capacity(),
+      capacity: MaterialRules.capacity(expedition.playerState, expedition.selectedCompanions),
       contents: MaterialRules.expeditionContents(expedition),
       secured: expedition.materialBag?.secured ?? {},
       unsecured: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials ?? {},
@@ -2716,7 +2716,7 @@ function resourceSnapshot(expedition) {
       expedition.unsecuredLoot.map((entry) => [entry.itemId, entry.quantity]),
     ),
     materialBag: deepClone({
-      capacity: MaterialRules.capacity(),
+      capacity: MaterialRules.capacity(expedition.playerState, expedition.selectedCompanions),
       contents: MaterialRules.expeditionContents(expedition),
       secured: expedition.materialBag?.secured ?? {},
       unsecured: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials ?? {},

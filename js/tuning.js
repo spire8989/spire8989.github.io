@@ -104,7 +104,6 @@ const EXPEDITION_TUNING = Object.freeze({
   minimumTownProvisions: 10,
   townProvisionRestock: 12,
   companionBonuses: Object.freeze({
-    llamreiProvisionCapacity: 10,
     llamreiSoloTravelSpeed: 0.25,
     llamreiPartyTravelSpeed: 0.10,
   }),

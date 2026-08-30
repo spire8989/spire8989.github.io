@@ -4285,7 +4285,7 @@ function renderPreparationMaterialBag() {
   const rows = entries.map(([materialId, quantity]) => {
     const definition = MaterialRules.definition(materialId);
     const selected = game.player.packedMaterials?.[materialId] ?? 0;
-    const availableToAdd = Math.min(quantity - selected, MaterialRules.capacity() - used);
+    const availableToAdd = Math.min(quantity - selected, MaterialRules.capacity(game.player) - used);
     return `
       <article class="material-bag-row">
         <div class="material-bag-row-copy">
@@ -4303,7 +4303,7 @@ function renderPreparationMaterialBag() {
     <section class="preparation-section material-bag-section" aria-labelledby="material-bag-title">
       <div class="section-title-row">
         <h2 id="material-bag-title">Material Bag</h2>
-        <span>${used}/${MaterialRules.capacity()} units</span>
+        <span>${used}/${MaterialRules.capacity(game.player)} units</span>
       </div>
       <p class="section-help">Ingredients and crafting materials travel separately from the ${EXPEDITION_TUNING.packSlots}-slot expedition pack.</p>
       <div class="material-bag-list">${rows || '<p class="empty-loot">No materials owned.</p>'}</div>
@@ -4415,7 +4415,7 @@ function renderPreparationReview() {
         <p>${game.preparationSupplies} provisions · ${consumption.toFixed(2)}× consumption</p>
       </article>
       <article class="review-card">
-        <div class="review-card-heading"><h2>Material Bag</h2><span>${MaterialRules.collectionTotal(game.player.packedMaterials)}/${MaterialRules.capacity()}</span></div>
+        <div class="review-card-heading"><h2>Material Bag</h2><span>${MaterialRules.collectionTotal(game.player.packedMaterials)}/${MaterialRules.capacity(game.player)}</span></div>
         <p>${materialBagNames}</p>
         <p>Ingredients and crafting materials are secured separately from the pack.</p>
       </article>
@@ -4636,7 +4636,7 @@ function changeMaterialBag(materialId, amount) {
   const current = game.player.packedMaterials[materialId] ?? 0;
   const requested = current + (Number(amount) || 0);
   const capacityLimit = requested > current
-    ? current + (MaterialRules.capacity() - MaterialRules.collectionTotal(game.player.packedMaterials))
+    ? current + (MaterialRules.capacity(game.player) - MaterialRules.collectionTotal(game.player.packedMaterials))
     : game.player.materials[materialId];
   const next = clamp(
     requested,
@@ -5212,7 +5212,7 @@ function renderCampCookPanel(expedition) {
     <section class="camp-content" aria-labelledby="camp-cook-title">
       <div class="section-title-row"><h2 id="camp-cook-title">Cook</h2><span>Ingredients → Provisions</span></div>
       <p class="section-help">Cooked meals use secured and newly discovered ingredients from the Material Bag. The result becomes expedition provisions.</p>
-      <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${ingredients || "<em>No cooking ingredients available</em>"}</div></div>
+      <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions)}</span><div>${ingredients || "<em>No cooking ingredients available</em>"}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No recipes are available at this fire.</p>'}</div>
     </section>`;
 }
@@ -5224,7 +5224,7 @@ function renderCampCraftPanel(expedition) {
     <section class="camp-content" aria-labelledby="camp-craft-title">
       <div class="section-title-row"><h2 id="camp-craft-title">Field Craft</h2><span>Use Material Bag</span></div>
       <p class="section-help">A campfire can support simple field repairs. Apothecary work still belongs in the village.</p>
-      <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity()}</span><div>${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
+      <div class="material-inventory camp-ingredients"><span>Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions)}</span><div>${renderMaterialBagChips(expedition, "No materials carried")}</div></div>
       <div class="shop-list camp-recipe-list">${rows || '<p class="empty-loot">No field recipes are known.</p>'}</div>
     </section>`;
 }
@@ -6066,7 +6066,7 @@ function renderExpeditionResources(expedition, options = {}) {
       <div id="provisions-card" class="resource-card provisions-card provision-state-${provisionStatus.state}" data-provision-state="${provisionStatus.state}">
         <span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
       </div>
-      ${resourceCard("Material Bag", `${materialBagUsed} / ${MaterialRules.capacity()}`, "material-bag-count", "material-bag-card")}
+      ${resourceCard("Material Bag", `${materialBagUsed} / ${MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions)}`, "material-bag-count", "material-bag-card")}
       ${resourceCard("Health", `${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}`, "health-value")}
       ${resourceCard("Faith", `${game.player.faith} / ${game.player.maxFaith}`, "faith-value")}`
     : `
@@ -6075,7 +6075,7 @@ function renderExpeditionResources(expedition, options = {}) {
       <div id="provisions-card" class="resource-card provisions-card provision-state-${provisionStatus.state}" data-provision-state="${provisionStatus.state}">
         <span>Provisions</span><strong id="provisions-value">${formatResource(expedition.provisions)}</strong>
       </div>
-      ${resourceCard("Material Bag", `${materialBagUsed} / ${MaterialRules.capacity()}`, "material-bag-count", "material-bag-card")}
+      ${resourceCard("Material Bag", `${materialBagUsed} / ${MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions)}`, "material-bag-count", "material-bag-card")}
       ${resourceCard("Health", `${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}`, "health-value")}
       ${resourceCard("Faith", `${game.player.faith} / ${game.player.maxFaith}`, "faith-value")}`;
   return `
@@ -7283,7 +7283,7 @@ function updateTravelHudText(expedition = game.expedition) {
   }
   updateProvisionWarningTransition(expedition, provisionStatus);
   setText("#health-value", `${Math.ceil(expedition.health)} / ${InjuryRules.effectiveMaxHealth(expedition, "arthur")}`);
-  setText("#material-bag-count", `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity()}`);
+  setText("#material-bag-count", `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions)}`);
   setText("#loot-count", unsecuredLootDisplayValue(expedition));
   setText(".unsecured-detail-summary", unsecuredLootSummary(expedition));
   const activeEncounter = expedition.activeEncounter
@@ -7543,7 +7543,7 @@ function debugExpeditionState(expedition) {
     equippedGear: expedition.selectedEquipment,
     packedItems: expedition.carriedItems,
     materialBag: {
-      capacity: MaterialRules.capacity(),
+      capacity: MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions),
       contents: MaterialRules.expeditionContents(expedition),
       unsecured: expedition.materialBag?.unsecured ?? expedition.unsecuredMaterials,
       rejected: expedition.materialBagRejected,

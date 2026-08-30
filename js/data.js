@@ -1298,6 +1298,7 @@ const COMPANION_DEFINITIONS = Object.freeze({
     tags: ["mount", "horse", "campaign"],
     type: "mount",
     provisionCapacityBonus: 10,
+    materialBagCapacityBonus: 10,
     provisionConsumptionBonus: 0.1,
     capabilities: {
       canUseItems: false,

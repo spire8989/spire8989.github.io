@@ -5,6 +5,14 @@
 // store; an expedition carries a secured snapshot plus unsecured discoveries.
 const LEGACY_MATERIAL_BAG_CAPACITY = 10;
 
+function materialCapacityCompanionBonus(selection, definitions = COMPANION_DEFINITIONS) {
+  const companions = Array.isArray(selection) ? selection : selection ? [selection] : [];
+  return companions.reduce((total, entry) => {
+    const companion = typeof entry === "string" ? definitions?.[entry] : entry;
+    return total + (Number(companion?.materialBagCapacityBonus) || 0);
+  }, 0);
+}
+
 const MaterialRules = Object.freeze({
   effectiveCapacity(options = {}) {
     const playerCharacter = options.playerCharacter === undefined
@@ -14,7 +22,15 @@ const MaterialRules = Object.freeze({
     const baseCapacity = Number.isInteger(authoredCapacity) && authoredCapacity > 0
       ? authoredCapacity
       : LEGACY_MATERIAL_BAG_CAPACITY;
+    const companionDefinitions = options.companionDefinitions === undefined
+      ? typeof COMPANION_DEFINITIONS !== "undefined" ? COMPANION_DEFINITIONS : {}
+      : options.companionDefinitions;
+    const selectedCompanions = options.selectedCompanions
+      ?? options.player?.selectedCompanions
+      ?? options.player?.selectedCompanion
+      ?? [];
     const futureModifiers = [
+      materialCapacityCompanionBonus(selectedCompanions, companionDefinitions),
       options.companionMaterialCapacityBonus,
       options.equipmentMaterialCapacityBonus,
       options.permanentMaterialCapacityBonus,
@@ -22,8 +38,13 @@ const MaterialRules = Object.freeze({
     return Math.max(1, Math.floor(baseCapacity + futureModifiers));
   },
 
-  capacity(playerCharacter) {
-    return this.effectiveCapacity({ playerCharacter });
+  capacity(playerOrCharacter = undefined, selectedCompanions = undefined) {
+    const playerCharacter = Number.isFinite(Number(playerOrCharacter?.materialBagCapacity))
+      ? playerOrCharacter : undefined;
+    const activeCompanions = selectedCompanions
+      ?? playerOrCharacter?.selectedCompanions
+      ?? playerOrCharacter?.selectedCompanion;
+    return this.effectiveCapacity({ playerCharacter, selectedCompanions: activeCompanions });
   },
 
   isMaterialId(materialId) {
@@ -77,12 +98,12 @@ const MaterialRules = Object.freeze({
     return this.normalizeCollection(request);
   },
 
-  automaticSelection(materials) {
+  automaticSelection(materials, capacity = this.capacity()) {
     const ids = Object.keys(materials);
     const ingredients = ids.filter((materialId) => ITEM_DEFINITIONS[materialId]?.tags?.includes("ingredient"));
     const craftMaterials = ids.filter((materialId) => !ingredients.includes(materialId));
     return [...ingredients, ...craftMaterials].reduce((selection, materialId) => {
-      const remaining = this.capacity() - this.collectionTotal(selection);
+      const remaining = capacity - this.collectionTotal(selection);
       if (remaining > 0) selection[materialId] = Math.min(materials[materialId], remaining);
       return selection;
     }, {});
@@ -127,7 +148,11 @@ const MaterialRules = Object.freeze({
     }, {});
   },
 
-  createExpeditionBag(player, request) {
+  createExpeditionBag(player, request, selectedCompanions = undefined) {
+    const activeCompanions = selectedCompanions
+      ?? player.selectedCompanions
+      ?? (player.selectedCompanion ? [player.selectedCompanion] : []);
+    const capacity = this.capacity(player, activeCompanions);
     const materials = this.migratePlayerMaterials(player);
     const requested = request !== undefined
       ? this.selectionFromRequest(request, materials)
@@ -135,11 +160,11 @@ const MaterialRules = Object.freeze({
     const selection = Object.keys(requested).length > 0
       ? requested
       : request === undefined && !player.packedMaterials
-        ? this.automaticSelection(materials)
+        ? this.automaticSelection(materials, capacity)
         : requested;
     const secured = {};
     const rejected = {};
-    let remainingCapacity = this.capacity();
+    let remainingCapacity = capacity;
     Object.entries(selection).forEach(([materialId, requestedQuantity]) => {
       if (remainingCapacity <= 0) {
         rejected[materialId] = Math.max(0, Math.floor(Number(requestedQuantity) || 0));
@@ -154,7 +179,7 @@ const MaterialRules = Object.freeze({
       if (requestedAmount > accepted) rejected[materialId] = requestedAmount - accepted;
     });
     return {
-      capacity: this.capacity(),
+      capacity,
       secured,
       unsecured: {},
       rejected,
@@ -162,12 +187,13 @@ const MaterialRules = Object.freeze({
   },
 
   ensureExpeditionBag(expedition) {
+    const capacity = this.capacity(expedition.playerState, expedition.selectedCompanions);
     expedition.materialBag ??= {
-      capacity: this.capacity(),
+      capacity,
       secured: {},
       unsecured: expedition.unsecuredMaterials ?? {},
     };
-    expedition.materialBag.capacity = this.capacity();
+    expedition.materialBag.capacity = capacity;
     expedition.materialBag.secured ??= {};
     expedition.materialBag.unsecured ??= expedition.unsecuredMaterials ?? {};
     expedition.unsecuredMaterials = expedition.materialBag.unsecured;

@@ -6103,3 +6103,32 @@ The focused simulation automation browser suite passes 4 checks, including
 canonical starter/always-known/learned recipe eligibility, Royal Feast gating
 and telemetry, existing fish cooking, and deterministic campaign replay.
 `git diff --check` passes.
+
+## 2026-08-30 - Authored Companion Capacity Bonuses
+
+### Goal
+
+Allow authored active companions to increase provision and material bag capacity
+through generic companion data.
+
+### AI-assisted implementation
+
+- Added Llamrei's authored `materialBagCapacityBonus: 10` while preserving the
+  existing authored provision capacity bonus.
+- Routed material bag capacity through the central `MaterialRules` calculation
+  with active companion context across gameplay, storage, replay, campaign, and
+  simulation paths.
+- Added Content Editor integer fields and validation for both capacity bonuses,
+  including save/round-trip coverage.
+
+### Manual changes
+
+No content migration is required. Companions without the optional material bonus
+continue to default to zero; provision capacity values are unchanged.
+
+### Verification and resulting prototype state
+
+The focused simulation automation suite passes 4 checks and the focused Content
+Editor companion validation/round-trip test passes. The broader simulation suite
+reaches the new capacity checks, then stops at its existing unrelated Pommel
+Strike fixture failure. `git diff --check` passes.

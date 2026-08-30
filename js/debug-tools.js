@@ -472,7 +472,7 @@ function renderDebugMaterialsSection() {
       <select id="debug-material-select" class="debug-catalog-select" size="4" aria-label="Debug material selector">${options || '<option disabled>No matching materials</option>'}</select>
       ${selected ? `<p class="debug-selected"><strong>${escapeDebugText(selected.name)}</strong> <code>${escapeDebugText(selected.id)}</code> · stored ${Number(game.player.materials?.[selected.id]) || 0}</p>` : ""}
       <div class="debug-direct-row"><label>Quantity <input id="debug-material-quantity" type="number" min="1" step="1" value="1"></label><button type="button" data-debug-action="give-material" ${selected ? "" : "disabled"}>Give</button><button type="button" data-debug-action="remove-material" ${selected ? "" : "disabled"}>Remove</button></div>
-      <p class="debug-muted">Permanent storage is separate from the active expedition Material Bag (${expedition ? `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity()}` : "no active expedition"}).</p>
+      <p class="debug-muted">Permanent storage is separate from the active expedition Material Bag (${expedition ? `${MaterialRules.expeditionTotal(expedition)} / ${MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions)}` : "no active expedition"}).</p>
       <pre id="debug-material-bag-state">${escapeDebugText(JSON.stringify(bag, null, 2))}</pre>
     </div>
   </details>`;

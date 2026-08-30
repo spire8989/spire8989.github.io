@@ -2873,6 +2873,7 @@ function applyBetweenExpeditionPolicy(
   player.packedMaterials = MaterialRules.prioritizedSelection(
     player.materials,
     CraftingRules.knownRecipesForProvider(player, "campfire"),
+    MaterialRules.capacity(player, selectedCompanionIds(player)),
   );
   townActions.push({
     type: "pack-loadout",

@@ -2183,7 +2183,7 @@ function applyReplayPack(player, packedItems, packedMaterials) {
     ? Object.fromEntries(packedMaterials.map((materialId) => [materialId, player.materials?.[materialId] ?? 1]))
     : packedMaterials ?? {};
   const selectedMaterials = {};
-  let remainingCapacity = MaterialRules.capacity();
+  let remainingCapacity = MaterialRules.capacity(player, selectedCompanionIds(player));
   for (const [materialId, requestedValue] of Object.entries(materialRequest)) {
     if (!MaterialRules.isMaterialId(materialId)) {
       return { applied: false, reason: `The recorded Material Bag contains an unknown material: ${materialId}.` };

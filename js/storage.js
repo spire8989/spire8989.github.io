@@ -160,11 +160,6 @@ function sanitizePlayerState(savedState, defaults) {
     EquipmentRules.normalizeEquipmentCompatibility({ equippedItems });
   }
 
-  const materials = sanitizeMaterials(savedState.materials, savedItems);
-  const packedItems = sanitizePackedItems(savedState, ownedItems, equippedItems, defaults.packedItems);
-  const packedMaterials = sanitizePackedMaterials(savedState, materials, defaults.packedMaterials, savedItems);
-  const injuries = InjuryRules.snapshot({ injuries: savedState.injuries ?? defaults.injuries });
-
   const unlockedCompanions = validIdArray(
     savedState.unlockedCompanions,
     COMPANION_DEFINITIONS,
@@ -172,6 +167,12 @@ function sanitizePlayerState(savedState, defaults) {
   );
   const selectedCompanions = sanitizeSelectedCompanions(savedState, unlockedCompanions, defaults);
   const selectedCompanion = selectedCompanions[0] ?? null;
+  const materials = sanitizeMaterials(savedState.materials, savedItems);
+  const packedItems = sanitizePackedItems(savedState, ownedItems, equippedItems, defaults.packedItems);
+  const packedMaterials = sanitizePackedMaterials(
+    savedState, materials, defaults.packedMaterials, savedItems, selectedCompanions,
+  );
+  const injuries = InjuryRules.snapshot({ injuries: savedState.injuries ?? defaults.injuries });
   const campaignFlags = sanitizeCampaignFlags(savedState.campaignFlags, savedState, defaults);
   const selectedExpeditionId = EXPEDITION_DEFINITIONS[savedState.selectedExpeditionId]
     ? savedState.selectedExpeditionId
@@ -326,7 +327,7 @@ function sanitizePackedItems(savedState, ownedItems, equippedItems, fallback) {
     .slice(0, EXPEDITION_TUNING.packSlots);
 }
 
-function sanitizePackedMaterials(savedState, materials, fallback, legacyItems = {}) {
+function sanitizePackedMaterials(savedState, materials, fallback, legacyItems = {}, selectedCompanions = []) {
   let requested = savedState.packedMaterials;
   if (requested === undefined) {
     requested = Object.fromEntries((savedState.packedItems ?? [])
@@ -335,7 +336,7 @@ function sanitizePackedMaterials(savedState, materials, fallback, legacyItems = 
   }
   if (requested === undefined || Object.keys(requested).length === 0) requested = fallback;
   const result = {};
-  let remaining = MaterialRules.capacity();
+  let remaining = MaterialRules.capacity(PLAYER_CHARACTER_DEFINITION, selectedCompanions);
   Object.entries(requested ?? {}).forEach(([materialId, quantity]) => {
     if (!MaterialRules.isMaterialId(materialId) || remaining <= 0) return;
     const accepted = Math.min(

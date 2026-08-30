@@ -421,7 +421,7 @@ const ExpeditionRules = Object.freeze({
       ?? (Array.isArray(options.packedItems)
         ? options.packedItems.filter((itemId) => MaterialRules.isMaterialId(itemId))
         : undefined);
-    const materialBag = MaterialRules.createExpeditionBag(player, materialBagRequest);
+    const materialBag = MaterialRules.createExpeditionBag(player, materialBagRequest, selectedCompanions);
     const expedition = {
       expeditionId: expeditionDefinition.id,
       regionId: options.regionId ?? expeditionDefinition.regionId,
@@ -676,7 +676,7 @@ const ExpeditionRules = Object.freeze({
         && !Object.values(player.equippedItems).includes(itemId))
       .slice(0, EXPEDITION_TUNING.packSlots);
 
-    let remainingCapacity = MaterialRules.capacity();
+    let remainingCapacity = MaterialRules.capacity(player, selectedCompanionIds(player));
     const packedMaterials = {};
     Object.entries(MaterialRules.normalizeCollection(player.packedMaterials ?? {})).forEach(([materialId, quantity]) => {
       if (remainingCapacity <= 0) return;
