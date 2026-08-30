@@ -264,7 +264,25 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     },
-    musicTrackId: "combat_verdant_warden"
+    musicTrackId: "combat_verdant_warden",
+    visualAssetId: "encounter_the_verdant_altar",
+    encounterLayout: {
+      arthur: {
+        x: 0.4300781488418579,
+        y: 0.8921874894036187,
+        facing: "right"
+      },
+      companion2: {
+        x: 0.8800780773162842,
+        y: 0.9671875105963813
+      },
+      companion1: {
+        x: 0.6082031726837158,
+        y: 0.9255208439297147,
+        facing: "left"
+      }
+    },
+    hiddenSlots: ["companion2"]
   },
   green_chapel_beyond: {
     id: "green_chapel_beyond",
@@ -449,7 +467,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       arthur: {
         x: 0.203125,
         y: 0.7573784722222222,
-        scale: 0.9
+        scale: 0.9,
+        facing: "right"
       },
       companion1: {
         x: 0.6484375,
@@ -459,7 +478,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       companion2: {
         x: 0.4097656011581421,
         y: 0.6027777459886339,
-        scale: 0.6
+        scale: 0.6,
+        facing: "right"
       }
     }
   },
@@ -1316,7 +1336,8 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       },
       companion2: {
         x: 0.193359375,
-        y: 0.9934895833333334
+        y: 0.9934895833333334,
+        facing: "right"
       }
     }
   },
@@ -1335,7 +1356,12 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     ignoreEncounterSpacing: true,
     tags: ["campaign", "verdant", "stag", "boss"],
     repeatable: false,
-    requirements: [{ type: "notCampaignFlag", flag: "hostile_stag_defeated" }],
+    requirements: [
+      {
+        type: "notCampaignFlag",
+        flag: "hostile_stag_defeated"
+      }
+    ],
     stages: {
       start: {
         text: "The stag scrapes one hoof across the road. It is not an omen to be observed from a distance; it is a guardian demanding an answer.",
@@ -1343,31 +1369,46 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "stand_against_stag",
             label: "Stand Against the Thorn-Crowned Hart",
-            outcomes: [{
-              type: "startCombat",
-              combatId: "thorn_crowned_hart",
-              victory: {
-                resultText: "The Thorn-Crowned Hart falls. Beneath the thorns, a second Verdant shard pulses with hard-won strength.",
-                outcomes: [
-                  { type: "gainUniqueUnsecuredItem", itemId: "verdant_shard_wrath" },
-                  { type: "setCampaignFlagOnSafeReturn", flag: "hostile_stag_defeated", value: true },
-                ],
-              },
-              defeat: { resultText: "The thorn-crowned guardian drives the company from the Main Road." },
-              fled: { resultText: "The company escapes, but the Thorn-Crowned Hart remains on the road." },
-            }],
+            outcomes: [
+              {
+                type: "startCombat",
+                combatId: "thorn_crowned_hart",
+                victory: {
+                  resultText: "The Thorn-Crowned Hart falls. Beneath the thorns, a second Verdant shard pulses with hard-won strength.",
+                  outcomes: [
+                    {
+                      type: "gainUniqueUnsecuredItem",
+                      itemId: "verdant_shard_wrath"
+                    },
+                    {
+                      type: "setCampaignFlagOnSafeReturn",
+                      flag: "hostile_stag_defeated",
+                      value: true
+                    }
+                  ]
+                },
+                defeat: {
+                  resultText: "The thorn-crowned guardian drives the company from the Main Road."
+                },
+                fled: {
+                  resultText: "The company escapes, but the Thorn-Crowned Hart remains on the road."
+                }
+              }
+            ],
             resultText: "The stag lowers its crown of thorns and charges.",
-            endEncounter: true,
+            endEncounter: true
           },
           {
             id: "withdraw_from_stag",
             label: "Give Ground and Continue Later",
             resultText: "Arthur yields the road for now. The guardian remains, waiting for a stronger challenge.",
-            endEncounter: true,
-          },
-        ],
-      },
+            endEncounter: true
+          }
+        ]
+      }
     },
+    visualAssetId: "encounter_the_thorn_crowned_hart",
+    hiddenSlots: ["arthur", "companion1", "companion2"]
   },
   white_hart: {
     id: "white_hart",
@@ -1490,6 +1531,22 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         resultStage: true,
         text: "The White Hart is gone. The forest has not closed the path forever, but this meeting is over.",
         outcomes: []
+      }
+    },
+    visualAssetId: "encounter_the_white_hart",
+    hiddenSlots: ["companion2"],
+    encounterLayout: {
+      arthur: {
+        x: 0.8238281011581421,
+        y: 0.8921874894036187,
+        facing: "left",
+        layer: 0
+      },
+      companion1: {
+        x: 0.8785157203674316,
+        y: 0.9616319338480631,
+        facing: "left",
+        layer: 1
       }
     }
   },
@@ -5142,124 +5199,6 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       }
     }
   },
-  leper_knight: {
-    id: "leper_knight",
-    title: "The Leper Knight",
-    description: "A scarred knight rests beside a broken shrine, asking for neither pity nor trust.",
-    regionId: "broceliande",
-    pathIds: ["old_forest_road", "fountain_of_barenton"],
-    directions: ["outbound", "returning"],
-    weight: 2,
-    minimumDistance: 80,
-    maximumDistance: 185,
-    tags: ["campaign", "barenton", "social", "combat", "moral"],
-    repeatable: false,
-    requirements: [],
-    stages: {
-      start: {
-        text: "The knight's armor is clean but failing. He warns Arthur not to mistake his distance for contempt, then waits to see what sort of man has found him.",
-        choices: [
-          {
-            id: "offer_aid",
-            label: "Offer Bandages",
-            requirements: [
-              {
-                type: "availableExpeditionItem",
-                itemId: "bandages",
-                quantity: 1,
-                lockedLabel: "Requires 1 Bandage"
-              }
-            ],
-            costs: [
-              {
-                type: "consumeExpeditionItem",
-                itemId: "bandages",
-                quantity: 1
-              }
-            ],
-            outcomes: [
-              {
-                type: "modifyResource",
-                resource: "health",
-                amount: 1
-              },
-              {
-                type: "setRunFlag",
-                flag: "leperKnightAided",
-                value: true
-              },
-              {
-                type: "rollLootTable",
-                tableId: "common_materials",
-                chance: 0.5
-              },
-              {
-                type: "randomChance",
-                chance: 0.3,
-                effects: [
-                  {
-                    type: "gainUniqueUnsecuredItem",
-                    itemId: "reliquary_of_saint_lazarus"
-                  }
-                ],
-                resultText: "The knight presses a small reliquary into Arthur's palm. Saint Lazarus, he says, knew that mercy can be a kind of courage.",
-                elseEffects: []
-              }
-            ],
-            resultText: "The knight accepts the bandage without touching Arthur's hand. In return he gives a brief warning about a spring guarded by something that does not fear steel.",
-            endEncounter: true
-          },
-          {
-            id: "speak_to_knight",
-            label: "Speak with Him",
-            outcomes: [
-              {
-                type: "startDialogue",
-                dialogueId: "leper_knight_dialogue"
-              }
-            ],
-            resultText: "Arthur speaks without stepping closer.",
-            endEncounter: true
-          },
-          {
-            id: "keep_distance",
-            label: "Keep Your Distance",
-            resultText: "Arthur leaves food beside the shrine and gives the knight room to choose whether to take it.",
-            endEncounter: true
-          },
-          {
-            id: "challenge_knight",
-            label: "Drive Him from the Road",
-            outcomes: [
-              {
-                type: "startCombat",
-                combatId: "leper_knight",
-                victory: {
-                  outcomes: [
-                    {
-                      type: "setRunFlag",
-                      flag: "leperKnightDefeated",
-                      value: true
-                    },
-                    {
-                      type: "rollLootTable",
-                      tableId: "forest_materials"
-                    }
-                  ],
-                  resultText: "The knight yields and asks Arthur to remember that sickness is not the same thing as guilt."
-                },
-                fled: {
-                  outcomes: [],
-                  resultText: "The knight lets Arthur pass without pursuing the challenge."
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    maxOccurrencesPerRun: 1
-  },
   serpent_at_spring: {
     id: "serpent_at_spring",
     title: "The Serpent at the Spring",
@@ -6078,5 +6017,123 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     }
+  },
+  bell_bearer: {
+    id: "bell_bearer",
+    title: "The Bell-Bearer",
+    description: "A diseased, half-ruined knight holding a heavy iron bell sits on the side of the road. His armor is battered and stained, his posture weakened by sickness, but he manages to still look quite dangerous.",
+    regionId: "broceliande",
+    pathIds: ["old_forest_road", "fountain_of_barenton"],
+    directions: ["outbound", "returning"],
+    weight: 2,
+    minimumDistance: 80,
+    maximumDistance: 185,
+    tags: ["campaign", "barenton", "social", "combat", "moral"],
+    repeatable: false,
+    requirements: [],
+    stages: {
+      start: {
+        text: "The Bell-Bearer warns Arthur not to mistake his distance for contempt, then waits to see what sort of man has found him.",
+        choices: [
+          {
+            id: "offer_aid",
+            label: "Offer Bandages",
+            requirements: [
+              {
+                type: "availableExpeditionItem",
+                itemId: "bandages",
+                quantity: 1,
+                lockedLabel: "Requires 1 Bandage"
+              }
+            ],
+            costs: [
+              {
+                type: "consumeExpeditionItem",
+                itemId: "bandages",
+                quantity: 1
+              }
+            ],
+            outcomes: [
+              {
+                type: "modifyResource",
+                resource: "health",
+                amount: 1
+              },
+              {
+                type: "setRunFlag",
+                flag: "leperKnightAided",
+                value: true
+              },
+              {
+                type: "rollLootTable",
+                tableId: "common_materials",
+                chance: 0.5
+              },
+              {
+                type: "randomChance",
+                chance: 0.3,
+                effects: [
+                  {
+                    type: "gainUniqueUnsecuredItem",
+                    itemId: "reliquary_of_saint_lazarus"
+                  }
+                ],
+                resultText: "The knight presses a small reliquary into Arthur's palm. Saint Lazarus, he says, knew that mercy can be a kind of courage.",
+                elseEffects: []
+              }
+            ],
+            resultText: "The man accepts the bandage without touching Arthur's hand. In return he gives a brief warning about an altar 200 stadia deep into the forest that houses the warden of the forest.",
+            endEncounter: true
+          },
+          {
+            id: "speak_to_knight",
+            label: "Speak with Him",
+            outcomes: [
+              {
+                type: "startDialogue",
+                dialogueId: "leper_knight_dialogue"
+              }
+            ],
+            resultText: "Arthur speaks without stepping closer.",
+            endEncounter: true
+          },
+          {
+            id: "keep_distance",
+            label: "Keep Your Distance",
+            resultText: "Arthur leaves food beside the shrine and gives the man room to choose whether to take it.",
+            endEncounter: true
+          },
+          {
+            id: "challenge_knight",
+            label: "Drive Him from the Road",
+            outcomes: [
+              {
+                type: "startCombat",
+                combatId: "bell_bearer",
+                victory: {
+                  outcomes: [
+                    {
+                      type: "setRunFlag",
+                      flag: "leperKnightDefeated",
+                      value: true
+                    },
+                    {
+                      type: "rollLootTable",
+                      tableId: "forest_materials"
+                    }
+                  ],
+                  resultText: "The man yields and asks Arthur to remember that sickness is not the same thing as guilt."
+                },
+                fled: {
+                  outcomes: [],
+                  resultText: "The Bell-Bearer lets Arthur pass without pursuing the challenge."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    maxOccurrencesPerRun: 1
   }
 });

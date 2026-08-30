@@ -424,42 +424,6 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
     defense: 2,
     actionPattern: ["black_boar_charge", "black_boar_gore", "black_boar_trample"],
   }),
-  leper_knight: {
-    id: "leper_knight",
-    name: "Bell-Bearer",
-    maxHp: 48,
-    speed: 11,
-    defense: 2,
-    actionPattern: ["leper_blade", "leper_bell", "leper_blade"],
-    lootSources: [
-      {
-        rolls: 1,
-        tableId: "leper_knight_loot"
-      }
-    ],
-    visuals: {
-      idle: {
-        assetId: "combat_the_bell_bearer_idle",
-        frameCount: 24,
-        columns: 5,
-        fps: 20
-      },
-      attack: {
-        assetId: "combat_the_bell_bearer_attack",
-        frameCount: 25,
-        columns: 5,
-        fps: 16
-      },
-      animations: {
-        ring_bell: {
-          assetId: "combat_bell_bearer_ringbell",
-          frameCount: 25,
-          columns: 5,
-          fps: 16
-        }
-      }
-    }
-  },
   morgans_huntsman: Object.freeze({
     id: "morgans_huntsman",
     name: "Morgan's Huntsman",
@@ -583,13 +547,16 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         }
       }
     },
-    combatVisualScale: 2
+    combatVisualScale: 1.75,
+    actionAnimations: {
+      warden_root_bind: "warden_powerup"
+    }
   },
   thorn_crowned_hart: {
     id: "thorn_crowned_hart",
     name: "Thorn-Crowned Hart",
-    maxHp: 104,
-    speed: 14,
+    maxHp: 84,
+    speed: 12,
     defense: 4,
     actionPattern: ["thorn_hart_charge", "thorn_hart_briar_rend", "thorn_hart_roar", "thorn_hart_charge"],
     tags: ["verdant", "enchanted", "stag", "boss"],
@@ -610,14 +577,52 @@ const COMBAT_ENEMY_DEFINITIONS = Object.freeze({
         verdant_roar: {
           assetId: "combat_thorn_crowned_hart_verdant_roar",
           frameCount: 25,
-          columns: 5
+          columns: 5,
+          fps: 16
         }
       }
     },
     actionAnimations: {
       thorn_hart_roar: "verdant_roar"
-    }
+    },
+    combatVisualScale: 1.25
   },
+  bell_bearer: {
+    id: "bell_bearer",
+    name: "Bell-Bearer",
+    maxHp: 48,
+    speed: 11,
+    defense: 2,
+    actionPattern: ["leper_blade", "leper_bell", "leper_blade"],
+    lootSources: [
+      {
+        rolls: 1,
+        tableId: "leper_knight_loot"
+      }
+    ],
+    visuals: {
+      idle: {
+        assetId: "combat_the_bell_bearer_idle",
+        frameCount: 24,
+        columns: 5,
+        fps: 20
+      },
+      attack: {
+        assetId: "combat_the_bell_bearer_attack",
+        frameCount: 25,
+        columns: 5,
+        fps: 16
+      },
+      animations: {
+        ring_bell: {
+          assetId: "combat_bell_bearer_ringbell",
+          frameCount: 25,
+          columns: 5,
+          fps: 16
+        }
+      }
+    }
+  }
 });
 
 const COMBAT_ENEMY_ACTION_DEFINITIONS = Object.freeze({
@@ -946,10 +951,6 @@ const COMBAT_DEFINITIONS = Object.freeze({
     id: "black_boar_broceliande",
     enemyIds: ["black_boar"],
   }),
-  leper_knight: Object.freeze({
-    id: "leper_knight",
-    enemyIds: ["leper_knight"],
-  }),
   morgans_huntsmen: Object.freeze({
     id: "morgans_huntsmen",
     enemyIds: ["morgans_huntsman", "morgans_huntsman"],
@@ -967,12 +968,19 @@ const COMBAT_DEFINITIONS = Object.freeze({
     id: "bound_warden",
     enemyIds: ["bound_warden"],
   }),
-  verdant_warden: Object.freeze({
+  verdant_warden: {
     id: "verdant_warden",
     enemyIds: ["verdant_warden"],
-  }),
-  thorn_crowned_hart: Object.freeze({
+    musicTrackId: "combat_verdant_warden_judgment_fast"
+  },
+  thorn_crowned_hart: {
     id: "thorn_crowned_hart",
     enemyIds: ["thorn_crowned_hart"],
-  }),
+    musicTrackId: "combat_thorn_crowned_hart_black_stag_charge"
+  },
+  bell_bearer: {
+    enemyIds: ["bell_bearer"],
+    id: "bell_bearer",
+    musicTrackId: "combat_bell_bearer"
+  }
 });

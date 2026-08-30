@@ -144,6 +144,13 @@ const LOOT_TABLE_DEFINITIONS = Object.freeze({
         weight: 10,
         minimum: 1,
         maximum: 2
+      },
+      {
+        type: "item",
+        itemId: "honey",
+        weight: 8,
+        minimum: 1,
+        maximum: 2
       }
     ]
   },

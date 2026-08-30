@@ -363,6 +363,21 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "combat_thorn_crowned_hart_verdant_roar",
     path: "assets/images/combat/thorn-crowned-roar.webp",
     category: "combat"
+  },
+  encounter_the_thorn_crowned_hart: {
+    id: "encounter_the_thorn_crowned_hart",
+    path: "assets/images/encounter/thorned_stag_2.webp",
+    category: "encounter"
+  },
+  encounter_the_white_hart: {
+    id: "encounter_the_white_hart",
+    path: "assets/images/encounter/white_stag_5.webp",
+    category: "encounter"
+  },
+  encounter_the_verdant_altar: {
+    id: "encounter_the_verdant_altar",
+    path: "assets/images/encounter/verdant_altar_2.webp",
+    category: "encounter"
   }
 });
 
