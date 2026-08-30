@@ -6034,3 +6034,23 @@ The attached simulation guide supplied the focused fishing automation and cautio
 ### Verification and resulting prototype state
 
 The focused browser regression suite passes 3 checks covering hotspot targeting and raw-fish inventory, seeded replay determinism and telemetry/CSV output, real cooked-fish preparation, cautious final-goal scheduling/prerequisites, ordinary cautious settings, and aggressive scheduling. `git diff --check` passes.
+
+## 2026-08-30 - Authored Material Bag Capacity
+
+### Goal
+
+Make Material Bag capacity an authored Arthur stat, editable beside Provision Capacity, while preserving legacy behavior and keeping the shared expedition/simulation rules aligned.
+
+### AI-assisted implementation
+
+- Added `PLAYER_CHARACTER_DEFINITION.materialBagCapacity` with a starting value of 15 and moved all runtime, preparation, storage migration, replay, and simulation capacity checks to the shared material rules.
+- Added `MaterialRules.effectiveCapacity()` as the central base-plus-future-modifiers calculation. Missing authored data safely uses the legacy capacity of 10; no upgrade modifiers are active yet.
+- Added the positive-integer Material Bag Capacity field to the Content Editor's Player Character singleton flow and its validation/round-trip coverage. Provision capacity remains unchanged.
+
+### Manual changes
+
+No content migration is required. Existing saved packed materials remain valid and are constrained by the authored capacity when normalized.
+
+### Verification and resulting prototype state
+
+The focused Content Editor load/save and validation tests pass, and a dedicated browser smoke check passes for authored capacity, bag creation/rejection, normal expedition creation, simulation telemetry, legacy fallback, and provision parity. The broader simulation browser suite reaches the same new assertions, then stops at an existing unrelated Pommel Strike combat fixture failure. `git diff --check` passes.

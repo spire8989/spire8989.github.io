@@ -4285,7 +4285,7 @@ function renderPreparationMaterialBag() {
   const rows = entries.map(([materialId, quantity]) => {
     const definition = MaterialRules.definition(materialId);
     const selected = game.player.packedMaterials?.[materialId] ?? 0;
-    const availableToAdd = Math.min(quantity - selected, EXPEDITION_TUNING.materialBagCapacity - used);
+    const availableToAdd = Math.min(quantity - selected, MaterialRules.capacity() - used);
     return `
       <article class="material-bag-row">
         <div class="material-bag-row-copy">
@@ -4303,7 +4303,7 @@ function renderPreparationMaterialBag() {
     <section class="preparation-section material-bag-section" aria-labelledby="material-bag-title">
       <div class="section-title-row">
         <h2 id="material-bag-title">Material Bag</h2>
-        <span>${used}/${EXPEDITION_TUNING.materialBagCapacity} units</span>
+        <span>${used}/${MaterialRules.capacity()} units</span>
       </div>
       <p class="section-help">Ingredients and crafting materials travel separately from the ${EXPEDITION_TUNING.packSlots}-slot expedition pack.</p>
       <div class="material-bag-list">${rows || '<p class="empty-loot">No materials owned.</p>'}</div>
@@ -4415,7 +4415,7 @@ function renderPreparationReview() {
         <p>${game.preparationSupplies} provisions · ${consumption.toFixed(2)}× consumption</p>
       </article>
       <article class="review-card">
-        <div class="review-card-heading"><h2>Material Bag</h2><span>${MaterialRules.collectionTotal(game.player.packedMaterials)}/${EXPEDITION_TUNING.materialBagCapacity}</span></div>
+        <div class="review-card-heading"><h2>Material Bag</h2><span>${MaterialRules.collectionTotal(game.player.packedMaterials)}/${MaterialRules.capacity()}</span></div>
         <p>${materialBagNames}</p>
         <p>Ingredients and crafting materials are secured separately from the pack.</p>
       </article>
@@ -4636,7 +4636,7 @@ function changeMaterialBag(materialId, amount) {
   const current = game.player.packedMaterials[materialId] ?? 0;
   const requested = current + (Number(amount) || 0);
   const capacityLimit = requested > current
-    ? current + (EXPEDITION_TUNING.materialBagCapacity - MaterialRules.collectionTotal(game.player.packedMaterials))
+    ? current + (MaterialRules.capacity() - MaterialRules.collectionTotal(game.player.packedMaterials))
     : game.player.materials[materialId];
   const next = clamp(
     requested,

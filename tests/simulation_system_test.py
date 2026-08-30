@@ -140,7 +140,7 @@ def run():
             "Simulation brief rest did not use ExpeditionRules or expose its resource changes",
         )
         check(
-            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); const cooked=run.recipesCooked[0]; return run.campsEntered>0&&run.campRestCount>0&&run.campRests[0]?.applied&&run.campRests[0].cost===2&&run.campEvents.length>0&&run.campEvents.every(event=>event.completed&&event.choices.length>0)&&run.startingMaterialBag.capacity===10&&run.startingMaterialBag.contents.raw_meat===1&&run.materialBagCapacity===10&&run.recipesCooked.length>0&&cooked.recipeId==='roasted_meat'&&cooked.ingredientsConsumed.raw_meat===1&&cooked.materialBagBefore.contents.raw_meat===1&&!cooked.materialBagAfter.contents.raw_meat&&cooked.provisionsGained===3; }})()",
+            f"(() => {{ const run=SimulationRunner.run({camp_scenario}); const cooked=run.recipesCooked[0]; return run.campsEntered>0&&run.campRestCount>0&&run.campRests[0]?.applied&&run.campRests[0].cost===2&&run.campEvents.length>0&&run.campEvents.every(event=>event.completed&&event.choices.length>0)&&run.startingMaterialBag.capacity===15&&run.startingMaterialBag.contents.raw_meat===1&&run.materialBagCapacity===15&&run.recipesCooked.length>0&&cooked.recipeId==='roasted_meat'&&cooked.ingredientsConsumed.raw_meat===1&&cooked.materialBagBefore.contents.raw_meat===1&&!cooked.materialBagAfter.contents.raw_meat&&cooked.provisionsGained===3; }})()",
             "Simulation camp flow did not rest, resolve a camp event, and cook through production rules",
         )
         check(
@@ -156,12 +156,16 @@ def run():
             "Simulation combat AI did not complete the seeded bandit ambush/leader chain or expose its telemetry",
         )
         check(
-            "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.startingMaterialBag.capacity===10&&run.startingMaterialBag.contents.raw_meat===10&&run.materialBagCapacity===10; })()",
+            "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.startingMaterialBag.capacity===15&&run.startingMaterialBag.contents.raw_meat===10&&run.materialBagCapacity===15; })()",
             "Simulation Material Bag capacity or starting contents were not preserved",
         )
         check(
-            "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.replay.startingPlayerState.packedMaterials.raw_meat===10&&run.materialBagAtEnd.capacity===10; })()",
+            "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.replay.startingPlayerState.packedMaterials.raw_meat===10&&run.materialBagAtEnd.capacity===15; })()",
             "Simulation Material Bag replay or ending capacity was not preserved",
+        )
+        check(
+            "(() => { const player=SaveSystem.createDefaultPlayerState(); player.selectedCompanions=[]; player.selectedCompanion=null; player.materials.raw_meat=20; const bag=MaterialRules.createExpeditionBag(player,{raw_meat:20}); const expedition=ExpeditionRules.createExpedition(player,{companions:[],provisions:5,materialBagContents:{raw_meat:20},random:()=>0}); return PLAYER_CHARACTER_DEFINITION.materialBagCapacity===15&&MaterialRules.capacity()===15&&bag.capacity===15&&bag.secured.raw_meat===15&&bag.rejected.raw_meat===5&&expedition.materialBag.capacity===15&&MaterialRules.effectiveCapacity({playerCharacter:{}})===10&&ExpeditionRules.partyProvisionCapacity([],null)===PLAYER_CHARACTER_DEFINITION.provisionCapacity; })()",
+            "Authored Material Bag capacity was not shared by normal creation, rejection, simulation, or legacy fallback",
         )
         check(
             "(() => { const run=SimulationRunner.run({seed:'material-bag-overflow',strategy:'normal',provisions:10,companions:[],startingState:{materials:{raw_meat:10}},materialBagContents:{raw_meat:10},turnaroundPolicy:{type:'fixedDistance',distance:5}}); return run.materialsFoundDuringExpedition&&run.materialsRejectedDueToCapacity&&Object.values(run.materialsRejectedDueToCapacity).every(quantity=>quantity>=0); })()",

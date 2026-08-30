@@ -3,9 +3,27 @@
 // Material Bag rules are shared by the normal expedition, crafting, loot, and
 // both simulation runners. Permanent materials remain in the player's town
 // store; an expedition carries a secured snapshot plus unsecured discoveries.
+const LEGACY_MATERIAL_BAG_CAPACITY = 10;
+
 const MaterialRules = Object.freeze({
-  capacity() {
-    return Math.max(1, Math.floor(Number(EXPEDITION_TUNING.materialBagCapacity) || 10));
+  effectiveCapacity(options = {}) {
+    const playerCharacter = options.playerCharacter === undefined
+      ? typeof PLAYER_CHARACTER_DEFINITION !== "undefined" ? PLAYER_CHARACTER_DEFINITION : null
+      : options.playerCharacter;
+    const authoredCapacity = Number(playerCharacter?.materialBagCapacity);
+    const baseCapacity = Number.isInteger(authoredCapacity) && authoredCapacity > 0
+      ? authoredCapacity
+      : LEGACY_MATERIAL_BAG_CAPACITY;
+    const futureModifiers = [
+      options.companionMaterialCapacityBonus,
+      options.equipmentMaterialCapacityBonus,
+      options.permanentMaterialCapacityBonus,
+    ].reduce((total, value) => total + (Number.isFinite(Number(value)) ? Number(value) : 0), 0);
+    return Math.max(1, Math.floor(baseCapacity + futureModifiers));
+  },
+
+  capacity(playerCharacter) {
+    return this.effectiveCapacity({ playerCharacter });
   },
 
   isMaterialId(materialId) {

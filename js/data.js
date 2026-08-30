@@ -1205,6 +1205,7 @@ const PLAYER_CHARACTER_DEFINITION = Object.freeze({
   portraitAssetId: null,
   combatVisualAssetId: null,
   provisionCapacity: 20,
+  materialBagCapacity: 15,
   provisionConsumptionMultiplier: 1,
   combat: Object.freeze({ maxHp: 45, speed: 10 }),
   visuals: {

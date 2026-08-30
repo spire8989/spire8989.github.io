@@ -335,7 +335,7 @@ function sanitizePackedMaterials(savedState, materials, fallback, legacyItems = 
   }
   if (requested === undefined || Object.keys(requested).length === 0) requested = fallback;
   const result = {};
-  let remaining = EXPEDITION_TUNING.materialBagCapacity;
+  let remaining = MaterialRules.capacity();
   Object.entries(requested ?? {}).forEach(([materialId, quantity]) => {
     if (!MaterialRules.isMaterialId(materialId) || remaining <= 0) return;
     const accepted = Math.min(

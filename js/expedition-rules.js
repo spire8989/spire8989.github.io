@@ -676,7 +676,7 @@ const ExpeditionRules = Object.freeze({
         && !Object.values(player.equippedItems).includes(itemId))
       .slice(0, EXPEDITION_TUNING.packSlots);
 
-    let remainingCapacity = Math.max(0, Math.floor(Number(EXPEDITION_TUNING.materialBagCapacity) || 0));
+    let remainingCapacity = MaterialRules.capacity();
     const packedMaterials = {};
     Object.entries(MaterialRules.normalizeCollection(player.packedMaterials ?? {})).forEach(([materialId, quantity]) => {
       if (remainingCapacity <= 0) return;
