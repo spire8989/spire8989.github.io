@@ -1,5 +1,26 @@
 # Build Log
 
+## 2026-08-31 - Whole-Number Provision Displays
+
+### Goal
+
+Keep fractional travel-consumption precision internally without exposing
+long floating-point values in the game UI.
+
+### AI-assisted implementation
+
+- Updated the shared resource formatter and expedition destination/location
+  readouts to display provisions as conservative whole numbers.
+- Kept fractional internal provision accounting unchanged for travel balance
+  and deterministic simulation behavior.
+- Added a focused regression assertion for the expedition destination display.
+
+### Verification and resulting prototype state
+
+- `python tests/hidden_village_provision_test.py` passes 4 focused browser
+  assertions.
+- `git diff --check` passes.
+
 ## 2026-08-31 - Expedition Destination State
 
 ### Goal

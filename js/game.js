@@ -3287,7 +3287,7 @@ function renderLocation() {
       <div class="hub-hud" aria-label="Village resources and navigation">
       <div class="hub-status">
           <span><strong>${Math.floor(game.player.currentGold)}g</strong> Gold</span>
-          <span><strong>${resourceHolder.provisions}</strong> Provisions</span>
+          <span><strong>${formatResource(resourceHolder.provisions)}</strong> Provisions</span>
           <span><strong>${game.player.faith}/${game.player.maxFaith}</strong> Faith</span>
           <span><strong>${Math.ceil(expeditionContext ? resourceHolder.health : HealingRules.arthurHealth(resourceHolder))}/${expeditionContext ? InjuryRules.effectiveMaxHealth(resourceHolder, "arthur") : HealingRules.arthurMaxHealth(resourceHolder)}</strong> Health</span>
         </div>
@@ -3352,7 +3352,7 @@ function renderDestination() {
         <header class="interaction-header">
           <button class="interaction-back village-back-button" type="button" data-action="show-location">← Return</button>
           <strong id="destination-title">${destination.name}</strong>
-          <span>${Math.floor(game.player.currentGold)}g · ${destinationContext.expedition?.provisions ?? game.player.provisions} food</span>
+          <span>${Math.floor(game.player.currentGold)}g · ${formatResource(destinationContext.expedition?.provisions ?? game.player.provisions)} food</span>
         </header>
         <div class="interaction-scroll">
           ${interaction}
@@ -3775,9 +3775,9 @@ function renderProvisionOffer(shop, offer) {
   const remaining = expedition ? Math.max(0, capacity - current) : Infinity;
   const status = expedition
     ? remaining <= 0
-      ? `Expedition provisions are full (${current}/${capacity}).`
-      : `Expedition provisions: ${current}/${capacity}`
-    : `Owned: ${current}`;
+      ? `Expedition provisions are full (${formatResource(current)}/${formatResource(capacity)}).`
+      : `Expedition provisions: ${formatResource(current)}/${formatResource(capacity)}`
+    : `Owned: ${formatResource(current)}`;
   return `
     <article class="provision-offer">
       <div><strong>Provisions</strong><span>${status} · ${offer.price} gold each · ${stock} available</span></div>
@@ -7768,7 +7768,8 @@ function formatDistance(distance) {
 }
 
 function formatResource(value) {
-  return Math.max(value, 0).toFixed(1);
+  const numeric = Number(value);
+  return String(Number.isFinite(numeric) ? Math.floor(Math.max(numeric, 0)) : 0);
 }
 
 function formatCarriedItems(carriedItems) {

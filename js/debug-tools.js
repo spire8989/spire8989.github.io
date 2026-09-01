@@ -518,7 +518,7 @@ function renderDebugExpeditionSection() {
     const enemies = entry.enemyIds.map((enemyId) => COMBAT_ENEMY_DEFINITIONS[enemyId]?.name ?? enemyId).join(", ");
     return `<option value="${escapeDebugText(entry.id)}" ${entry.id === selectedCombatId() ? "selected" : ""}>${escapeDebugText(entry.id)} · ${escapeDebugText(enemies)}</option>`;
   }).join("");
-  const expeditionReadout = active ? `<div class="debug-readout-grid"><span>Distance (stadia)</span><strong>${formatDistance(expedition.distance)}</strong><span>Direction</span><strong>${escapeDebugText(expedition.direction)}</strong><span>Path</span><strong>${escapeDebugText(expedition.currentPathId)}</strong><span>Provisions</span><strong>${Number(expedition.provisions).toFixed(1)}</strong></div>
+  const expeditionReadout = active ? `<div class="debug-readout-grid"><span>Distance (stadia)</span><strong>${formatDistance(expedition.distance)}</strong><span>Direction</span><strong>${escapeDebugText(expedition.direction)}</strong><span>Path</span><strong>${escapeDebugText(expedition.currentPathId)}</strong><span>Provisions</span><strong>${formatResource(expedition.provisions)}</strong></div>
     <pre id="debug-expedition-state">${escapeDebugText(debugExpeditionSnapshot(expedition))}</pre>` : '<p class="debug-muted">No active expedition. Start one through normal preparation.</p>';
   return `<details class="debug-section" data-debug-details="expedition" open>
     <summary>Encounters / Expedition</summary><div class="debug-section-content">

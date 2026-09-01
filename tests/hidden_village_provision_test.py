@@ -131,6 +131,9 @@ def run():
             " game.activeDestinationId='hidden_merchant'; game.screen='destination'; game.shopTab='buy'; game.innTab='rest';"
             " game.itemShopStock=createItemShopStock(); game.provisionShopStock=createProvisionShopStock();"
             " try {"
+            "  expedition.provisions=23.796724200000213; renderDestination();"
+            "  const wholeNumberUi=document.querySelector('.interaction-header')?.textContent.includes('23 food')"
+            "   &&!document.querySelector('.interaction-header')?.textContent.includes('23.796'); expedition.provisions=8;"
             "  const townProvisions=player.provisions; const goldBefore=player.currentGold;"
             "  buyProvisions(5);"
             "  const provisionsBought=expedition.provisions===13&&player.provisions===townProvisions"
@@ -160,8 +163,8 @@ def run():
             "  bag.secured={raw_meat:MaterialRules.capacity(expedition.playerState,expedition.selectedCompanions)};"
             "  const goldBeforeFullBag=player.currentGold; buyShopItem('fresh_herbs');"
             "  const materialCap=player.currentGold===goldBeforeFullBag&&!bag.secured.fresh_herbs;"
-            "  return {ok:provisionsBought&&itemBought&&materialBought&&provisionCap&&cooked&&rested&&treated&&dialogueUsed&&materialCap,"
-            "   provisionsBought,itemBought,materialBought,provisionCap,cooked,rested,treated,dialogueUsed,materialCap};"
+            "  return {ok:wholeNumberUi&&provisionsBought&&itemBought&&materialBought&&provisionCap&&cooked&&rested&&treated&&dialogueUsed&&materialCap,"
+            "   wholeNumberUi,provisionsBought,itemBought,materialBought,provisionCap,cooked,rested,treated,dialogueUsed,materialCap};"
             " } finally { Object.assign(game,original); renderScreen(); }"
             "})()",
             "Expedition destination interactions did not use live provisions, inventory, materials, healing, and dialogue state",
