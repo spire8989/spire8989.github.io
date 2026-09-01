@@ -245,21 +245,29 @@ const InjuryRules = Object.freeze({
 
   treatWithItem(player, characterId, itemId, metadata = {}) {
     const authoredTreatmentIds = ITEM_DEFINITIONS[itemId]?.effects?.treatment?.injuryIds ?? [];
-    const target = this.forCharacter(player, characterId)
+    const expedition = metadata.expedition ?? null;
+    const holder = expedition ?? player;
+    const target = this.forCharacter(holder, characterId)
       .find((instance) => authoredTreatmentIds.includes(this.idOf(instance))
         || this.treatmentItemFor(this.idOf(instance)) === itemId);
     const injuryId = this.idOf(target);
     if (!injuryId) return { applied: false, reason: "wrong-treatment", characterId, itemId };
-    if ((player.ownedItems?.[itemId] ?? 0) < 1) return { applied: false, reason: "item-missing", characterId, itemId, injuryId };
+    const available = expedition
+      ? expeditionTreatmentItemQuantity(expedition, itemId)
+      : player.ownedItems?.[itemId] ?? 0;
+    if (available < 1) return { applied: false, reason: "item-missing", characterId, itemId, injuryId };
 
     const stabilized = injuryId === "deep_cut" && itemId === "healing_poultice";
     if (stabilized) {
       target.stabilized = true;
       target.infectionChecked = true;
     }
-    player.ownedItems[itemId] -= 1;
-    if (player.ownedItems[itemId] <= 0) delete player.ownedItems[itemId];
-    return this.remove(player, characterId, injuryId, {
+    if (expedition) consumeExpeditionTreatmentItem(expedition, itemId);
+    else {
+      player.ownedItems[itemId] -= 1;
+      if (player.ownedItems[itemId] <= 0) delete player.ownedItems[itemId];
+    }
+    return this.remove(holder, characterId, injuryId, {
       method: itemId,
       stabilized,
       ...metadata,
@@ -417,6 +425,31 @@ const InjuryRules = Object.freeze({
     return events;
   },
 });
+
+function expeditionTreatmentItemQuantity(expedition, itemId) {
+  return (Number(expedition?.carriedItems?.[itemId]) || 0)
+    + (expedition?.unsecuredLoot ?? [])
+      .filter((entry) => entry.itemId === itemId)
+      .reduce((total, entry) => total + (Number(entry.quantity) || 0), 0);
+}
+
+function consumeExpeditionTreatmentItem(expedition, itemId) {
+  if ((expedition.carriedItems?.[itemId] ?? 0) > 0) {
+    expedition.carriedItems[itemId] -= 1;
+    if (expedition.carriedItems[itemId] <= 0) delete expedition.carriedItems[itemId];
+    expedition.consumedItems ??= {};
+    expedition.consumedItems[itemId] = (expedition.consumedItems[itemId] ?? 0) + 1;
+    return true;
+  }
+  for (let index = (expedition.unsecuredLoot ?? []).length - 1; index >= 0; index -= 1) {
+    const entry = expedition.unsecuredLoot[index];
+    if (entry.itemId !== itemId || !(entry.quantity > 0)) continue;
+    entry.quantity -= 1;
+    if (entry.quantity <= 0) expedition.unsecuredLoot.splice(index, 1);
+    return true;
+  }
+  return false;
+}
 
 function normalizeInjuryInstances(value) {
   const entries = Array.isArray(value) ? value : [];

@@ -145,7 +145,19 @@ const DialogueSystem = Object.freeze({
           break;
         case "giveItem": {
           const item = ITEM_DEFINITIONS[effect.itemId];
-          if (item && (!item.unique || !player.ownedItems[effect.itemId])) {
+          if (context.destinationExpedition && context.expedition
+            && typeof EncounterOutcomes !== "undefined") {
+            const alreadyAvailable = expeditionItemQuantity(context.expedition, effect.itemId);
+            if (!item || (item.unique && (player.ownedItems[effect.itemId] || alreadyAvailable))) break;
+            const resolved = EncounterOutcomes.resolveAll([{
+              type: "gainUnsecuredItem",
+              itemId: effect.itemId,
+              quantity: effect.quantity ?? 1,
+            }], context);
+            messages.push(...resolved.messages);
+            rewards.push(...resolved.rewards);
+            if (resolved.rewards.length > 0) applied.push(effect);
+          } else if (item && (!item.unique || !player.ownedItems[effect.itemId])) {
             const reward = { type: "item", itemId: effect.itemId, quantity: effect.quantity ?? 1 };
             player.ownedItems[effect.itemId] = (player.ownedItems[effect.itemId] ?? 0) + reward.quantity;
             messages.push(`Received ${effect.quantity ?? 1} ${item.name}.`);
@@ -193,6 +205,14 @@ const DialogueSystem = Object.freeze({
           break;
         case "consumeItem": {
           const quantity = Math.max(1, Number(effect.quantity) || 1);
+          if (context.destinationExpedition && context.expedition) {
+            if (expeditionItemQuantity(context.expedition, effect.itemId) >= quantity) {
+              consumeExpeditionItem(context.expedition, effect.itemId, quantity, player);
+              messages.push(`Used ${quantity} ${ITEM_DEFINITIONS[effect.itemId]?.name ?? effect.itemId}.`);
+              applied.push(effect);
+            }
+            break;
+          }
           const owned = Number(player.ownedItems[effect.itemId]) || 0;
           if (owned < quantity) break;
           player.ownedItems[effect.itemId] = owned - quantity;
@@ -204,6 +224,27 @@ const DialogueSystem = Object.freeze({
         case "transformItem": {
           const fromItem = ITEM_DEFINITIONS[effect.fromItemId];
           const toItem = ITEM_DEFINITIONS[effect.toItemId];
+          if (context.destinationExpedition && context.expedition
+            && typeof EncounterOutcomes !== "undefined") {
+            const available = expeditionItemQuantity(context.expedition, effect.fromItemId);
+            const targetAlreadyOwned = Boolean(player.ownedItems[effect.toItemId])
+              || expeditionItemQuantity(context.expedition, effect.toItemId) > 0;
+            const bagFull = MaterialRules.isMaterialId(effect.toItemId)
+              && MaterialRules.expeditionTotal(context.expedition)
+                >= MaterialRules.capacity(context.expedition.playerState ?? player, context.expedition.selectedCompanions);
+            if (!fromItem || !toItem || available < 1
+              || (toItem.unique && targetAlreadyOwned) || bagFull) break;
+            consumeExpeditionItem(context.expedition, effect.fromItemId, 1, player);
+            const resolved = EncounterOutcomes.resolveAll([{
+              type: "gainUnsecuredItem",
+              itemId: effect.toItemId,
+              quantity: 1,
+            }], context);
+            messages.push(`${fromItem.name} becomes ${toItem.name}.`);
+            rewards.push(...resolved.rewards);
+            applied.push(effect);
+            break;
+          }
           const owned = Number(player.ownedItems[effect.fromItemId]) || 0;
           if (!fromItem || !toItem || owned < 1 || (toItem.unique && player.ownedItems[effect.toItemId])) break;
           player.ownedItems[effect.fromItemId] = owned - 1;

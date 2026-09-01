@@ -117,6 +117,55 @@ def run():
             "})()",
             "Hidden-village provision stock did not persist through the canonical purchase helper",
         )
+        check(
+            "(() => {"
+            " const original={player:game.player,expedition:game.expedition,locationContext:game.locationContext,"
+            "  activeDestinationId:game.activeDestinationId,screen:game.screen,shopTab:game.shopTab,innTab:game.innTab,"
+            "  itemShopStock:game.itemShopStock,provisionShopStock:game.provisionShopStock,craftingAction:game.craftingAction,"
+            "  restAction:game.restAction,dialogueSession:game.dialogueSession};"
+            " const player=SaveSystem.createDefaultPlayerState();"
+            " player.currentGold=500; player.provisions=20; player.ownedItems={}; player.materials={raw_meat:2}; player.packedItems=[];"
+            " const expedition=ExpeditionRules.createExpedition(player,{expeditionId:'old_forest_road',provisions:8,companions:[],"
+            "  packedItems:[],materialBagContents:{raw_meat:2}}); expedition.travelState='paused';"
+            " game.player=player; game.expedition=expedition; game.locationContext={type:'expedition',locationId:'hidden_forest_village'};"
+            " game.activeDestinationId='hidden_merchant'; game.screen='destination'; game.shopTab='buy'; game.innTab='rest';"
+            " game.itemShopStock=createItemShopStock(); game.provisionShopStock=createProvisionShopStock();"
+            " try {"
+            "  const townProvisions=player.provisions; const goldBefore=player.currentGold;"
+            "  buyProvisions(5);"
+            "  const provisionsBought=expedition.provisions===13&&player.provisions===townProvisions"
+            "   &&expedition.committedProvisions===13&&expedition.committedProvisionsRemaining===13;"
+            "  buyShopItem('rope');"
+            "  const itemBought=expedition.carriedItems.rope===1&&player.ownedItems.rope===1;"
+            "  buyShopItem('mushrooms');"
+            "  const materialBought=MaterialRules.expeditionQuantity(expedition,'mushrooms')===1"
+            "   &&expedition.materialBag.secured.mushrooms===1&&player.materials.mushrooms===1;"
+            "  game.activeDestinationId='hidden_inn'; game.innTab='cook';"
+            "  const beforeCook=expedition.provisions; cookInnRecipe('roasted_meat'); completeCraftingAction();"
+            "  const cooked=expedition.provisions===beforeCook+3&&MaterialRules.expeditionQuantity(expedition,'raw_meat')===1;"
+            "  const goldAtCap=player.currentGold; const stockAtCap=game.provisionShopStock.forest_village_provisions;"
+            "  expedition.provisions=expedition.provisionCapacity; buyProvisions(1);"
+            "  const provisionCap=expedition.provisions===expedition.provisionCapacity&&player.currentGold===goldAtCap"
+            "   &&game.provisionShopStock.forest_village_provisions===stockAtCap;"
+            "  const persistentHealthBefore=player.arthurHealth; const expeditionHealthBefore=expedition.health;"
+            "  expedition.health=Math.max(1,expedition.health-5); restAtInn();"
+            "  const rested=expedition.health>expeditionHealthBefore-5&&player.arthurHealth===persistentHealthBefore;"
+            "  InjuryRules.applyToExpedition(expedition,'arthur','poisoned',{source:'hidden-village-test'});"
+            "  expedition.carriedItems.antidote=1; game.activeDestinationId='hidden_apothecary'; treatInjury('arthur','antidote');"
+            "  const treated=!InjuryRules.has(expedition,'arthur','poisoned')&&!expedition.carriedItems.antidote"
+            "   &&!player.ownedItems.antidote;"
+            "  const dialogue=DialogueSystem.applyEffects({player,expedition,destinationExpedition:true},[{type:'consumeItem',itemId:'rope'}]);"
+            "  const dialogueUsed=dialogue.effects.length===1&&!expedition.carriedItems.rope&&player.ownedItems.rope===1;"
+            "  game.activeDestinationId='hidden_merchant'; const bag=MaterialRules.ensureExpeditionBag(expedition);"
+            "  bag.secured={raw_meat:MaterialRules.capacity(expedition.playerState,expedition.selectedCompanions)};"
+            "  const goldBeforeFullBag=player.currentGold; buyShopItem('fresh_herbs');"
+            "  const materialCap=player.currentGold===goldBeforeFullBag&&!bag.secured.fresh_herbs;"
+            "  return {ok:provisionsBought&&itemBought&&materialBought&&provisionCap&&cooked&&rested&&treated&&dialogueUsed&&materialCap,"
+            "   provisionsBought,itemBought,materialBought,provisionCap,cooked,rested,treated,dialogueUsed,materialCap};"
+            " } finally { Object.assign(game,original); renderScreen(); }"
+            "})()",
+            "Expedition destination interactions did not use live provisions, inventory, materials, healing, and dialogue state",
+        )
         if devtools.console_errors:
             raise AssertionError(f"Runtime exceptions: {devtools.console_errors}")
         print(f"PASS: {checks} hidden-village provision assertions")

@@ -1,5 +1,35 @@
 # Build Log
 
+## 2026-08-31 - Expedition Destination State
+
+### Goal
+
+Make Hidden Forest Village and other destinations use live expedition state
+when opened during an active expedition.
+
+### AI-assisted implementation
+
+- Added a centralized expedition-destination context and routed destination
+  HUDs, provisions, carried items, materials, cooking, treatment, and dialogue
+  item effects through the active expedition where applicable.
+- Disabled selling during expeditions and kept ordinary town behavior on the
+  existing persistent player state.
+- Made destination cooking and apothecary services provider-driven rather than
+  tied to the normal town destination IDs.
+
+### Reported manual changes
+
+- No content migration is required. Existing town destinations and older
+  expedition data retain their previous behavior outside this mode.
+- Over-cap provisions, pack, and material purchases are disabled with a clear
+  unavailable reason; gold is not spent for rejected purchases.
+
+### Verification and resulting prototype state
+
+- `python tests/hidden_village_provision_test.py` passes 4 focused browser
+  assertions.
+- `git diff --check` passes.
+
 ## 2026-08-30 - Encounter Dialogue and Bell-Bearer Naming Fix
 
 ### Goal

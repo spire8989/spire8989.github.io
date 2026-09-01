@@ -461,6 +461,32 @@ function currentLocationForUi() {
   return LOCATION_DEFINITIONS[locationId] ?? null;
 }
 
+function currentDestinationContext() {
+  const location = currentLocationForUi();
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId] ?? null;
+  const expedition = game.locationContext?.type === "expedition"
+    && game.expedition?.status === "active"
+    ? game.expedition
+    : null;
+  return {
+    location,
+    destination,
+    expedition,
+    player: game.player,
+    expeditionAware: Boolean(expedition),
+  };
+}
+
+function activeExpeditionDestinationContext() {
+  const context = currentDestinationContext();
+  return context.expedition ? context : null;
+}
+
+function isExpeditionDestination() {
+  return Boolean(activeExpeditionDestinationContext())
+    && ["location", "destination"].includes(game.screen);
+}
+
 function locationIsUnlocked(location) {
   if (!location) return false;
   if (location.requiresIntro === false) return true;
@@ -473,13 +499,15 @@ function showLocation() {
     showScreen("campaign");
     return;
   }
-  const locationEntry = CampaignRules.enterLocationById(
-    game.player,
-    game.provisionShopStock,
-    location.id,
-  );
-  if (locationEntry.provisionsGranted > 0 || locationEntry.shopProvisionsRestocked > 0) {
-    savePlayer();
+  if (!activeExpeditionDestinationContext()) {
+    const locationEntry = CampaignRules.enterLocationById(
+      game.player,
+      game.provisionShopStock,
+      location.id,
+    );
+    if (locationEntry.provisionsGranted > 0 || locationEntry.shopProvisionsRestocked > 0) {
+      savePlayer();
+    }
   }
   game.activeDestinationId = null;
   game.dialogueSession = null;
@@ -3216,6 +3244,8 @@ function renderLocation() {
     showScreen("campaign");
     return;
   }
+  const expeditionContext = activeExpeditionDestinationContext();
+  const resourceHolder = expeditionContext?.expedition ?? game.player;
 
   const destinations = location.destinations.map((destinationId) => {
     const destination = DESTINATION_DEFINITIONS[destinationId];
@@ -3257,9 +3287,9 @@ function renderLocation() {
       <div class="hub-hud" aria-label="Village resources and navigation">
       <div class="hub-status">
           <span><strong>${Math.floor(game.player.currentGold)}g</strong> Gold</span>
-          <span><strong>${game.player.provisions}</strong> Provisions</span>
+          <span><strong>${resourceHolder.provisions}</strong> Provisions</span>
           <span><strong>${game.player.faith}/${game.player.maxFaith}</strong> Faith</span>
-          <span><strong>${Math.ceil(HealingRules.arthurHealth(game.player))}/${HealingRules.arthurMaxHealth(game.player)}</strong> Health</span>
+          <span><strong>${Math.ceil(expeditionContext ? resourceHolder.health : HealingRules.arthurHealth(resourceHolder))}/${expeditionContext ? InjuryRules.effectiveMaxHealth(resourceHolder, "arthur") : HealingRules.arthurMaxHealth(resourceHolder)}</strong> Health</span>
         </div>
       <div class="hub-actions">
           ${game.locationContext?.type === "expedition"
@@ -3295,7 +3325,8 @@ function openDestination(destinationId) {
 }
 
 function renderDestination() {
-  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  const destinationContext = currentDestinationContext();
+  const destination = destinationContext.destination;
   if (!destination) {
     showLocation();
     return;
@@ -3321,7 +3352,7 @@ function renderDestination() {
         <header class="interaction-header">
           <button class="interaction-back village-back-button" type="button" data-action="show-location">← Return</button>
           <strong id="destination-title">${destination.name}</strong>
-          <span>${Math.floor(game.player.currentGold)}g · ${game.player.provisions} food</span>
+          <span>${Math.floor(game.player.currentGold)}g · ${destinationContext.expedition?.provisions ?? game.player.provisions} food</span>
         </header>
         <div class="interaction-scroll">
           ${interaction}
@@ -3348,6 +3379,7 @@ function renderHallInteraction(destination, npc) {
 }
 
 function renderInnInteraction(destination, npc) {
+  const expeditionContext = activeExpeditionDestinationContext();
   const cookingSelected = game.innTab === "cook";
   const taskBusy = Boolean(game.restAction || game.craftingAction);
   const tabs = `
@@ -3366,10 +3398,9 @@ function renderInnInteraction(destination, npc) {
         <button class="small-button" type="button" data-action="hear-rumor" data-npc-id="${npc.id}">Hear Rumor</button>
       </div>
       ${tabs}
-      ${renderInnCookingPanel(destination)}`;
+      ${renderInnCookingPanel(destination, expeditionContext?.expedition)}`;
   }
-  const expeditionInn = game.locationContext?.type === "expedition"
-    && game.expedition?.status === "active";
+  const expeditionInn = Boolean(expeditionContext);
   const rest = expeditionInn
     ? HealingRules.quoteExpeditionInnRest(game.expedition, game.player, destination.restConfig)
     : HealingRules.quoteInnRest(game.player, destination.restConfig);
@@ -3407,15 +3438,19 @@ function renderInnInteraction(destination, npc) {
     </article>`;
 }
 
-function renderInnCookingPanel(destination) {
-  const recipes = CraftingRules.knownRecipesForProvider(game.player, destination.craftingProviderId ?? "campfire");
-  const rows = recipes.map((recipe) => craftingRow(recipe, "campfire", { action: "inn-cook-recipe" })).join("");
+function renderInnCookingPanel(destination, expedition = null) {
+  const providerId = destination.craftingProviderId ?? "campfire";
+  const recipes = CraftingRules.knownRecipesForProvider(game.player, providerId);
+  const rows = recipes.map((recipe) => craftingRow(recipe, providerId, {
+    action: "inn-cook-recipe",
+    ...(expedition ? { expedition } : {}),
+  })).join("");
   return `
     <section class="inn-cooking-panel" aria-labelledby="inn-cooking-title">
-      <div class="section-title-row"><h2 id="inn-cooking-title">Cook for the Road</h2><span>Town Materials → Provisions</span></div>
-      <p class="section-help">Use known campfire recipes without starting an expedition. Finished meals go directly into the village provision stores.</p>
-      ${renderCookingIngredientInventory()}
-      ${renderMaterialInventory()}
+      <div class="section-title-row"><h2 id="inn-cooking-title">Cook for the Road</h2><span>${expedition ? "Expedition Materials → Provisions" : "Town Materials → Provisions"}</span></div>
+      <p class="section-help">${expedition ? "Use live expedition ingredients. Finished meals go directly into the active expedition." : "Use known campfire recipes without starting an expedition. Finished meals go directly into the village provision stores."}</p>
+      ${renderCookingIngredientInventory(expedition)}
+      ${renderMaterialInventory(expedition)}
       <div class="shop-list inn-recipe-list">${rows || '<p class="empty-loot">No recipes are known at this hearth.</p>'}</div>
     </section>`;
 }
@@ -3557,22 +3592,25 @@ function restAtInn() {
 
 function renderShopInteraction(destination, npc) {
   const shop = SHOP_DEFINITIONS[destination.shopId];
+  const expedition = activeExpeditionDestinationContext()?.expedition ?? null;
   const taskBusy = game.craftingAction ? "disabled" : "";
   const buySelected = game.shopTab === "buy";
-  const sellSelected = game.shopTab === "sell";
+  const sellSelected = game.shopTab === "sell" && !expedition;
   const craftSelected = game.shopTab === "craft" && Boolean(destination.craftingProviderId);
   const rows = craftSelected
     ? CraftingRules.knownRecipesForProvider(game.player, destination.craftingProviderId)
-      .map((recipe) => craftingRow(recipe, destination.craftingProviderId)).join("")
+      .map((recipe) => craftingRow(recipe, destination.craftingProviderId, expedition ? { expedition } : {})).join("")
     : buySelected
       ? Object.entries(shop.itemsForSale).map(([itemId, offer]) => shopBuyRow(shop, itemId, offer)).join("")
-      : Object.entries(game.player.ownedItems).map(([itemId, quantity]) => shopSellRow(shop, itemId, quantity)).join("");
+      : sellSelected
+        ? Object.entries(game.player.ownedItems).map(([itemId, quantity]) => shopSellRow(shop, itemId, quantity)).join("")
+        : "";
   const provisionOffer = buySelected && shop.provisionsForSale
     ? renderProvisionOffer(shop, shop.provisionsForSale)
     : "";
-  const materials = craftSelected ? renderMaterialInventory() : "";
+  const materials = expedition || craftSelected ? renderMaterialInventory(expedition) : "";
   const treatmentPanel = destination.craftingProviderId === "apothecary"
-    ? renderPersistentInjuryPanel(game.player, { title: "Treat injuries", includeTreatment: true }) : "";
+    ? renderPersistentInjuryPanel(expedition ?? game.player, { title: expedition ? "Expedition injuries" : "Treat injuries", includeTreatment: true }) : "";
 
   return `
     <div class="shopkeeper-row">
@@ -3581,18 +3619,51 @@ function renderShopInteraction(destination, npc) {
     </div>
     <div class="shop-tabs" role="tablist" aria-label="Shop actions">
       <button class="${buySelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${buySelected}" data-action="shop-tab" data-tab="buy" ${taskBusy}>Buy</button>
-      <button class="${sellSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${sellSelected}" data-action="shop-tab" data-tab="sell" ${taskBusy}>Sell</button>
+      <button class="${sellSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${sellSelected}" data-action="shop-tab" data-tab="sell" ${taskBusy || expedition ? "disabled" : ""}>${expedition ? "Selling unavailable" : "Sell"}</button>
       ${destination.craftingProviderId ? `<button class="${craftSelected ? "is-selected" : ""}" type="button" role="tab" aria-selected="${craftSelected}" data-action="shop-tab" data-tab="craft" ${taskBusy}>Craft</button>` : ""}
       <button type="button" data-action="npc-talk" data-npc-id="${npc.id}" ${taskBusy}>Talk</button>
     </div>
     ${provisionOffer}
     ${materials}
     ${treatmentPanel}
+    ${expedition && game.shopTab === "sell" ? '<p class="empty-loot">Selling is unavailable during an expedition.</p>' : ""}
     <div class="shop-list">${rows || '<p class="empty-loot">Nothing available.</p>'}</div>`;
 }
 
-function renderMaterialInventory() {
-  const entries = Object.entries(game.player.materials)
+function destinationItemQuantity(expedition, itemId) {
+  if (!expedition) return Number(game.player.ownedItems?.[itemId]) || 0;
+  if (MaterialRules.isMaterialId(itemId)) return MaterialRules.expeditionQuantity(expedition, itemId);
+  return (Number(expedition.carriedItems?.[itemId]) || 0)
+    + (expedition.unsecuredLoot ?? [])
+      .filter((entry) => entry.itemId === itemId)
+      .reduce((total, entry) => total + (Number(entry.quantity) || 0), 0);
+}
+
+function expeditionItemPurchaseBlockReason(expedition, item) {
+  if (!expedition || !item) return "";
+  if (MaterialRules.isMaterialId(item.id)) {
+    const capacity = MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions);
+    return MaterialRules.expeditionTotal(expedition) >= capacity ? "Material Bag is full" : "";
+  }
+  if (!item.carriable) return "Cannot carry this item";
+  const current = destinationItemQuantity(expedition, item.id);
+  const maxStack = Number(item.maxStack) || 1;
+  if (current >= maxStack) return `Cannot carry more ${item.name}`;
+  if (current <= 0) {
+    const carriedIds = new Set([
+      ...Object.keys(expedition.carriedItems ?? {}),
+      ...(expedition.unsecuredLoot ?? []).map((entry) => entry.itemId),
+    ].filter((itemId) => !MaterialRules.isMaterialId(itemId)));
+    if (carriedIds.size >= EXPEDITION_TUNING.packSlots) return "Pack is full";
+  }
+  return "";
+}
+
+function renderMaterialInventory(expedition = null) {
+  const expeditionAware = Boolean(expedition);
+  const entries = Object.entries(expeditionAware
+    ? MaterialRules.expeditionContents(expedition)
+    : game.player.materials)
     .filter(([, quantity]) => quantity > 0)
     .sort(([left], [right]) => (RARITY_DEFINITIONS[MaterialRules.definition(left).rarity]?.rank ?? 0)
       - (RARITY_DEFINITIONS[MaterialRules.definition(right).rarity]?.rank ?? 0)
@@ -3600,22 +3671,25 @@ function renderMaterialInventory() {
   const chips = entries.map(([materialId, quantity]) => (
     `<span class="material-chip rarity-${MaterialRules.definition(materialId).rarity}">${itemIcon("material", { ...MaterialRules.definition(materialId), id: materialId, category: "material" })}<span>${MaterialRules.definition(materialId).name}</span> <strong>${quantity}</strong></span>`
   )).join("");
-  return `<div class="material-inventory"><span>Materials</span><div>${chips || '<em>None owned</em>'}</div></div>`;
+  const label = expeditionAware
+    ? `Expedition Material Bag · ${MaterialRules.expeditionTotal(expedition)}/${MaterialRules.capacity(expedition.playerState ?? game.player, expedition.selectedCompanions)}`
+    : "Materials";
+  return `<div class="material-inventory"><span>${label}</span><div>${chips || `<em>None ${expeditionAware ? "carried" : "owned"}</em>`}</div></div>`;
 }
 
-function renderCookingIngredientInventory() {
+function renderCookingIngredientInventory(expedition = null) {
   const ingredientIds = [...new Set(Object.values(RECIPE_DEFINITIONS)
     .filter((recipe) => recipe.craftingProvider === "campfire")
     .flatMap((recipe) => CraftingRules.normalizeRecipeIngredients(recipe)
       .filter((ingredient) => ingredient.type === "item")
       .map((ingredient) => ingredient.id)))];
   const chips = ingredientIds
-    .map((itemId) => ({ itemId, item: ITEM_DEFINITIONS[itemId], quantity: game.player.materials[itemId] ?? game.player.ownedItems[itemId] ?? 0 }))
+    .map((itemId) => ({ itemId, item: ITEM_DEFINITIONS[itemId], quantity: expedition ? destinationItemQuantity(expedition, itemId) : game.player.materials[itemId] ?? game.player.ownedItems[itemId] ?? 0 }))
     .filter((entry) => entry.item && entry.quantity > 0)
     .map(({ item, quantity }) => (
       `<span class="material-chip"><span>${itemIcon(item.category, item)}${item.name}</span> <strong>${quantity}</strong></span>`
     )).join("");
-  return `<div class="material-inventory"><span>Town Ingredients</span><div>${chips || '<em>None owned</em>'}</div></div>`;
+  return `<div class="material-inventory"><span>${expedition ? "Expedition Ingredients" : "Town Ingredients"}</span><div>${chips || `<em>None ${expedition ? "carried" : "owned"}</em>`}</div></div>`;
 }
 
 function renderMaterialBagChips(expedition, emptyLabel = "None") {
@@ -3662,13 +3736,19 @@ function renderPersistentInjuryPanel(holder, options = {}) {
   const rows = entries.map(({ characterId, injuryId, instance }) => {
     const injury = INJURY_DEFINITIONS[injuryId];
     const itemId = InjuryRules.treatmentItemFor(injuryId);
-    const canTreat = options.includeTreatment && itemId && (holder.ownedItems?.[itemId] ?? 0) > 0;
+    const canTreat = options.includeTreatment && itemId && destinationHolderItemQuantity(holder, itemId) > 0;
     const recovery = Number(instance.remainingRecoveryDistance) > 0
       ? `<span>${formatDistance(Math.ceil(instance.remainingRecoveryDistance))} until recovery${instance.stabilized ? " · Stabilized" : ""}</span>`
       : instance.stabilized ? "<span>Stabilized</span>" : "";
     return `<div class="injury-row"><div><strong>${characterNameForUi(characterId)} · <span class="injury-name ${injurySemanticTone(injuryId)}">${injury.name}</span></strong><span>${injury.description}</span>${recovery}</div>${canTreat ? `<button class="small-button" type="button" data-action="treat-injury" data-target-id="${characterId}" data-item-id="${itemId}">Use ${ITEM_DEFINITIONS[itemId].name}</button>` : itemId && options.includeTreatment ? `<span class="injury-treatment-missing">Need ${ITEM_DEFINITIONS[itemId].name}</span>` : ""}</div>`;
   }).join("");
   return `<section class="injury-panel" aria-label="${options.title ?? "Injuries"}"><div class="section-title-row"><strong>${options.title ?? "Injuries"}</strong><span>${entries.length}/${InjuryRules.maximumActive} active</span></div>${rows}</section>`;
+}
+
+function destinationHolderItemQuantity(holder, itemId) {
+  return holder?.carriedItems
+    ? destinationItemQuantity(holder, itemId)
+    : Number(holder?.ownedItems?.[itemId]) || 0;
 }
 
 function characterNameForUi(characterId) {
@@ -3684,26 +3764,48 @@ function renderCraftingProgress(action, options = {}) {
 
 function renderProvisionOffer(shop, offer) {
   const stock = game.provisionShopStock[shop.id] ?? 0;
+  const expedition = activeExpeditionDestinationContext()?.expedition ?? null;
+  const current = expedition ? expedition.provisions : game.player.provisions;
+  const capacity = expedition
+    ? Number(expedition.provisionCapacity ?? ExpeditionRules.partyProvisionCapacity(
+      expedition.selectedCompanions,
+      expedition.expeditionId,
+    ))
+    : null;
+  const remaining = expedition ? Math.max(0, capacity - current) : Infinity;
+  const status = expedition
+    ? remaining <= 0
+      ? `Expedition provisions are full (${current}/${capacity}).`
+      : `Expedition provisions: ${current}/${capacity}`
+    : `Owned: ${current}`;
   return `
     <article class="provision-offer">
-      <div><strong>Provisions</strong><span>Owned: ${game.player.provisions} · ${offer.price} gold each · ${stock} available</span></div>
+      <div><strong>Provisions</strong><span>${status} · ${offer.price} gold each · ${stock} available</span></div>
       <div class="provision-buy-actions">
-        ${[1, 5, 10].map((quantity) => `<button class="small-button" type="button" data-action="buy-provisions" data-quantity="${quantity}" ${stock < quantity ? "disabled" : ""}>Buy ${quantity}</button>`).join("")}
+        ${[1, 5, 10].map((quantity) => `<button class="small-button" type="button" data-action="buy-provisions" data-quantity="${quantity}" ${stock < quantity || quantity > remaining ? "disabled" : ""}>Buy ${quantity}</button>`).join("")}
       </div>
     </article>`;
 }
 
 function shopBuyRow(shop, itemId, offer) {
   const item = ITEM_DEFINITIONS[itemId];
-  const ownedUnique = item.unique && Boolean(game.player.ownedItems[itemId]);
+  const expedition = activeExpeditionDestinationContext()?.expedition ?? null;
+  const currentQuantity = expedition ? destinationItemQuantity(expedition, itemId) : game.player.ownedItems[itemId] ?? 0;
+  const ownedUnique = item.unique && Boolean(currentQuantity || game.player.ownedItems[itemId]);
   const stock = game.itemShopStock[`${shop.id}:${itemId}`]
     ?? offer.stock ?? Infinity;
   const unavailable = stock <= 0;
+  const carryBlockReason = expedition ? expeditionItemPurchaseBlockReason(expedition, item) : "";
+  const blockedReason = ownedUnique
+    ? "Owned · unique equipment"
+    : unavailable
+      ? "Sold out"
+      : carryBlockReason;
   return `
-    <article class="shop-item-row ${ownedUnique || unavailable ? "is-blocked" : ""}">
+    <article class="shop-item-row ${blockedReason ? "is-blocked" : ""}">
       <div class="item-icon" aria-hidden="true">${itemIcon(item.category, item)}</div>
-      <div><strong>${item.name}</strong><span>${ownedUnique ? "Owned · unique equipment" : unavailable ? "Sold out" : `${item.description} · ${stock} available`}</span></div>
-      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${ownedUnique || unavailable ? "disabled" : ""}>${ownedUnique ? "Owned" : unavailable ? "Sold Out" : `Buy · ${offer.price}g`}</button>
+      <div><strong>${item.name}${expedition && currentQuantity > 0 ? ` · Carried ${currentQuantity}` : ""}</strong><span>${blockedReason || `${item.description} · ${stock} available`}</span></div>
+      <button class="small-button" type="button" data-action="buy-item" data-item-id="${itemId}" ${blockedReason ? "disabled" : ""}>${ownedUnique ? "Owned" : unavailable ? "Sold Out" : carryBlockReason || `Buy · ${offer.price}g`}</button>
     </article>`;
 }
 
@@ -3735,6 +3837,35 @@ function buyShopItem(itemId) {
   if (!item || !offer || !Number.isFinite(offer.price)) {
     return;
   }
+  const expedition = activeExpeditionDestinationContext()?.expedition ?? null;
+  const carryBlockReason = expeditionItemPurchaseBlockReason(expedition, item);
+  if (expedition && carryBlockReason) {
+    showToast({ title: "Purchase Unavailable", message: carryBlockReason, type: "warning" });
+    return;
+  }
+  if (expedition && MaterialRules.isMaterialId(itemId)) {
+    const stockKey = `${shop.id}:${itemId}`;
+    const stock = game.itemShopStock[stockKey] ?? offer.stock ?? Infinity;
+    if (stock <= 0 || game.player.currentGold < offer.price) {
+      showToast({
+        title: "Purchase Unavailable",
+        message: stock <= 0 ? "Sold out." : "Not enough gold.",
+        type: "warning",
+      });
+      return;
+    }
+    game.player.currentGold -= offer.price;
+    game.itemShopStock[stockKey] = stock - 1;
+    game.player.materials ??= {};
+    game.player.materials[itemId] = (game.player.materials[itemId] ?? 0) + 1;
+    const bag = MaterialRules.ensureExpeditionBag(expedition);
+    bag.secured[itemId] = (bag.secured[itemId] ?? 0) + 1;
+    showToast({ title: `Purchased ${item.name}`, message: `Added to the Expedition Material Bag · -${offer.price} gold`, type: "success" });
+    AudioManager.playSemantic("coins");
+    savePlayer();
+    refreshDestination();
+    return;
+  }
   const result = EconomyRules.buyItem(game.player, shop, game.itemShopStock, itemId, 1);
   if (!result.applied) {
     showToast({
@@ -3744,9 +3875,10 @@ function buyShopItem(itemId) {
     });
     return;
   }
+  if (expedition) expedition.carriedItems[itemId] = (expedition.carriedItems[itemId] ?? 0) + result.quantity;
   showToast({
     title: `Purchased ${item.name}`,
-    message: `-${result.goldCost} gold`,
+    message: `${expedition ? "Added to the expedition pack · " : ""}-${result.goldCost} gold`,
     type: "success",
   });
   AudioManager.playSemantic("coins");
@@ -3758,6 +3890,45 @@ function buyProvisions(quantity) {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   const shop = SHOP_DEFINITIONS[destination?.shopId];
   const offer = shop?.provisionsForSale;
+  const expedition = activeExpeditionDestinationContext()?.expedition ?? null;
+  if (expedition) {
+    const requested = Number(quantity);
+    const capacity = Number(expedition.provisionCapacity ?? ExpeditionRules.partyProvisionCapacity(
+      expedition.selectedCompanions,
+      expedition.expeditionId,
+    ));
+    const remaining = Math.max(0, capacity - Number(expedition.provisions));
+    const stock = game.provisionShopStock[shop?.id] ?? 0;
+    const totalCost = offer?.price * requested;
+    if (!offer || !Number.isInteger(requested) || requested <= 0
+      || requested > remaining || requested > stock || game.player.currentGold < totalCost) {
+      const message = remaining <= 0
+        ? "Expedition provisions are already full."
+        : requested > remaining
+          ? `Only ${remaining} provisions fit in the expedition.`
+          : game.player.currentGold < totalCost ? "Not enough gold." : "That quantity is not available.";
+      showToast({ title: "Provision Purchase Unavailable", message, type: "warning" });
+      return;
+    }
+    const result = EconomyRules.buyProvisions(game.player, shop, game.provisionShopStock, requested);
+    if (!result.applied) return;
+    game.player.provisions -= result.quantity;
+    expedition.committedProvisions ??= 0;
+    expedition.committedProvisionsRemaining ??= Math.max(0, Number(expedition.provisions) - result.quantity);
+    expedition.committedProvisions += result.quantity;
+    expedition.committedProvisionsRemaining += result.quantity;
+    expedition.provisions += result.quantity;
+    expedition.carriedProvisions = (Number(expedition.carriedProvisions) || 0) + result.quantity;
+    showToast({
+      title: `Purchased ${result.quantity} Provisions`,
+      message: `Added to the active expedition · -${result.goldCost} gold`,
+      type: "success",
+    });
+    AudioManager.playSemantic("coins");
+    savePlayer();
+    refreshDestination();
+    return;
+  }
   const result = EconomyRules.buyProvisions(game.player, shop, game.provisionShopStock, quantity);
   if (!result.applied) {
     showToast({
@@ -3783,6 +3954,10 @@ function sellShopItem(itemId) {
   const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
   const shop = SHOP_DEFINITIONS[destination?.shopId];
   const item = ITEM_DEFINITIONS[itemId];
+  if (isExpeditionDestination()) {
+    showToast({ title: "Selling Unavailable", message: "Selling is unavailable during an expedition.", type: "warning" });
+    return;
+  }
   const result = EconomyRules.sellItem(game.player, shop, itemId);
   if (!result.applied) {
     showToast({
@@ -3827,15 +4002,20 @@ function craftItem(recipeId) {
 }
 
 function cookInnRecipe(recipeId) {
-  if (game.activeDestinationId !== "inn") return;
-  beginCraftingAction(recipeId, "campfire", {
-    screen: "destination", destinationId: "inn", context: "inn",
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  if (destination?.type !== "inn") return;
+  const expedition = activeExpeditionDestinationContext()?.expedition ?? null;
+  beginCraftingAction(recipeId, destination.craftingProviderId ?? "campfire", {
+    screen: "destination",
+    destinationId: game.activeDestinationId,
+    context: expedition ? "camp" : "inn",
+    ...(expedition ? { expedition } : {}),
   });
 }
 
 function beginCraftingAction(recipeId, providerId, context = {}) {
   if (game.craftingAction || game.restAction || !providerId) return;
-  const expedition = context.expedition ?? null;
+  const expedition = context.expedition ?? activeExpeditionDestinationContext()?.expedition ?? null;
   const quote = CraftingRules.quote(game.player, recipeId, providerId, {
     ...context,
     ...(expedition ? { expedition } : {}),
@@ -3882,7 +4062,9 @@ function completeCraftingAction() {
   const stillValid = action.screen === game.screen
     && (action.screen !== "destination" || action.destinationId === game.activeDestinationId)
     && (!action.expedition || action.expedition === game.expedition)
-    && (!action.expedition || action.expedition.travelState === "camped");
+    && (!action.expedition
+      || action.expedition.travelState === "camped"
+      || Boolean(activeExpeditionDestinationContext()?.expedition === action.expedition));
   if (!stillValid) {
     showToast({ title: "Crafting Cancelled", message: "The crafting station is no longer available.", type: "warning" });
     return;
@@ -3906,8 +4088,10 @@ function completeCraftingAction() {
 }
 
 function treatInjury(targetId, itemId) {
-  if (game.activeDestinationId !== "apothecary") return;
-  const result = InjuryRules.treatWithItem(game.player, targetId, itemId);
+  const destination = DESTINATION_DEFINITIONS[game.activeDestinationId];
+  if (destination?.craftingProviderId !== "apothecary") return;
+  const expedition = activeExpeditionDestinationContext()?.expedition ?? null;
+  const result = InjuryRules.treatWithItem(game.player, targetId, itemId, expedition ? { expedition } : {});
   if (!result.applied) {
     showToast({ title: "Treatment Unavailable", message: result.reason === "item-missing" ? "That treatment is not in your inventory." : "That item does not treat this injury.", type: "warning" });
     return;
@@ -3995,9 +4179,15 @@ function chooseDialogue(choiceId) {
 }
 
 function dialogueRuntimeContext(session = game.dialogueSession) {
+  const destinationExpedition = session?.context?.type === "destination"
+    ? activeExpeditionDestinationContext()?.expedition ?? null
+    : null;
   return {
     player: game.player,
-    ...(["encounter", "expedition"].includes(session?.context?.type) ? { expedition: game.expedition } : {}),
+    ...(["encounter", "expedition"].includes(session?.context?.type) || destinationExpedition
+      ? { expedition: destinationExpedition ?? game.expedition }
+      : {}),
+    ...(destinationExpedition ? { destinationExpedition: true } : {}),
   };
 }
 
