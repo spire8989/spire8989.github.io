@@ -383,6 +383,11 @@ const IMAGE_ASSET_DEFINITIONS = Object.freeze({
     id: "encounter_the_bell_bearer",
     path: "assets/images/encounter/Bell-Bearer-4.webp",
     category: "encounter"
+  },
+  encounter_the_thornbound_crossing: {
+    id: "encounter_the_thornbound_crossing",
+    path: "assets/images/encounter/ThornboundCrossing3.webp",
+    category: "encounter"
   }
 });
 

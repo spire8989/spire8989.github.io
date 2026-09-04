@@ -1287,7 +1287,8 @@ const COMPANION_DEFINITIONS = Object.freeze({
         fps: 20
       }
     },
-    visualScale: 1.6
+    visualScale: 1.6,
+    materialBagCapacityBonus: 5
   },
   llamrei: {
     id: "llamrei",

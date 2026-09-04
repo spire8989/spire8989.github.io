@@ -33,7 +33,7 @@ const STARTING_PLAYER_STATE = Object.freeze({
     fresh_herbs: 1,
     cloth: 2
   },
-  learnedRecipes: ["bandages", "repair_kit", "roasted_meat", "foraged_meal"],
+  learnedRecipes: ["bandages", "repair_kit", "roasted_meat", "royal_feast"],
   unlockedCompanions: ["sir_kay"],
   selectedCompanions: ["sir_kay"],
   selectedCompanion: "sir_kay",

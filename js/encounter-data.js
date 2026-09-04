@@ -169,7 +169,25 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         ]
       }
     },
-    musicTrackId: null
+    musicTrackId: null,
+    visualAssetId: "encounter_the_thornbound_crossing",
+    encounterLayout: {
+      arthur: {
+        x: 0.38789069652557373,
+        y: 0.9222222434149848,
+        facing: "right"
+      },
+      companion2: {
+        x: 0.22382819652557373,
+        y: 0.986111217074924,
+        facing: "right"
+      },
+      companion1: {
+        x: 0.6160156726837158,
+        y: 0.9027778837415907,
+        facing: "left"
+      }
+    }
   },
   verdant_altar: {
     id: "verdant_altar",
@@ -805,7 +823,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
     pathIds: ["old_forest_road"],
     directions: ["outbound"],
     weight: 2,
-    minimumDistance: 115,
+    minimumDistance: 100,
     maximumDistance: 180,
     tags: ["water", "knowledge", "fishing", "non-milestone"],
     repeatable: false,
@@ -817,33 +835,95 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
           {
             id: "offer_honey",
             label: "Offer Honey for the Lesson",
-            requirements: [{ type: "availableExpeditionItem", itemId: "honey", quantity: 1, unavailable: "locked", lockedLabel: "Requires Honey" }],
-            costs: [{ type: "consumeExpeditionItem", itemId: "honey", quantity: 1 }],
-            outcomes: [{ type: "startMinigame", minigameId: "fishing_teacher_tutorial", completionEffects: [{ type: "learnKnowledge", knowledgeId: "fishing" }] }],
-            endEncounter: true,
+            requirements: [
+              {
+                type: "availableExpeditionItem",
+                itemId: "honey",
+                quantity: 1,
+                unavailable: "locked",
+                lockedLabel: "Requires Honey"
+              }
+            ],
+            costs: [
+              {
+                type: "consumeExpeditionItem",
+                itemId: "honey",
+                quantity: 1
+              }
+            ],
+            outcomes: [
+              {
+                type: "startMinigame",
+                minigameId: "fishing_teacher_tutorial",
+                completionEffects: [
+                  {
+                    type: "learnKnowledge",
+                    knowledgeId: "fishing"
+                  }
+                ]
+              }
+            ],
+            endEncounter: true
           },
           {
             id: "show_hunting_supplies",
             label: "Show Your Hunting Supplies",
-            requirements: [{ type: "carriedItem", itemId: "hunting_supplies", quantity: 1, unavailable: "locked", lockedLabel: "Requires Hunting Supplies" }],
-            outcomes: [{ type: "startMinigame", minigameId: "fishing_teacher_tutorial", completionEffects: [{ type: "learnKnowledge", knowledgeId: "fishing" }] }],
-            endEncounter: true,
+            requirements: [
+              {
+                type: "carriedItem",
+                itemId: "hunting_supplies",
+                quantity: 1,
+                unavailable: "locked",
+                lockedLabel: "Requires Hunting Supplies"
+              }
+            ],
+            outcomes: [
+              {
+                type: "startMinigame",
+                minigameId: "fishing_teacher_tutorial",
+                completionEffects: [
+                  {
+                    type: "learnKnowledge",
+                    knowledgeId: "fishing"
+                  }
+                ]
+              }
+            ],
+            endEncounter: true
           },
           {
             id: "ask_with_woodcraft",
             label: "Ask with Woodcraft",
-            requirements: [{ type: "knowledge", knowledgeId: "woodcraft", unavailable: "locked", lockedLabel: "Requires Woodcraft" }],
-            outcomes: [{ type: "startMinigame", minigameId: "fishing_teacher_tutorial", completionEffects: [{ type: "learnKnowledge", knowledgeId: "fishing" }] }],
-            endEncounter: true,
+            requirements: [
+              {
+                type: "knowledge",
+                knowledgeId: "woodcraft",
+                unavailable: "locked",
+                lockedLabel: "Requires Woodcraft"
+              }
+            ],
+            outcomes: [
+              {
+                type: "startMinigame",
+                minigameId: "fishing_teacher_tutorial",
+                completionEffects: [
+                  {
+                    type: "learnKnowledge",
+                    knowledgeId: "fishing"
+                  }
+                ]
+              }
+            ],
+            endEncounter: true
           },
           {
             id: "pass_by_fisher",
             label: "Thank the Fisher and Continue",
             resultText: "The fisher returns to the stream as the company follows the old road.",
-            endEncounter: true,
-          },
-        ],
-      },
+            endEncounter: true
+          }
+        ]
+      }
     },
     visualAssetId: "encounter_woodland_stream",
     encounterLayout: {
@@ -863,7 +943,7 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
         y: 0.9587673611111112,
         facing: "right"
       }
-    },
+    }
   },
   woodland_stream: {
     id: "woodland_stream",
@@ -2430,6 +2510,30 @@ const ENCOUNTER_DEFINITIONS = Object.freeze({
       start: {
         text: "The remaining boards creak over the open ravine.",
         choices: [
+          {
+            id: "fish_the_bridge",
+            label: "Fish Off of the Bridge",
+            endEncounter: false,
+            requirements: [
+              {
+                type: "knowledge",
+                knowledgeId: "fishing",
+                lockedLabel: "Requires Fishing"
+              },
+              {
+                type: "notEncounterFlag",
+                flag: "fishing_used",
+                lockedLabel: "Already Fished Here"
+              }
+            ],
+            outcomes: [
+              {
+                type: "startMinigame",
+                minigameId: "woodland_stream_fishing",
+                markEncounterFlag: "fishing_used"
+              }
+            ]
+          },
           {
             id: "cross_carefully",
             label: "Cross Carefully",

@@ -26,9 +26,13 @@ const EncounterRequirements = Object.freeze({
         return Boolean(expedition)
           && Object.values(expedition.selectedEquipment ?? {}).includes(requirement.itemId);
       case "ownsItem":
-        return Boolean(player?.ownedItems?.[requirement.itemId]);
+        return context.destinationExpedition
+          ? expeditionItemQuantity(expedition, requirement.itemId) >= (requirement.quantity ?? 1)
+          : Boolean(player?.ownedItems?.[requirement.itemId]);
       case "notOwnsItem":
-        return !player?.ownedItems?.[requirement.itemId];
+        return context.destinationExpedition
+          ? expeditionItemQuantity(expedition, requirement.itemId) < (requirement.quantity ?? 1)
+          : !player?.ownedItems?.[requirement.itemId];
       case "companion":
         return Boolean(expedition)
           && (expedition.selectedCompanions ?? [expedition.selectedCompanion]).includes(requirement.companionId);

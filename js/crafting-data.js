@@ -79,31 +79,44 @@ const RECIPE_DEFINITIONS = Object.freeze({
     ]),
     output: Object.freeze({ itemId: "repair_kit", quantity: 1 }), goldCost: 2, rarity: "uncommon",
   }),
-  roasted_meat: Object.freeze({
-    id: "roasted_meat", name: "Roasted Meat", description: "Cook a plain but filling meal over the fire.",
-    craftingProvider: "campfire", starter: true,
-    ingredients: Object.freeze([
-      Object.freeze({ type: "item", id: "raw_meat", quantity: 1 }),
-    ]),
-    output: Object.freeze({ provisions: 3 }), goldCost: 0, rarity: "common",
-  }),
-  cooked_fish: Object.freeze({
-    id: "cooked_fish", name: "Cooked Fish", description: "Roast a freshly caught fish over the campfire.",
-    craftingProvider: "campfire", starter: true,
-    ingredients: Object.freeze([
-      Object.freeze({ type: "item", id: "raw_fish", quantity: 1 }),
-    ]),
-    output: Object.freeze({ provisions: 4 }), goldCost: 0, rarity: "common",
-  }),
-  foraged_meal: Object.freeze({
-    id: "foraged_meal", name: "Foraged Meal", description: "Combine berries and mushrooms into a simple woodland meal.",
-    craftingProvider: "campfire", starter: true,
-    ingredients: Object.freeze([
-      Object.freeze({ type: "item", id: "wild_berries", quantity: 1 }),
-      Object.freeze({ type: "item", id: "mushrooms", quantity: 1 }),
-    ]),
-    output: Object.freeze({ provisions: 5 }), goldCost: 0, rarity: "common",
-  }),
+  roasted_meat: {
+    id: "roasted_meat",
+    name: "Roasted Meat",
+    description: "Cook a plain but filling meal over the fire.",
+    craftingProvider: "campfire",
+    starter: true,
+    ingredients: [
+      {
+        type: "item",
+        id: "raw_meat",
+        quantity: 1
+      }
+    ],
+    output: {
+      provisions: 3
+    },
+    goldCost: 0,
+    rarity: "common"
+  },
+  cooked_fish: {
+    id: "cooked_fish",
+    name: "Cooked Fish",
+    description: "Roast a freshly caught fish over the campfire.",
+    craftingProvider: "campfire",
+    starter: false,
+    ingredients: [
+      {
+        type: "item",
+        id: "raw_fish",
+        quantity: 1
+      }
+    ],
+    output: {
+      provisions: 3
+    },
+    goldCost: 0,
+    rarity: "common"
+  },
   hunters_stew: Object.freeze({
     id: "hunters_stew", name: "Hunter's Stew", description: "A careful use of meat, mushrooms, and herbs yields the best meal.",
     craftingProvider: "campfire", starter: true,
@@ -113,15 +126,6 @@ const RECIPE_DEFINITIONS = Object.freeze({
       Object.freeze({ type: "item", id: "fresh_herbs", quantity: 1 }),
     ]),
     output: Object.freeze({ provisions: 8 }), goldCost: 0, rarity: "uncommon",
-  }),
-  honeyed_berries: Object.freeze({
-    id: "honeyed_berries", name: "Honeyed Berries", description: "Sweeten wild berries with a little golden honey.",
-    craftingProvider: "campfire", starter: true,
-    ingredients: Object.freeze([
-      Object.freeze({ type: "item", id: "wild_berries", quantity: 1 }),
-      Object.freeze({ type: "item", id: "honey", quantity: 1 }),
-    ]),
-    output: Object.freeze({ provisions: 6 }), goldCost: 0, rarity: "common",
   }),
   forestwarden_stew: Object.freeze({
     id: "forestwarden_stew", name: "Forestwarden Stew", description: "A deep stew of meat, mushrooms, and rare herbs that keeps its warmth over a long march.",
@@ -270,5 +274,44 @@ const RECIPE_DEFINITIONS = Object.freeze({
     goldCost: 10,
     rarity: "rare",
     craftingDurationMs: 3.5
-  }
-});
+  },
+  royal_feast: {
+    id: "royal_feast",
+    name: "Royal Feast",
+    description: "A feast foraged from the depths of the jungle, truly fit for a king!",
+    craftingProvider: "campfire",
+    ingredients: [
+      {
+        type: "item",
+        id: "fresh_herbs",
+        quantity: 2
+      },
+      {
+        type: "item",
+        id: "raw_meat",
+        quantity: 1
+      },
+      {
+        type: "item",
+        id: "raw_fish",
+        quantity: 2
+      },
+      {
+        type: "item",
+        id: "mushrooms",
+        quantity: 1
+      },
+      {
+        type: "item",
+        id: "wild_berries",
+        quantity: 1
+      }
+    ],
+    output: {
+      provisions: 20
+    },
+    goldCost: 0,
+    rarity: "legendary",
+    craftingDurationMs: 4000,
+    starter: true
+  }});
